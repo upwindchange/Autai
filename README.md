@@ -1,42 +1,6 @@
-# electron-vite-react
+# Electron + React + Vite Desktop Application
 
-[![awesome-vite](https://awesome.re/mentioned-badge.svg)](https://github.com/vitejs/awesome-vite)
-![GitHub stars](https://img.shields.io/github/stars/caoxiemeihao/vite-react-electron?color=fa6470)
-![GitHub issues](https://img.shields.io/github/issues/caoxiemeihao/vite-react-electron?color=d8b22d)
-![GitHub license](https://img.shields.io/github/license/caoxiemeihao/vite-react-electron)
-[![Required Node.JS >= 14.18.0 || >=16.0.0](https://img.shields.io/static/v1?label=node&message=14.18.0%20||%20%3E=16.0.0&logo=node.js&color=3f893e)](https://nodejs.org/about/releases)
-
-English | [简体中文](README.zh-CN.md)
-
-## 👀 Overview
-
-📦 Ready out of the box  
-🎯 Based on the official [template-react-ts](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts), project structure will be familiar to you  
-🌱 Easily extendable and customizable  
-💪 Supports Node.js API in the renderer process  
-🔩 Supports C/C++ native addons  
-🐞 Debugger configuration included  
-🖥 Easy to implement multiple windows  
-
-## 🛫 Quick Setup
-
-```sh
-# clone the project
-git clone https://github.com/electron-vite/electron-vite-react.git
-
-# enter the project directory
-cd electron-vite-react
-
-# install dependency
-npm install
-
-# develop
-npm run dev
-```
-
-## 🐞 Debug
-
-![electron-vite-react-debug.gif](/electron-vite-react-debug.gif)
+This project combines Electron (for desktop capabilities), React (for UI components), and Vite (for tooling). Below is a detailed explanation of how it works:
 
 ## 📂 Directory structure
 
@@ -57,35 +21,104 @@ Familiar React application structure, just with `electron` folder on the top :wi
 └── src                                      Renderer source code, your React application
 ```
 
-<!--
-## 🚨 Be aware
+## 🧩 Core Technologies
 
-This template integrates Node.js API to the renderer process by default. If you want to follow **Electron Security Concerns** you might want to disable this feature. You will have to expose needed API by yourself.  
+### 1. Electron
 
-To get started, remove the option as shown below. This will [modify the Vite configuration and disable this feature](https://github.com/electron-vite/vite-plugin-electron-renderer#config-presets-opinionated).
+- Creates cross-platform desktop apps using web technologies
+- **Main Process**: Node.js environment that manages app lifecycle ([`electron/main/index.ts`](electron/main/index.ts))
+- **Renderer Process**: Chromium-based window displaying your web app (`src/`)
+- **Preload Scripts**: Bridge between main/renderer processes ([`electron/preload/index.ts`](electron/preload/index.ts))
 
-```diff
-# vite.config.ts
+### 2. React
 
-export default {
-  plugins: [
-    ...
--   // Use Node.js API in the Renderer-process
--   renderer({
--     nodeIntegration: true,
--   }),
-    ...
-  ],
-}
+- Component-based UI library similar to Svelte
+- Components live in `src/` directory:
+  - [`App.tsx`](src/App.tsx) - Root component
+  - [`main.tsx`](src/main.tsx) - Entry point that mounts React to DOM
+
+### 3. Vite
+
+- Modern frontend build tool with fast HMR (Hot Module Replacement)
+- Configurations:
+  - [`vite.config.ts`](vite.config.ts) - Build configuration
+  - [`tsconfig.json`](tsconfig.json) - TypeScript settings
+
+## ⚙️ How It Works
+
+### Startup Sequence
+
+1. **Main Process** starts ([`electron/main/index.ts`](electron/main/index.ts))
+
+   ```typescript
+   app.whenReady().then(() => {
+     createWindow() // Creates browser window
+   })
+   ```
+  
+2. **Preload Script** executes ([`electron/preload/index.ts`](electron/preload/index.ts))
+   - Exposes Node.js APIs safely to renderer:
+
+   ```typescript
+   contextBridge.exposeInMainWorld('ipcRenderer', ipcRenderer)
+   ```
+
+3. **Renderer Process** loads (`dist/index.html` → [`src/main.tsx`](src/main.tsx))
+
+   ```tsx
+   ReactDOM.createRoot(document.getElementById('root')).render(<App />)
+   ```
+
+### Component Architecture (React)
+
+- Similar to Svelte's component model:
+  - `App.tsx` contains main UI
+  - Components in `src/components/`
+  - State management via `useState` hook
+
+### Build Process
+
+1. `npm run dev` triggers:
+   - Vite dev server for renderer (HMR enabled)
+   - Electron main process in watch mode
+2. Production build (`npm run build`):
+   - Outputs to `dist/` (renderer) and `dist-electron/` (main/preload)
+
+## 🔗 IPC Communication
+
+Example from [`src/demos/ipc.ts`](src/demos/ipc.ts):
+
+```ts
+// Renderer → Main
+window.ipcRenderer.send('message', 'Hello from React!')
+
+// Main → Renderer
+ipcMain.on('message', (event, msg) => {
+  event.reply('reply', 'Message received!')
+})
 ```
--->
 
-## 🔧 Additional features
+## 🖼️ Static Assets
 
-1. electron-updater 👉 [see docs](src/components/update/README.md)
-1. playwright
+- Place in `public/` directory (e.g., `public/node.svg`)
+- Reference directly in JSX:
 
-## ❔ FAQ
+  ```tsx
+  <img src="./node.svg" />
+  ```
 
-- [C/C++ addons, Node.js modules - Pre-Bundling](https://github.com/electron-vite/vite-plugin-electron-renderer#dependency-pre-bundling)
-- [dependencies vs devDependencies](https://github.com/electron-vite/vite-plugin-electron-renderer#dependencies-vs-devdependencies)
+## 🚀 Running the Project
+
+```bash
+npm install    # Install dependencies
+npm run dev    # Start dev environment
+npm run build  # Create production build
+```
+
+## 🔍 Key Files
+
+- [`electron/main/index.ts`](electron/main/index.ts) - Main process
+- [`electron/preload/index.ts`](electron/preload/index.ts) - Preload script
+- [`src/App.tsx`](src/App.tsx) - Root component
+- [`src/main.tsx`](src/main.tsx) - Renderer entry point
+- [`vite.config.ts`](vite.config.ts) - Build configuration
