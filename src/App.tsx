@@ -17,7 +17,7 @@ import {
 
 function App() {
   return (
-    <SidebarProvider>
+    <SidebarProvider className='w-dvw overflow-y-scroll'>
       <SidebarLeft />
       <SidebarInset>
         <header className="bg-background sticky top-0 flex h-14 shrink-0 items-center gap-2">
