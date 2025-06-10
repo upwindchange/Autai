@@ -8,6 +8,7 @@ import {
   SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarSeparator,
 } from "@/components/ui/sidebar"
 
 export function NavSecondary({
@@ -24,6 +25,7 @@ export function NavSecondary({
   return (
     <SidebarGroup {...props}>
       <SidebarGroupContent>
+        <SidebarSeparator className="mx-0" />
         <SidebarMenu>
           {items.map((item) => (
             <SidebarMenuItem key={item.title}>
