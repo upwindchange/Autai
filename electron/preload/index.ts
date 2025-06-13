@@ -18,9 +18,16 @@ contextBridge.exposeInMainWorld('ipcRenderer', {
     const [channel, ...omit] = args
     return ipcRenderer.invoke(channel, ...omit)
   },
+})
 
-  // You can expose other APTs you need here.
-  // ...
+// Expose view management APIs
+contextBridge.exposeInMainWorld('electronView', {
+  createView: (options: any) => ipcRenderer.invoke('create-view', options),
+  setViewBounds: (viewId: number, bounds: Electron.Rectangle) =>
+    ipcRenderer.invoke('set-view-bounds', viewId, bounds),
+  loadViewUrl: (viewId: number, url: string) =>
+    ipcRenderer.invoke('load-view-url', viewId, url),
+  removeView: (viewId: number) => ipcRenderer.invoke('remove-view', viewId)
 })
 
 // --------- Preload scripts loading ---------
