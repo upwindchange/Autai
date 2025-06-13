@@ -237,4 +237,9 @@ code {
   body {
     @apply bg-background text-foreground;
   }
+  
+  /* Override react-resizable-panels overflow behavior */
+  [data-slot="resizable-panel"] {
+    overflow: auto !important;
+  }
 }

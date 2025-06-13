@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain } from 'electron'
+import { app, BrowserWindow, WebContentsView, shell, ipcMain } from 'electron'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
@@ -40,6 +40,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null
+const views = new Map<number, WebContentsView>() // Store views by ID
 const preload = path.join(__dirname, '../preload/index.mjs')
 const indexHtml = path.join(RENDERER_DIST, 'index.html')
 
@@ -55,6 +56,10 @@ async function createWindow() {
       // Consider using contextBridge.exposeInMainWorld
       // Read more on https://www.electronjs.org/docs/latest/tutorial/context-isolation
       // contextIsolation: false,
+      // Enable context isolation for security
+      contextIsolation: true,
+      // Enable webview tag support
+      webviewTag: true,
     },
   })
 
@@ -66,12 +71,49 @@ async function createWindow() {
     win.loadFile(indexHtml)
   }
 
-  // Test actively push message to the Electron-Renderer
-  win.webContents.on('did-finish-load', () => {
-    win?.webContents.send('main-process-message', new Date().toLocaleString())
+  // Handle view creation requests
+  ipcMain.handle('create-view', async (_, options) => {
+    if (!win) throw new Error('Main window not available')
+    
+    const view = new WebContentsView({
+      webPreferences: {
+        ...options.webPreferences,
+        contextIsolation: true,
+        nodeIntegration: false,
+      }
+    })
+
+    view.setBackgroundColor("#00000000");
+    
+    const viewId = Date.now() // Unique ID
+    views.set(viewId, view)
+    win.contentView.addChildView(view)
+    return viewId
   })
 
-  // Make all links open with the browser, not with the application
+  // Handle view bounds updates
+  ipcMain.handle('set-view-bounds', async (_, viewId, bounds) => {
+    const view = views.get(viewId)
+    if (!view) throw new Error(`View not found: ${viewId}`)
+    view.setBounds(bounds)
+  })
+
+  // Handle URL loading
+  ipcMain.handle('load-view-url', async (_, viewId, url) => {
+    const view = views.get(viewId)
+    if (!view) throw new Error(`View not found: ${viewId}`)
+    await view.webContents.loadURL(url)
+  })
+
+  // Handle view removal
+  ipcMain.handle('remove-view', async (_, viewId) => {
+    const view = views.get(viewId)
+    if (!view) throw new Error(`View not found: ${viewId}`)
+    if (win) win.contentView.removeChildView(view)
+    views.delete(viewId)
+  })
+
+  // Make all links open with the browser
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('https:')) shell.openExternal(url)
     return { action: 'deny' }
