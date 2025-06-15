@@ -24,58 +24,67 @@ function App() {
   const viewIdRef = useRef<number | null>(null);
 
   useEffect(() => {
+    console.log("Running useEffect for view creation");
     const container = viewContainerRef.current;
     if (!container) return;
 
     const createView = async () => {
       try {
-        // Create new view
-        const viewId = await window.electronView.createView({
+        console.log("Creating new WebContentsView");
+        const viewId = await window.ipcRenderer.invoke("view:create", {
           webPreferences: {},
         });
         viewIdRef.current = viewId;
+        console.log(`Created view with ID: ${viewId}`);
+
+        const updateBounds = () => {
+          const rect = container.getBoundingClientRect();
+          return {
+            x: Math.round(rect.x),
+            y: Math.round(rect.y),
+            width: Math.round(rect.width),
+            height: Math.round(rect.height),
+          };
+        };
 
         // Set initial bounds
-        const rect = container.getBoundingClientRect();
-        await window.electronView.setViewBounds(viewId, {
-          x: Math.round(rect.x),
-          y: Math.round(rect.y),
-          width: Math.round(rect.width),
-          height: Math.round(rect.height),
-        });
+        await window.ipcRenderer.invoke(
+          "view:setBounds",
+          viewId,
+          updateBounds()
+        );
+        console.log("Set initial bounds for view");
 
-        // Load URL
-        await window.electronView.loadViewUrl(viewId, "https://electronjs.org");
+        // Load URL using IPC
+        await window.ipcRenderer.invoke(
+          "nav:loadURL",
+          viewId,
+          "https://electronjs.org"
+        );
+        console.log("Loaded URL in view");
+
+        // Setup resize observer
+        const resizeObserver = new ResizeObserver(() => {
+          window.ipcRenderer.invoke("view:setBounds", viewId, updateBounds());
+        });
+        resizeObserver.observe(container);
+
+        return () => {
+          console.log("Running view cleanup");
+          resizeObserver.disconnect();
+          window.ipcRenderer.invoke("view:remove", viewId);
+          console.log(`Removed view with ID: ${viewId}`);
+        };
       } catch (error) {
         console.error("Failed to create view:", error);
       }
     };
 
-    createView();
-
-    // Handle resize events
-    const resizeObserver = new ResizeObserver(() => {
-      if (viewIdRef.current === null) return;
-
-      const rect = container.getBoundingClientRect();
-      window.electronView.setViewBounds(viewIdRef.current, {
-        x: Math.round(rect.x),
-        y: Math.round(rect.y),
-        width: Math.round(rect.width),
-        height: Math.round(rect.height),
-      });
-    });
-
-    resizeObserver.observe(container);
+    const viewCleanup = createView();
 
     return () => {
-      resizeObserver.disconnect();
-      if (viewIdRef.current !== null) {
-        const electronView = (window as any).electronView;
-        if (electronView) {
-          electronView.removeView(viewIdRef.current);
-        }
-      }
+      console.log("Running useEffect cleanup");
+      viewCleanup.then((cleanupFn) => cleanupFn?.());
     };
   }, []);
 
