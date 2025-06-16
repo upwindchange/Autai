@@ -1,4 +1,5 @@
 import { app, BrowserWindow, WebContentsView, shell, ipcMain } from "electron";
+import { agentService } from "./agent";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -180,6 +181,11 @@ async function waitForReadyState(view: WebContentsView, targetState: string) {
 
   // Auto update
   update(win);
+
+  // Add new handler for GenAI messages
+  ipcMain.handle("genai:send", async (_, message: string) => {
+    return agentService.processMessage(message);
+  });
 }
 
 app.whenReady().then(createWindow);
