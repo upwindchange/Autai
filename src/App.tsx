@@ -18,6 +18,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import GenAI from "@/components/genai/genai";
 
 function App() {
   const viewContainerRef = useRef<HTMLDivElement>(null);
@@ -127,7 +128,7 @@ function App() {
           maxSize={75}
           className="h-dvh sticky top-0"
         >
-          <div>three</div>
+          <GenAI />
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
