@@ -129,11 +129,36 @@ async function createWindow() {
     return view.webContents.navigationHistory.canGoForward();
   });
 
-  ipcMain.handle("nav:loadURL", async (_, viewId, url) => {
-    const view = views.get(viewId);
-    if (!view) throw new Error(`View not found: ${viewId}`);
-    return view.webContents.loadURL(url);
-  });
+ipcMain.handle("nav:loadURL", async (_, viewId, url) => {
+  const view = views.get(viewId);
+  if (!view) throw new Error(`View not found: ${viewId}`);
+
+  try {
+    await view.webContents.loadURL(url);
+    await waitForReadyState(view, 'complete');
+    const html = await view.webContents.executeJavaScript(
+      "document.documentElement.outerHTML"
+    );
+    return html;
+  } catch (error) {
+    console.error("Failed to load URL or get HTML:", error);
+    throw error;
+  }
+});
+
+async function waitForReadyState(view: WebContentsView, targetState: string) {
+  while (true) {
+    try {
+      const readyState = await view.webContents.executeJavaScript('document.readyState');
+      if (readyState === targetState) {
+        break;
+      }
+    } catch (error) {
+      console.error('Error checking readyState:', error);
+    }
+    await new Promise(resolve => setTimeout(resolve, 100)); // wait 100ms
+  }
+}
 
   ipcMain.handle("nav:getCurrentURL", async (_, viewId) => {
     const view = views.get(viewId);
