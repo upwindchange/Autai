@@ -7,6 +7,7 @@ import {
   MessageCircleQuestion,
   Settings2,
   Trash2,
+  type LucideIcon,
 } from "lucide-react"
 
 import { NavSecondary } from "@/components/nav-secondary"
@@ -17,143 +18,54 @@ import {
   SidebarHeader,
 } from "@/components/ui/sidebar"
 
-// This is sample data.
-const data = {
-  navSecondary: [
-    {
-      title: "Calendar",
-      url: "#",
-      icon: Calendar,
-    },
-    {
-      title: "Settings",
-      url: "#",
-      icon: Settings2,
-    },
-    {
-      title: "Templates",
-      url: "#",
-      icon: Blocks,
-    },
-    {
-      title: "Trash",
-      url: "#",
-      icon: Trash2,
-    },
-    {
-      title: "Help",
-      url: "#",
-      icon: MessageCircleQuestion,
-    },
-  ],
-    tasks: [
-    {
-      title: "Personal Life Management",
-      favicon: "🏠",
-      pages: [
-        {
-          title: "Daily Journal & Reflection",
-          url: "https://example.com/journal",
-          favicon: "📔",
-        },
-        {
-          title: "Health & Wellness Tracker",
-          url: "https://example.com/health",
-          favicon: "🍏",
-        },
-        {
-          title: "Personal Growth & Learning Goals",
-          url: "https://example.com/growth",
-          favicon: "🌟",
-        },
-      ],
-    },
-    {
-      title: "Professional Development",
-      favicon: "💼",
-      pages: [
-        {
-          title: "Career Objectives & Milestones",
-          url: "https://example.com/career",
-          favicon: "🎯",
-        },
-        {
-          title: "Skill Acquisition & Training Log",
-          url: "https://example.com/skills",
-          favicon: "🧠",
-        },
-        {
-          title: "Networking Contacts & Events",
-          url: "https://example.com/networking",
-          favicon: "🤝",
-        },
-      ],
-    },
-    {
-      title: "Creative Projects",
-      favicon: "🎨",
-      pages: [
-        {
-          title: "Writing Ideas & Story Outlines",
-          url: "https://example.com/writing",
-          favicon: "✍️",
-        },
-        {
-          title: "Art & Design Portfolio",
-          url: "https://example.com/portfolio",
-          favicon: "🖼️",
-        },
-        {
-          title: "Music Composition & Practice Log",
-          url: "https://example.com/music",
-          favicon: "🎵",
-        },
-      ],
-    },
-    {
-      title: "Home Management",
-      favicon: "🏡",
-      pages: [
-        {
-          title: "Household Budget & Expense Tracking",
-          url: "https://example.com/budget",
-          favicon: "💰",
-        },
-        {
-          title: "Home Maintenance Schedule & Tasks",
-          url: "https://example.com/maintenance",
-          favicon: "🔧",
-        },
-        {
-          title: "Family Calendar & Event Planning",
-          url: "https://example.com/calendar",
-          favicon: "📅",
-        },
-      ],
-    },
-    {
-      title: "Travel & Adventure",
-      favicon: "🧳",
-      pages: [
-        {
-          title: "Trip Planning & Itineraries",
-          url: "https://example.com/trip-planning",
-          favicon: "🗺️",
-        },
-        {
-          title: "Travel Bucket List & Inspiration",
-          url: "https://example.com/bucket-list",
-          favicon: "🌎",
-        },
-        {
-          title: "Travel Journal & Photo Gallery",
-          url: "https://example.com/travel-journal",
-          favicon: "📸",
-        },
-      ],
-    },
-  ],
+// Define interfaces matching component props
+interface NavSecondaryItem {
+  title: string;
+  url: string;
+  icon: LucideIcon;
+  badge?: React.ReactNode;
 }
+
+interface TaskItem {
+  title: string;
+  favicon: React.ReactNode;
+  pages: PageItem[];
+}
+
+interface PageItem {
+  title: string;
+  url: string;
+  favicon: React.ReactNode;
+}
+
+// Initialize navSecondary with current data
+const initialNavSecondary: NavSecondaryItem[] = [
+  {
+    title: "Calendar",
+    url: "#",
+    icon: Calendar,
+  },
+  {
+    title: "Settings",
+    url: "#",
+    icon: Settings2,
+  },
+  {
+    title: "Templates",
+    url: "#",
+    icon: Blocks,
+  },
+  {
+    title: "Trash",
+    url: "#",
+    icon: Trash2,
+  },
+  {
+    title: "Help",
+    url: "#",
+    icon: MessageCircleQuestion,
+  },
+]
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -164,7 +76,7 @@ export function SidebarLeft({
 }: React.ComponentProps<typeof Sidebar> & {
   onPageSelect?: (taskIndex: number, pageIndex: number) => void;
 }) {
-  const [tasks, setTasks] = useState(data.tasks)
+  const [tasks, setTasks] = useState<TaskItem[]>([])
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
 
   const handleTaskExpand = (index: number | null) => {
@@ -191,7 +103,13 @@ export function SidebarLeft({
     setTasks(prev => [...prev, {
       title: "New Task",
       favicon: "📋",
-      pages: []
+      pages: [
+        {
+          title: "LinkedIn",
+          url: "https://www.linkedin.com",
+          favicon: "🔗",
+        }
+      ]
     }])
     setExpandedIndex(newIndex)
   }
@@ -215,7 +133,7 @@ export function SidebarLeft({
           onTaskDelete={handleTaskDelete}
           onPageSelect={onPageSelect}
         />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        <NavSecondary items={initialNavSecondary} className="mt-auto" />
       </SidebarContent>
     </Sidebar>
   )
