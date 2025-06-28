@@ -162,10 +162,19 @@ export function SidebarLeft({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
   const [tasks, setTasks] = useState(data.tasks)
-  const [expandedIndex, setExpandedIndex] = useState<number | null>(0)
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
 
-  const handleTaskExpand = (index: number) => {
+  const handleTaskExpand = (index: number | null) => {
     setExpandedIndex(index)
+  }
+
+  const handleTaskDelete = (index: number) => {
+    setTasks(prev => prev.filter((_, i) => i !== index))
+    if (expandedIndex === index) {
+      setExpandedIndex(null)
+    } else if (expandedIndex !== null && expandedIndex > index) {
+      setExpandedIndex(expandedIndex - 1)
+    }
   }
 
   const handleAddTask = () => {
@@ -194,6 +203,7 @@ export function SidebarLeft({
           tasks={tasks}
           expandedIndex={expandedIndex}
           onExpandChange={handleTaskExpand}
+          onTaskDelete={handleTaskDelete}
         />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
