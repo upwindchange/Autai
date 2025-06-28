@@ -10,7 +10,7 @@ import {
 } from "lucide-react"
 
 import { NavSecondary } from "@/components/nav-secondary"
-import { NavWorkspaces } from "@/components/nav-workspaces"
+import { NavTasks } from "@/components/nav-tasks"
 import {
   Sidebar,
   SidebarContent,
@@ -46,7 +46,7 @@ const data = {
       icon: MessageCircleQuestion,
     },
   ],
-    workspaces: [
+    tasks: [
     {
       name: "Personal Life Management",
       emoji: "🏠",
@@ -155,15 +155,35 @@ const data = {
   ],
 }
 
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+
 export function SidebarLeft({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
+  const [tasks, setTasks] = useState(data.tasks)
+
+  const handleAddTask = () => {
+    setTasks(prev => [...prev, {
+      name: "New Task",
+      emoji: "📋",
+      pages: []
+    }])
+  }
+
   return (
     <Sidebar className="border-r-0" {...props}>
       <SidebarHeader>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleAddTask}
+        >
+          + Create New Task
+        </Button>
       </SidebarHeader>
       <SidebarContent>
-        <NavWorkspaces workspaces={data.workspaces} />
+        <NavTasks tasks={tasks} />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
     </Sidebar>
