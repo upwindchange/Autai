@@ -41,7 +41,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null;
-const views = new Map<number, WebContentsView>(); // Store views by ID
+const views = new Map<string, WebContentsView>(); // Store views by composite key (taskIndex + pageIndex)
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
 
@@ -73,8 +73,15 @@ async function createWindow() {
     win.loadFile(indexHtml);
   }
 
-  ipcMain.handle("view:create", async (_, options) => {
+  ipcMain.handle("view:create", async (_, key: string, options) => {
     if (!win) throw new Error("Main window not available");
+
+    // Remove existing view if any
+    const existingView = views.get(key);
+    if (existingView) {
+      win.contentView.removeChildView(existingView);
+      views.delete(key);
+    }
 
     const view = new WebContentsView({
       webPreferences: {
@@ -86,53 +93,62 @@ async function createWindow() {
 
     view.setBackgroundColor("#00000000");
 
-    const viewId = Date.now(); // Unique ID
-    views.set(viewId, view);
+    views.set(key, view);
     win.contentView.addChildView(view);
-    return viewId;
+    return key;
   });
 
-  ipcMain.handle("view:setBounds", async (_, viewId, bounds) => {
-    const view = views.get(viewId);
-    if (!view) throw new Error(`View not found: ${viewId}`);
+  ipcMain.handle("view:setBounds", async (_, key, bounds) => {
+    const view = views.get(key);
+    if (!view) throw new Error(`View not found: ${key}`);
+    
+    // Validate bounds structure
+    if (!bounds || typeof bounds !== 'object' ||
+        typeof bounds.x !== 'number' ||
+        typeof bounds.y !== 'number' ||
+        typeof bounds.width !== 'number' ||
+        typeof bounds.height !== 'number') {
+      throw new TypeError(`Invalid bounds format: ${JSON.stringify(bounds)}`);
+    }
+    
     view.setBounds(bounds);
   });
 
-  ipcMain.handle("view:remove", async (_, viewId) => {
-    const view = views.get(viewId);
-    if (!view) throw new Error(`View not found: ${viewId}`);
+  ipcMain.handle("view:remove", async (_, key) => {
+    const view = views.get(key);
+    if (!view) throw new Error(`View not found: ${key}`);
     if (win) win.contentView.removeChildView(view);
-    views.delete(viewId);
-    console.log(`[Main] Removed view ID: ${viewId}`);
+    views.delete(key);
+    console.log(`[Main] Removed view: ${key}`);
   });
 
-  ipcMain.handle("nav:back", async (_, viewId) => {
-    const view = views.get(viewId);
-    if (!view) throw new Error(`View not found: ${viewId}`);
+  ipcMain.handle("nav:back", async (_, key) => {
+    const view = views.get(key);
+    if (!view) throw new Error(`View not found: ${key}`);
     return view.webContents.navigationHistory.goBack();
   });
 
-  ipcMain.handle("nav:forward", async (_, viewId) => {
-    const view = views.get(viewId);
-    if (!view) throw new Error(`View not found: ${viewId}`);
+  ipcMain.handle("nav:forward", async (_, key) => {
+    const view = views.get(key);
+    if (!view) throw new Error(`View not found: ${key}`);
     return view.webContents.navigationHistory.goForward();
   });
 
-  ipcMain.handle("nav:canGoBack", async (_, viewId) => {
-    const view = views.get(viewId);
-    if (!view) throw new Error(`View not found: ${viewId}`);
+  ipcMain.handle("nav:canGoBack", async (_, key) => {
+    const view = views.get(key);
+    if (!view) throw new Error(`View not found: ${key}`);
     return view.webContents.navigationHistory.canGoBack();
   });
 
-  ipcMain.handle("nav:canGoForward", async (_, viewId) => {
-    const view = views.get(viewId);
-    if (!view) throw new Error(`View not found: ${viewId}`);
+  ipcMain.handle("nav:canGoForward", async (_, key) => {
+    const view = views.get(key);
+    if (!view) throw new Error(`View not found: ${key}`);
     return view.webContents.navigationHistory.canGoForward();
   });
 
-  ipcMain.handle("nav:loadURL", async (_, viewId, url) => {
-    const view = views.get(viewId);
-    if (!view) throw new Error(`View not found: ${viewId}`);
+  ipcMain.handle("nav:loadURL", async (_, key, url) => {
+    const view = views.get(key);
+    if (!view) throw new Error(`View not found: ${key}`);
 
     try {
       await view.webContents.loadURL(url);
@@ -163,15 +179,15 @@ async function createWindow() {
     }
   }
 
-  ipcMain.handle("nav:getCurrentURL", async (_, viewId) => {
-    const view = views.get(viewId);
-    if (!view) throw new Error(`View not found: ${viewId}`);
+  ipcMain.handle("nav:getCurrentURL", async (_, key) => {
+    const view = views.get(key);
+    if (!view) throw new Error(`View not found: ${key}`);
     return view.webContents.getURL();
   });
 
-  ipcMain.handle("nav:getHistory", async (_, viewId) => {
-    const view = views.get(viewId);
-    if (!view) throw new Error(`View not found: ${viewId}`);
+  ipcMain.handle("nav:getHistory", async (_, key) => {
+    const view = views.get(key);
+    if (!view) throw new Error(`View not found: ${key}`);
     return view.webContents.navigationHistory.getAllEntries();
   });
 

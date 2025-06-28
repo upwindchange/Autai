@@ -159,8 +159,11 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 
 export function SidebarLeft({
+  onPageSelect,
   ...props
-}: React.ComponentProps<typeof Sidebar>) {
+}: React.ComponentProps<typeof Sidebar> & {
+  onPageSelect?: (taskIndex: number, pageIndex: number) => void;
+}) {
   const [tasks, setTasks] = useState(data.tasks)
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
 
@@ -169,6 +172,12 @@ export function SidebarLeft({
   }
 
   const handleTaskDelete = (index: number) => {
+    // Notify App to clean up views for this task
+    tasks[index].pages.forEach((_, pageIndex) => {
+      const key = `${index}-${pageIndex}`;
+      window.ipcRenderer?.invoke("view:remove", key);
+    });
+
     setTasks(prev => prev.filter((_, i) => i !== index))
     if (expandedIndex === index) {
       setExpandedIndex(null)
@@ -204,6 +213,7 @@ export function SidebarLeft({
           expandedIndex={expandedIndex}
           onExpandChange={handleTaskExpand}
           onTaskDelete={handleTaskDelete}
+          onPageSelect={onPageSelect}
         />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
