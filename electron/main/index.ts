@@ -185,6 +185,29 @@ async function createWindow() {
     return view.webContents.getURL();
   });
 
+  ipcMain.handle("nav:getFavicon", async (_, key) => {
+    const view = views.get(key);
+    if (!view) throw new Error(`View not found: ${key}`);
+    
+    try {
+      const favicon = await view.webContents.executeJavaScript(`
+        document.querySelector('link[rel="icon"]')?.href ||
+        document.querySelector('link[rel="shortcut icon"]')?.href ||
+        ''
+      `);
+      return favicon;
+    } catch (error) {
+      console.error("Error getting favicon:", error);
+      return "";
+    }
+  });
+
+  ipcMain.handle("nav:getPageTitle", async (_, key) => {
+    const view = views.get(key);
+    if (!view) throw new Error(`View not found: ${key}`);
+    return view.webContents.getTitle();
+  });
+
   ipcMain.handle("nav:getHistory", async (_, key) => {
     const view = views.get(key);
     if (!view) throw new Error(`View not found: ${key}`);

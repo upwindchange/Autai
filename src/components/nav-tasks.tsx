@@ -25,11 +25,12 @@ export function NavTasks({
   onPageSelect
 }: {
   tasks: {
-    name: string
-    emoji: React.ReactNode
+    title: string
+    favicon: React.ReactNode
     pages: {
-      name: string
-      emoji: React.ReactNode
+      title: string
+      favicon: React.ReactNode
+      url: string
     }[]
   }[]
   expandedIndex: number | null
@@ -60,8 +61,8 @@ export function NavTasks({
                   onClick={() => onExpandChange(index === expandedIndex ? null : index)}
                 >
                   <a href="#">
-                    <span>{task.emoji}</span>
-                    <span>{task.name}</span>
+                    <span>{task.favicon}</span>
+                    <span>{task.title}</span>
                   </a>
                 </SidebarMenuButton>
                 <SidebarMenuAction showOnHover onClick={() => onTaskDelete(index)}>
@@ -70,14 +71,14 @@ export function NavTasks({
                 <CollapsibleContent>
                   <SidebarMenuSub>
                     {task.pages.map((page, pageIndex) => (
-                      <SidebarMenuSubItem key={page.name}>
+                      <SidebarMenuSubItem key={page.title}>
                         <SidebarMenuSubButton
                           asChild
                           onClick={() => onPageSelect?.(index, pageIndex)}
                         >
                           <a href="#">
-                            <span>{page.emoji}</span>
-                            <span>{page.name}</span>
+                            <span>{page.favicon}</span>
+                            <span>{page.title}</span>
                           </a>
                         </SidebarMenuSubButton>
                       </SidebarMenuSubItem>
