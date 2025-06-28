@@ -48,107 +48,107 @@ const data = {
   ],
     tasks: [
     {
-      name: "Personal Life Management",
-      emoji: "🏠",
+      title: "Personal Life Management",
+      favicon: "🏠",
       pages: [
         {
-          name: "Daily Journal & Reflection",
-          url: "#",
-          emoji: "📔",
+          title: "Daily Journal & Reflection",
+          url: "https://example.com/journal",
+          favicon: "📔",
         },
         {
-          name: "Health & Wellness Tracker",
-          url: "#",
-          emoji: "🍏",
+          title: "Health & Wellness Tracker",
+          url: "https://example.com/health",
+          favicon: "🍏",
         },
         {
-          name: "Personal Growth & Learning Goals",
-          url: "#",
-          emoji: "🌟",
+          title: "Personal Growth & Learning Goals",
+          url: "https://example.com/growth",
+          favicon: "🌟",
         },
       ],
     },
     {
-      name: "Professional Development",
-      emoji: "💼",
+      title: "Professional Development",
+      favicon: "💼",
       pages: [
         {
-          name: "Career Objectives & Milestones",
-          url: "#",
-          emoji: "🎯",
+          title: "Career Objectives & Milestones",
+          url: "https://example.com/career",
+          favicon: "🎯",
         },
         {
-          name: "Skill Acquisition & Training Log",
-          url: "#",
-          emoji: "🧠",
+          title: "Skill Acquisition & Training Log",
+          url: "https://example.com/skills",
+          favicon: "🧠",
         },
         {
-          name: "Networking Contacts & Events",
-          url: "#",
-          emoji: "🤝",
+          title: "Networking Contacts & Events",
+          url: "https://example.com/networking",
+          favicon: "🤝",
         },
       ],
     },
     {
-      name: "Creative Projects",
-      emoji: "🎨",
+      title: "Creative Projects",
+      favicon: "🎨",
       pages: [
         {
-          name: "Writing Ideas & Story Outlines",
-          url: "#",
-          emoji: "✍️",
+          title: "Writing Ideas & Story Outlines",
+          url: "https://example.com/writing",
+          favicon: "✍️",
         },
         {
-          name: "Art & Design Portfolio",
-          url: "#",
-          emoji: "🖼️",
+          title: "Art & Design Portfolio",
+          url: "https://example.com/portfolio",
+          favicon: "🖼️",
         },
         {
-          name: "Music Composition & Practice Log",
-          url: "#",
-          emoji: "🎵",
+          title: "Music Composition & Practice Log",
+          url: "https://example.com/music",
+          favicon: "🎵",
         },
       ],
     },
     {
-      name: "Home Management",
-      emoji: "🏡",
+      title: "Home Management",
+      favicon: "🏡",
       pages: [
         {
-          name: "Household Budget & Expense Tracking",
-          url: "#",
-          emoji: "💰",
+          title: "Household Budget & Expense Tracking",
+          url: "https://example.com/budget",
+          favicon: "💰",
         },
         {
-          name: "Home Maintenance Schedule & Tasks",
-          url: "#",
-          emoji: "🔧",
+          title: "Home Maintenance Schedule & Tasks",
+          url: "https://example.com/maintenance",
+          favicon: "🔧",
         },
         {
-          name: "Family Calendar & Event Planning",
-          url: "#",
-          emoji: "📅",
+          title: "Family Calendar & Event Planning",
+          url: "https://example.com/calendar",
+          favicon: "📅",
         },
       ],
     },
     {
-      name: "Travel & Adventure",
-      emoji: "🧳",
+      title: "Travel & Adventure",
+      favicon: "🧳",
       pages: [
         {
-          name: "Trip Planning & Itineraries",
-          url: "#",
-          emoji: "🗺️",
+          title: "Trip Planning & Itineraries",
+          url: "https://example.com/trip-planning",
+          favicon: "🗺️",
         },
         {
-          name: "Travel Bucket List & Inspiration",
-          url: "#",
-          emoji: "🌎",
+          title: "Travel Bucket List & Inspiration",
+          url: "https://example.com/bucket-list",
+          favicon: "🌎",
         },
         {
-          name: "Travel Journal & Photo Gallery",
-          url: "#",
-          emoji: "📸",
+          title: "Travel Journal & Photo Gallery",
+          url: "https://example.com/travel-journal",
+          favicon: "📸",
         },
       ],
     },
@@ -189,8 +189,8 @@ export function SidebarLeft({
   const handleAddTask = () => {
     const newIndex = tasks.length
     setTasks(prev => [...prev, {
-      name: "New Task",
-      emoji: "📋",
+      title: "New Task",
+      favicon: "📋",
       pages: []
     }])
     setExpandedIndex(newIndex)
