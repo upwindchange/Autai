@@ -162,13 +162,20 @@ export function SidebarLeft({
   ...props
 }: React.ComponentProps<typeof Sidebar>) {
   const [tasks, setTasks] = useState(data.tasks)
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(0)
+
+  const handleTaskExpand = (index: number) => {
+    setExpandedIndex(index)
+  }
 
   const handleAddTask = () => {
+    const newIndex = tasks.length
     setTasks(prev => [...prev, {
       name: "New Task",
       emoji: "📋",
       pages: []
     }])
+    setExpandedIndex(newIndex)
   }
 
   return (
@@ -183,7 +190,11 @@ export function SidebarLeft({
         </Button>
       </SidebarHeader>
       <SidebarContent>
-        <NavTasks tasks={tasks} />
+        <NavTasks
+          tasks={tasks}
+          expandedIndex={expandedIndex}
+          onExpandChange={handleTaskExpand}
+        />
         <NavSecondary items={data.navSecondary} className="mt-auto" />
       </SidebarContent>
     </Sidebar>

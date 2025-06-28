@@ -19,7 +19,9 @@ import {
 } from "@/components/ui/sidebar"
 
 export function NavTasks({
-  tasks: tasks,
+  tasks,
+  expandedIndex,
+  onExpandChange
 }: {
   tasks: {
     name: string
@@ -29,14 +31,27 @@ export function NavTasks({
       emoji: React.ReactNode
     }[]
   }[]
+  expandedIndex: number | null
+  onExpandChange: (index: number) => void
 }) {
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Tasks</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {tasks.map((task) => (
-            <Collapsible key={task.name}>
+          {tasks.map((task, index) => (
+            <Collapsible
+              key={index}
+              open={index === expandedIndex}
+              onOpenChange={(open) => {
+                if (open) {
+                  onExpandChange(index)
+                } else if (index === expandedIndex) {
+                  // Prevent collapsing the currently expanded task
+                  return
+                }
+              }}
+            >
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <a href="#">
