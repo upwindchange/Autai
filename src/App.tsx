@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import "./App.css";
 import { SidebarLeft } from "@/components/sidebar-left";
 import {
@@ -22,70 +22,89 @@ import GenAI from "@/components/genai/genai";
 
 function App() {
   const viewContainerRef = useRef<HTMLDivElement>(null);
-  const viewIdRef = useRef<number | null>(null);
+  const [activeViewKey, setActiveViewKey] = useState<string | null>(null);
+  const viewCleanupRefs = useRef<Record<string, () => void>>({});
 
-  useEffect(() => {
-    console.log("Running useEffect for view creation");
+  // Get container bounds with proper coordinates
+  const getContainerBounds = useCallback(() => {
+    const container = viewContainerRef.current;
+    if (!container) return { x: 0, y: 0, width: 0, height: 0 };
+    
+    const rect = container.getBoundingClientRect();
+    return {
+      x: Math.round(rect.x),
+      y: Math.round(rect.y),
+      width: Math.round(rect.width),
+      height: Math.round(rect.height),
+    };
+  }, []);
+
+  // Handle view creation and bounds update
+  const createView = useCallback(async (key: string, url: string) => {
     const container = viewContainerRef.current;
     if (!container) return;
 
-    const createView = async () => {
-      try {
-        console.log("Creating new WebContentsView");
-        const viewId = await window.ipcRenderer.invoke("view:create", {
-          webPreferences: {},
+    try {
+      console.log(`Creating view for key: ${key}`);
+      await window.ipcRenderer.invoke("view:create", key, {
+        webPreferences: {},
+      });
+
+      // Set initial bounds
+      await window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
+      
+      // Load URL
+      await window.ipcRenderer.invoke("nav:loadURL", key, url);
+      
+      // Setup resize observer
+      const resizeObserver = new ResizeObserver(() => {
+        window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
+      });
+      resizeObserver.observe(container);
+
+      // Store cleanup function
+      viewCleanupRefs.current[key] = () => {
+        resizeObserver.disconnect();
+        window.ipcRenderer.invoke("view:remove", key);
+      };
+
+      console.log(`Created view for key: ${key}`);
+    } catch (error) {
+      console.error(`Failed to create view ${key}:`, error);
+    }
+  }, [getContainerBounds]);
+
+  // Handle page selection
+  const handlePageSelect = useCallback(async (taskIndex: number, pageIndex: number) => {
+    const key = `${taskIndex}-${pageIndex}`;
+    const url = "https://electronjs.org"; // Default URL
+    
+    if (!viewCleanupRefs.current[key]) {
+      await createView(key, url);
+    }
+
+    // Hide all views except the active one
+    Object.keys(viewCleanupRefs.current || {}).forEach(viewKey => {
+      if (viewKey !== key) {
+        window.ipcRenderer.invoke("view:setBounds", viewKey, {
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0
         });
-        viewIdRef.current = viewId;
-        console.log(`Created view with ID: ${viewId}`);
-
-        const updateBounds = () => {
-          const rect = container.getBoundingClientRect();
-          return {
-            x: Math.round(rect.x),
-            y: Math.round(rect.y),
-            width: Math.round(rect.width),
-            height: Math.round(rect.height),
-          };
-        };
-
-        // Set initial bounds
-        await window.ipcRenderer.invoke(
-          "view:setBounds",
-          viewId,
-          updateBounds()
-        );
-        console.log("Set initial bounds for view");
-
-        // Load URL using IPC
-        await window.ipcRenderer.invoke(
-          "nav:loadURL",
-          viewId,
-          "https://electronjs.org"
-        );
-        console.log("Loaded URL in view");
-
-        // Setup resize observer
-        const resizeObserver = new ResizeObserver(() => {
-          window.ipcRenderer.invoke("view:setBounds", viewId, updateBounds());
-        });
-        resizeObserver.observe(container);
-
-        return () => {
-          console.log("Running view cleanup");
-          resizeObserver.disconnect();
-          window.ipcRenderer.invoke("view:remove", viewId);
-          console.log(`Removed view with ID: ${viewId}`);
-        };
-      } catch (error) {
-        console.error("Failed to create view:", error);
       }
-    };
+    });
 
-    const viewCleanup = createView();
+    // Show active view with proper coordinates
+    window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
 
+    setActiveViewKey(key);
+  }, [createView]);
+
+  // Cleanup all views on unmount
+  useEffect(() => {
     return () => {
-      console.log("Running useEffect cleanup");
-      viewCleanup.then((cleanupFn) => cleanupFn?.());
+      Object.values(viewCleanupRefs.current || {}).forEach(cleanupFn => cleanupFn());
     };
   }, []);
 
@@ -94,7 +113,7 @@ function App() {
       <ResizablePanelGroup direction="horizontal">
         <ResizablePanel defaultSize={70}>
           <SidebarProvider>
-            <SidebarLeft />
+            <SidebarLeft onPageSelect={handlePageSelect} />
             <SidebarInset className="relative">
               <header className="bg-background sticky top-0 flex h-14 shrink-0 items-center gap-2">
                 <div className="flex flex-1 items-center gap-2 px-3">
@@ -117,7 +136,7 @@ function App() {
               <div
                 ref={viewContainerRef}
                 className="flex flex-1 flex-col gap-4 p-4 overflow-y-auto h-full"
-              ></div>
+              />
             </SidebarInset>
           </SidebarProvider>
         </ResizablePanel>

@@ -1,9 +1,8 @@
-import { ChevronRight, MoreHorizontal, Plus, Trash2 } from "lucide-react"
+import { Trash2 } from "lucide-react"
 
 import {
   Collapsible,
   CollapsibleContent,
-  CollapsibleTrigger,
 } from "@/components/ui/collapsible"
 import {
   SidebarGroup,
@@ -22,7 +21,8 @@ export function NavTasks({
   tasks,
   expandedIndex,
   onExpandChange,
-  onTaskDelete
+  onTaskDelete,
+  onPageSelect
 }: {
   tasks: {
     name: string
@@ -35,6 +35,7 @@ export function NavTasks({
   expandedIndex: number | null
   onExpandChange: (index: number | null) => void
   onTaskDelete: (index: number) => void
+  onPageSelect?: (taskIndex: number, pageIndex: number) => void
 }) {
   return (
     <SidebarGroup>
@@ -68,9 +69,12 @@ export function NavTasks({
                 </SidebarMenuAction>
                 <CollapsibleContent>
                   <SidebarMenuSub>
-                    {task.pages.map((page) => (
+                    {task.pages.map((page, pageIndex) => (
                       <SidebarMenuSubItem key={page.name}>
-                        <SidebarMenuSubButton asChild>
+                        <SidebarMenuSubButton
+                          asChild
+                          onClick={() => onPageSelect?.(index, pageIndex)}
+                        >
                           <a href="#">
                             <span>{page.emoji}</span>
                             <span>{page.name}</span>
@@ -83,12 +87,6 @@ export function NavTasks({
               </SidebarMenuItem>
             </Collapsible>
           ))}
-          <SidebarMenuItem>
-            <SidebarMenuButton className="text-sidebar-foreground/70">
-              <MoreHorizontal />
-              <span>More</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
