@@ -18,10 +18,10 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 
-export function NavWorkspaces({
-  workspaces,
+export function NavTasks({
+  tasks: tasks,
 }: {
-  workspaces: {
+  tasks: {
     name: string
     emoji: React.ReactNode
     pages: {
@@ -32,16 +32,16 @@ export function NavWorkspaces({
 }) {
   return (
     <SidebarGroup>
-      <SidebarGroupLabel>Workspaces</SidebarGroupLabel>
+      <SidebarGroupLabel>Tasks</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {workspaces.map((workspace) => (
-            <Collapsible key={workspace.name}>
+          {tasks.map((task) => (
+            <Collapsible key={task.name}>
               <SidebarMenuItem>
                 <SidebarMenuButton asChild>
                   <a href="#">
-                    <span>{workspace.emoji}</span>
-                    <span>{workspace.name}</span>
+                    <span>{task.emoji}</span>
+                    <span>{task.name}</span>
                   </a>
                 </SidebarMenuButton>
                 <CollapsibleTrigger asChild>
@@ -57,7 +57,7 @@ export function NavWorkspaces({
                 </SidebarMenuAction>
                 <CollapsibleContent>
                   <SidebarMenuSub>
-                    {workspace.pages.map((page) => (
+                    {task.pages.map((page) => (
                       <SidebarMenuSubItem key={page.name}>
                         <SidebarMenuSubButton asChild>
                           <a href="#">
