@@ -1,4 +1,4 @@
-import { ChevronRight, MoreHorizontal, Plus } from "lucide-react"
+import { ChevronRight, MoreHorizontal, Plus, Trash2 } from "lucide-react"
 
 import {
   Collapsible,
@@ -21,7 +21,8 @@ import {
 export function NavTasks({
   tasks,
   expandedIndex,
-  onExpandChange
+  onExpandChange,
+  onTaskDelete
 }: {
   tasks: {
     name: string
@@ -32,7 +33,8 @@ export function NavTasks({
     }[]
   }[]
   expandedIndex: number | null
-  onExpandChange: (index: number) => void
+  onExpandChange: (index: number | null) => void
+  onTaskDelete: (index: number) => void
 }) {
   return (
     <SidebarGroup>
@@ -46,29 +48,23 @@ export function NavTasks({
               onOpenChange={(open) => {
                 if (open) {
                   onExpandChange(index)
-                } else if (index === expandedIndex) {
-                  // Prevent collapsing the currently expanded task
-                  return
+                } else {
+                  onExpandChange(null)
                 }
               }}
             >
               <SidebarMenuItem>
-                <SidebarMenuButton asChild>
+                <SidebarMenuButton
+                  asChild
+                  onClick={() => onExpandChange(index === expandedIndex ? null : index)}
+                >
                   <a href="#">
                     <span>{task.emoji}</span>
                     <span>{task.name}</span>
                   </a>
                 </SidebarMenuButton>
-                <CollapsibleTrigger asChild>
-                  <SidebarMenuAction
-                    className="bg-sidebar-accent text-sidebar-accent-foreground left-2 data-[state=open]:rotate-90"
-                    showOnHover
-                  >
-                    <ChevronRight />
-                  </SidebarMenuAction>
-                </CollapsibleTrigger>
-                <SidebarMenuAction showOnHover>
-                  <Plus />
+                <SidebarMenuAction showOnHover onClick={() => onTaskDelete(index)}>
+                  <Trash2 size={16} />
                 </SidebarMenuAction>
                 <CollapsibleContent>
                   <SidebarMenuSub>
