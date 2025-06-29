@@ -156,10 +156,15 @@ async function createWindow() {
     try {
       await view.webContents.loadURL(url);
       await waitForReadyState(view, "complete");
-      const html = await view.webContents.executeJavaScript(
-        "document.documentElement.outerHTML"
-      );
-      return html;
+
+      // Get page metadata after load completes
+      const title = view.webContents.getTitle();
+      const favicon = await view.webContents.executeJavaScript(`
+        document.querySelector('link[rel="icon"]')?.href ||
+        document.querySelector('link[rel="shortcut icon"]')?.href ||
+        ''
+      `);
+      return { title, favicon };
     } catch (error) {
       console.error("Failed to load URL or get HTML:", error);
       throw error;

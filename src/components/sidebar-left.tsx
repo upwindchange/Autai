@@ -1,6 +1,6 @@
 "use client"
-
-import * as React from "react"
+import { useEffect, useRef, useState, useCallback} from "react";
+import type { ReactNode, ComponentProps, Dispatch, SetStateAction, RefObject } from "react";
 import {
   Blocks,
   Calendar,
@@ -10,20 +10,35 @@ import {
   type LucideIcon,
 } from "lucide-react"
 
-import { NavSecondary } from "@/components/nav-secondary"
-import { NavTasks } from "@/components/nav-tasks"
 import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
 } from "@/components/ui/sidebar"
+import { Button } from "@/components/ui/button"
+import { NavSecondary } from "@/components/nav-secondary"
+import { NavTasks } from "@/components/nav-tasks"
+
+
 
 // Define interfaces matching component props
 interface NavSecondaryItem {
   title: string;
   url: string;
   icon: LucideIcon;
-  badge?: React.ReactNode;
+  badge?: ReactNode;
+}
+// Define task interfaces for App state
+interface PageItem {
+  title: string;
+  url: string;
+  favicon: string | ReactNode; // Allow both URL strings and React elements
+}
+
+interface TaskItem {
+  title: string;
+  favicon: ReactNode;
+  pages: PageItem[];
 }
 
 
@@ -57,50 +72,159 @@ const initialNavSecondary: NavSecondaryItem[] = [
 ]
 
 // Define popular sites for random selection
-const popularSites: PageItem[] = [
-  { title: "Google", url: "https://www.google.com", favicon: "🔍" },
-  { title: "YouTube", url: "https://www.youtube.com", favicon: "📺" },
-  { title: "Facebook", url: "https://www.facebook.com", favicon: "📘" },
-  { title: "Baidu", url: "https://www.baidu.com", favicon: "🅱" },
-  { title: "Wikipedia", url: "https://www.wikipedia.org", favicon: "📚" },
-  { title: "Twitter", url: "https://twitter.com", favicon: "🐦" },
-  { title: "Instagram", url: "https://www.instagram.com", favicon: "📸" },
-  { title: "Reddit", url: "https://www.reddit.com", favicon: "👥" },
-  { title: "Amazon", url: "https://www.amazon.com", favicon: "🛒" },
-  { title: "LinkedIn", url: "https://www.linkedin.com", favicon: "🔗" }
+const popularSites = [
+  {url: "https://www.google.com"},
+  {url: "https://www.youtube.com"},
+  {url: "https://www.facebook.com"},
+  {url: "https://www.baidu.com"},
+  {url: "https://www.wikipedia.org"},
+  {url: "https://twitter.com"},
+  {url: "https://www.instagram.com"},
+  {url: "https://www.reddit.com"},
+  {url: "https://www.amazon.com"},
+  {url: "https://www.linkedin.com" }
 ]
 
-import { Button } from "@/components/ui/button"
 
-import { TaskItem, PageItem } from "@/App"
 
 export function SidebarLeft({
-  tasks,
-  setTasks,
   expandedIndex,
   setExpandedIndex,
-  onTaskDelete,
-  onPageSelect,
+  getContainerBounds,
+  containerRef,
   ...props
-}: React.ComponentProps<typeof Sidebar> & {
-  tasks: TaskItem[];
-  setTasks: React.Dispatch<React.SetStateAction<TaskItem[]>>;
+}: ComponentProps<typeof Sidebar> & {
   expandedIndex: number | null;
-  setExpandedIndex: React.Dispatch<React.SetStateAction<number | null>>;
-  onTaskDelete: (index: number) => void;
-  onPageSelect?: (taskIndex: number, pageIndex: number) => void;
+  setExpandedIndex: Dispatch<SetStateAction<number | null>>;
+  getContainerBounds: () => { x: number; y: number; width: number; height: number };
+  containerRef: RefObject<HTMLDivElement | null>;
 }) {
 
-  const handleAddTask = () => {
-    const newIndex = tasks.length
-    const randomIndex = Math.floor(Math.random() * popularSites.length)
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  // Create ref for storing cleanup functions
+  const viewCleanupRefs = useRef<Record<string, () => void>>({});
+
+  // Handle page selection
+  const handlePageSelect = useCallback(async (taskIndex: number, pageIndex: number) => {
+    const key = `${taskIndex}-${pageIndex}`;
+    
+    // Ensure view exists (should be pre-created)
+    if (!viewCleanupRefs.current[key]) {
+      console.error(`View ${key} not found!`);
+      return;
+    }
+
+    // Hide all views except the active one
+    Object.keys(viewCleanupRefs.current || {}).forEach(viewKey => {
+      if (viewKey !== key) {
+        window.ipcRenderer.invoke("view:setBounds", viewKey, {
+          x: 0,
+          y: 0,
+          width: 0,
+          height: 0
+        });
+      }
+    });
+
+    // Show active view with proper coordinates
+    window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
+  }, []);
+  
+  const handleAddTask = async () => {
+    const newIndex = tasks.length;
+    const randomIndex = Math.floor(Math.random() * popularSites.length);
+    const newSite = popularSites[randomIndex];
+    
+    // Create task immediately with placeholder data
     setTasks(prev => [...prev, {
       title: "New Task",
       favicon: "📋",
-      pages: [popularSites[randomIndex]]
-    }])
-    setExpandedIndex(newIndex)
+      pages: [{
+        ...newSite,
+        title: "Loading...",
+        favicon: "⏳"
+      }]
+    }]);
+    setExpandedIndex(newIndex);
+    
+    // Create view asynchronously
+    const key = `${newIndex}-0`;
+    try {
+      console.log(`Creating view for key: ${key}`);
+      await window.ipcRenderer.invoke("view:create", key, { webPreferences: {} });
+      
+      // Set initial bounds
+      await window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
+      
+      // Load URL and get metadata
+      const { title, favicon } = await window.ipcRenderer.invoke("nav:loadURL", key, newSite.url);
+      
+      // Update task metadata
+      setTasks(prev => {
+        const newTasks = [...prev];
+        if (newTasks[newIndex]?.pages?.[0]) {
+          newTasks[newIndex] = { ...newTasks[newIndex] };
+          newTasks[newIndex].pages = [...newTasks[newIndex].pages];
+          newTasks[newIndex].pages[0] = {
+            ...newTasks[newIndex].pages[0],
+            title: title,
+            favicon: favicon
+          };
+        }
+        return newTasks;
+      });
+      // Setup resize observer
+      const resizeObserver = new ResizeObserver(() => {
+        window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
+      });
+      
+      // Attach observer to container
+      if (containerRef.current) {
+        resizeObserver.observe(containerRef.current);
+      }
+      
+      // Store cleanup function
+      viewCleanupRefs.current[key] = () => {
+        resizeObserver.disconnect();
+        window.ipcRenderer.invoke("view:remove", key);
+      };
+
+      console.log(`Created view for key: ${key}`);
+    } catch (error) {
+      console.error(`Failed to create view ${key}:`, error);
+      
+      // Update task to show error state
+      setTasks(prev => {
+        const newTasks = [...prev];
+        if (newTasks[newIndex]) {
+          newTasks[newIndex].pages[0] = {
+            ...newTasks[newIndex].pages[0],
+            title: "Failed to load",
+            favicon: "❌"
+          };
+        }
+        return newTasks;
+      });
+    }
   }
+
+  
+  const handleTaskDelete = useCallback((index: number) => {
+    // Clean up views for this task
+    tasks[index].pages.forEach((_, pageIndex) => {
+      const key = `${index}-${pageIndex}`;
+      window.ipcRenderer?.invoke("view:remove", key);
+    });
+    
+    setTasks(prev => prev.filter((_, i) => i !== index));
+    
+    // Update expanded index
+    if (expandedIndex === index) {
+      setExpandedIndex(null);
+    } else if (expandedIndex !== null && expandedIndex > index) {
+      setExpandedIndex(expandedIndex - 1);
+    }
+  }, [tasks, expandedIndex]);
 
   return (
     <Sidebar className="border-r-0" {...props}>
@@ -118,8 +242,8 @@ export function SidebarLeft({
           tasks={tasks}
           expandedIndex={expandedIndex}
           onExpandChange={setExpandedIndex}
-          onTaskDelete={onTaskDelete}
-          onPageSelect={onPageSelect}
+          onTaskDelete={handleTaskDelete}
+          onPageSelect={handlePageSelect}
         />
         <NavSecondary items={initialNavSecondary} className="mt-auto" />
       </SidebarContent>
