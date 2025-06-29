@@ -26,17 +26,6 @@ interface NavSecondaryItem {
   badge?: React.ReactNode;
 }
 
-interface TaskItem {
-  title: string;
-  favicon: React.ReactNode;
-  pages: PageItem[];
-}
-
-interface PageItem {
-  title: string;
-  url: string;
-  favicon: React.ReactNode;
-}
 
 // Initialize navSecondary with current data
 const initialNavSecondary: NavSecondaryItem[] = [
@@ -70,33 +59,24 @@ const initialNavSecondary: NavSecondaryItem[] = [
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
 
+import { TaskItem, PageItem } from "@/App"
+
 export function SidebarLeft({
+  tasks,
+  setTasks,
+  expandedIndex,
+  setExpandedIndex,
+  onTaskDelete,
   onPageSelect,
   ...props
 }: React.ComponentProps<typeof Sidebar> & {
+  tasks: TaskItem[];
+  setTasks: React.Dispatch<React.SetStateAction<TaskItem[]>>;
+  expandedIndex: number | null;
+  setExpandedIndex: React.Dispatch<React.SetStateAction<number | null>>;
+  onTaskDelete: (index: number) => void;
   onPageSelect?: (taskIndex: number, pageIndex: number) => void;
 }) {
-  const [tasks, setTasks] = useState<TaskItem[]>([])
-  const [expandedIndex, setExpandedIndex] = useState<number | null>(null)
-
-  const handleTaskExpand = (index: number | null) => {
-    setExpandedIndex(index)
-  }
-
-  const handleTaskDelete = (index: number) => {
-    // Notify App to clean up views for this task
-    tasks[index].pages.forEach((_, pageIndex) => {
-      const key = `${index}-${pageIndex}`;
-      window.ipcRenderer?.invoke("view:remove", key);
-    });
-
-    setTasks(prev => prev.filter((_, i) => i !== index))
-    if (expandedIndex === index) {
-      setExpandedIndex(null)
-    } else if (expandedIndex !== null && expandedIndex > index) {
-      setExpandedIndex(expandedIndex - 1)
-    }
-  }
 
   const handleAddTask = () => {
     const newIndex = tasks.length
@@ -129,8 +109,8 @@ export function SidebarLeft({
         <NavTasks
           tasks={tasks}
           expandedIndex={expandedIndex}
-          onExpandChange={handleTaskExpand}
-          onTaskDelete={handleTaskDelete}
+          onExpandChange={setExpandedIndex}
+          onTaskDelete={onTaskDelete}
           onPageSelect={onPageSelect}
         />
         <NavSecondary items={initialNavSecondary} className="mt-auto" />
