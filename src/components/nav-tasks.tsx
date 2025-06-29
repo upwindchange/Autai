@@ -61,7 +61,11 @@ export function NavTasks({
                   onClick={() => onExpandChange(index === expandedIndex ? null : index)}
                 >
                   <a href="#">
-                    <span>{task.favicon}</span>
+                    {typeof task.favicon === 'string' ? (
+                      <img src={task.favicon} alt="Favicon" className="w-4 h-4" />
+                    ) : (
+                      <span>{task.favicon}</span>
+                    )}
                     <span>{task.title}</span>
                   </a>
                 </SidebarMenuButton>
@@ -77,7 +81,11 @@ export function NavTasks({
                           onClick={() => onPageSelect?.(index, pageIndex)}
                         >
                           <a href="#">
-                            <span>{page.favicon}</span>
+                            {typeof page.favicon === 'string' ? (
+                              <img src={page.favicon} alt="Favicon" className="w-4 h-4" />
+                            ) : (
+                              <span>{page.favicon}</span>
+                            )}
                             <span>{page.title}</span>
                           </a>
                         </SidebarMenuSubButton>
