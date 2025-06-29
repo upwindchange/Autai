@@ -20,10 +20,25 @@ import {
 } from "@/components/ui/resizable";
 import GenAI from "@/components/genai/genai";
 
+// Define task interfaces for App state
+export interface PageItem {
+  title: string;
+  url: string;
+  favicon: React.ReactNode;
+}
+
+export interface TaskItem {
+  title: string;
+  favicon: React.ReactNode;
+  pages: PageItem[];
+}
+
 function App() {
   const viewContainerRef = useRef<HTMLDivElement>(null);
   const [activeViewKey, setActiveViewKey] = useState<string | null>(null);
   const viewCleanupRefs = useRef<Record<string, () => void>>({});
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
 
   // Get container bounds with proper coordinates
   const getContainerBounds = useCallback(() => {
@@ -77,10 +92,11 @@ function App() {
   // Handle page selection
   const handlePageSelect = useCallback(async (taskIndex: number, pageIndex: number) => {
     const key = `${taskIndex}-${pageIndex}`;
-    const url = "https://electronjs.org"; // Default URL
     
+    // Ensure view exists (should be pre-created)
     if (!viewCleanupRefs.current[key]) {
-      await createView(key, url);
+      console.error(`View ${key} not found!`);
+      return;
     }
 
     // Hide all views except the active one
@@ -99,7 +115,27 @@ function App() {
     window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
 
     setActiveViewKey(key);
-  }, [createView]);
+  }, []);
+
+  // Create views for all pages when tasks change
+  useEffect(() => {
+    const createAllViews = async () => {
+      const promises = [];
+      for (let taskIndex = 0; taskIndex < tasks.length; taskIndex++) {
+        const task = tasks[taskIndex];
+        for (let pageIndex = 0; pageIndex < task.pages.length; pageIndex++) {
+          const page = task.pages[pageIndex];
+          const key = `${taskIndex}-${pageIndex}`;
+          if (!viewCleanupRefs.current[key]) {
+            promises.push(createView(key, page.url));
+          }
+        }
+      }
+      await Promise.all(promises);
+    };
+
+    createAllViews();
+  }, [tasks, createView]);
 
   // Cleanup all views on unmount
   useEffect(() => {
@@ -108,12 +144,36 @@ function App() {
     };
   }, []);
 
+  const handleTaskDelete = useCallback((index: number) => {
+    // Clean up views for this task
+    tasks[index].pages.forEach((_, pageIndex) => {
+      const key = `${index}-${pageIndex}`;
+      window.ipcRenderer?.invoke("view:remove", key);
+    });
+    
+    setTasks(prev => prev.filter((_, i) => i !== index));
+    
+    // Update expanded index
+    if (expandedIndex === index) {
+      setExpandedIndex(null);
+    } else if (expandedIndex !== null && expandedIndex > index) {
+      setExpandedIndex(expandedIndex - 1);
+    }
+  }, [tasks, expandedIndex]);
+
   return (
     <div className="w-dvw flex flex-row h-dvh">
       <ResizablePanelGroup direction="horizontal">
         <ResizablePanel defaultSize={70}>
           <SidebarProvider>
-            <SidebarLeft onPageSelect={handlePageSelect} />
+            <SidebarLeft
+              tasks={tasks}
+              setTasks={setTasks}
+              expandedIndex={expandedIndex}
+              setExpandedIndex={setExpandedIndex}
+              onTaskDelete={handleTaskDelete}
+              onPageSelect={handlePageSelect}
+            />
             <SidebarInset className="relative">
               <header className="bg-background sticky top-0 flex h-14 shrink-0 items-center gap-2">
                 <div className="flex flex-1 items-center gap-2 px-3">

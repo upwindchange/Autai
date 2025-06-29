@@ -116,7 +116,10 @@ async function createWindow() {
 
   ipcMain.handle("view:remove", async (_, key) => {
     const view = views.get(key);
-    if (!view) throw new Error(`View not found: ${key}`);
+    if (!view) {
+      console.warn(`[Main] View not found during removal: ${key}`);
+      return; // Exit early if view doesn't exist
+    }
     if (win) win.contentView.removeChildView(view);
     views.delete(key);
     console.log(`[Main] Removed view: ${key}`);
