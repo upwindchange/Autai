@@ -1,4 +1,5 @@
 import { Trash2 } from "lucide-react"
+import { z } from "zod"
 
 import {
   Collapsible,
@@ -38,6 +39,17 @@ export function NavTasks({
   onTaskDelete: (index: number) => void
   onPageSelect?: (taskIndex: number, pageIndex: number) => void
 }) {
+
+  // Helper function to validate URL strings
+  function isValidUrl(value: any): value is string {
+    if (typeof value !== 'string') return false;
+    try {
+      return z.string().url().safeParse(value).success;
+    } catch {
+      return false;
+    }
+  }
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Tasks</SidebarGroupLabel>
@@ -61,7 +73,7 @@ export function NavTasks({
                   onClick={() => onExpandChange(index === expandedIndex ? null : index)}
                 >
                   <a href="#">
-                    {typeof task.favicon === 'string' ? (
+                    {isValidUrl(task.favicon) ? (
                       <img src={task.favicon} alt="Favicon" className="w-4 h-4" />
                     ) : (
                       <span>{task.favicon}</span>
@@ -81,7 +93,7 @@ export function NavTasks({
                           onClick={() => onPageSelect?.(index, pageIndex)}
                         >
                           <a href="#">
-                            {typeof page.favicon === 'string' ? (
+                            {isValidUrl(page.favicon) ? (
                               <img src={page.favicon} alt="Favicon" className="w-4 h-4" />
                             ) : (
                               <span>{page.favicon}</span>
