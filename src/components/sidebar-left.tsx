@@ -1,6 +1,12 @@
-"use client"
-import { useEffect, useRef, useState, useCallback} from "react";
-import type { ReactNode, ComponentProps, Dispatch, SetStateAction, RefObject } from "react";
+"use client";
+import { useEffect, useRef, useState, useCallback } from "react";
+import type {
+  ReactNode,
+  ComponentProps,
+  Dispatch,
+  SetStateAction,
+  RefObject,
+} from "react";
 import {
   Blocks,
   Calendar,
@@ -8,18 +14,16 @@ import {
   Settings2,
   Trash2,
   type LucideIcon,
-} from "lucide-react"
+} from "lucide-react";
 
 import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
-} from "@/components/ui/sidebar"
-import { Button } from "@/components/ui/button"
-import { NavSecondary } from "@/components/nav-secondary"
-import { NavTasks } from "@/components/nav-tasks"
-
-
+} from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
+import { NavSecondary } from "@/components/nav-secondary";
+import { NavTasks } from "@/components/nav-tasks";
 
 // Define interfaces matching component props
 interface NavSecondaryItem {
@@ -40,7 +44,6 @@ interface TaskItem {
   favicon: ReactNode;
   pages: PageItem[];
 }
-
 
 // Initialize navSecondary with current data
 const initialNavSecondary: NavSecondaryItem[] = [
@@ -69,23 +72,21 @@ const initialNavSecondary: NavSecondaryItem[] = [
     url: "#",
     icon: MessageCircleQuestion,
   },
-]
+];
 
 // Define popular sites for random selection
 const popularSites = [
-  {url: "https://www.google.com"},
-  {url: "https://www.youtube.com"},
-  {url: "https://www.facebook.com"},
-  {url: "https://www.baidu.com"},
-  {url: "https://www.wikipedia.org"},
-  {url: "https://twitter.com"},
-  {url: "https://www.instagram.com"},
-  {url: "https://www.reddit.com"},
-  {url: "https://www.amazon.com"},
-  {url: "https://www.linkedin.com" }
-]
-
-
+  { url: "https://www.google.com" },
+  { url: "https://www.youtube.com" },
+  { url: "https://www.facebook.com" },
+  { url: "https://www.baidu.com" },
+  { url: "https://www.wikipedia.org" },
+  { url: "https://twitter.com" },
+  { url: "https://www.instagram.com" },
+  { url: "https://www.reddit.com" },
+  { url: "https://www.amazon.com" },
+  { url: "https://www.linkedin.com" },
+];
 
 export function SidebarLeft({
   expandedIndex,
@@ -96,71 +97,93 @@ export function SidebarLeft({
 }: ComponentProps<typeof Sidebar> & {
   expandedIndex: number | null;
   setExpandedIndex: Dispatch<SetStateAction<number | null>>;
-  getContainerBounds: () => { x: number; y: number; width: number; height: number };
+  getContainerBounds: () => {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
   containerRef: RefObject<HTMLDivElement | null>;
 }) {
-
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   // Create ref for storing cleanup functions
   const viewCleanupRefs = useRef<Record<string, () => void>>({});
 
   // Handle page selection
-  const handlePageSelect = useCallback(async (taskIndex: number, pageIndex: number) => {
-    const key = `${taskIndex}-${pageIndex}`;
-    
-    // Ensure view exists (should be pre-created)
-    if (!viewCleanupRefs.current[key]) {
-      console.error(`View ${key} not found!`);
-      return;
-    }
+  const handlePageSelect = useCallback(
+    async (taskIndex: number, pageIndex: number) => {
+      const key = `${taskIndex}-${pageIndex}`;
 
-    // Hide all views except the active one
-    Object.keys(viewCleanupRefs.current || {}).forEach(viewKey => {
-      if (viewKey !== key) {
-        window.ipcRenderer.invoke("view:setBounds", viewKey, {
-          x: 0,
-          y: 0,
-          width: 0,
-          height: 0
-        });
+      // Ensure view exists (should be pre-created)
+      if (!viewCleanupRefs.current[key]) {
+        console.error(`View ${key} not found!`);
+        return;
       }
-    });
 
-    // Show active view with proper coordinates
-    window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
-  }, []);
-  
+      // Hide all views except the active one
+      Object.keys(viewCleanupRefs.current || {}).forEach((viewKey) => {
+        if (viewKey !== key) {
+          window.ipcRenderer.invoke("view:setBounds", viewKey, {
+            x: 0,
+            y: 0,
+            width: 0,
+            height: 0,
+          });
+        }
+      });
+
+      // Show active view with proper coordinates
+      window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
+    },
+    []
+  );
+
   const handleAddTask = async () => {
     const newIndex = tasks.length;
     const randomIndex = Math.floor(Math.random() * popularSites.length);
     const newSite = popularSites[randomIndex];
-    
+
     // Create task immediately with placeholder data
-    setTasks(prev => [...prev, {
-      title: "New Task",
-      favicon: "📋",
-      pages: [{
-        ...newSite,
-        title: "Loading...",
-        favicon: "⏳"
-      }]
-    }]);
+    setTasks((prev) => [
+      ...prev,
+      {
+        title: "New Task",
+        favicon: "📋",
+        pages: [
+          {
+            ...newSite,
+            title: "Loading...",
+            favicon: "⏳",
+          },
+        ],
+      },
+    ]);
     setExpandedIndex(newIndex);
-    
+
     // Create view asynchronously
     const key = `${newIndex}-0`;
     try {
       console.log(`Creating view for key: ${key}`);
-      await window.ipcRenderer.invoke("view:create", key, { webPreferences: {} });
-      
+      await window.ipcRenderer.invoke("view:create", key, {
+        webPreferences: {},
+      });
+
       // Set initial bounds
-      await window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
-      
+      await window.ipcRenderer.invoke(
+        "view:setBounds",
+        key,
+        getContainerBounds()
+      );
+
       // Load URL and get metadata
-      const { title, favicon } = await window.ipcRenderer.invoke("nav:loadURL", key, newSite.url);
-      
+      const { title, favicon } = await window.ipcRenderer.invoke(
+        "nav:loadURL",
+        key,
+        newSite.url
+      );
+
       // Update task metadata
-      setTasks(prev => {
+      setTasks((prev) => {
         const newTasks = [...prev];
         if (newTasks[newIndex]?.pages?.[0]) {
           newTasks[newIndex] = { ...newTasks[newIndex] };
@@ -168,7 +191,7 @@ export function SidebarLeft({
           newTasks[newIndex].pages[0] = {
             ...newTasks[newIndex].pages[0],
             title: title,
-            favicon: favicon
+            favicon: favicon,
           };
         }
         return newTasks;
@@ -177,12 +200,12 @@ export function SidebarLeft({
       const resizeObserver = new ResizeObserver(() => {
         window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
       });
-      
+
       // Attach observer to container
       if (containerRef.current) {
         resizeObserver.observe(containerRef.current);
       }
-      
+
       // Store cleanup function
       viewCleanupRefs.current[key] = () => {
         resizeObserver.disconnect();
@@ -192,48 +215,46 @@ export function SidebarLeft({
       console.log(`Created view for key: ${key}`);
     } catch (error) {
       console.error(`Failed to create view ${key}:`, error);
-      
+
       // Update task to show error state
-      setTasks(prev => {
+      setTasks((prev) => {
         const newTasks = [...prev];
         if (newTasks[newIndex]) {
           newTasks[newIndex].pages[0] = {
             ...newTasks[newIndex].pages[0],
             title: "Failed to load",
-            favicon: "❌"
+            favicon: "❌",
           };
         }
         return newTasks;
       });
     }
-  }
+  };
 
-  
-  const handleTaskDelete = useCallback((index: number) => {
-    // Clean up views for this task
-    tasks[index].pages.forEach((_, pageIndex) => {
-      const key = `${index}-${pageIndex}`;
-      window.ipcRenderer?.invoke("view:remove", key);
-    });
-    
-    setTasks(prev => prev.filter((_, i) => i !== index));
-    
-    // Update expanded index
-    if (expandedIndex === index) {
-      setExpandedIndex(null);
-    } else if (expandedIndex !== null && expandedIndex > index) {
-      setExpandedIndex(expandedIndex - 1);
-    }
-  }, [tasks, expandedIndex]);
+  const handleTaskDelete = useCallback(
+    (index: number) => {
+      // Clean up views for this task
+      tasks[index].pages.forEach((_, pageIndex) => {
+        const key = `${index}-${pageIndex}`;
+        window.ipcRenderer?.invoke("view:remove", key);
+      });
+
+      setTasks((prev) => prev.filter((_, i) => i !== index));
+
+      // Update expanded index
+      if (expandedIndex === index) {
+        setExpandedIndex(null);
+      } else if (expandedIndex !== null && expandedIndex > index) {
+        setExpandedIndex(expandedIndex - 1);
+      }
+    },
+    [tasks, expandedIndex]
+  );
 
   return (
     <Sidebar className="border-r-0" {...props}>
       <SidebarHeader>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleAddTask}
-        >
+        <Button variant="outline" size="sm" onClick={handleAddTask}>
           + Create New Task
         </Button>
       </SidebarHeader>
@@ -248,5 +269,5 @@ export function SidebarLeft({
         <NavSecondary items={initialNavSecondary} className="mt-auto" />
       </SidebarContent>
     </Sidebar>
-  )
+  );
 }

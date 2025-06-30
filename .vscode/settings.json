@@ -1,4 +1,8 @@
 {
+  "editor.formatOnSaveMode": "file",
+  "editor.formatOnSave": true,
+  "editor.formatOnPaste": true,
+  "editor.formatOnType": true,
   "typescript.tsdk": "node_modules/typescript/lib",
   "typescript.tsc.autoDetect": "off",
   "json.schemas": [
