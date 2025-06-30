@@ -245,7 +245,12 @@ export function SidebarLeft({
       const task = tasks[index];
       task.pages.forEach((_, pageIndex) => {
         const key = `${task.id}-${pageIndex}`;
-        window.ipcRenderer?.invoke("view:remove", key);
+        // Run stored cleanup function if exists
+        const cleanup = viewCleanupRefs.current[key];
+        if (cleanup) {
+          cleanup();
+          delete viewCleanupRefs.current[key];
+        }
       });
 
       setTasks((prev) => prev.filter((_, i) => i !== index));
@@ -259,6 +264,15 @@ export function SidebarLeft({
     },
     [tasks, expandedIndex]
   );
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      // Run all cleanup functions when component unmounts
+      Object.values(viewCleanupRefs.current).forEach((cleanup) => cleanup());
+      viewCleanupRefs.current = {};
+    };
+  }, []);
 
   return (
     <Sidebar className="border-r-0" {...props}>
