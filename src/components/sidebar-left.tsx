@@ -40,6 +40,7 @@ interface PageItem {
 }
 
 interface TaskItem {
+  id: string;
   title: string;
   favicon: ReactNode;
   pages: PageItem[];
@@ -112,7 +113,12 @@ export function SidebarLeft({
   // Handle page selection
   const handlePageSelect = useCallback(
     async (taskIndex: number, pageIndex: number) => {
-      const key = `${taskIndex}-${pageIndex}`;
+      const task = tasks[taskIndex];
+      if (!task) {
+        console.error(`Task at index ${taskIndex} not found`);
+        return;
+      }
+      const key = `${task.id}-${pageIndex}`;
 
       // Ensure view exists (should be pre-created)
       if (!viewCleanupRefs.current[key]) {
@@ -135,7 +141,7 @@ export function SidebarLeft({
       // Show active view with proper coordinates
       window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
     },
-    []
+    [tasks, getContainerBounds]
   );
 
   const handleAddTask = async () => {
@@ -144,9 +150,11 @@ export function SidebarLeft({
     const newSite = popularSites[randomIndex];
 
     // Create task immediately with placeholder data
+    const newTaskId = Date.now().toString();
     setTasks((prev) => [
       ...prev,
       {
+        id: newTaskId,
         title: "New Task",
         favicon: "📋",
         pages: [
@@ -161,7 +169,7 @@ export function SidebarLeft({
     setExpandedIndex(newIndex);
 
     // Create view asynchronously
-    const key = `${newIndex}-0`;
+    const key = `${newTaskId}-0`;
     try {
       console.log(`Creating view for key: ${key}`);
       await window.ipcRenderer.invoke("view:create", key, {
@@ -234,8 +242,9 @@ export function SidebarLeft({
   const handleTaskDelete = useCallback(
     (index: number) => {
       // Clean up views for this task
-      tasks[index].pages.forEach((_, pageIndex) => {
-        const key = `${index}-${pageIndex}`;
+      const task = tasks[index];
+      task.pages.forEach((_, pageIndex) => {
+        const key = `${task.id}-${pageIndex}`;
         window.ipcRenderer?.invoke("view:remove", key);
       });
 
