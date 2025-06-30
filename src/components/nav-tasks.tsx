@@ -1,10 +1,6 @@
-import { Trash2 } from "lucide-react"
-import { z } from "zod"
+import { Trash2 } from "lucide-react";
 
-import {
-  Collapsible,
-  CollapsibleContent,
-} from "@/components/ui/collapsible"
+import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -16,40 +12,29 @@ import {
   SidebarMenuSub,
   SidebarMenuSubButton,
   SidebarMenuSubItem,
-} from "@/components/ui/sidebar"
+} from "@/components/ui/sidebar";
 
 export function NavTasks({
   tasks,
   expandedIndex,
   onExpandChange,
   onTaskDelete,
-  onPageSelect
+  onPageSelect,
 }: {
   tasks: {
-    title: string
-    favicon: React.ReactNode
+    title: string;
+    favicon: React.ReactNode;
     pages: {
-      title: string
-      favicon: React.ReactNode
-      url: string
-    }[]
-  }[]
-  expandedIndex: number | null
-  onExpandChange: (index: number | null) => void
-  onTaskDelete: (index: number) => void
-  onPageSelect?: (taskIndex: number, pageIndex: number) => void
+      title: string;
+      favicon: string;
+      url: string;
+    }[];
+  }[];
+  expandedIndex: number | null;
+  onExpandChange: (index: number | null) => void;
+  onTaskDelete: (index: number) => void;
+  onPageSelect?: (taskIndex: number, pageIndex: number) => void;
 }) {
-
-  // Helper function to validate URL strings
-  function isValidUrl(value: any): value is string {
-    if (typeof value !== 'string') return false;
-    try {
-      return z.string().url().safeParse(value).success;
-    } catch {
-      return false;
-    }
-  }
-
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Tasks</SidebarGroupLabel>
@@ -61,27 +46,28 @@ export function NavTasks({
               open={index === expandedIndex}
               onOpenChange={(open) => {
                 if (open) {
-                  onExpandChange(index)
+                  onExpandChange(index);
                 } else {
-                  onExpandChange(null)
+                  onExpandChange(null);
                 }
               }}
             >
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
-                  onClick={() => onExpandChange(index === expandedIndex ? null : index)}
+                  onClick={() =>
+                    onExpandChange(index === expandedIndex ? null : index)
+                  }
                 >
                   <a href="#">
-                    {isValidUrl(task.favicon) ? (
-                      <img src={task.favicon} alt="Favicon" className="w-4 h-4" />
-                    ) : (
-                      <span>{task.favicon}</span>
-                    )}
+                    <span>{task.favicon}</span>
                     <span>{task.title}</span>
                   </a>
                 </SidebarMenuButton>
-                <SidebarMenuAction showOnHover onClick={() => onTaskDelete(index)}>
+                <SidebarMenuAction
+                  showOnHover
+                  onClick={() => onTaskDelete(index)}
+                >
                   <Trash2 size={16} />
                 </SidebarMenuAction>
                 <CollapsibleContent>
@@ -93,11 +79,11 @@ export function NavTasks({
                           onClick={() => onPageSelect?.(index, pageIndex)}
                         >
                           <a href="#">
-                            {isValidUrl(page.favicon) ? (
-                              <img src={page.favicon} alt="Favicon" className="w-4 h-4" />
-                            ) : (
-                              <span>{page.favicon}</span>
-                            )}
+                            <img
+                              src={page.favicon}
+                              alt="Favicon"
+                              className="w-4 h-4"
+                            />
                             <span>{page.title}</span>
                           </a>
                         </SidebarMenuSubButton>
@@ -111,5 +97,5 @@ export function NavTasks({
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>
-  )
+  );
 }

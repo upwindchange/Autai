@@ -20,7 +20,6 @@ import {
 } from "@/components/ui/resizable";
 import GenAI from "@/components/genai/genai";
 
-
 function App() {
   const viewContainerRef = useRef<HTMLDivElement>(null);
   const [activeViewKey, setActiveViewKey] = useState<string | null>(null);
@@ -31,7 +30,7 @@ function App() {
   const getContainerBounds = useCallback(() => {
     const container = viewContainerRef.current;
     if (!container) return { x: 0, y: 0, width: 0, height: 0 };
-    
+
     const rect = container.getBoundingClientRect();
     return {
       x: Math.round(rect.x),
@@ -44,10 +43,11 @@ function App() {
   // Cleanup all views on unmount
   useEffect(() => {
     return () => {
-      Object.values(viewCleanupRefs.current || {}).forEach(cleanupFn => cleanupFn());
+      Object.values(viewCleanupRefs.current || {}).forEach((cleanupFn) =>
+        cleanupFn()
+      );
     };
   }, []);
-
 
   return (
     <div className="w-dvw flex flex-row h-dvh">
