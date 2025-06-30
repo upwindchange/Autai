@@ -1,4 +1,5 @@
 import { Trash2 } from "lucide-react";
+import { z } from "zod";
 
 import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
 import {
@@ -26,7 +27,7 @@ export function NavTasks({
     favicon: React.ReactNode;
     pages: {
       title: string;
-      favicon: string;
+      favicon: React.ReactNode;
       url: string;
     }[];
   }[];
@@ -35,6 +36,16 @@ export function NavTasks({
   onTaskDelete: (index: number) => void;
   onPageSelect?: (taskIndex: number, pageIndex: number) => void;
 }) {
+  // Helper function to validate URL strings
+  function isValidUrl(value: any): value is string {
+    if (typeof value !== "string") return false;
+    try {
+      return z.string().url().safeParse(value).success;
+    } catch {
+      return false;
+    }
+  }
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Tasks</SidebarGroupLabel>
@@ -79,11 +90,15 @@ export function NavTasks({
                           onClick={() => onPageSelect?.(index, pageIndex)}
                         >
                           <a href="#">
-                            <img
-                              src={page.favicon}
-                              alt="Favicon"
-                              className="w-4 h-4"
-                            />
+                            {isValidUrl(page.favicon) ? (
+                              <img
+                                src={page.favicon}
+                                alt="Favicon"
+                                className="w-4 h-4"
+                              />
+                            ) : (
+                              <span>{page.favicon}</span>
+                            )}
                             <span>{page.title}</span>
                           </a>
                         </SidebarMenuSubButton>
