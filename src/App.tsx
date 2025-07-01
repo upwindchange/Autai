@@ -25,6 +25,7 @@ function App() {
   const [activeViewKey, setActiveViewKey] = useState<string | null>(null);
   const viewCleanupRefs = useRef<Record<string, () => void>>({});
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
+  const [selectedPageUrl, setSelectedPageUrl] = useState<string | null>(null);
 
   // Get container bounds with proper coordinates
   const getContainerBounds = useCallback(() => {
@@ -59,6 +60,7 @@ function App() {
               setExpandedIndex={setExpandedIndex}
               getContainerBounds={getContainerBounds}
               containerRef={viewContainerRef}
+              onPageSelect={setSelectedPageUrl}
             />
             <SidebarInset className="relative">
               <header className="bg-background sticky top-0 flex h-14 shrink-0 items-center gap-2">
@@ -72,7 +74,8 @@ function App() {
                     <BreadcrumbList>
                       <BreadcrumbItem>
                         <BreadcrumbPage className="line-clamp-1">
-                          Project Management & Task Tracking
+                          {selectedPageUrl ||
+                            "Project Management & Task Tracking"}
                         </BreadcrumbPage>
                       </BreadcrumbItem>
                     </BreadcrumbList>

@@ -94,6 +94,7 @@ export function SidebarLeft({
   setExpandedIndex,
   getContainerBounds,
   containerRef,
+  onPageSelect,
   ...props
 }: ComponentProps<typeof Sidebar> & {
   expandedIndex: number | null;
@@ -105,6 +106,7 @@ export function SidebarLeft({
     height: number;
   };
   containerRef: RefObject<HTMLDivElement | null>;
+  onPageSelect?: (url: string) => void;
 }) {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   // Create ref for storing cleanup functions
@@ -140,8 +142,14 @@ export function SidebarLeft({
 
       // Show active view with proper coordinates
       window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
+
+      // Propagate selected page URL to parent component
+      if (onPageSelect) {
+        const page = task.pages[pageIndex];
+        onPageSelect(page.url);
+      }
     },
-    [tasks, getContainerBounds]
+    [tasks, getContainerBounds, onPageSelect]
   );
 
   const handleAddTask = async () => {
