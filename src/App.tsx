@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import "./App.css";
 import { SidebarLeft } from "@/components/sidebar-left";
+import { LinkHintsWrapper, LinkHintsWrapperHandle } from "@/components/link-hints-wrapper";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -21,15 +22,14 @@ import {
 import GenAI from "@/components/genai/genai";
 
 function App() {
-  const viewContainerRef = useRef<HTMLDivElement>(null);
-  const [activeViewKey, setActiveViewKey] = useState<string | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const viewCleanupRefs = useRef<Record<string, () => void>>({});
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [selectedPageUrl, setSelectedPageUrl] = useState<string | null>(null);
 
   // Get container bounds with proper coordinates
   const getContainerBounds = useCallback(() => {
-    const container = viewContainerRef.current;
+    const container = containerRef.current;
     if (!container) return { x: 0, y: 0, width: 0, height: 0 };
 
     const rect = container.getBoundingClientRect();
@@ -59,7 +59,7 @@ function App() {
               expandedIndex={expandedIndex}
               setExpandedIndex={setExpandedIndex}
               getContainerBounds={getContainerBounds}
-              containerRef={viewContainerRef}
+              containerRef={containerRef}
               onPageSelect={setSelectedPageUrl}
             />
             <SidebarInset className="relative">
@@ -82,10 +82,10 @@ function App() {
                   </Breadcrumb>
                 </div>
               </header>
-              <div
-                ref={viewContainerRef}
-                className="flex flex-1 flex-col gap-4 p-4 overflow-y-auto h-full"
-              />
+              <LinkHintsWrapper
+                containerRef={containerRef}
+              >
+              </LinkHintsWrapper>
             </SidebarInset>
           </SidebarProvider>
         </ResizablePanel>
