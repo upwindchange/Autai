@@ -106,7 +106,7 @@ export function SidebarLeft({
     height: number;
   };
   containerRef: RefObject<HTMLDivElement | null>;
-  onPageSelect?: (url: string) => void;
+  onPageSelect?: (key: string, url: string) => void;
 }) {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   // Create ref for storing cleanup functions
@@ -146,7 +146,7 @@ export function SidebarLeft({
       // Propagate selected page URL to parent component
       if (onPageSelect) {
         const page = task.pages[pageIndex];
-        onPageSelect(page.url);
+        onPageSelect(key, page.url);
       }
     },
     [tasks, getContainerBounds, onPageSelect]

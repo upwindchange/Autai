@@ -231,6 +231,64 @@ async function createWindow() {
   // Auto update
   update(win);
 
+  // Add new IPC handlers for link hints
+  ipcMain.handle("dom:getClickableElements", async (_, key: string) => {
+    const view = views.get(key);
+    if (!view) return [];
+    
+    try {
+      return await view.webContents.executeJavaScript(`
+        // Adapted from Vimium's LocalHints.getLocalHintsForElement
+        function getClickableElements() {
+          const elements = [];
+          const clickableSelectors = [
+            'a', 'button', 'input[type="button"]', 'input[type="submit"]',
+            'input[type="reset"]', '[role="button"]', '[contenteditable]',
+            '[onclick]', '[tabindex]'
+          ];
+          
+          document.querySelectorAll(clickableSelectors.join(', ')).forEach(el => {
+            if (el.offsetWidth > 0 && el.offsetHeight > 0) {
+              const rect = el.getBoundingClientRect();
+              elements.push({
+                top: rect.top + window.scrollY,
+                left: rect.left + window.scrollX,
+                width: rect.width,
+                height: rect.height
+              });
+            }
+          });
+          return elements;
+        }
+        getClickableElements();
+      `);
+    } catch (error) {
+      console.error("Error getting clickable elements:", error);
+      return [];
+    }
+  });
+
+  ipcMain.on("dom:clickElement", (_, key: string, coords: {x: number, y: number}) => {
+    const view = views.get(key);
+    if (view) {
+      view.webContents.sendInputEvent({
+        type: 'mouseDown',
+        x: coords.x,
+        y: coords.y,
+        button: 'left',
+        clickCount: 1
+      });
+      
+      view.webContents.sendInputEvent({
+        type: 'mouseUp',
+        x: coords.x,
+        y: coords.y,
+        button: 'left',
+        clickCount: 1
+      });
+    }
+  });
+
   // Add new handler for GenAI messages
   ipcMain.handle("genai:send", async (_, message: string) => {
     return agentService.processMessage(message);

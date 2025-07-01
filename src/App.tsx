@@ -19,6 +19,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import GenAI from "@/components/genai/genai";
+import LinkHints from "@/components/link-hints";
 
 function App() {
   const viewContainerRef = useRef<HTMLDivElement>(null);
@@ -41,6 +42,12 @@ function App() {
     };
   }, []);
 
+  // Handle page selection (now includes view key)
+  const handlePageSelect = useCallback((key: string, url: string) => {
+    setActiveViewKey(key);
+    setSelectedPageUrl(url);
+  }, []);
+
   // Cleanup all views on unmount
   useEffect(() => {
     return () => {
@@ -60,7 +67,7 @@ function App() {
               setExpandedIndex={setExpandedIndex}
               getContainerBounds={getContainerBounds}
               containerRef={viewContainerRef}
-              onPageSelect={setSelectedPageUrl}
+              onPageSelect={handlePageSelect} // Updated to new handler
             />
             <SidebarInset className="relative">
               <header className="bg-background sticky top-0 flex h-14 shrink-0 items-center gap-2">
@@ -84,8 +91,14 @@ function App() {
               </header>
               <div
                 ref={viewContainerRef}
-                className="flex flex-1 flex-col gap-4 p-4 overflow-y-auto h-full"
-              />
+                className="flex flex-1 flex-col gap-4 p-4 overflow-y-auto h-full relative"
+              >
+                {/* Add LinkHints component for showing clickable hints */}
+                <LinkHints
+                  viewKey={activeViewKey}
+                  containerRef={viewContainerRef}
+                />
+              </div>
             </SidebarInset>
           </SidebarProvider>
         </ResizablePanel>
