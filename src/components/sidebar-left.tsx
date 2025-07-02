@@ -143,6 +143,9 @@ export function SidebarLeft({
       // Show active view with proper coordinates
       window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
 
+      // Emit active view change event for link hints
+      window.ipcRenderer.send("active-view-changed", key);
+
       // Propagate selected page URL to parent component
       if (onPageSelect) {
         const page = task.pages[pageIndex];
@@ -229,6 +232,9 @@ export function SidebarLeft({
       };
 
       console.log(`Created view for key: ${key}`);
+      
+      // Automatically select this page to trigger hint detection
+      handlePageSelect(newIndex, 0);
     } catch (error) {
       console.error(`Failed to create view ${key}:`, error);
 

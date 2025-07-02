@@ -84,8 +84,7 @@ function App() {
               </header>
               <LinkHintsWrapper
                 containerRef={containerRef}
-              >
-              </LinkHintsWrapper>
+              />
             </SidebarInset>
           </SidebarProvider>
         </ResizablePanel>
