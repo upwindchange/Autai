@@ -104,12 +104,10 @@ async function createWindow() {
             const rect = element.getBoundingClientRect();
             const style = window.getComputedStyle(element);
             
+            // Check if element has dimensions and is not hidden by CSS
+            // Remove viewport constraints to detect entire webpage
             return rect.width > 0 && 
                    rect.height > 0 &&
-                   rect.top < window.innerHeight &&
-                   rect.bottom > 0 &&
-                   rect.left < window.innerWidth &&
-                   rect.right > 0 &&
                    style.visibility !== 'hidden' &&
                    style.display !== 'none' &&
                    parseFloat(style.opacity) > 0;
@@ -315,12 +313,30 @@ async function createWindow() {
             if (!container) {
               container = document.createElement('div');
               container.id = 'vimium-hint-container';
+              
+              // Use absolute positioning to cover entire document, not just viewport
+              const docHeight = Math.max(
+                document.body.scrollHeight || 0,
+                document.body.offsetHeight || 0,
+                document.documentElement.clientHeight || 0,
+                document.documentElement.scrollHeight || 0,
+                document.documentElement.offsetHeight || 0
+              );
+              
+              const docWidth = Math.max(
+                document.body.scrollWidth || 0,
+                document.body.offsetWidth || 0,
+                document.documentElement.clientWidth || 0,
+                document.documentElement.scrollWidth || 0,
+                document.documentElement.offsetWidth || 0
+              );
+              
               container.style.cssText = \`
-                position: fixed !important;
+                position: absolute !important;
                 top: 0 !important;
                 left: 0 !important;
-                width: 100% !important;
-                height: 100% !important;
+                width: \${docWidth}px !important;
+                height: \${docHeight}px !important;
                 pointer-events: none !important;
                 z-index: 2147483647 !important;
                 isolation: isolate !important;
@@ -362,10 +378,15 @@ async function createWindow() {
               const marker = document.createElement('div');
               const hintLabel = generateHintString(index + 1);
               
+              // Use absolute positioning relative to the document, not viewport
+              // This ensures hints work even when elements are outside viewport
+              const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+              const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+              
               marker.style.cssText = \`
                 position: absolute !important;
-                left: \${hint.rect.left}px !important;
-                top: \${hint.rect.top}px !important;
+                left: \${hint.rect.left + scrollX}px !important;
+                top: \${hint.rect.top + scrollY}px !important;
                 background: linear-gradient(to bottom, #FFF785 0%, #FFC542 100%) !important;
                 border: 1px solid #C38A22 !important;
                 border-radius: 3px !important;
@@ -534,12 +555,52 @@ async function createWindow() {
             }));
           };
           
+          // Set up automatic hint management
+          let hintRefreshTimeout;
+          
+          const refreshHints = () => {
+            clearTimeout(hintRefreshTimeout);
+            hintRefreshTimeout = setTimeout(() => {
+              if (window.showHints) {
+                window.showHints();
+              }
+            }, 100); // Debounce rapid events
+          };
+          
           // Auto-show hints when page loads
           setTimeout(() => {
             if (window.showHints) {
               window.showHints();
             }
           }, 1000);
+          
+          // Refresh hints on scroll to maintain correct positioning
+          window.addEventListener('scroll', refreshHints, { passive: true });
+          
+          // Refresh hints when window is resized
+          window.addEventListener('resize', refreshHints, { passive: true });
+          
+          // Set up mutation observer for dynamic content
+          const observer = new MutationObserver(() => {
+            refreshHints();
+          });
+          
+          // Start observing the document for changes
+          if (document.body) {
+            observer.observe(document.body, {
+              childList: true,
+              subtree: true,
+              attributes: true,
+              attributeFilter: ['style', 'class', 'hidden']
+            });
+          }
+          
+          // Also refresh hints periodically to catch any missed changes
+          setInterval(() => {
+            if (window.showHints) {
+              window.showHints();
+            }
+          }, 5000);
         })();
       `;
       view.webContents.executeJavaScript(hintDetectorScript)
