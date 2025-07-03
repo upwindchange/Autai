@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import "./App.css";
 import { SidebarLeft } from "@/components/sidebar-left";
-import { LinkHintsWrapper, LinkHintsWrapperHandle } from "@/components/link-hints-wrapper";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -82,9 +81,7 @@ function App() {
                   </Breadcrumb>
                 </div>
               </header>
-              <LinkHintsWrapper
-                containerRef={containerRef}
-              />
+              <div ref={containerRef} className="relative flex flex-1 flex-col gap-4 p-4 overflow-y-auto h-full" />
             </SidebarInset>
           </SidebarProvider>
         </ResizablePanel>
