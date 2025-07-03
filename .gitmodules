@@ -1,3 +1,6 @@
 [submodule "src/vimium"]
 	path = src/vimium
 	url = https://github.com/philc/vimium.git
+[submodule "src/vimium-c"]
+	path = src/vimium-c
+	url = git@github.com:gdh1995/vimium-c.git
