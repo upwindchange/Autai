@@ -114,8 +114,9 @@ export function SidebarLeft({
 
   // Handle page selection
   const handlePageSelect = useCallback(
-    async (taskIndex: number, pageIndex: number) => {
-      const task = tasks[taskIndex];
+    async (taskIndex: number, pageIndex: number, tasksArray?: TaskItem[]) => {
+      const currentTasks = tasksArray || tasks;
+      const task = currentTasks[taskIndex];
       if (!task) {
         console.error(`Task at index ${taskIndex} not found`);
         return;
@@ -162,21 +163,20 @@ export function SidebarLeft({
 
     // Create task immediately with placeholder data
     const newTaskId = Date.now().toString();
-    setTasks((prev) => [
-      ...prev,
-      {
-        id: newTaskId,
-        title: "New Task",
-        favicon: "📋",
-        pages: [
-          {
-            ...newSite,
-            title: "Loading...",
-            favicon: "⏳",
-          },
-        ],
-      },
-    ]);
+    const newTask = {
+      id: newTaskId,
+      title: "New Task",
+      favicon: "📋",
+      pages: [
+        {
+          ...newSite,
+          title: "Loading...",
+          favicon: "⏳",
+        },
+      ],
+    };
+    
+    setTasks((prev) => [...prev, newTask]);
     setExpandedIndex(newIndex);
 
     // Create view asynchronously
@@ -234,7 +234,9 @@ export function SidebarLeft({
       console.log(`Created view for key: ${key}`);
       
       // Automatically select this page to trigger hint detection
-      handlePageSelect(newIndex, 0);
+      // Pass the updated tasks array to avoid stale state
+      const updatedTasks = [...tasks, newTask];
+      handlePageSelect(newIndex, 0, updatedTasks);
     } catch (error) {
       console.error(`Failed to create view ${key}:`, error);
 
