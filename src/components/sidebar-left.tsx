@@ -176,7 +176,7 @@ export function SidebarLeft({
       ],
     };
     
-    setTasks((prev) => [...prev, newTask]);
+    setTasks((prev: TaskItem[]) => [...prev, newTask]);
     setExpandedIndex(newIndex);
 
     // Create view asynchronously
@@ -202,7 +202,7 @@ export function SidebarLeft({
       );
 
       // Update task metadata
-      setTasks((prev) => {
+      setTasks((prev: TaskItem[]) => {
         const newTasks = [...prev];
         if (newTasks[newIndex]?.pages?.[0]) {
           newTasks[newIndex] = { ...newTasks[newIndex] };
@@ -241,7 +241,7 @@ export function SidebarLeft({
       console.error(`Failed to create view ${key}:`, error);
 
       // Update task to show error state
-      setTasks((prev) => {
+      setTasks((prev: TaskItem[]) => {
         const newTasks = [...prev];
         if (newTasks[newIndex]) {
           newTasks[newIndex].pages[0] = {
@@ -259,7 +259,7 @@ export function SidebarLeft({
     (index: number) => {
       // Clean up views for this task
       const task = tasks[index];
-      task.pages.forEach((_, pageIndex) => {
+      task.pages.forEach((_: PageItem, pageIndex: number) => {
         const key = `${task.id}-${pageIndex}`;
         // Run stored cleanup function if exists
         const cleanup = viewCleanupRefs.current[key];
@@ -269,7 +269,7 @@ export function SidebarLeft({
         }
       });
 
-      setTasks((prev) => prev.filter((_, i) => i !== index));
+      setTasks((prev: TaskItem[]) => prev.filter((_: TaskItem, i: number) => i !== index));
 
       // Update expanded index
       if (expandedIndex === index) {
@@ -285,7 +285,11 @@ export function SidebarLeft({
   useEffect(() => {
     return () => {
       // Run all cleanup functions when component unmounts
-      Object.values(viewCleanupRefs.current).forEach((cleanup) => cleanup());
+        Object.values(viewCleanupRefs.current).forEach((cleanup: () => void) => {
+            if (cleanup) {
+                cleanup()
+            }
+        });
       viewCleanupRefs.current = {};
     };
   }, []);
