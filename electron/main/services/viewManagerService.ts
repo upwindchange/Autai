@@ -1,5 +1,5 @@
 import { BrowserWindow, WebContentsView, ipcMain } from "electron";
-import { getHintDetectorScript, getHintClickScript } from "./scripts/hintDetectorLoader";
+import { getHintDetectorScript, getHintClickScript } from "../scripts/hintDetectorLoader";
 
 export class ViewManager {
   private views = new Map<string, WebContentsView>();
@@ -48,23 +48,22 @@ export class ViewManager {
     if (!view) throw new Error(`View not found: ${key}`);
     
     // Validate bounds structure
-    if (!bounds || typeof bounds !== 'object' ||
-        typeof bounds.x !== 'number' ||
-        typeof bounds.y !== 'number' ||
-        typeof bounds.width !== 'number' ||
-        typeof bounds.height !== 'number') {
-      throw new TypeError(`Invalid bounds format: ${JSON.stringify(bounds)}`);
+    if (!bounds || typeof bounds.x !== 'number' || typeof bounds.y !== 'number' || 
+        typeof bounds.width !== 'number' || typeof bounds.height !== 'number') {
+      throw new Error('Invalid bounds structure');
     }
     
+    console.log(`[Main] Setting bounds for view ${key}:`, bounds);
     view.setBounds(bounds);
   }
 
   removeView(key: string): void {
     const view = this.views.get(key);
     if (!view) {
-      console.warn(`[Main] View not found during removal: ${key}`);
+      console.warn(`[Main] Attempted to remove non-existent view: ${key}`);
       return;
     }
+    
     this.win.contentView.removeChildView(view);
     this.views.delete(key);
     console.log(`[Main] Removed view: ${key}`);
