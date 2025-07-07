@@ -15,6 +15,10 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 
+/**
+ * Navigation component that displays tasks as collapsible menu items.
+ * Each task can contain multiple pages that can be selected.
+ */
 export function NavTasks({
   tasks,
   expandedIndex,
@@ -36,7 +40,9 @@ export function NavTasks({
   onTaskDelete: (index: number) => void;
   onPageSelect?: (taskIndex: number, pageIndex: number) => void;
 }) {
-  // Helper function to validate URL strings
+  /**
+   * Validates if a value is a valid URL string for favicon display
+   */
   function isValidUrl(value: any): value is string {
     if (typeof value !== "string") return false;
     try {

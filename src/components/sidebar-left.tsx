@@ -17,12 +17,18 @@ import { Button } from "@/components/ui/button";
 import { NavSecondary } from "@/components/nav-secondary";
 import { NavTasks } from "@/components/nav-tasks";
 
+/**
+ * Represents a single web page within a task
+ */
 interface PageItem {
   title: string;
   url: string;
   favicon: string | ReactNode;
 }
 
+/**
+ * Represents a task containing multiple web pages
+ */
 interface TaskItem {
   id: string;
   title: string;
@@ -30,11 +36,17 @@ interface TaskItem {
   pages: PageItem[];
 }
 
+/**
+ * Manages WebContentsView lifecycle and resize observation
+ */
 interface ViewManager {
   cleanup: () => void;
   resizeObserver?: ResizeObserver;
 }
 
+/**
+ * Props for the SidebarLeft component
+ */
 interface SidebarLeftProps extends ComponentProps<typeof Sidebar> {
   expandedIndex: number | null;
   setExpandedIndex: Dispatch<SetStateAction<number | null>>;
@@ -48,6 +60,9 @@ interface SidebarLeftProps extends ComponentProps<typeof Sidebar> {
   onPageSelect?: (url: string) => void;
 }
 
+/**
+ * Default sites for new tasks - randomly selected when creating a new task
+ */
 const POPULAR_SITES = [
   { url: "https://www.google.com" },
   { url: "https://www.youtube.com" },
@@ -61,10 +76,20 @@ const POPULAR_SITES = [
   { url: "https://www.linkedin.com" },
 ] as const;
 
+/**
+ * Empty bounds used to hide views
+ */
 const EMPTY_BOUNDS = { x: 0, y: 0, width: 0, height: 0 } as const;
 
+/**
+ * Generates a unique key for each view based on task ID and page index
+ */
 const getViewKey = (taskId: string, pageIndex: number) => `${taskId}-${pageIndex}`;
 
+/**
+ * Left sidebar component that manages tasks and their associated web views.
+ * Each task can contain multiple pages, and each page is rendered in a WebContentsView.
+ */
 export function SidebarLeft({
   expandedIndex,
   setExpandedIndex,
@@ -74,12 +99,18 @@ export function SidebarLeft({
   ...props
 }: SidebarLeftProps) {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
+  /**
+   * Map of view key to ViewManager for lifecycle management
+   */
   const viewManagersRef = useRef<Map<string, ViewManager>>(new Map());
 
   const memoizedGetContainerBounds = useCallback(getContainerBounds, [
     getContainerBounds,
   ]);
 
+  /**
+   * Hides all views except the specified one by setting their bounds to empty
+   */
   const hideAllViewsExcept = useCallback(async (activeKey: string) => {
     const hidePromises = Array.from(viewManagersRef.current.keys())
       .filter(key => key !== activeKey)
@@ -88,6 +119,9 @@ export function SidebarLeft({
     await Promise.all(hidePromises);
   }, []);
 
+  /**
+   * Creates a ViewManager that handles resize observation and cleanup for a WebContentsView
+   */
   const createViewManager = useCallback((key: string): ViewManager => {
     const resizeObserver = new ResizeObserver(() => {
       window.ipcRenderer.invoke("view:setBounds", key, memoizedGetContainerBounds());
@@ -120,6 +154,9 @@ export function SidebarLeft({
     });
   }, [cleanupView]);
 
+  /**
+   * Handles page selection: shows the selected view and hides others
+   */
   const handlePageSelect = useCallback(
     async (taskIndex: number, pageIndex: number, tasksArray?: TaskItem[]) => {
       const currentTasks = tasksArray || tasks;
@@ -164,6 +201,9 @@ export function SidebarLeft({
     return { title, favicon };
   }, [memoizedGetContainerBounds, createViewManager]);
 
+  /**
+   * Creates a new task with a random popular site as the initial page
+   */
   const handleAddTask = useCallback(async () => {
     const newIndex = tasks.length;
     const randomSite = POPULAR_SITES[Math.floor(Math.random() * POPULAR_SITES.length)];
@@ -238,6 +278,9 @@ export function SidebarLeft({
     [tasks, expandedIndex, setExpandedIndex, cleanupTaskViews]
   );
 
+  /**
+   * Cleanup all views when component unmounts
+   */
   useEffect(() => {
     return () => {
       viewManagersRef.current.forEach(manager => manager.cleanup());

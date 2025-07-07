@@ -7,6 +7,9 @@ import {
 import { ChatInput } from "./chat-input";
 import { ChatHistory } from "./chat-history";
 
+/**
+ * Represents a single message in the chat conversation
+ */
 export interface ChatMessage {
   id: string;
   text: string;
@@ -14,10 +17,17 @@ export interface ChatMessage {
   timestamp: Date;
 }
 
+/**
+ * Main chat interface component that manages the conversation state
+ * and handles communication with the AI agent
+ */
 export default function ChatInterface() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
+  /**
+   * Sends a message to the AI agent and handles the response
+   */
   const handleSend = async (message: string) => {
     const userMessage: ChatMessage = {
       id: `user-${Date.now()}`,

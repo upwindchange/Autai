@@ -6,19 +6,22 @@ import {
 } from "@/components/ui/resizable";
 import { ChatBox } from "@/components/genai/chatbox";
 
+/**
+ * AI chat interface component with conversation history and input
+ */
 export default function GenAI() {
   const [conversation, setConversation] = useState<
     Array<{ text: string; sender: string }>
   >([]);
 
+  /**
+   * Handles sending messages to the AI agent via IPC
+   */
   const handleSend = async (message: string) => {
-    // Add user message
     setConversation((prev) => [...prev, { text: message, sender: "user" }]);
 
-    // Send to main process
     const response = await window.ipcRenderer.invoke("genai:send", message);
 
-    // Add agent response
     setConversation((prev) => [...prev, { text: response, sender: "agent" }]);
   };
 

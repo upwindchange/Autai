@@ -1,14 +1,20 @@
 import { BrowserWindow, WebContentsView, ipcMain } from "electron";
 import { getHintDetectorScript, getHintClickScript } from "../scripts/hintDetectorLoader";
 
+/**
+ * Manages WebContentsViews within the main BrowserWindow.
+ * Handles creation, positioning, and lifecycle of multiple web views.
+ */
 export class ViewManager {
   private views = new Map<string, WebContentsView>();
   private visibleView: string | null = null;
   
   constructor(private win: BrowserWindow) {}
 
+  /**
+   * Creates a new WebContentsView with the specified key
+   */
   async createView(key: string, options: any): Promise<string> {
-    // Remove existing view if any
     const existingView = this.views.get(key);
     if (existingView) {
       this.win.contentView.removeChildView(existingView);
@@ -25,7 +31,9 @@ export class ViewManager {
 
     view.setBackgroundColor("#00000000");
 
-    // Inject hint detection script when page loads
+    /**
+     * Inject Vimium-style hint detection when page loads
+     */
     view.webContents.on("did-finish-load", () => {
       console.log(`Page loaded for view: ${key}, injecting hint detection script`);
       const hintDetectorScript = getHintDetectorScript();
@@ -44,11 +52,13 @@ export class ViewManager {
     return key;
   }
 
+  /**
+   * Sets the position and size of a view within the window
+   */
   setBounds(key: string, bounds: { x: number; y: number; width: number; height: number }): void {
     const view = this.views.get(key);
     if (!view) throw new Error(`View not found: ${key}`);
     
-    // Validate bounds structure
     if (!bounds || typeof bounds.x !== 'number' || typeof bounds.y !== 'number' || 
         typeof bounds.width !== 'number' || typeof bounds.height !== 'number') {
       throw new Error('Invalid bounds structure');
@@ -57,7 +67,9 @@ export class ViewManager {
     console.log(`[Main] Setting bounds for view ${key}:`, bounds);
     view.setBounds(bounds);
     
-    // Track visible view
+    /**
+     * Track which view is currently visible based on bounds
+     */
     if (bounds.width > 0 && bounds.height > 0) {
       this.visibleView = key;
     } else if (this.visibleView === key) {
@@ -65,6 +77,9 @@ export class ViewManager {
     }
   }
 
+  /**
+   * Removes a view from the window and cleans up resources
+   */
   removeView(key: string): void {
     const view = this.views.get(key);
     if (!view) {
