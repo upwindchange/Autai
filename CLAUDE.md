@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**Last Updated**: 2025-07-07 - Comprehensive code documentation review completed
+
 ## Development Commands
 
 ### Core Development
@@ -77,10 +79,18 @@ This is an **AI-powered browser** built with Electron + React + Vite that combin
 
 ### Key Files
 
-- `electron/main/agent.ts` - LangChain AI service integration
-- `src/components/link-hints-wrapper.tsx` - Web link hint overlay system
-- `src/components/sidebar-left.tsx` - Navigation and task management sidebar
-- `src/components/genai/genai.tsx` - AI chat interface component
+- `electron/main/index.ts` - Main process entry point with window management
+- `electron/main/services/agentService.ts` - LangChain AI service integration with OpenAI
+- `electron/main/services/viewManagerService.ts` - WebContentsView lifecycle management
+- `electron/main/services/navigationService.ts` - Web navigation and page metadata handling
+- `electron/main/services/settingsService.ts` - AI settings and profile management
+- `electron/main/handlers/` - IPC handlers for all main process services
+- `src/App.tsx` - Main React application component with layout structure
+- `src/components/sidebar-left.tsx` - Task management sidebar with WebContentsView coordination
+- `src/components/ai/chat-interface.tsx` - Main AI chat interface component
+- `src/components/nav-tasks.tsx` - Task navigation with collapsible page lists
+- `src/components/settings/` - Settings UI with profile management
+- `src/components/genai/genai.tsx` - Legacy AI chat interface (being replaced by ai/)
 
 ## Development Patterns
 
@@ -114,4 +124,37 @@ This is an **AI-powered browser** built with Electron + React + Vite that combin
 - Git submodule at `src/vimium/` and `src/vimium-c/` provides keyboard navigation reference
 - Link hints overlay system for web page interaction
 - Vim-style keyboard shortcuts for browser navigation
-- This submodule is stored for implementation reference, not calling any of its implemenation from the current code base.
+- This submodule is stored for implementation reference, not calling any of its implementation from the current code base.
+
+### Architecture Insights
+
+#### View Management System
+
+The application uses a sophisticated view management system where:
+
+- Each task can have multiple pages (WebContentsViews)
+- Views are identified by composite keys: `taskId-pageIndex`
+- ResizeObserver ensures views adapt to container size changes
+- Only one view is visible at a time (others have empty bounds)
+
+#### AI Integration Architecture
+
+- AI service runs in main process for security
+- Uses LangChain with OpenAI models (configurable)
+- Maintains conversation memory per session
+- Supports both simple and complex model selection
+- Can analyze web page elements for context-aware responses
+
+#### Settings System
+
+- Profile-based settings management
+- Multiple AI configuration profiles supported
+- Settings persisted to disk via main process
+- React Context API for settings state management
+
+#### IPC Communication Patterns
+
+- All IPC handlers follow consistent naming: `domain:action`
+- Main process services exposed via dedicated handlers
+- Preload script provides secure, limited IPC access
+- Active view changes broadcast to renderer for UI updates

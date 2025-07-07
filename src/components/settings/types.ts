@@ -1,3 +1,6 @@
+/**
+ * Configuration for AI model connection
+ */
 export interface AISettings {
   apiUrl: string;
   apiKey: string;
@@ -5,6 +8,9 @@ export interface AISettings {
   simpleModel: string;
 }
 
+/**
+ * Individual settings profile that can be switched between
+ */
 export interface SettingsProfile {
   id: string;
   name: string;
@@ -13,11 +19,17 @@ export interface SettingsProfile {
   updatedAt: Date;
 }
 
+/**
+ * Global settings state structure
+ */
 export interface SettingsState {
   profiles: SettingsProfile[];
   activeProfileId: string;
 }
 
+/**
+ * Settings context API exposed to components
+ */
 export interface SettingsContextType {
   profiles: SettingsProfile[];
   activeProfile: SettingsProfile | null;

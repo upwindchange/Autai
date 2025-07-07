@@ -21,13 +21,19 @@ import {
 import { ChatInterface } from "@/components/ai";
 import { SettingsProvider } from "@/components/settings";
 
+/**
+ * Main application component that provides the overall layout structure.
+ * Manages the sidebar, main content area, and AI chat interface.
+ */
 function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const viewCleanupRefs = useRef<Record<string, () => void>>({});
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [selectedPageUrl, setSelectedPageUrl] = useState<string | null>(null);
 
-  // Get container bounds with proper coordinates
+  /**
+   * Calculates the bounds of the main content container for WebContentsView positioning
+   */
   const getContainerBounds = useCallback(() => {
     const container = containerRef.current;
     if (!container) return { x: 0, y: 0, width: 0, height: 0 };
@@ -41,7 +47,9 @@ function App() {
     };
   }, []);
 
-  // Cleanup all views on unmount
+  /**
+   * Cleanup all WebContentsViews when the app unmounts
+   */
   useEffect(() => {
     return () => {
       Object.values(viewCleanupRefs.current || {}).forEach((cleanupFn) =>
