@@ -1,6 +1,7 @@
 import { OpenAI } from "@langchain/openai";
 import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import { WebContentsView } from "electron";
+import { settingsService } from "./settingsService";
 
 interface InteractableElement {
   id: number;
@@ -13,34 +14,57 @@ interface InteractableElement {
 }
 
 class AgentService {
-  private model: OpenAI;
+  private model: OpenAI | null = null;
   private memory: InMemoryChatMessageHistory;
 
   constructor() {
-    this.model = new OpenAI({
-      temperature: 0,
-      apiKey: process.env.OPENAI_API_KEY,
-      configuration: {
-        baseURL: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
-      },
-    });
     this.memory = new InMemoryChatMessageHistory();
   }
 
-  async processMessage(input: string): Promise<string> {
-    // Add user message to memory
-    this.memory.addUserMessage(input);
+  private getModel(useComplexModel: boolean = false): OpenAI {
+    const settings = settingsService.getActiveSettings();
+    
+    if (!settings || !settings.apiKey) {
+      throw new Error("AI settings not configured. Please configure your API settings first.");
+    }
 
-    // Get conversation history
-    const history = await this.memory.getMessages();
+    const modelName = useComplexModel ? settings.complexModel : settings.simpleModel;
 
-    // Generate response
-    const response = await this.model.invoke(history);
+    // Create a new model instance with current settings
+    return new OpenAI({
+      temperature: 0,
+      apiKey: settings.apiKey,
+      modelName: modelName,
+      configuration: {
+        baseURL: settings.apiUrl,
+      },
+    });
+  }
 
-    // Add AI response to memory
-    this.memory.addAIMessage(response.content.toString());
+  async processMessage(input: string, useComplexModel: boolean = true): Promise<string> {
+    try {
+      // Add user message to memory
+      this.memory.addUserMessage(input);
 
-    return response.content.toString();
+      // Get conversation history
+      const history = await this.memory.getMessages();
+
+      // Get model with current settings
+      const model = this.getModel(useComplexModel);
+
+      // Generate response
+      const response = await model.invoke(history);
+
+      // Add AI response to memory
+      this.memory.addAIMessage(response.content.toString());
+
+      return response.content.toString();
+    } catch (error) {
+      if (error instanceof Error && error.message.includes("not configured")) {
+        throw error;
+      }
+      throw new Error(`AI processing failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   // Get interactable elements from a web view
@@ -78,7 +102,7 @@ ${elements.map(el => `${el.id}. ${el.type}: "${el.text}" ${el.href ? `(${el.href
 
 User command: ${command}`;
 
-    const response = await this.processMessage(context);
+    const response = await this.processMessage(context, true);
     
     // Parse response to determine if an action should be taken
     // This is a simplified example - in production, you'd use function calling or structured output

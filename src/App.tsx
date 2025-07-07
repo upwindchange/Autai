@@ -19,6 +19,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { ChatInterface } from "@/components/ai";
+import { SettingsProvider } from "@/components/settings";
 
 function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -50,52 +51,54 @@ function App() {
   }, []);
 
   return (
-    <div className="w-dvw flex flex-row h-dvh">
-      <ResizablePanelGroup direction="horizontal">
-        <ResizablePanel defaultSize={70}>
-          <SidebarProvider>
-            <SidebarLeft
-              expandedIndex={expandedIndex}
-              setExpandedIndex={setExpandedIndex}
-              getContainerBounds={getContainerBounds}
-              containerRef={containerRef}
-              onPageSelect={setSelectedPageUrl}
-            />
-            <SidebarInset className="relative">
-              <header className="bg-background sticky top-0 flex h-14 shrink-0 items-center gap-2">
-                <div className="flex flex-1 items-center gap-2 px-3">
-                  <SidebarTrigger />
-                  <Separator
-                    orientation="vertical"
-                    className="mr-2 data-[orientation=vertical]:h-4"
-                  />
-                  <Breadcrumb>
-                    <BreadcrumbList>
-                      <BreadcrumbItem>
-                        <BreadcrumbPage className="line-clamp-1">
-                          {selectedPageUrl ||
-                            "Project Management & Task Tracking"}
-                        </BreadcrumbPage>
-                      </BreadcrumbItem>
-                    </BreadcrumbList>
-                  </Breadcrumb>
-                </div>
-              </header>
-              <div ref={containerRef} className="relative flex flex-1 flex-col gap-4 p-4 overflow-y-auto h-full" />
-            </SidebarInset>
-          </SidebarProvider>
-        </ResizablePanel>
-        <ResizableHandle />
-        <ResizablePanel
-          defaultSize={30}
-          minSize={15}
-          maxSize={75}
-          className="h-dvh sticky top-0"
-        >
-          <ChatInterface />
-        </ResizablePanel>
-      </ResizablePanelGroup>
-    </div>
+    <SettingsProvider>
+      <div className="w-dvw flex flex-row h-dvh">
+        <ResizablePanelGroup direction="horizontal">
+          <ResizablePanel defaultSize={70}>
+            <SidebarProvider>
+              <SidebarLeft
+                expandedIndex={expandedIndex}
+                setExpandedIndex={setExpandedIndex}
+                getContainerBounds={getContainerBounds}
+                containerRef={containerRef}
+                onPageSelect={setSelectedPageUrl}
+              />
+              <SidebarInset className="relative">
+                <header className="bg-background sticky top-0 flex h-14 shrink-0 items-center gap-2">
+                  <div className="flex flex-1 items-center gap-2 px-3">
+                    <SidebarTrigger />
+                    <Separator
+                      orientation="vertical"
+                      className="mr-2 data-[orientation=vertical]:h-4"
+                    />
+                    <Breadcrumb>
+                      <BreadcrumbList>
+                        <BreadcrumbItem>
+                          <BreadcrumbPage className="line-clamp-1">
+                            {selectedPageUrl ||
+                              "Project Management & Task Tracking"}
+                          </BreadcrumbPage>
+                        </BreadcrumbItem>
+                      </BreadcrumbList>
+                    </Breadcrumb>
+                  </div>
+                </header>
+                <div ref={containerRef} className="relative flex flex-1 flex-col gap-4 p-4 overflow-y-auto h-full" />
+              </SidebarInset>
+            </SidebarProvider>
+          </ResizablePanel>
+          <ResizableHandle />
+          <ResizablePanel
+            defaultSize={30}
+            minSize={15}
+            maxSize={75}
+            className="h-dvh sticky top-0"
+          >
+            <ChatInterface />
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      </div>
+    </SettingsProvider>
   );
 }
 

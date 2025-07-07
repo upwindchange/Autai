@@ -32,4 +32,19 @@ export function setupViewHandlers(viewManager: ViewManager, win: BrowserWindow) 
   ipcMain.on("active-view-changed", (_, viewKey: string) => {
     win.webContents.send("active-view-changed", viewKey);
   });
+
+  // Hide all views (for dialogs/overlays)
+  ipcMain.handle("view:hideAll", async () => {
+    return viewManager.hideAllViews();
+  });
+
+  // Show a specific view
+  ipcMain.handle("view:show", async (_, key: string) => {
+    return viewManager.showView(key);
+  });
+
+  // Get currently visible view
+  ipcMain.handle("view:getVisible", async () => {
+    return viewManager.getVisibleView();
+  });
 }

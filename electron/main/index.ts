@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
 import { update } from "./update";
-import { ViewManager } from "./services";
+import { ViewManager, settingsService } from "./services";
 import { setupIpcHandlers } from "./handlers";
 
 const require = createRequire(import.meta.url);
@@ -88,7 +88,10 @@ async function createWindow() {
   update(win);
 }
 
-app.whenReady().then(createWindow);
+app.whenReady().then(async () => {
+  await settingsService.initialize();
+  createWindow();
+});
 
 app.on("window-all-closed", () => {
   win = null;

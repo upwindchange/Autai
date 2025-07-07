@@ -4,6 +4,7 @@ import { setupNavigationHandlers } from "./navigationHandler";
 import { setupViewHandlers } from "./viewHandler";
 import { setupHintHandlers } from "./hintHandler";
 import { setupAIHandlers } from "./aiHandler";
+import { setupSettingsHandlers } from "./settingsHandler";
 
 export function setupIpcHandlers(win: BrowserWindow, viewManager: ViewManager) {
   const navigationService = new NavigationService(viewManager);
@@ -13,4 +14,5 @@ export function setupIpcHandlers(win: BrowserWindow, viewManager: ViewManager) {
   setupNavigationHandlers(navigationService);
   setupHintHandlers(viewManager);
   setupAIHandlers(viewManager);
+  setupSettingsHandlers();
 }
