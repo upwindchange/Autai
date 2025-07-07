@@ -3,6 +3,7 @@ import { getHintDetectorScript, getHintClickScript } from "../scripts/hintDetect
 
 export class ViewManager {
   private views = new Map<string, WebContentsView>();
+  private visibleView: string | null = null;
   
   constructor(private win: BrowserWindow) {}
 
@@ -55,6 +56,13 @@ export class ViewManager {
     
     console.log(`[Main] Setting bounds for view ${key}:`, bounds);
     view.setBounds(bounds);
+    
+    // Track visible view
+    if (bounds.width > 0 && bounds.height > 0) {
+      this.visibleView = key;
+    } else if (this.visibleView === key) {
+      this.visibleView = null;
+    }
   }
 
   removeView(key: string): void {
@@ -150,5 +158,28 @@ export class ViewManager {
       console.error(`Error clicking element ${elementId} in view: ${key}:`, error);
       return false;
     }
+  }
+
+  // Hide all views
+  hideAllViews(): void {
+    this.views.forEach((view, key) => {
+      view.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+      console.log(`[Main] Hid view: ${key}`);
+    });
+  }
+
+  // Show a specific view with its previous bounds
+  showView(key: string): void {
+    const view = this.views.get(key);
+    if (!view) throw new Error(`View not found: ${key}`);
+    
+    // For now, we'll need the renderer to tell us the bounds
+    // In a production app, we'd store previous bounds
+    this.visibleView = key;
+  }
+
+  // Get currently visible view
+  getVisibleView(): string | null {
+    return this.visibleView;
   }
 }

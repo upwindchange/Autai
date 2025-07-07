@@ -8,12 +8,7 @@ import type {
   RefObject,
 } from "react";
 import {
-  Blocks,
-  Calendar,
-  MessageCircleQuestion,
-  Settings2,
   Trash2,
-  type LucideIcon,
 } from "lucide-react";
 
 import {
@@ -26,12 +21,6 @@ import { NavSecondary } from "@/components/nav-secondary";
 import { NavTasks } from "@/components/nav-tasks";
 
 // Define interfaces matching component props
-interface NavSecondaryItem {
-  title: string;
-  url: string;
-  icon: LucideIcon;
-  badge?: ReactNode;
-}
 // Define task interfaces for App state
 interface PageItem {
   title: string;
@@ -46,14 +35,6 @@ interface TaskItem {
   pages: PageItem[];
 }
 
-// Initialize navSecondary with current data
-const initialNavSecondary: NavSecondaryItem[] = [
-  {
-    title: "Settings",
-    url: "#",
-    icon: Settings2,
-  },
-];
 
 // Define popular sites for random selection
 const popularSites = [
@@ -289,7 +270,7 @@ export function SidebarLeft({
           onTaskDelete={handleTaskDelete}
           onPageSelect={handlePageSelect}
         />
-        <NavSecondary items={initialNavSecondary} className="mt-auto" />
+        <NavSecondary className="mt-auto" />
       </SidebarContent>
     </Sidebar>
   );
