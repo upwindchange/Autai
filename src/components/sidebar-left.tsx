@@ -7,7 +7,6 @@ import type {
   SetStateAction,
   RefObject,
 } from "react";
-import { Trash2 } from "lucide-react";
 
 import {
   Sidebar,
@@ -18,12 +17,10 @@ import { Button } from "@/components/ui/button";
 import { NavSecondary } from "@/components/nav-secondary";
 import { NavTasks } from "@/components/nav-tasks";
 
-// Define interfaces matching component props
-// Define task interfaces for App state
 interface PageItem {
   title: string;
   url: string;
-  favicon: string | ReactNode; // Allow both URL strings and React elements
+  favicon: string | ReactNode;
 }
 
 interface TaskItem {
@@ -33,28 +30,12 @@ interface TaskItem {
   pages: PageItem[];
 }
 
-// Define popular sites for random selection
-const popularSites = [
-  { url: "https://www.google.com" },
-  { url: "https://www.youtube.com" },
-  { url: "https://www.facebook.com" },
-  { url: "https://www.baidu.com" },
-  { url: "https://www.wikipedia.org" },
-  { url: "https://twitter.com" },
-  { url: "https://www.instagram.com" },
-  { url: "https://www.reddit.com" },
-  { url: "https://www.amazon.com" },
-  { url: "https://www.linkedin.com" },
-];
+interface ViewManager {
+  cleanup: () => void;
+  resizeObserver?: ResizeObserver;
+}
 
-export function SidebarLeft({
-  expandedIndex,
-  setExpandedIndex,
-  getContainerBounds,
-  containerRef,
-  onPageSelect,
-  ...props
-}: ComponentProps<typeof Sidebar> & {
+interface SidebarLeftProps extends ComponentProps<typeof Sidebar> {
   expandedIndex: number | null;
   setExpandedIndex: Dispatch<SetStateAction<number | null>>;
   getContainerBounds: () => {
@@ -65,224 +46,202 @@ export function SidebarLeft({
   };
   containerRef: RefObject<HTMLDivElement | null>;
   onPageSelect?: (url: string) => void;
-}) {
-  const [tasks, setTasks] = useState<TaskItem[]>([]);
-  // Create ref for storing cleanup functions
-  const viewCleanupRefs = useRef<Record<string, () => void>>({});
-  // Create ref for ResizeObserver instances
-  const resizeObserversRef = useRef<Record<string, ResizeObserver>>({});
+}
 
-  // Memoize getContainerBounds to prevent unnecessary re-renders
+const POPULAR_SITES = [
+  { url: "https://www.google.com" },
+  { url: "https://www.youtube.com" },
+  { url: "https://www.facebook.com" },
+  { url: "https://www.baidu.com" },
+  { url: "https://www.wikipedia.org" },
+  { url: "https://twitter.com" },
+  { url: "https://www.instagram.com" },
+  { url: "https://www.reddit.com" },
+  { url: "https://www.amazon.com" },
+  { url: "https://www.linkedin.com" },
+] as const;
+
+const EMPTY_BOUNDS = { x: 0, y: 0, width: 0, height: 0 } as const;
+
+const getViewKey = (taskId: string, pageIndex: number) => `${taskId}-${pageIndex}`;
+
+export function SidebarLeft({
+  expandedIndex,
+  setExpandedIndex,
+  getContainerBounds,
+  containerRef,
+  onPageSelect,
+  ...props
+}: SidebarLeftProps) {
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const viewManagersRef = useRef<Map<string, ViewManager>>(new Map());
+
   const memoizedGetContainerBounds = useCallback(getContainerBounds, [
     getContainerBounds,
   ]);
 
-  // Handle page selection
+  const hideAllViewsExcept = useCallback(async (activeKey: string) => {
+    const hidePromises = Array.from(viewManagersRef.current.keys())
+      .filter(key => key !== activeKey)
+      .map(key => window.ipcRenderer.invoke("view:setBounds", key, EMPTY_BOUNDS));
+    
+    await Promise.all(hidePromises);
+  }, []);
+
+  const createViewManager = useCallback((key: string): ViewManager => {
+    const resizeObserver = new ResizeObserver(() => {
+      window.ipcRenderer.invoke("view:setBounds", key, memoizedGetContainerBounds());
+    });
+
+    if (containerRef.current) {
+      resizeObserver.observe(containerRef.current);
+    }
+
+    return {
+      resizeObserver,
+      cleanup: () => {
+        resizeObserver.disconnect();
+        window.ipcRenderer.invoke("view:remove", key);
+      }
+    };
+  }, [containerRef, memoizedGetContainerBounds]);
+
+  const cleanupView = useCallback((key: string) => {
+    const manager = viewManagersRef.current.get(key);
+    if (manager) {
+      manager.cleanup();
+      viewManagersRef.current.delete(key);
+    }
+  }, []);
+
+  const cleanupTaskViews = useCallback((task: TaskItem) => {
+    task.pages.forEach((_, pageIndex) => {
+      cleanupView(getViewKey(task.id, pageIndex));
+    });
+  }, [cleanupView]);
+
   const handlePageSelect = useCallback(
     async (taskIndex: number, pageIndex: number, tasksArray?: TaskItem[]) => {
       const currentTasks = tasksArray || tasks;
       const task = currentTasks[taskIndex];
+      
       if (!task) {
         console.error(`Task at index ${taskIndex} not found`);
         return;
       }
-      const key = `${task.id}-${pageIndex}`;
+      
+      const key = getViewKey(task.id, pageIndex);
 
-      // Ensure view exists (should be pre-created)
-      if (!viewCleanupRefs.current[key]) {
+      if (!viewManagersRef.current.has(key)) {
         console.error(`View ${key} not found!`);
         return;
       }
 
-      // Hide all views except the active one
-      const viewKeys = Object.keys(viewCleanupRefs.current || {});
-      const hidePromises = viewKeys
-        .filter((viewKey) => viewKey !== key)
-        .map((viewKey) =>
-          window.ipcRenderer.invoke("view:setBounds", viewKey, {
-            x: 0,
-            y: 0,
-            width: 0,
-            height: 0,
-          })
-        );
-
-      // Execute hide operations in parallel
-      await Promise.all(hidePromises);
-
-      // Show active view with proper coordinates
-      await window.ipcRenderer.invoke(
-        "view:setBounds",
-        key,
-        memoizedGetContainerBounds()
-      );
-
-      // Emit active view change event for link hints
+      await hideAllViewsExcept(key);
+      await window.ipcRenderer.invoke("view:setBounds", key, memoizedGetContainerBounds());
+      
       window.ipcRenderer.send("active-view-changed", key);
 
-      // Propagate selected page URL to parent component
       if (onPageSelect && task.pages[pageIndex]) {
         onPageSelect(task.pages[pageIndex].url);
       }
     },
-    [memoizedGetContainerBounds, onPageSelect, tasks]
+    [memoizedGetContainerBounds, onPageSelect, tasks, hideAllViewsExcept]
   );
 
-  const handleAddTask = async () => {
-    const newIndex = tasks.length;
-    const randomIndex = Math.floor(Math.random() * popularSites.length);
-    const newSite = popularSites[randomIndex];
+  const createNewView = useCallback(async (key: string, url: string) => {
+    await window.ipcRenderer.invoke("view:create", key, {
+      webPreferences: {},
+    });
 
-    // Create task immediately with placeholder data
+    await window.ipcRenderer.invoke("view:setBounds", key, memoizedGetContainerBounds());
+
+    const { title, favicon } = await window.ipcRenderer.invoke("nav:loadURL", key, url);
+    
+    const manager = createViewManager(key);
+    viewManagersRef.current.set(key, manager);
+
+    return { title, favicon };
+  }, [memoizedGetContainerBounds, createViewManager]);
+
+  const handleAddTask = useCallback(async () => {
+    const newIndex = tasks.length;
+    const randomSite = POPULAR_SITES[Math.floor(Math.random() * POPULAR_SITES.length)];
+    
     const newTaskId = Date.now().toString();
-    const newTask = {
+    const newTask: TaskItem = {
       id: newTaskId,
       title: "New Task",
       favicon: "📋",
-      pages: [
-        {
-          ...newSite,
-          title: "Loading...",
-          favicon: "⏳",
-        },
-      ],
+      pages: [{
+        ...randomSite,
+        title: "Loading...",
+        favicon: "⏳",
+      }],
     };
 
-    setTasks((prev: TaskItem[]) => [...prev, newTask]);
+    setTasks(prev => [...prev, newTask]);
     setExpandedIndex(newIndex);
 
-    // Create view asynchronously
-    const key = `${newTaskId}-0`;
+    const key = getViewKey(newTaskId, 0);
+    
     try {
-      console.log(`Creating view for key: ${key}`);
-      await window.ipcRenderer.invoke("view:create", key, {
-        webPreferences: {},
-      });
+      const { title, favicon } = await createNewView(key, randomSite.url);
 
-      // Set initial bounds
-      await window.ipcRenderer.invoke(
-        "view:setBounds",
-        key,
-        memoizedGetContainerBounds()
-      );
-
-      // Load URL and get metadata
-      const { title, favicon } = await window.ipcRenderer.invoke(
-        "nav:loadURL",
-        key,
-        newSite.url
-      );
-
-      // Update task metadata with optimized state update
-      setTasks((prev: TaskItem[]) => {
-        const newTasks = [...prev];
-        const taskToUpdate = newTasks[newIndex];
-        if (taskToUpdate?.pages?.[0]) {
-          newTasks[newIndex] = {
-            ...taskToUpdate,
-            pages: [
-              {
-                ...taskToUpdate.pages[0],
-                title,
-                favicon,
-              },
-              ...taskToUpdate.pages.slice(1),
-            ],
+      setTasks(prev => {
+        const updated = [...prev];
+        if (updated[newIndex]) {
+          updated[newIndex] = {
+            ...updated[newIndex],
+            pages: [{
+              ...updated[newIndex].pages[0],
+              title,
+              favicon,
+            }],
           };
         }
-        return newTasks;
+        return updated;
       });
 
-      // Setup resize observer
-      const resizeObserver = new ResizeObserver(() => {
-        window.ipcRenderer.invoke(
-          "view:setBounds",
-          key,
-          memoizedGetContainerBounds()
-        );
-      });
-
-      // Attach observer to container
-      if (containerRef.current) {
-        resizeObserver.observe(containerRef.current);
-        // Store observer reference for cleanup
-        resizeObserversRef.current[key] = resizeObserver;
-      }
-
-      // Store cleanup function
-      viewCleanupRefs.current[key] = () => {
-        const observer = resizeObserversRef.current[key];
-        if (observer) {
-          observer.disconnect();
-          delete resizeObserversRef.current[key];
-        }
-        window.ipcRenderer.invoke("view:remove", key);
-      };
-
-      console.log(`Created view for key: ${key}`);
-
-      // Automatically select this page to trigger hint detection
-      // Pass the updated tasks array to avoid stale state
       const updatedTasks = [...tasks, newTask];
       await handlePageSelect(newIndex, 0, updatedTasks);
     } catch (error) {
       console.error(`Failed to create view ${key}:`, error);
-
-      // Update task to show error state
-      setTasks((prev: TaskItem[]) => {
-        const newTasks = [...prev];
-        if (newTasks[newIndex]) {
-          newTasks[newIndex].pages[0] = {
-            ...newTasks[newIndex].pages[0],
+      
+      setTasks(prev => {
+        const updated = [...prev];
+        if (updated[newIndex]) {
+          updated[newIndex].pages[0] = {
+            ...updated[newIndex].pages[0],
             title: "Failed to load",
             favicon: "❌",
           };
         }
-        return newTasks;
+        return updated;
       });
     }
-  };
+  }, [tasks, setExpandedIndex, createNewView, handlePageSelect]);
 
   const handleTaskDelete = useCallback(
     (index: number) => {
-      // Clean up views for this task
       const task = tasks[index];
-      task.pages.forEach((_: PageItem, pageIndex: number) => {
-        const key = `${task.id}-${pageIndex}`;
-        // Run stored cleanup function if exists
-        const cleanup = viewCleanupRefs.current[key];
-        if (cleanup) {
-          cleanup();
-          delete viewCleanupRefs.current[key];
-        }
-      });
+      cleanupTaskViews(task);
 
-      setTasks((prev: TaskItem[]) =>
-        prev.filter((_: TaskItem, i: number) => i !== index)
-      );
+      setTasks(prev => prev.filter((_, i) => i !== index));
 
-      // Update expanded index
       if (expandedIndex === index) {
         setExpandedIndex(null);
       } else if (expandedIndex !== null && expandedIndex > index) {
         setExpandedIndex(expandedIndex - 1);
       }
     },
-    [tasks, expandedIndex, setExpandedIndex]
+    [tasks, expandedIndex, setExpandedIndex, cleanupTaskViews]
   );
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
-      // Run all cleanup functions when component unmounts
-      const cleanupFunctions = Object.values(viewCleanupRefs.current);
-      cleanupFunctions.forEach((cleanup: () => void) => {
-        if (cleanup) {
-          cleanup();
-        }
-      });
-      viewCleanupRefs.current = {};
-      resizeObserversRef.current = {};
+      viewManagersRef.current.forEach(manager => manager.cleanup());
+      viewManagersRef.current.clear();
     };
   }, []);
 
