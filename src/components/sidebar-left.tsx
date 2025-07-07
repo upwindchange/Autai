@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import type {
   ReactNode,
   ComponentProps,
@@ -7,9 +7,7 @@ import type {
   SetStateAction,
   RefObject,
 } from "react";
-import {
-  Trash2,
-} from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 import {
   Sidebar,
@@ -34,7 +32,6 @@ interface TaskItem {
   favicon: ReactNode;
   pages: PageItem[];
 }
-
 
 // Define popular sites for random selection
 const popularSites = [
@@ -72,6 +69,13 @@ export function SidebarLeft({
   const [tasks, setTasks] = useState<TaskItem[]>([]);
   // Create ref for storing cleanup functions
   const viewCleanupRefs = useRef<Record<string, () => void>>({});
+  // Create ref for ResizeObserver instances
+  const resizeObserversRef = useRef<Record<string, ResizeObserver>>({});
+
+  // Memoize getContainerBounds to prevent unnecessary re-renders
+  const memoizedGetContainerBounds = useCallback(getContainerBounds, [
+    getContainerBounds,
+  ]);
 
   // Handle page selection
   const handlePageSelect = useCallback(
@@ -91,30 +95,37 @@ export function SidebarLeft({
       }
 
       // Hide all views except the active one
-      Object.keys(viewCleanupRefs.current || {}).forEach((viewKey) => {
-        if (viewKey !== key) {
+      const viewKeys = Object.keys(viewCleanupRefs.current || {});
+      const hidePromises = viewKeys
+        .filter((viewKey) => viewKey !== key)
+        .map((viewKey) =>
           window.ipcRenderer.invoke("view:setBounds", viewKey, {
             x: 0,
             y: 0,
             width: 0,
             height: 0,
-          });
-        }
-      });
+          })
+        );
+
+      // Execute hide operations in parallel
+      await Promise.all(hidePromises);
 
       // Show active view with proper coordinates
-      window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
+      await window.ipcRenderer.invoke(
+        "view:setBounds",
+        key,
+        memoizedGetContainerBounds()
+      );
 
       // Emit active view change event for link hints
       window.ipcRenderer.send("active-view-changed", key);
 
       // Propagate selected page URL to parent component
-      if (onPageSelect) {
-        const page = task.pages[pageIndex];
-        onPageSelect(page.url);
+      if (onPageSelect && task.pages[pageIndex]) {
+        onPageSelect(task.pages[pageIndex].url);
       }
     },
-    [tasks, getContainerBounds, onPageSelect]
+    [memoizedGetContainerBounds, onPageSelect, tasks]
   );
 
   const handleAddTask = async () => {
@@ -136,7 +147,7 @@ export function SidebarLeft({
         },
       ],
     };
-    
+
     setTasks((prev: TaskItem[]) => [...prev, newTask]);
     setExpandedIndex(newIndex);
 
@@ -152,7 +163,7 @@ export function SidebarLeft({
       await window.ipcRenderer.invoke(
         "view:setBounds",
         key,
-        getContainerBounds()
+        memoizedGetContainerBounds()
       );
 
       // Load URL and get metadata
@@ -162,42 +173,58 @@ export function SidebarLeft({
         newSite.url
       );
 
-      // Update task metadata
+      // Update task metadata with optimized state update
       setTasks((prev: TaskItem[]) => {
         const newTasks = [...prev];
-        if (newTasks[newIndex]?.pages?.[0]) {
-          newTasks[newIndex] = { ...newTasks[newIndex] };
-          newTasks[newIndex].pages = [...newTasks[newIndex].pages];
-          newTasks[newIndex].pages[0] = {
-            ...newTasks[newIndex].pages[0],
-            title: title,
-            favicon: favicon,
+        const taskToUpdate = newTasks[newIndex];
+        if (taskToUpdate?.pages?.[0]) {
+          newTasks[newIndex] = {
+            ...taskToUpdate,
+            pages: [
+              {
+                ...taskToUpdate.pages[0],
+                title,
+                favicon,
+              },
+              ...taskToUpdate.pages.slice(1),
+            ],
           };
         }
         return newTasks;
       });
+
       // Setup resize observer
       const resizeObserver = new ResizeObserver(() => {
-        window.ipcRenderer.invoke("view:setBounds", key, getContainerBounds());
+        window.ipcRenderer.invoke(
+          "view:setBounds",
+          key,
+          memoizedGetContainerBounds()
+        );
       });
 
       // Attach observer to container
       if (containerRef.current) {
         resizeObserver.observe(containerRef.current);
+        // Store observer reference for cleanup
+        resizeObserversRef.current[key] = resizeObserver;
       }
 
       // Store cleanup function
       viewCleanupRefs.current[key] = () => {
-        resizeObserver.disconnect();
+        const observer = resizeObserversRef.current[key];
+        if (observer) {
+          observer.disconnect();
+          delete resizeObserversRef.current[key];
+        }
         window.ipcRenderer.invoke("view:remove", key);
       };
 
       console.log(`Created view for key: ${key}`);
-      
+
       // Automatically select this page to trigger hint detection
       // Pass the updated tasks array to avoid stale state
       const updatedTasks = [...tasks, newTask];
-      handlePageSelect(newIndex, 0, updatedTasks);
+      await handlePageSelect(newIndex, 0, updatedTasks);
     } catch (error) {
       console.error(`Failed to create view ${key}:`, error);
 
@@ -230,7 +257,9 @@ export function SidebarLeft({
         }
       });
 
-      setTasks((prev: TaskItem[]) => prev.filter((_: TaskItem, i: number) => i !== index));
+      setTasks((prev: TaskItem[]) =>
+        prev.filter((_: TaskItem, i: number) => i !== index)
+      );
 
       // Update expanded index
       if (expandedIndex === index) {
@@ -239,19 +268,21 @@ export function SidebarLeft({
         setExpandedIndex(expandedIndex - 1);
       }
     },
-    [tasks, expandedIndex]
+    [tasks, expandedIndex, setExpandedIndex]
   );
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       // Run all cleanup functions when component unmounts
-        Object.values(viewCleanupRefs.current).forEach((cleanup: () => void) => {
-            if (cleanup) {
-                cleanup()
-            }
-        });
+      const cleanupFunctions = Object.values(viewCleanupRefs.current);
+      cleanupFunctions.forEach((cleanup: () => void) => {
+        if (cleanup) {
+          cleanup();
+        }
+      });
       viewCleanupRefs.current = {};
+      resizeObserversRef.current = {};
     };
   }, []);
 
