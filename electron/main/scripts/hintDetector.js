@@ -7,13 +7,28 @@
 
     // Check if element has dimensions and is not hidden by CSS
     // Remove viewport constraints to detect entire webpage
-    return (
-      rect.width > 0 &&
-      rect.height > 0 &&
-      style.visibility !== "hidden" &&
-      style.display !== "none" &&
-      parseFloat(style.opacity) > 0
-    );
+    if (
+      rect.width <= 0 ||
+      rect.height <= 0 ||
+      style.visibility === "hidden" ||
+      style.display === "none" ||
+      parseFloat(style.opacity) <= 0
+    ) {
+      return false;
+    }
+
+    // Check if element is actually visible (not just in DOM)
+    // Using getClientRects to handle multi-line links
+    const rects = element.getClientRects();
+    if (rects.length === 0) return false;
+
+    // Check if any rect has actual area
+    for (const r of rects) {
+      if (r.width > 0 && r.height > 0) {
+        return true;
+      }
+    }
+    return false;
   };
 
   // Get all elements including shadow DOM
@@ -83,6 +98,7 @@
 
   const isInteractable = (element) => {
     const tagName = element.tagName.toLowerCase();
+    const style = window.getComputedStyle(element);
     let clickable = false;
     let reason = null;
     let possibleFalsePositive = false;
@@ -123,9 +139,7 @@
         clickable = element.control != null && !element.control.disabled;
         break;
       case "img":
-        clickable = ["zoom-in", "zoom-out"].includes(
-          getComputedStyle(element).cursor
-        );
+        clickable = ["zoom-in", "zoom-out"].includes(style.cursor);
         break;
       case "details":
         clickable = true;
@@ -137,14 +151,21 @@
         break;
       case "body":
         // Special handling for body element - for frame focusing
-        if (
-          element === document.body &&
-          window.innerWidth > 3 &&
-          window.innerHeight > 3
-        ) {
-          if (isScrollableElement(element)) {
-            clickable = true;
-            reason = "Scroll";
+        if (element === document.body) {
+          // Frame focusing - check if this is a focusable frame
+          if (
+            window.innerWidth > 3 &&
+            window.innerHeight > 3 &&
+            document.body.tagName.toLowerCase() !== "frameset"
+          ) {
+            // Check if we're in an iframe that can be focused
+            if (window !== window.top) {
+              clickable = true;
+              reason = "Frame";
+            } else if (isScrollableElement(element)) {
+              clickable = true;
+              reason = "Scroll";
+            }
           }
         }
         break;
@@ -200,6 +221,15 @@
     if (!clickable) {
       const className = element.getAttribute("class") || "";
       if (className.toLowerCase().includes("button")) {
+        clickable = true;
+        possibleFalsePositive = true;
+      }
+    }
+
+    // Check cursor style for clickable appearance
+    if (!clickable) {
+      const cursor = style.cursor || "";
+      if (["pointer", "zoom-in", "zoom-out"].includes(cursor)) {
         clickable = true;
         possibleFalsePositive = true;
       }
@@ -298,18 +328,9 @@
     }
   };
 
-  // Generate hint strings (A, B, C, ..., AA, AB, etc.)
+  // Generate hint numbers starting from 1
   const generateHintString = (index) => {
-    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    let result = "";
-    let num = index - 1;
-
-    while (num >= 0) {
-      result = chars[num % 26] + result;
-      num = Math.floor(num / 26) - 1;
-    }
-
-    return result || "A";
+    return String(index);
   };
 
   // Display hint markers
@@ -474,7 +495,7 @@
       });
     });
 
-    // Filter out false positives
+    // Filter out false positives and duplicates
     hints = hints.filter((hint, index) => {
       if (!hint.possibleFalsePositive) return true;
 
@@ -496,6 +517,19 @@
       return true;
     });
 
+    // Remove duplicate hints for label controls
+    const labelledElements = new Set();
+    hints = hints.filter((hint) => {
+      if (hint.tagName === "label" && hint.element.control) {
+        const controlId = hint.element.control.id || hint.element.control;
+        if (labelledElements.has(controlId)) {
+          return false;
+        }
+        labelledElements.add(controlId);
+      }
+      return true;
+    });
+
     // Return only the data needed by the renderer (not the element references)
     return hints.map((hint) => ({
       rect: hint.rect,
@@ -504,6 +538,74 @@
       href: hint.href,
       reason: hint.reason,
     }));
+  };
+
+  // Get structured data for AI agent
+  window.getInteractableElements = () => {
+    const hints = window.detectHints();
+    return hints.map((hint, index) => ({
+      id: index + 1,
+      type: determineElementType(hint),
+      text: hint.linkText,
+      href: hint.href,
+      rect: hint.rect,
+      reason: hint.reason,
+      selector: generateSelector(hint)
+    }));
+  };
+
+  // Determine element type for AI understanding
+  const determineElementType = (hint) => {
+    if (hint.href && hint.tagName === "a") return "link";
+    if (hint.tagName === "button") return "button";
+    if (hint.tagName === "input") return "input";
+    if (hint.tagName === "select") return "select";
+    if (hint.tagName === "textarea") return "textarea";
+    if (hint.reason === "Scroll") return "scrollable";
+    if (hint.reason === "Frame") return "frame";
+    if (hint.reason === "Open/Close") return "details";
+    return "interactive";
+  };
+
+  // Generate a selector for AI to reference elements
+  const generateSelector = (hint) => {
+    // Simple selector based on position for now
+    // In production, this could be enhanced with more specific selectors
+    return `hint-${hint.rect.top}-${hint.rect.left}`;
+  };
+
+  // Click element by ID (for AI agent)
+  window.clickElementById = (id) => {
+    const elements = getAllElements(document.documentElement);
+    const hints = window.detectHints();
+    const targetHint = hints[id - 1];
+    
+    if (!targetHint) return false;
+
+    for (const element of elements) {
+      const rect = element.getBoundingClientRect();
+      if (
+        Math.abs(rect.top - targetHint.rect.top) < 1 &&
+        Math.abs(rect.left - targetHint.rect.left) < 1 &&
+        Math.abs(rect.width - targetHint.rect.width) < 1 &&
+        Math.abs(rect.height - targetHint.rect.height) < 1
+      ) {
+        // Execute appropriate action
+        if (element.tagName === "DETAILS") {
+          element.open = !element.open;
+        } else if (
+          element.tagName === "INPUT" ||
+          element.tagName === "TEXTAREA" ||
+          element.tagName === "SELECT"
+        ) {
+          element.focus();
+        } else {
+          element.click();
+        }
+        return true;
+      }
+    }
+    return false;
   };
 
   // Set up automatic hint management
