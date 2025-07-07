@@ -21,7 +21,7 @@ class AgentService {
       temperature: 0,
       apiKey: process.env.OPENAI_API_KEY,
       configuration: {
-        baseURL: "https://your_custom_url.com",
+        baseURL: process.env.OPENAI_BASE_URL || "https://api.openai.com/v1",
       },
     });
     this.memory = new InMemoryChatMessageHistory();

@@ -18,7 +18,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import GenAI from "@/components/genai/genai";
+import { ChatInterface } from "@/components/ai";
 
 function App() {
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -92,7 +92,7 @@ function App() {
           maxSize={75}
           className="h-dvh sticky top-0"
         >
-          <GenAI />
+          <ChatInterface />
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
