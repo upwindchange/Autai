@@ -19,6 +19,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { ChatInterface } from "@/components/ai";
+import { ChatContainer } from "@/components/ai-chat";
 import { SettingsProvider } from "@/components/settings";
 
 /**
@@ -30,6 +31,9 @@ function App() {
   const viewCleanupRefs = useRef<Record<string, () => void>>({});
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [selectedPageUrl, setSelectedPageUrl] = useState<string | null>(null);
+  const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
+  const [activeViewKey, setActiveViewKey] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<any[]>([]);
 
   /**
    * Calculates the bounds of the main content container for WebContentsView positioning
@@ -44,6 +48,32 @@ function App() {
       y: Math.round(rect.y),
       width: Math.round(rect.width),
       height: Math.round(rect.height),
+    };
+  }, []);
+
+  /**
+   * Track active task ID based on expanded index
+   */
+  useEffect(() => {
+    if (expandedIndex !== null && tasks[expandedIndex]) {
+      setActiveTaskId(tasks[expandedIndex].id);
+    } else {
+      setActiveTaskId(null);
+    }
+  }, [expandedIndex, tasks]);
+
+  /**
+   * Listen for active view changes
+   */
+  useEffect(() => {
+    const handleActiveViewChanged = (_event: any, viewKey: string) => {
+      setActiveViewKey(viewKey);
+    };
+
+    window.ipcRenderer.on('active-view-changed', handleActiveViewChanged);
+    
+    return () => {
+      window.ipcRenderer.off('active-view-changed', handleActiveViewChanged);
     };
   }, []);
 
@@ -70,6 +100,7 @@ function App() {
                 getContainerBounds={getContainerBounds}
                 containerRef={containerRef}
                 onPageSelect={setSelectedPageUrl}
+                onTasksChange={setTasks}
               />
               <SidebarInset className="relative">
                 <header className="bg-background sticky top-0 flex h-14 shrink-0 items-center gap-2">
@@ -102,7 +133,10 @@ function App() {
             maxSize={75}
             className="h-dvh sticky top-0"
           >
-            <ChatInterface />
+            <ChatContainer 
+              taskId={activeTaskId}
+              activeViewKey={activeViewKey}
+            />
           </ResizablePanel>
         </ResizablePanelGroup>
       </div>
