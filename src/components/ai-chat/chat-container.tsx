@@ -23,19 +23,19 @@ export function ChatContainer({ taskId, activeViewKey }: ChatContainerProps) {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="border-b px-4 py-3">
+    <div className="h-full flex flex-col overflow-hidden">
+      <div className="flex-shrink-0 border-b px-4 py-3">
         <h3 className="font-semibold">AI Assistant</h3>
         <p className="text-sm text-muted-foreground">Task: {taskId}</p>
       </div>
       
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 overflow-y-auto">
         <div className="p-4">
           <MessageList messages={messages} taskId={taskId} />
         </div>
       </ScrollArea>
       
-      <div className="border-t p-4">
+      <div className="flex-shrink-0 border-t p-4">
         <InputBox 
           onSend={sendMessage} 
           disabled={isStreaming}

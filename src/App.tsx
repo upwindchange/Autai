@@ -131,7 +131,7 @@ function App() {
             defaultSize={30}
             minSize={15}
             maxSize={75}
-            className="h-dvh sticky top-0"
+            className="h-full overflow-hidden"
           >
             <ChatContainer 
               taskId={activeTaskId}

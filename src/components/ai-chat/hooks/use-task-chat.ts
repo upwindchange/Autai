@@ -69,16 +69,22 @@ export function useTaskChat(taskId: string | null): UseTaskChatReturn {
         setTaskMessages(prev => {
           const updated = new Map(prev);
           const taskMsgs = [...(updated.get(taskId) || [])];
-          const lastMsg = taskMsgs[taskMsgs.length - 1];
+          const lastMsgIndex = taskMsgs.length - 1;
           
-          if (lastMsg && lastMsg.id === aiMessageId) {
+          if (lastMsgIndex >= 0 && taskMsgs[lastMsgIndex].id === aiMessageId) {
+            // Create a new message object to ensure React detects the change
+            const updatedMsg = { ...taskMsgs[lastMsgIndex] };
+            
             if (chunk.type === 'token') {
-              lastMsg.content += chunk.content;
+              updatedMsg.content = updatedMsg.content + chunk.content;
             } else if (chunk.type === 'error') {
-              lastMsg.content = chunk.content;
-              lastMsg.error = chunk.content;
-              lastMsg.isComplete = true;
+              updatedMsg.content = chunk.content;
+              updatedMsg.error = chunk.content;
+              updatedMsg.isComplete = true;
             }
+            
+            // Replace the message with the updated one
+            taskMsgs[lastMsgIndex] = updatedMsg;
           }
           
           updated.set(taskId, taskMsgs);
@@ -91,10 +97,13 @@ export function useTaskChat(taskId: string | null): UseTaskChatReturn {
         setTaskMessages(prev => {
           const updated = new Map(prev);
           const taskMsgs = [...(updated.get(taskId) || [])];
-          const lastMsg = taskMsgs[taskMsgs.length - 1];
+          const lastMsgIndex = taskMsgs.length - 1;
           
-          if (lastMsg && lastMsg.id === aiMessageId) {
-            lastMsg.isComplete = true;
+          if (lastMsgIndex >= 0 && taskMsgs[lastMsgIndex].id === aiMessageId) {
+            // Create a new message object to ensure React detects the change
+            const updatedMsg = { ...taskMsgs[lastMsgIndex] };
+            updatedMsg.isComplete = true;
+            taskMsgs[lastMsgIndex] = updatedMsg;
           }
           
           updated.set(taskId, taskMsgs);

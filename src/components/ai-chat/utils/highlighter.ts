@@ -2,7 +2,7 @@ import {
   createHighlighterCore,
   type HighlighterCore,
 } from 'shiki/core';
-import getWasm from 'shiki/wasm';
+import { createOnigurumaEngine } from 'shiki/engine-oniguruma';
 
 let highlighterPromise: Promise<HighlighterCore> | null = null;
 
@@ -44,7 +44,7 @@ export async function loadHighlighter(): Promise<HighlighterCore> {
         import('shiki/langs/jsx.mjs'),
         import('shiki/langs/tsx.mjs'),
       ],
-      loadWasm: getWasm,
+      engine: createOnigurumaEngine(import('shiki/wasm')),
     });
   }
 
