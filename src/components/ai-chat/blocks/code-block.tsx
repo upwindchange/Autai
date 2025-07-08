@@ -1,4 +1,3 @@
-import { use } from 'react';
 import parse from 'html-react-parser';
 import type { LLMOutputComponent } from '@llm-ui/react';
 import { findCompleteCodeBlock, findPartialCodeBlock, codeBlockLookBack } from '@llm-ui/code';
@@ -6,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Check, Copy } from 'lucide-react';
 import { loadHighlighter, getTheme } from '../utils/highlighter';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 /**
  * Parse code block to extract language and code
@@ -28,8 +27,13 @@ function parseCodeBlock(output: string): { language: string; code: string } {
  */
 export const CodeBlock: LLMOutputComponent = ({ blockMatch }) => {
   const [copied, setCopied] = useState(false);
+  const [highlighter, setHighlighter] = useState<any>(null);
   const { language, code } = parseCodeBlock(blockMatch.output);
-  const highlighter = use(loadHighlighter());
+  
+  // Load highlighter asynchronously
+  useEffect(() => {
+    loadHighlighter().then(setHighlighter);
+  }, []);
   
   // Don't render incomplete blocks
   if (!blockMatch.isVisible) {
@@ -41,6 +45,42 @@ export const CodeBlock: LLMOutputComponent = ({ blockMatch }) => {
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
+
+  // Render plain text while highlighter is loading
+  if (!highlighter) {
+    return (
+      <Card className="relative group my-4 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-2 border-b bg-muted/50">
+          <span className="text-xs font-mono text-muted-foreground">
+            {language}
+          </span>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleCopy}
+            className="h-7 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+          >
+            {copied ? (
+              <>
+                <Check className="h-3 w-3 mr-1" />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3 mr-1" />
+                Copy
+              </>
+            )}
+          </Button>
+        </div>
+        <div className="overflow-x-auto">
+          <pre className="p-4 text-sm">
+            <code>{code}</code>
+          </pre>
+        </div>
+      </Card>
+    );
+  }
 
   let html: string;
   try {

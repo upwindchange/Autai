@@ -73,6 +73,20 @@ export const MarkdownBlock: LLMOutputComponent = ({ blockMatch }) => {
           td: ({ children }) => (
             <td className="px-3 py-2 text-sm">{children}</td>
           ),
+          img: ({ src, alt, ...props }) => {
+            // Skip rendering images with empty src
+            if (!src || src === '') {
+              return null;
+            }
+            return (
+              <img
+                src={src}
+                alt={alt || ''}
+                className="max-w-full h-auto rounded-md"
+                {...props}
+              />
+            );
+          },
         }}
       >
         {markdown}
