@@ -86,7 +86,12 @@ app.whenReady().then(async () => {
   createWindow();
 });
 
-app.on("window-all-closed", () => {
+app.on("window-all-closed", async () => {
+  // Clean up all views before quitting
+  if (viewManager) {
+    await viewManager.destroy();
+    viewManager = null;
+  }
   win = null;
   if (process.platform !== "darwin") app.quit();
 });
@@ -107,6 +112,18 @@ app.on("activate", () => {
     allWindows[0].focus();
   } else {
     createWindow();
+  }
+});
+
+/**
+ * Clean up before app quits
+ */
+app.on("before-quit", async (event) => {
+  if (viewManager) {
+    event.preventDefault();
+    await viewManager.destroy();
+    viewManager = null;
+    app.quit();
   }
 });
 

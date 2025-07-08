@@ -1,5 +1,7 @@
 import { BrowserWindow, WebContentsView, ipcMain } from "electron";
 import { getHintDetectorScript, getHintClickScript } from "../scripts/hintDetectorLoader";
+import { cleanupService } from "./cleanupService";
+import { viewLifecycleService } from "./viewLifecycleService";
 
 /**
  * Manages WebContentsViews within the main BrowserWindow.
@@ -14,7 +16,7 @@ export class ViewManager {
   /**
    * Creates a new WebContentsView with the specified key
    */
-  async createView(key: string, options: any): Promise<string> {
+  async initializeWebView(key: string, options: any): Promise<string> {
     const existingView = this.views.get(key);
     if (existingView) {
       this.win.contentView.removeChildView(existingView);
@@ -34,7 +36,7 @@ export class ViewManager {
     /**
      * Inject Vimium-style hint detection when page loads
      */
-    view.webContents.on("did-finish-load", () => {
+    const loadListener = () => {
       console.log(`Page loaded for view: ${key}, injecting hint detection script`);
       const hintDetectorScript = getHintDetectorScript();
       
@@ -45,10 +47,24 @@ export class ViewManager {
         .catch(error => {
           console.error(`Failed to inject hint detection script for view: ${key}`, error);
         });
-    });
+    };
+    
+    view.webContents.on("did-finish-load", loadListener);
+    
+    // Track the event listener for cleanup
+    cleanupService.trackEventListener(key, view.webContents, "did-finish-load", loadListener);
 
     this.views.set(key, view);
     this.win.contentView.addChildView(view);
+    
+    // Register view in lifecycle service
+    viewLifecycleService.registerView(key, "");
+    
+    // Register cleanup task for IPC handler
+    cleanupService.registerCleanupTask(key, () => {
+      ipcMain.removeHandler(`hint:click:${key}`);
+    });
+    
     return key;
   }
 
@@ -72,6 +88,7 @@ export class ViewManager {
      */
     if (bounds.width > 0 && bounds.height > 0) {
       this.visibleView = key;
+      viewLifecycleService.setActiveView(key);
     } else if (this.visibleView === key) {
       this.visibleView = null;
     }
@@ -80,16 +97,32 @@ export class ViewManager {
   /**
    * Removes a view from the window and cleans up resources
    */
-  removeView(key: string): void {
+  async removeView(key: string): Promise<void> {
     const view = this.views.get(key);
     if (!view) {
       console.warn(`[Main] Attempted to remove non-existent view: ${key}`);
       return;
     }
     
-    this.win.contentView.removeChildView(view);
-    this.views.delete(key);
-    console.log(`[Main] Removed view: ${key}`);
+    console.log(`[Main] Starting removal of view: ${key}`);
+    
+    try {
+      // Remove from window first
+      this.win.contentView.removeChildView(view);
+      
+      // Perform comprehensive cleanup
+      await cleanupService.cleanupView(key, view);
+      
+      // Remove from our map
+      this.views.delete(key);
+      
+      // Unregister from lifecycle service
+      viewLifecycleService.unregisterView(key);
+      
+      console.log(`[Main] Successfully removed view: ${key}`);
+    } catch (error) {
+      console.error(`[Main] Error removing view ${key}:`, error);
+    }
   }
 
   getView(key: string): WebContentsView {
@@ -196,5 +229,21 @@ export class ViewManager {
   // Get currently visible view
   getVisibleView(): string | null {
     return this.visibleView;
+  }
+
+  /**
+   * Cleanup all views when shutting down
+   */
+  async destroy(): Promise<void> {
+    console.log("[ViewManager] Destroying all views");
+
+    // Remove all views
+    const viewKeys = Array.from(this.views.keys());
+    for (const key of viewKeys) {
+      await this.removeView(key);
+    }
+
+    // Final cleanup
+    await cleanupService.cleanupAll();
   }
 }
