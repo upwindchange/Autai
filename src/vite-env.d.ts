@@ -32,6 +32,7 @@ declare global {
       invoke(channel: 'view:getVisible'): Promise<string | null>;
       invoke(channel: string, ...args: any[]): Promise<any>;
       on(channel: string, listener: (event: any, ...args: any[]) => void): void;
+      once(channel: string, listener: (event: any, ...args: any[]) => void): void;
       off(channel: string, listener?: (...args: any[]) => void): void;
       send(channel: string, ...args: any[]): void;
     };

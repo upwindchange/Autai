@@ -58,6 +58,7 @@ interface SidebarLeftProps extends ComponentProps<typeof Sidebar> {
   };
   containerRef: RefObject<HTMLDivElement | null>;
   onPageSelect?: (url: string) => void;
+  onTasksChange?: (tasks: TaskItem[]) => void;
 }
 
 /**
@@ -96,6 +97,7 @@ export function SidebarLeft({
   getContainerBounds,
   containerRef,
   onPageSelect,
+  onTasksChange,
   ...props
 }: SidebarLeftProps) {
   const [tasks, setTasks] = useState<TaskItem[]>([]);
@@ -274,9 +276,19 @@ export function SidebarLeft({
       } else if (expandedIndex !== null && expandedIndex > index) {
         setExpandedIndex(expandedIndex - 1);
       }
+
+      // Notify renderer about task deletion for AI agent cleanup
+      window.ipcRenderer.send('task:deleted', task.id);
     },
     [tasks, expandedIndex, setExpandedIndex, cleanupTaskViews]
   );
+
+  /**
+   * Notify parent component when tasks change
+   */
+  useEffect(() => {
+    onTasksChange?.(tasks);
+  }, [tasks, onTasksChange]);
 
   /**
    * Cleanup all views when component unmounts
