@@ -27,8 +27,8 @@ import { TasksProvider, useTasks } from "@/contexts";
  */
 function AppContent() {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const { selectedPageUrl, activeTaskId, activeViewKey, setContainerRef } =
-    useTasks();
+  const { state, setContainerRef } = useTasks();
+  const { selectedPageUrl, activeTaskId, activeViewKey } = state;
 
   /**
    * Set the container ref in the TasksContext when it's available
