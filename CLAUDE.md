@@ -90,7 +90,6 @@ This is an **AI-powered browser** built with Electron + React + Vite that combin
 - `src/components/ai-chat/chat-container.tsx` - Main AI chat interface component
 - `src/components/nav-tasks.tsx` - Task navigation with collapsible page lists
 - `src/components/settings/` - Settings UI with profile management
-- `src/components/genai/genai.tsx` - Legacy AI chat interface (being replaced by ai/)
 
 ## Development Patterns
 
