@@ -1,10 +1,19 @@
 import { ipcRenderer, contextBridge } from "electron";
 
-// --------- Expose some API to the Renderer process ---------
+/**
+ * Expose secure IPC communication methods to the renderer process.
+ * This maintains context isolation while allowing controlled communication.
+ */
 contextBridge.exposeInMainWorld("ipcRenderer", {
   on(...args: Parameters<typeof ipcRenderer.on>) {
     const [channel, listener] = args;
     return ipcRenderer.on(channel, (event, ...args) =>
+      listener(event, ...args)
+    );
+  },
+  once(...args: Parameters<typeof ipcRenderer.once>) {
+    const [channel, listener] = args;
+    return ipcRenderer.once(channel, (event, ...args) =>
       listener(event, ...args)
     );
   },
@@ -22,7 +31,9 @@ contextBridge.exposeInMainWorld("ipcRenderer", {
   },
 });
 
-// --------- Preload scripts loading ---------
+/**
+ * Waits for the DOM to be ready before executing code
+ */
 function domReady(
   condition: DocumentReadyState[] = ["complete", "interactive"]
 ) {
@@ -39,6 +50,9 @@ function domReady(
   });
 }
 
+/**
+ * Safe DOM manipulation helpers that prevent duplicate operations
+ */
 const safeDOM = {
   append(parent: HTMLElement, child: HTMLElement) {
     if (!Array.from(parent.children).find((e) => e === child)) {
@@ -53,10 +67,11 @@ const safeDOM = {
 };
 
 /**
- * https://tobiasahlin.com/spinkit
- * https://connoratherton.com/loaders
- * https://projects.lukehaas.me/css-loaders
- * https://matejkustec.github.io/SpinThatShit
+ * Loading spinner style references:
+ * - https://tobiasahlin.com/spinkit
+ * - https://connoratherton.com/loaders
+ * - https://projects.lukehaas.me/css-loaders
+ * - https://matejkustec.github.io/SpinThatShit
  */
 function useLoading() {
   const className = `loaders-css__square-spin`;
