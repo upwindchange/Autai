@@ -60,7 +60,7 @@
         "clsx": "^2.1.1",
         "cmdk": "^1.1.1",
         "date-fns": "^4.1.0",
-        "electron": "^36.7.0",
+        "electron": "^37.2.0",
         "electron-builder": "^26.0.12",
         "embla-carousel-react": "^8.6.0",
         "html-react-parser": "^5.2.5",
