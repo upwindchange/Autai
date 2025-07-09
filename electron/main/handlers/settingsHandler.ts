@@ -1,5 +1,5 @@
 import { ipcMain } from "electron";
-import { settingsService } from "../services/settingsService";
+import { settingsService } from "../services";
 
 export function setupSettingsHandlers() {
   // Load settings

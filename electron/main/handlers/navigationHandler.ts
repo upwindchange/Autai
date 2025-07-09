@@ -1,5 +1,5 @@
 import { ipcMain, IpcMainInvokeEvent } from "electron";
-import { NavigationService } from "../services/navigationService";
+import { NavigationService } from "../services";
 
 /**
  * Sets up IPC handlers for web navigation functionality.
