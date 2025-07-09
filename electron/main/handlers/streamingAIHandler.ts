@@ -1,5 +1,5 @@
 import { ipcMain, IpcMainInvokeEvent } from "electron";
-import { TaskAgentManager } from "../services/taskAgentManager";
+import { TaskAgentManager } from "../services";
 import type { StreamChunk } from "../types/streaming";
 
 /**

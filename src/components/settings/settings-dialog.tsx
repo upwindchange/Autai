@@ -18,15 +18,13 @@ export function SettingsDialog() {
   const [previousVisibleView, setPreviousVisibleView] = useState<string | null>(null);
   const { activeProfile } = useSettings();
 
-  // Hide views when dialog opens, restore when closes
+  // Store visible view when dialog opens to restore later
   useEffect(() => {
     const handleViewVisibility = async () => {
       if (open) {
         // Store current visible view
         const visibleView = await window.ipcRenderer.invoke("view:getVisible");
         setPreviousVisibleView(visibleView);
-        // Hide all views
-        await window.ipcRenderer.invoke("view:hideAll");
       } else if (previousVisibleView) {
         // Restore the previous visible view
         // We need to tell the sidebar to restore the view bounds
