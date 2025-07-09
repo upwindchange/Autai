@@ -65,16 +65,8 @@ interface SidebarLeftProps extends ComponentProps<typeof Sidebar> {
  * Default sites for new tasks - randomly selected when creating a new task
  */
 const POPULAR_SITES = [
-  { url: "https://www.google.com" },
-  { url: "https://www.youtube.com" },
-  { url: "https://www.facebook.com" },
-  { url: "https://www.baidu.com" },
-  { url: "https://www.wikipedia.org" },
-  { url: "https://twitter.com" },
-  { url: "https://www.instagram.com" },
   { url: "https://www.reddit.com" },
   { url: "https://www.amazon.com" },
-  { url: "https://www.linkedin.com" },
 ] as const;
 
 /**
@@ -85,7 +77,8 @@ const EMPTY_BOUNDS = { x: 0, y: 0, width: 0, height: 0 } as const;
 /**
  * Generates a unique key for each view based on task ID and page index
  */
-const getViewKey = (taskId: string, pageIndex: number) => `${taskId}-${pageIndex}`;
+const getViewKey = (taskId: string, pageIndex: number) =>
+  `${taskId}-${pageIndex}`;
 
 /**
  * Left sidebar component that manages tasks and their associated web views.
@@ -115,32 +108,41 @@ export function SidebarLeft({
    */
   const hideAllViewsExcept = useCallback(async (activeKey: string) => {
     const hidePromises = Array.from(viewManagersRef.current.keys())
-      .filter(key => key !== activeKey)
-      .map(key => window.ipcRenderer.invoke("view:setBounds", key, EMPTY_BOUNDS));
-    
+      .filter((key) => key !== activeKey)
+      .map((key) =>
+        window.ipcRenderer.invoke("view:setBounds", key, EMPTY_BOUNDS)
+      );
+
     await Promise.all(hidePromises);
   }, []);
 
   /**
    * Creates a ViewManager that handles resize observation and cleanup for a WebContentsView
    */
-  const createViewManager = useCallback((key: string): ViewManager => {
-    const resizeObserver = new ResizeObserver(() => {
-      window.ipcRenderer.invoke("view:setBounds", key, memoizedGetContainerBounds());
-    });
+  const createViewManager = useCallback(
+    (key: string): ViewManager => {
+      const resizeObserver = new ResizeObserver(() => {
+        window.ipcRenderer.invoke(
+          "view:setBounds",
+          key,
+          memoizedGetContainerBounds()
+        );
+      });
 
-    if (containerRef.current) {
-      resizeObserver.observe(containerRef.current);
-    }
-
-    return {
-      resizeObserver,
-      cleanup: () => {
-        resizeObserver.disconnect();
-        window.ipcRenderer.invoke("view:remove", key);
+      if (containerRef.current) {
+        resizeObserver.observe(containerRef.current);
       }
-    };
-  }, [containerRef, memoizedGetContainerBounds]);
+
+      return {
+        resizeObserver,
+        cleanup: () => {
+          resizeObserver.disconnect();
+          window.ipcRenderer.invoke("view:remove", key);
+        },
+      };
+    },
+    [containerRef, memoizedGetContainerBounds]
+  );
 
   const cleanupView = useCallback((key: string) => {
     const manager = viewManagersRef.current.get(key);
@@ -150,11 +152,14 @@ export function SidebarLeft({
     }
   }, []);
 
-  const cleanupTaskViews = useCallback((task: TaskItem) => {
-    task.pages.forEach((_, pageIndex) => {
-      cleanupView(getViewKey(task.id, pageIndex));
-    });
-  }, [cleanupView]);
+  const cleanupTaskViews = useCallback(
+    (task: TaskItem) => {
+      task.pages.forEach((_, pageIndex) => {
+        cleanupView(getViewKey(task.id, pageIndex));
+      });
+    },
+    [cleanupView]
+  );
 
   /**
    * Handles page selection: shows the selected view and hides others
@@ -163,12 +168,12 @@ export function SidebarLeft({
     async (taskIndex: number, pageIndex: number, tasksArray?: TaskItem[]) => {
       const currentTasks = tasksArray || tasks;
       const task = currentTasks[taskIndex];
-      
+
       if (!task) {
         console.error(`Task at index ${taskIndex} not found`);
         return;
       }
-      
+
       const key = getViewKey(task.id, pageIndex);
 
       if (!viewManagersRef.current.has(key)) {
@@ -177,8 +182,12 @@ export function SidebarLeft({
       }
 
       await hideAllViewsExcept(key);
-      await window.ipcRenderer.invoke("view:setBounds", key, memoizedGetContainerBounds());
-      
+      await window.ipcRenderer.invoke(
+        "view:setBounds",
+        key,
+        memoizedGetContainerBounds()
+      );
+
       window.ipcRenderer.send("active-view-changed", key);
 
       if (onPageSelect && task.pages[pageIndex]) {
@@ -188,58 +197,74 @@ export function SidebarLeft({
     [memoizedGetContainerBounds, onPageSelect, tasks, hideAllViewsExcept]
   );
 
-  const createNewView = useCallback(async (key: string, url: string) => {
-    await window.ipcRenderer.invoke("view:create", key, {
-      webPreferences: {},
-    });
+  const createNewView = useCallback(
+    async (key: string, url: string) => {
+      await window.ipcRenderer.invoke("view:create", key, {
+        webPreferences: {},
+      });
 
-    await window.ipcRenderer.invoke("view:setBounds", key, memoizedGetContainerBounds());
+      await window.ipcRenderer.invoke(
+        "view:setBounds",
+        key,
+        memoizedGetContainerBounds()
+      );
 
-    const { title, favicon } = await window.ipcRenderer.invoke("nav:loadURL", key, url);
-    
-    const manager = createViewManager(key);
-    viewManagersRef.current.set(key, manager);
+      const { title, favicon } = await window.ipcRenderer.invoke(
+        "nav:loadURL",
+        key,
+        url
+      );
 
-    return { title, favicon };
-  }, [memoizedGetContainerBounds, createViewManager]);
+      const manager = createViewManager(key);
+      viewManagersRef.current.set(key, manager);
+
+      return { title, favicon };
+    },
+    [memoizedGetContainerBounds, createViewManager]
+  );
 
   /**
    * Creates a new task with a random popular site as the initial page
    */
   const handleAddTask = useCallback(async () => {
     const newIndex = tasks.length;
-    const randomSite = POPULAR_SITES[Math.floor(Math.random() * POPULAR_SITES.length)];
-    
+    const randomSite =
+      POPULAR_SITES[Math.floor(Math.random() * POPULAR_SITES.length)];
+
     const newTaskId = Date.now().toString();
     const newTask: TaskItem = {
       id: newTaskId,
       title: "New Task",
       favicon: "📋",
-      pages: [{
-        ...randomSite,
-        title: "Loading...",
-        favicon: "⏳",
-      }],
+      pages: [
+        {
+          ...randomSite,
+          title: "Loading...",
+          favicon: "⏳",
+        },
+      ],
     };
 
-    setTasks(prev => [...prev, newTask]);
+    setTasks((prev) => [...prev, newTask]);
     setExpandedIndex(newIndex);
 
     const key = getViewKey(newTaskId, 0);
-    
+
     try {
       const { title, favicon } = await createNewView(key, randomSite.url);
 
-      setTasks(prev => {
+      setTasks((prev) => {
         const updated = [...prev];
         if (updated[newIndex]) {
           updated[newIndex] = {
             ...updated[newIndex],
-            pages: [{
-              ...updated[newIndex].pages[0],
-              title,
-              favicon,
-            }],
+            pages: [
+              {
+                ...updated[newIndex].pages[0],
+                title,
+                favicon,
+              },
+            ],
           };
         }
         return updated;
@@ -249,8 +274,8 @@ export function SidebarLeft({
       await handlePageSelect(newIndex, 0, updatedTasks);
     } catch (error) {
       console.error(`Failed to create view ${key}:`, error);
-      
-      setTasks(prev => {
+
+      setTasks((prev) => {
         const updated = [...prev];
         if (updated[newIndex]) {
           updated[newIndex].pages[0] = {
@@ -269,7 +294,7 @@ export function SidebarLeft({
       const task = tasks[index];
       cleanupTaskViews(task);
 
-      setTasks(prev => prev.filter((_, i) => i !== index));
+      setTasks((prev) => prev.filter((_, i) => i !== index));
 
       if (expandedIndex === index) {
         setExpandedIndex(null);
@@ -278,7 +303,7 @@ export function SidebarLeft({
       }
 
       // Notify renderer about task deletion for AI agent cleanup
-      window.ipcRenderer.send('task:deleted', task.id);
+      window.ipcRenderer.send("task:deleted", task.id);
     },
     [tasks, expandedIndex, setExpandedIndex, cleanupTaskViews]
   );
@@ -295,7 +320,7 @@ export function SidebarLeft({
    */
   useEffect(() => {
     return () => {
-      viewManagersRef.current.forEach(manager => manager.cleanup());
+      viewManagersRef.current.forEach((manager) => manager.cleanup());
       viewManagersRef.current.clear();
     };
   }, []);

@@ -1,15 +1,25 @@
 import { BrowserWindow, WebContentsView, ipcMain } from "electron";
 import { getHintDetectorScript, getHintClickScript } from "../scripts/hintDetectorLoader";
-import { cleanupService } from "./cleanupService";
-import { viewLifecycleService } from "./viewLifecycleService";
+
+interface ViewLifecycleInfo {
+  key: string;
+  createdAt: Date;
+  lastAccessedAt: Date;
+  url: string;
+  isActive: boolean;
+}
 
 /**
  * Manages WebContentsViews within the main BrowserWindow.
- * Handles creation, positioning, and lifecycle of multiple web views.
+ * Handles creation, positioning, lifecycle, and cleanup of multiple web views.
  */
 export class ViewManager {
   private views = new Map<string, WebContentsView>();
   private visibleView: string | null = null;
+  private viewLifecycles = new Map<string, ViewLifecycleInfo>();
+  private activeViewKey: string | null = null;
+  private cleanupTasks = new Map<string, (() => void | Promise<void>)[]>();
+  private eventListeners = new Map<string, { target: any; event: string; listener: any }[]>();
   
   constructor(private win: BrowserWindow) {}
 
@@ -52,16 +62,16 @@ export class ViewManager {
     view.webContents.on("did-finish-load", loadListener);
     
     // Track the event listener for cleanup
-    cleanupService.trackEventListener(key, view.webContents, "did-finish-load", loadListener);
+    this.trackEventListener(key, view.webContents, "did-finish-load", loadListener);
 
     this.views.set(key, view);
     this.win.contentView.addChildView(view);
     
-    // Register view in lifecycle service
-    viewLifecycleService.registerView(key, "");
+    // Register view in lifecycle tracking
+    this.registerView(key, "");
     
     // Register cleanup task for IPC handler
-    cleanupService.registerCleanupTask(key, () => {
+    this.registerCleanupTask(key, () => {
       ipcMain.removeHandler(`hint:click:${key}`);
     });
     
@@ -88,7 +98,7 @@ export class ViewManager {
      */
     if (bounds.width > 0 && bounds.height > 0) {
       this.visibleView = key;
-      viewLifecycleService.setActiveView(key);
+      this.setActiveView(key);
     } else if (this.visibleView === key) {
       this.visibleView = null;
     }
@@ -111,13 +121,13 @@ export class ViewManager {
       this.win.contentView.removeChildView(view);
       
       // Perform comprehensive cleanup
-      await cleanupService.cleanupView(key, view);
+      await this.cleanupView(key, view);
       
       // Remove from our map
       this.views.delete(key);
       
-      // Unregister from lifecycle service
-      viewLifecycleService.unregisterView(key);
+      // Unregister from lifecycle tracking
+      this.unregisterView(key);
       
       console.log(`[Main] Successfully removed view: ${key}`);
     } catch (error) {
@@ -244,6 +254,216 @@ export class ViewManager {
     }
 
     // Final cleanup
-    await cleanupService.cleanupAll();
+    await this.cleanupAll();
+  }
+
+  // ViewLifecycleService methods
+
+  /**
+   * Register a new view
+   */
+  private registerView(key: string, url: string) {
+    this.viewLifecycles.set(key, {
+      key,
+      createdAt: new Date(),
+      lastAccessedAt: new Date(),
+      url,
+      isActive: false
+    });
+    console.log(`[ViewLifecycle] Registered view: ${key} for URL: ${url}`);
+  }
+
+  /**
+   * Update the active view
+   */
+  private setActiveView(key: string) {
+    // Mark previous active view as inactive
+    if (this.activeViewKey && this.viewLifecycles.has(this.activeViewKey)) {
+      const prevView = this.viewLifecycles.get(this.activeViewKey)!;
+      prevView.isActive = false;
+    }
+
+    // Mark new view as active
+    if (this.viewLifecycles.has(key)) {
+      const view = this.viewLifecycles.get(key)!;
+      view.isActive = true;
+      view.lastAccessedAt = new Date();
+      this.activeViewKey = key;
+    }
+  }
+
+  /**
+   * Unregister a view
+   */
+  private unregisterView(key: string) {
+    const view = this.viewLifecycles.get(key);
+    if (view) {
+      console.log(`[ViewLifecycle] Unregistering view: ${key}, created at: ${view.createdAt.toISOString()}, lifetime: ${Date.now() - view.createdAt.getTime()}ms`);
+      this.viewLifecycles.delete(key);
+      
+      if (this.activeViewKey === key) {
+        this.activeViewKey = null;
+      }
+    }
+  }
+
+  /**
+   * Get lifecycle info for a view
+   */
+  getViewLifecycle(key: string): ViewLifecycleInfo | undefined {
+    return this.viewLifecycles.get(key);
+  }
+
+  /**
+   * Get all views
+   */
+  getAllViews(): ViewLifecycleInfo[] {
+    return Array.from(this.viewLifecycles.values());
+  }
+
+  /**
+   * Get views that haven't been accessed recently
+   */
+  getStaleViews(thresholdMinutes: number = 30): ViewLifecycleInfo[] {
+    const threshold = Date.now() - (thresholdMinutes * 60 * 1000);
+    return this.getAllViews().filter(view => 
+      !view.isActive && view.lastAccessedAt.getTime() < threshold
+    );
+  }
+
+  /**
+   * Log current state
+   */
+  logState() {
+    console.log("[ViewLifecycle] Current state:");
+    console.log(`  Active view: ${this.activeViewKey}`);
+    console.log(`  Total views: ${this.viewLifecycles.size}`);
+    
+    this.viewLifecycles.forEach(view => {
+      console.log(`  - ${view.key}: ${view.url} (active: ${view.isActive}, created: ${view.createdAt.toISOString()})`);
+    });
+  }
+
+  // CleanupService methods
+
+  /**
+   * Register a cleanup task for a specific view
+   */
+  private registerCleanupTask(viewKey: string, task: () => void | Promise<void>) {
+    if (!this.cleanupTasks.has(viewKey)) {
+      this.cleanupTasks.set(viewKey, []);
+    }
+    this.cleanupTasks.get(viewKey)!.push(task);
+  }
+
+  /**
+   * Track event listeners for cleanup
+   */
+  private trackEventListener(viewKey: string, target: any, event: string, listener: any) {
+    if (!this.eventListeners.has(viewKey)) {
+      this.eventListeners.set(viewKey, []);
+    }
+    this.eventListeners.get(viewKey)!.push({ target, event, listener });
+  }
+
+  /**
+   * Clean up all resources for a specific view
+   */
+  private async cleanupView(viewKey: string, view: WebContentsView): Promise<void> {
+    console.log(`[CleanupService] Starting cleanup for view: ${viewKey}`);
+
+    try {
+      // 1. Remove all event listeners
+      const listeners = this.eventListeners.get(viewKey) || [];
+      for (const { target, event, listener } of listeners) {
+        if (target && typeof target.removeListener === 'function') {
+          target.removeListener(event, listener);
+        } else if (target && typeof target.off === 'function') {
+          target.off(event, listener);
+        }
+      }
+      this.eventListeners.delete(viewKey);
+
+      // 2. Execute all registered cleanup tasks
+      const tasks = this.cleanupTasks.get(viewKey) || [];
+      for (const task of tasks) {
+        try {
+          await task();
+        } catch (error) {
+          console.error(`[CleanupService] Error executing cleanup task for ${viewKey}:`, error);
+        }
+      }
+      this.cleanupTasks.delete(viewKey);
+
+      // 3. Clean up WebContents
+      if (view && view.webContents && !view.webContents.isDestroyed()) {
+        try {
+          // Stop all navigation
+          view.webContents.stop();
+          
+          // Clear session data
+          await view.webContents.session.clearCache();
+          
+          // Remove all listeners
+          view.webContents.removeAllListeners();
+          
+          // Force close the webContents to terminate the renderer process
+          view.webContents.close();
+          
+          // Forcefully terminate the renderer process if it still exists
+          if (view.webContents.getOSProcessId && !view.webContents.isDestroyed()) {
+            const pid = view.webContents.getOSProcessId();
+            if (pid) {
+              console.log(`[CleanupService] Force terminating process ${pid} for view: ${viewKey}`);
+              try {
+                process.kill(pid, 'SIGKILL');
+              } catch (killError) {
+                console.error(`[CleanupService] Error killing process ${pid}:`, killError);
+              }
+            }
+          }
+          
+          console.log(`[CleanupService] WebContents closed for view: ${viewKey}`);
+        } catch (error) {
+          console.error(`[CleanupService] Error closing WebContents for ${viewKey}:`, error);
+        }
+      }
+
+      // 4. Unregister IPC handlers
+      this.unregisterIpcHandlers(viewKey);
+
+      console.log(`[CleanupService] Cleanup completed for view: ${viewKey}`);
+    } catch (error) {
+      console.error(`[CleanupService] Critical error during cleanup for ${viewKey}:`, error);
+    }
+  }
+
+  /**
+   * Unregister all IPC handlers for a view
+   */
+  private unregisterIpcHandlers(viewKey: string) {
+    try {
+      // Remove hint click handler
+      ipcMain.removeHandler(`hint:click:${viewKey}`);
+      console.log(`[CleanupService] Unregistered IPC handlers for view: ${viewKey}`);
+    } catch (error) {
+      console.error(`[CleanupService] Error unregistering IPC handlers for ${viewKey}:`, error);
+    }
+  }
+
+  /**
+   * Clean up all tracked resources
+   */
+  private async cleanupAll(): Promise<void> {
+    console.log("[CleanupService] Cleaning up all resources");
+    
+    const allKeys = Array.from(this.cleanupTasks.keys());
+    for (const key of allKeys) {
+      // Note: We don't have the view reference here, so we just clean up what we can
+      await this.cleanupView(key, null as any);
+    }
+
+    this.cleanupTasks.clear();
+    this.eventListeners.clear();
   }
 }

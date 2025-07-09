@@ -81,7 +81,7 @@ This is an **AI-powered browser** built with Electron + React + Vite that combin
 
 - `electron/main/index.ts` - Main process entry point with window management
 - `electron/main/services/agentService.ts` - LangChain AI service integration with OpenAI
-- `electron/main/services/viewManagerService.ts` - WebContentsView lifecycle management
+- `electron/main/services/viewManagerService.ts` - WebContentsView lifecycle management, cleanup, and resource tracking
 - `electron/main/services/navigationService.ts` - Web navigation and page metadata handling
 - `electron/main/services/settingsService.ts` - AI settings and profile management
 - `electron/main/handlers/` - IPC handlers for all main process services
