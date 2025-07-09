@@ -48,4 +48,44 @@ export function setupViewHandlers(viewManager: ViewManager, win: BrowserWindow) 
   ipcMain.handle("view:getVisible", async () => {
     return viewManager.getVisibleView();
   });
+
+  // Cleanup handlers (previously in cleanupHandler.ts)
+  
+  /**
+   * Get lifecycle information for all views
+   */
+  ipcMain.handle("cleanup:getViewLifecycles", async () => {
+    return viewManager.getAllViews();
+  });
+
+  /**
+   * Get stale views that haven't been accessed recently
+   */
+  ipcMain.handle("cleanup:getStaleViews", async (_, thresholdMinutes?: number) => {
+    return viewManager.getStaleViews(thresholdMinutes);
+  });
+
+  /**
+   * Log current state of all views
+   */
+  ipcMain.handle("cleanup:logState", async () => {
+    viewManager.logState();
+    return { success: true };
+  });
+
+  /**
+   * Force garbage collection (if exposed)
+   */
+  ipcMain.handle("cleanup:forceGC", async () => {
+    if (global.gc) {
+      global.gc();
+      console.log("[ViewHandler] Forced garbage collection");
+      return { success: true, message: "Garbage collection triggered" };
+    } else {
+      console.log("[ViewHandler] Garbage collection not available");
+      return { success: false, message: "Garbage collection not exposed" };
+    }
+  });
+
+  console.log("[ViewHandler] View and cleanup handlers registered");
 }

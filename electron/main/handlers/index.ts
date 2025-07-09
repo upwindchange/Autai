@@ -5,7 +5,6 @@ import { setupViewHandlers } from "./viewHandler";
 import { setupHintHandlers } from "./hintHandler";
 import { setupAIHandlers } from "./aiHandler";
 import { setupSettingsHandlers } from "./settingsHandler";
-import { setupCleanupHandlers } from "./cleanupHandler";
 import { registerStreamingAIHandlers } from "./streamingAIHandler";
 
 export function setupIpcHandlers(win: BrowserWindow, viewManager: ViewManager) {
@@ -17,6 +16,5 @@ export function setupIpcHandlers(win: BrowserWindow, viewManager: ViewManager) {
   setupHintHandlers(viewManager);
   setupAIHandlers(viewManager);
   setupSettingsHandlers();
-  setupCleanupHandlers();
   registerStreamingAIHandlers();
 }
