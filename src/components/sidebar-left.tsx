@@ -21,19 +21,13 @@ interface SidebarLeftProps extends ComponentProps<typeof Sidebar> {}
  * Each task can contain multiple pages, and each page is rendered in a WebContentsView.
  */
 export function SidebarLeft(props: SidebarLeftProps) {
-  const {
-    tasks,
-    expandedIndex,
-    setExpandedIndex,
-    handleAddTask,
-    handleTaskDelete,
-    handlePageSelect,
-  } = useTasks();
+  const { state, addTask, deleteTask, selectPage, setExpandedIndex } = useTasks();
+  const { tasks, expandedIndex } = state;
 
   return (
     <Sidebar className="border-r-0" {...props}>
       <SidebarHeader>
-        <Button variant="outline" size="sm" onClick={handleAddTask}>
+        <Button variant="outline" size="sm" onClick={addTask}>
           + Create New Task
         </Button>
       </SidebarHeader>
@@ -42,8 +36,8 @@ export function SidebarLeft(props: SidebarLeftProps) {
           tasks={tasks}
           expandedIndex={expandedIndex}
           onExpandChange={setExpandedIndex}
-          onTaskDelete={handleTaskDelete}
-          onPageSelect={handlePageSelect}
+          onTaskDelete={deleteTask}
+          onPageSelect={selectPage}
         />
         <NavSecondary className="mt-auto" />
       </SidebarContent>
