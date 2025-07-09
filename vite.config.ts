@@ -1,4 +1,4 @@
-import { rmSync } from 'node:fs'
+import { rmSync, copyFileSync, mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -7,6 +7,22 @@ import electron from 'vite-plugin-electron/simple'
 import pkg from './package.json'
 
 // https://vitejs.dev/config/
+// Custom plugin to copy hintDetector.js file
+const copyHintDetectorPlugin = () => ({
+  name: 'copy-hint-detector',
+  closeBundle() {
+    // Create the scripts directory if it doesn't exist
+    const scriptsDir = path.join(__dirname, 'dist-electron/main/scripts')
+    mkdirSync(scriptsDir, { recursive: true })
+    
+    // Copy the hintDetector.js file
+    const sourcePath = path.join(__dirname, 'electron/main/scripts/hintDetector.js')
+    const destPath = path.join(scriptsDir, 'hintDetector.js')
+    copyFileSync(sourcePath, destPath)
+    console.log('Copied hintDetector.js to dist-electron/main/scripts/')
+  }
+})
+
 export default defineConfig(({ command }) => {
   rmSync('dist-electron', { recursive: true, force: true })
 
@@ -40,6 +56,7 @@ export default defineConfig(({ command }) => {
               outDir: 'dist-electron/main',
               rollupOptions: {
                 external: Object.keys('dependencies' in pkg ? pkg.dependencies : {}),
+                plugins: [copyHintDetectorPlugin()],
               },
             },
           },
