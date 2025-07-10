@@ -84,7 +84,7 @@
         "typescript": "^5.8.3",
         "uuid": "^11.1.0",
         "vaul": "^1.1.2",
-        "vite": "^6.3.5",
+        "vite": "^7.0.4",
         "vite-plugin-electron": "^0.29.0",
         "vite-plugin-electron-renderer": "^0.14.6",
         "vitest": "^3.2.4",
