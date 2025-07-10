@@ -57,7 +57,7 @@ export class ViewManager {
       
       // Also log source information in development
       if (process.env.NODE_ENV !== 'production' && sourceId) {
-        console.log(`  └─ ${sourceId}:${line}`);
+        console.log(`|--${sourceId}:${line}`);
       }
     });
     

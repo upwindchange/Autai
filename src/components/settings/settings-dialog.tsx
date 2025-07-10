@@ -12,32 +12,46 @@ import { Settings2 } from "lucide-react";
 import { SettingsForm } from "./settings-form";
 import { ProfileSelector } from "./profile-selector";
 import { useSettings } from "./settings-context";
+import { useTasks } from "@/contexts";
+
+const EMPTY_BOUNDS = { x: 0, y: 0, width: 0, height: 0 } as const;
 
 export function SettingsDialog() {
   const [open, setOpen] = useState(false);
-  const [previousVisibleView, setPreviousVisibleView] = useState<string | null>(null);
   const { activeProfile } = useSettings();
+  const { containerRef, state, setViewVisibility } = useTasks();
+  const { activeViewKey } = state;
 
-  // Store visible view when dialog opens to restore later
-  useEffect(() => {
-    const handleViewVisibility = async () => {
-      if (open) {
-        // Store current visible view
-        const visibleView = await window.ipcRenderer.invoke("view:getVisible");
-        setPreviousVisibleView(visibleView);
-      } else if (previousVisibleView) {
-        // Restore the previous visible view
-        // We need to tell the sidebar to restore the view bounds
-        window.ipcRenderer.send("restore-view", previousVisibleView);
-        setPreviousVisibleView(null);
-      }
-    };
+  const handleOpenChange = async (newOpen: boolean) => {
+    if (!activeViewKey || !containerRef?.current) {
+      setOpen(newOpen);
+      return;
+    }
 
-    handleViewVisibility();
-  }, [open, previousVisibleView]);
+    if (newOpen) {
+      // Mark view as hidden and hide it
+      setViewVisibility(true);
+      await window.ipcRenderer.invoke("view:setBounds", activeViewKey, EMPTY_BOUNDS);
+      setOpen(true);
+    } else {
+      setOpen(false);
+      // Mark view as visible and restore it after dialog animation completes
+      setViewVisibility(false);
+      setTimeout(() => {
+        const rect = containerRef.current!.getBoundingClientRect();
+        const bounds = {
+          x: Math.round(rect.x),
+          y: Math.round(rect.y),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height),
+        };
+        window.ipcRenderer.invoke("view:setBounds", activeViewKey, bounds);
+      }, 100);
+    }
+  };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <SidebarMenuButton>
           <Settings2 />

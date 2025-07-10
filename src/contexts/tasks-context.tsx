@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useCallback, useRef, useEffect } from 'react';
+import { createContext, useContext, useReducer, useCallback, useRef, useEffect, useState } from 'react';
 import type { ReactNode, RefObject } from 'react';
 
 /**
@@ -29,6 +29,7 @@ interface TasksState {
   selectedPageUrl: string | null;
   activeTaskId: string | null;
   activeViewKey: string | null;
+  isActiveViewHidden: boolean;
 }
 
 /**
@@ -41,7 +42,8 @@ type TasksAction =
   | { type: 'SET_EXPANDED'; index: number | null }
   | { type: 'SET_SELECTED_PAGE'; url: string | null }
   | { type: 'SET_ACTIVE_VIEW'; key: string | null }
-  | { type: 'UPDATE_PAGE'; taskIndex: number; pageIndex: number; page: Partial<PageItem> };
+  | { type: 'UPDATE_PAGE'; taskIndex: number; pageIndex: number; page: Partial<PageItem> }
+  | { type: 'SET_VIEW_VISIBILITY'; isHidden: boolean };
 
 interface TasksContextType {
   // State
@@ -52,9 +54,11 @@ interface TasksContextType {
   deleteTask: (index: number) => Promise<void>;
   selectPage: (taskIndex: number, pageIndex: number) => Promise<void>;
   setExpandedIndex: (index: number | null) => void;
+  setViewVisibility: (isHidden: boolean) => void;
   
   // Container bounds management
   setContainerRef: (ref: RefObject<HTMLDivElement | null>) => void;
+  containerRef: RefObject<HTMLDivElement | null> | null;
 }
 
 const TasksContext = createContext<TasksContextType | undefined>(undefined);
@@ -86,6 +90,7 @@ const initialState: TasksState = {
   selectedPageUrl: null,
   activeTaskId: null,
   activeViewKey: null,
+  isActiveViewHidden: false,
 };
 
 /**
@@ -159,6 +164,12 @@ function tasksReducer(state: TasksState, action: TasksAction): TasksState {
         tasks: newTasks,
       };
     }
+    
+    case 'SET_VIEW_VISIBILITY':
+      return {
+        ...state,
+        isActiveViewHidden: action.isHidden,
+      };
       
     default:
       return state;
@@ -175,9 +186,14 @@ interface TasksProviderProps {
 class ViewLifecycleManager {
   private views = new Map<string, ResizeObserver>();
   private containerRef: RefObject<HTMLDivElement | null> | null = null;
+  private isViewHiddenCallback: ((key: string) => boolean) | null = null;
   
   setContainerRef(ref: RefObject<HTMLDivElement | null>) {
     this.containerRef = ref;
+  }
+  
+  setIsViewHiddenCallback(callback: (key: string) => boolean) {
+    this.isViewHiddenCallback = callback;
   }
   
   getContainerBounds() {
@@ -205,7 +221,10 @@ class ViewLifecycleManager {
     
     // Setup resize observer
     const resizeObserver = new ResizeObserver(() => {
-      window.ipcRenderer.invoke("view:setBounds", key, this.getContainerBounds());
+      // Only update bounds if the view is not hidden
+      if (!this.isViewHiddenCallback || !this.isViewHiddenCallback(key)) {
+        window.ipcRenderer.invoke("view:setBounds", key, this.getContainerBounds());
+      }
     });
     
     if (this.containerRef?.current) {
@@ -258,13 +277,19 @@ class ViewLifecycleManager {
 export function TasksProvider({ children }: TasksProviderProps) {
   const [state, dispatch] = useReducer(tasksReducer, initialState);
   const viewManager = useRef(new ViewLifecycleManager());
+  const [containerRef, setContainerRefState] = useState<RefObject<HTMLDivElement | null> | null>(null);
   
   const setContainerRef = useCallback((ref: RefObject<HTMLDivElement | null>) => {
     viewManager.current.setContainerRef(ref);
+    setContainerRefState(ref);
   }, []);
   
   const setExpandedIndex = useCallback((index: number | null) => {
     dispatch({ type: 'SET_EXPANDED', index });
+  }, []);
+  
+  const setViewVisibility = useCallback((isHidden: boolean) => {
+    dispatch({ type: 'SET_VIEW_VISIBILITY', isHidden });
   }, []);
   
   /**
@@ -280,6 +305,15 @@ export function TasksProvider({ children }: TasksProviderProps) {
       window.ipcRenderer.off('active-view-changed', handleActiveViewChanged);
     };
   }, []);
+  
+  /**
+   * Set up the view hidden callback
+   */
+  useEffect(() => {
+    viewManager.current.setIsViewHiddenCallback((key: string) => {
+      return state.activeViewKey === key && state.isActiveViewHidden;
+    });
+  }, [state.activeViewKey, state.isActiveViewHidden]);
 
   /**
    * Creates a new task with initial page
@@ -391,7 +425,9 @@ export function TasksProvider({ children }: TasksProviderProps) {
     deleteTask,
     selectPage,
     setExpandedIndex,
+    setViewVisibility,
     setContainerRef,
+    containerRef,
   };
   
   return <TasksContext.Provider value={value}>{children}</TasksContext.Provider>;
