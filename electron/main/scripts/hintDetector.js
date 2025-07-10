@@ -292,20 +292,19 @@
     return linkText.trim();
   };
 
-  // Create hint marker overlay container
-  const createHintContainer = (viewportOnly = true) => {
+  // Create hint marker overlay container (viewport only)
+  const createHintContainer = () => {
     let container = document.getElementById("vimium-hint-container");
     if (container) {
-      // Remove existing container to ensure correct positioning mode
+      // Remove existing container
       container.remove();
     }
     
     container = document.createElement("div");
     container.id = "vimium-hint-container";
 
-    if (viewportOnly) {
-      // Use fixed positioning for viewport mode (better performance)
-      container.style.cssText = `
+    // Always use fixed positioning for viewport mode (better performance)
+    container.style.cssText = `
                 position: fixed !important;
                 top: 0 !important;
                 left: 0 !important;
@@ -315,35 +314,6 @@
                 z-index: 2147483647 !important;
                 isolation: isolate !important;
               `;
-    } else {
-      // Use absolute positioning for full document mode
-      const docHeight = Math.max(
-        document.body.scrollHeight || 0,
-        document.body.offsetHeight || 0,
-        document.documentElement.clientHeight || 0,
-        document.documentElement.scrollHeight || 0,
-        document.documentElement.offsetHeight || 0
-      );
-
-      const docWidth = Math.max(
-        document.body.scrollWidth || 0,
-        document.body.offsetWidth || 0,
-        document.documentElement.clientWidth || 0,
-        document.documentElement.scrollWidth || 0,
-        document.documentElement.offsetWidth || 0
-      );
-
-      container.style.cssText = `
-                position: absolute !important;
-                top: 0 !important;
-                left: 0 !important;
-                width: ${docWidth}px !important;
-                height: ${docHeight}px !important;
-                pointer-events: none !important;
-                z-index: 2147483647 !important;
-                isolation: isolate !important;
-              `;
-    }
     
     document.documentElement.appendChild(container);
     return container;
@@ -362,36 +332,21 @@
     return String(index);
   };
 
-  // Display hint markers
-  window.showHints = (viewportOnly = true) => {
+  // Display hint markers (viewport only)
+  window.showHints = () => {
     clearHints();
-    const container = createHintContainer(viewportOnly);
-    const hints = window.detectHints(viewportOnly);
+    const container = createHintContainer();
+    const hints = window.detectHints(true); // Always use viewport only
 
     hints.forEach((hint, index) => {
       const marker = document.createElement("div");
       const hintLabel = generateHintString(index + 1);
 
-      // Dynamic positioning based on mode
-      let positionStyles;
-      if (viewportOnly) {
-        // Fixed positioning for viewport mode
-        positionStyles = `
+      // Fixed positioning for viewport mode
+      marker.style.cssText = `
                 position: fixed !important;
                 left: ${hint.rect.left}px !important;
-                top: ${hint.rect.top}px !important;`;
-      } else {
-        // Absolute positioning for full document mode
-        const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
-        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
-        
-        positionStyles = `
-                position: absolute !important;
-                left: ${hint.rect.left + scrollX}px !important;
-                top: ${hint.rect.top + scrollY}px !important;`;
-      }
-      
-      marker.style.cssText = positionStyles + `
+                top: ${hint.rect.top}px !important;
                 background: linear-gradient(to bottom, #FFF785 0%, #FFC542 100%) !important;
                 border: 1px solid #C38A22 !important;
                 border-radius: 3px !important;
@@ -582,6 +537,7 @@
 
   // Get structured data for AI agent
   window.getInteractableElements = (viewportOnly = true) => {
+    // Keep viewportOnly parameter for API compatibility, but it can be customized
     const hints = window.detectHints(viewportOnly);
     return hints.map((hint, index) => ({
       id: index + 1,
@@ -617,6 +573,7 @@
   // Click element by ID (for AI agent)
   window.clickElementById = (id, viewportOnly = true) => {
     const elements = getAllElements(document.documentElement);
+    // Keep viewportOnly parameter for API compatibility
     const hints = window.detectHints(viewportOnly);
     const targetHint = hints[id - 1];
     
@@ -675,29 +632,23 @@
     };
   };
 
-  // Set up automatic hint management
-  const refreshHints = () => {
-    if (window.showHints) {
-      window.showHints(); // Defaults to viewport only
-    }
-  };
 
   // Use requestIdleCallback for periodic updates
   const refreshHintsIdle = () => {
     requestIdleCallback(() => {
-      refreshHints();
+      window.showHints();
     }, { timeout: 2000 });
   };
 
   // Debounced refresh for mutations
-  const refreshHintsDebounced = debounce(refreshHints, 100);
+  const refreshHintsDebounced = debounce(window.showHints, 100);
   
   // Throttled refresh for scroll/resize
-  const refreshHintsThrottled = throttle(refreshHints, 150);
+  const refreshHintsThrottled = throttle(window.showHints, 150);
 
   // Auto-show hints when page loads
   setTimeout(() => {
-    refreshHints();
+    window.showHints();
   }, 1000);
 
   // Use throttled refresh for scroll/resize events
