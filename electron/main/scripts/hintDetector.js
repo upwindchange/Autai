@@ -292,6 +292,51 @@
     return linkText.trim();
   };
 
+  // Generate XPath for an element
+  const getXPath = (element) => {
+    if (!element) return null;
+    
+    // Handle special cases
+    if (element.id) {
+      return `//*[@id="${element.id}"]`;
+    }
+    
+    // Build path from element to root
+    const segments = [];
+    let current = element;
+    
+    while (current && current.nodeType === Node.ELEMENT_NODE) {
+      let index = 1;
+      let sibling = current.previousSibling;
+      
+      // Count preceding siblings of the same tag name
+      while (sibling) {
+        if (sibling.nodeType === Node.ELEMENT_NODE && 
+            sibling.tagName === current.tagName) {
+          index++;
+        }
+        sibling = sibling.previousSibling;
+      }
+      
+      const tagName = current.tagName.toLowerCase();
+      const segment = tagName + '[' + index + ']';
+      segments.unshift(segment);
+      
+      // Stop at document root or shadow root
+      if (current.parentNode && current.parentNode.nodeType === Node.DOCUMENT_NODE) {
+        break;
+      }
+      
+      current = current.parentElement;
+    }
+    
+    const xpath = segments.length ? '/' + segments.join('/') : null;
+    if (!xpath) {
+      console.warn(`[HintDetector] Failed to generate XPath for element:`, element);
+    }
+    return xpath;
+  };
+
   // Create hint marker overlay container (viewport only)
   const createHintContainer = () => {
     let container = document.getElementById("vimium-hint-container");
@@ -369,14 +414,37 @@
 
       // Store hint data on the marker for click handling
       marker.setAttribute("data-hint-index", index);
+      marker.setAttribute("data-hint-xpath", hint.xpath || "");
 
       // Add click handler to the marker
       marker.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
         const hintIndex = parseInt(marker.getAttribute("data-hint-index"));
+        const xpath = marker.getAttribute("data-hint-xpath");
 
-        // Find and click the corresponding element
+        // Try XPath first
+        if (xpath) {
+          console.log(`[HintDetector] Marker clicked: attempting to use XPath for hint ${hintIndex + 1}`);
+          const result = document.evaluate(
+            xpath,
+            document,
+            null,
+            XPathResult.FIRST_ORDERED_NODE_TYPE,
+            null
+          );
+          
+          const element = result.singleNodeValue;
+          if (element) {
+            console.log(`[HintDetector] Successfully clicked hint ${hintIndex + 1} using XPath`);
+            executeClickAction(element);
+            return;
+          }
+          console.log(`[HintDetector] XPath failed for hint ${hintIndex + 1}, trying fallback`);
+        }
+
+        // Fallback to old method if XPath fails
+        console.log(`[HintDetector] Using rectangle comparison fallback for hint ${hintIndex + 1}`);
         const allHints = window.detectHints(false); // Use full document for clicking
         if (allHints[hintIndex]) {
           const targetHint = allHints[hintIndex];
@@ -391,18 +459,8 @@
               Math.abs(rect.width - targetHint.rect.width) < 1 &&
               Math.abs(rect.height - targetHint.rect.height) < 1
             ) {
-              // Special handling for different element types
-              if (element.tagName === "DETAILS") {
-                element.open = !element.open;
-              } else if (
-                element.tagName === "INPUT" ||
-                element.tagName === "TEXTAREA" ||
-                element.tagName === "SELECT"
-              ) {
-                element.focus();
-              } else {
-                element.click();
-              }
+              console.log(`[HintDetector] Successfully clicked hint ${hintIndex + 1} using rectangle comparison`);
+              executeClickAction(element);
               break;
             }
           }
@@ -463,6 +521,7 @@
                   reason: interactInfo.reason,
                   possibleFalsePositive: false,
                   secondClassCitizen: false,
+                  xpath: getXPath(area),
                 });
               }
             }
@@ -487,6 +546,7 @@
         reason: interactInfo.reason,
         possibleFalsePositive: interactInfo.possibleFalsePositive,
         secondClassCitizen: interactInfo.secondClassCitizen,
+        xpath: getXPath(element),
       });
     });
 
@@ -526,13 +586,20 @@
     });
 
     // Return only the data needed by the renderer (not the element references)
-    return hints.map((hint) => ({
+    const result = hints.map((hint) => ({
       rect: hint.rect,
       linkText: hint.linkText,
       tagName: hint.tagName,
       href: hint.href,
       reason: hint.reason,
+      xpath: hint.xpath,
     }));
+    
+    // Log statistics about XPath generation
+    const validXPaths = result.filter(h => h.xpath).length;
+    console.log(`[HintDetector] Detected ${result.length} hints, ${validXPaths} with valid XPaths (${Math.round(validXPaths/result.length*100)}%)`);
+    
+    return result;
   };
 
   // Get structured data for AI agent
@@ -546,6 +613,7 @@
       href: hint.href,
       rect: hint.rect,
       reason: hint.reason,
+      xpath: hint.xpath,
       selector: generateSelector(hint)
     }));
   };
@@ -572,37 +640,67 @@
 
   // Click element by ID (for AI agent)
   window.clickElementById = (id, viewportOnly = true) => {
-    const elements = getAllElements(document.documentElement);
     // Keep viewportOnly parameter for API compatibility
     const hints = window.detectHints(viewportOnly);
     const targetHint = hints[id - 1];
     
-    if (!targetHint) return false;
+    if (!targetHint || !targetHint.xpath) return false;
 
-    for (const element of elements) {
-      const rect = element.getBoundingClientRect();
-      if (
-        Math.abs(rect.top - targetHint.rect.top) < 1 &&
-        Math.abs(rect.left - targetHint.rect.left) < 1 &&
-        Math.abs(rect.width - targetHint.rect.width) < 1 &&
-        Math.abs(rect.height - targetHint.rect.height) < 1
-      ) {
-        // Execute appropriate action
-        if (element.tagName === "DETAILS") {
-          element.open = !element.open;
-        } else if (
-          element.tagName === "INPUT" ||
-          element.tagName === "TEXTAREA" ||
-          element.tagName === "SELECT"
+    // Use XPath to find the element directly
+    console.log(`[HintDetector] Attempting to click element ${id} using XPath: ${targetHint.xpath}`);
+    const result = document.evaluate(
+      targetHint.xpath,
+      document,
+      null,
+      XPathResult.FIRST_ORDERED_NODE_TYPE,
+      null
+    );
+    
+    const element = result.singleNodeValue;
+    if (!element) {
+      // Fallback to rectangle comparison if XPath fails
+      console.log(`[HintDetector] XPath failed for element ${id}, falling back to rectangle comparison`);
+      const elements = getAllElements(document.documentElement);
+      for (const el of elements) {
+        const rect = el.getBoundingClientRect();
+        if (
+          Math.abs(rect.top - targetHint.rect.top) < 1 &&
+          Math.abs(rect.left - targetHint.rect.left) < 1 &&
+          Math.abs(rect.width - targetHint.rect.width) < 1 &&
+          Math.abs(rect.height - targetHint.rect.height) < 1
         ) {
-          element.focus();
-        } else {
-          element.click();
+          console.log(`[HintDetector] Found element ${id} using rectangle comparison fallback`);
+          executeClickAction(el);
+          return true;
         }
-        return true;
       }
+      console.log(`[HintDetector] Failed to find element ${id} using both XPath and rectangle comparison`);
+      return false;
     }
-    return false;
+
+    // Execute appropriate action
+    console.log(`[HintDetector] Successfully found element ${id} using XPath`);
+    executeClickAction(element);
+    return true;
+  };
+
+  // Helper function to execute click action based on element type
+  const executeClickAction = (element) => {
+    const tagName = element.tagName;
+    if (tagName === "DETAILS") {
+      console.log(`[HintDetector] Toggling DETAILS element open state`);
+      element.open = !element.open;
+    } else if (
+      tagName === "INPUT" ||
+      tagName === "TEXTAREA" ||
+      tagName === "SELECT"
+    ) {
+      console.log(`[HintDetector] Focusing ${tagName} element`);
+      element.focus();
+    } else {
+      console.log(`[HintDetector] Clicking ${tagName} element`);
+      element.click();
+    }
   };
 
   // Performance optimization: throttle and debounce utilities

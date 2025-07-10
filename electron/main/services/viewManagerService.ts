@@ -32,6 +32,35 @@ export class ViewManager {
 
     view.setBackgroundColor("#00000000");
     
+    // Forward console messages from WebContentsView to main process
+    view.webContents.on('console-message', (event, level, message, line, sourceId) => {
+      const logPrefix = `[WebView:${key}]`;
+      const logMessage = `${logPrefix} ${message}`;
+      
+      // Map numeric levels to console methods
+      switch (level) {
+        case 0: // Verbose
+          console.log(logMessage);
+          break;
+        case 1: // Info
+          console.log(logMessage);
+          break;
+        case 2: // Warning
+          console.warn(logMessage);
+          break;
+        case 3: // Error
+          console.error(logMessage);
+          break;
+        default:
+          console.log(logMessage);
+      }
+      
+      // Also log source information in development
+      if (process.env.NODE_ENV !== 'production' && sourceId) {
+        console.log(`  └─ ${sourceId}:${line}`);
+      }
+    });
+    
     // Inject hint detector script when page loads for AI agent interaction
     view.webContents.on("did-finish-load", () => {
       const hintDetectorScript = getHintDetectorScript();
