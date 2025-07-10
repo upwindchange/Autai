@@ -58,14 +58,14 @@ export function SettingsDialog() {
           <span>Settings</span>
         </SidebarMenuButton>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle>AI Settings</DialogTitle>
           <DialogDescription>
             Configure your AI model settings and API endpoints.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-6 py-4">
+        <div className="grid gap-6 py-4 overflow-y-auto flex-1">
           <ProfileSelector />
           {activeProfile && (
             <SettingsForm
