@@ -20,12 +20,12 @@
     "devDependencies": {
         "@hookform/resolvers": "^5.1.1",
         "@langchain/core": "^0.3.62",
-        "@langchain/langgraph": "^0.3.6",
+        "@langchain/langgraph": "^0.3.7",
         "@langchain/openai": "^0.5.18",
         "@llm-ui/code": "^0.13.3",
         "@llm-ui/markdown": "^0.13.3",
         "@llm-ui/react": "^0.13.3",
-        "@playwright/test": "^1.53.2",
+        "@playwright/test": "^1.54.0",
         "@radix-ui/react-accordion": "^1.2.11",
         "@radix-ui/react-alert-dialog": "^1.1.14",
         "@radix-ui/react-aspect-ratio": "^1.1.7",
@@ -60,7 +60,7 @@
         "clsx": "^2.1.1",
         "cmdk": "^1.1.1",
         "date-fns": "^4.1.0",
-        "electron": "^36.7.0",
+        "electron": "^37.2.0",
         "electron-builder": "^26.0.12",
         "embla-carousel-react": "^8.6.0",
         "html-react-parser": "^5.2.5",
@@ -88,7 +88,7 @@
         "vite-plugin-electron": "^0.29.0",
         "vite-plugin-electron-renderer": "^0.14.6",
         "vitest": "^3.2.4",
-        "zod": "^3.25.76"
+        "zod": "^4.0.2"
     },
     "debug": {
         "env": {

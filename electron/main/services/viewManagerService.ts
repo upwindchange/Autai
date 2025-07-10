@@ -128,14 +128,18 @@ export class ViewManager {
 
   /**
    * Get interactable elements for AI agent
+   * @param key - The view key
+   * @param viewportOnly - Whether to only detect elements in viewport (default: true)
    */
-  async getInteractableElements(key: string): Promise<any[]> {
+  async getInteractableElements(key: string, viewportOnly: boolean = true): Promise<any[]> {
     const view = this.views.get(key);
     if (!view) throw new Error(`View not found: ${key}`);
     
     try {
-      const elements = await view.webContents.executeJavaScript("window.getInteractableElements ? window.getInteractableElements() : []");
-      console.log(`Found ${elements?.length || 0} interactable elements for view: ${key}`);
+      const elements = await view.webContents.executeJavaScript(
+        `window.getInteractableElements ? window.getInteractableElements(${viewportOnly}) : []`
+      );
+      console.log(`Found ${elements?.length || 0} interactable elements (viewport: ${viewportOnly}) for view: ${key}`);
       return elements || [];
     } catch (error) {
       console.error(`Error getting interactable elements for view: ${key}:`, error);
@@ -145,14 +149,19 @@ export class ViewManager {
 
   /**
    * Click element by ID for AI agent
+   * @param key - The view key
+   * @param elementId - The element ID to click
+   * @param viewportOnly - Whether the element ID is from viewport-only detection (default: true)
    */
-  async clickElementById(key: string, elementId: number): Promise<boolean> {
+  async clickElementById(key: string, elementId: number, viewportOnly: boolean = true): Promise<boolean> {
     const view = this.views.get(key);
     if (!view) throw new Error(`View not found: ${key}`);
     
     try {
-      const result = await view.webContents.executeJavaScript(`window.clickElementById ? window.clickElementById(${elementId}) : false`);
-      console.log(`Clicked element ${elementId} in view: ${key}, result: ${result}`);
+      const result = await view.webContents.executeJavaScript(
+        `window.clickElementById ? window.clickElementById(${elementId}, ${viewportOnly}) : false`
+      );
+      console.log(`Clicked element ${elementId} (viewport: ${viewportOnly}) in view: ${key}, result: ${result}`);
       return result;
     } catch (error) {
       console.error(`Error clicking element ${elementId} in view: ${key}:`, error);

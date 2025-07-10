@@ -1,12 +1,11 @@
 // Hint detection script to be injected into WebContentsView
 (function () {
   // Helper functions
-  const isVisible = (element) => {
+  const isVisible = (element, checkViewport = true) => {
     const rect = element.getBoundingClientRect();
     const style = window.getComputedStyle(element);
 
     // Check if element has dimensions and is not hidden by CSS
-    // Remove viewport constraints to detect entire webpage
     if (
       rect.width <= 0 ||
       rect.height <= 0 ||
@@ -15,6 +14,18 @@
       parseFloat(style.opacity) <= 0
     ) {
       return false;
+    }
+
+    // Check viewport constraints if requested
+    if (checkViewport) {
+      if (
+        rect.bottom <= 0 ||
+        rect.top >= window.innerHeight ||
+        rect.right <= 0 ||
+        rect.left >= window.innerWidth
+      ) {
+        return false;
+      }
     }
 
     // Check if element is actually visible (not just in DOM)
@@ -282,13 +293,30 @@
   };
 
   // Create hint marker overlay container
-  const createHintContainer = () => {
+  const createHintContainer = (viewportOnly = true) => {
     let container = document.getElementById("vimium-hint-container");
-    if (!container) {
-      container = document.createElement("div");
-      container.id = "vimium-hint-container";
+    if (container) {
+      // Remove existing container to ensure correct positioning mode
+      container.remove();
+    }
+    
+    container = document.createElement("div");
+    container.id = "vimium-hint-container";
 
-      // Use absolute positioning to cover entire document, not just viewport
+    if (viewportOnly) {
+      // Use fixed positioning for viewport mode (better performance)
+      container.style.cssText = `
+                position: fixed !important;
+                top: 0 !important;
+                left: 0 !important;
+                width: 100vw !important;
+                height: 100vh !important;
+                pointer-events: none !important;
+                z-index: 2147483647 !important;
+                isolation: isolate !important;
+              `;
+    } else {
+      // Use absolute positioning for full document mode
       const docHeight = Math.max(
         document.body.scrollHeight || 0,
         document.body.offsetHeight || 0,
@@ -315,8 +343,9 @@
                 z-index: 2147483647 !important;
                 isolation: isolate !important;
               `;
-      document.documentElement.appendChild(container);
     }
+    
+    document.documentElement.appendChild(container);
     return container;
   };
 
@@ -334,24 +363,35 @@
   };
 
   // Display hint markers
-  window.showHints = () => {
+  window.showHints = (viewportOnly = true) => {
     clearHints();
-    const container = createHintContainer();
-    const hints = window.detectHints();
+    const container = createHintContainer(viewportOnly);
+    const hints = window.detectHints(viewportOnly);
 
     hints.forEach((hint, index) => {
       const marker = document.createElement("div");
       const hintLabel = generateHintString(index + 1);
 
-      // Use absolute positioning relative to the document, not viewport
-      // This ensures hints work even when elements are outside viewport
-      const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
-      const scrollY = window.pageYOffset || document.documentElement.scrollTop;
-
-      marker.style.cssText = `
+      // Dynamic positioning based on mode
+      let positionStyles;
+      if (viewportOnly) {
+        // Fixed positioning for viewport mode
+        positionStyles = `
+                position: fixed !important;
+                left: ${hint.rect.left}px !important;
+                top: ${hint.rect.top}px !important;`;
+      } else {
+        // Absolute positioning for full document mode
+        const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
+        
+        positionStyles = `
                 position: absolute !important;
                 left: ${hint.rect.left + scrollX}px !important;
-                top: ${hint.rect.top + scrollY}px !important;
+                top: ${hint.rect.top + scrollY}px !important;`;
+      }
+      
+      marker.style.cssText = positionStyles + `
                 background: linear-gradient(to bottom, #FFF785 0%, #FFC542 100%) !important;
                 border: 1px solid #C38A22 !important;
                 border-radius: 3px !important;
@@ -382,7 +422,7 @@
         const hintIndex = parseInt(marker.getAttribute("data-hint-index"));
 
         // Find and click the corresponding element
-        const allHints = window.detectHints();
+        const allHints = window.detectHints(false); // Use full document for clicking
         if (allHints[hintIndex]) {
           const targetHint = allHints[hintIndex];
           const elements = getAllElements(document.documentElement);
@@ -425,14 +465,14 @@
     clearHints();
   };
 
-  // Main detection function
-  window.detectHints = () => {
+  // Main detection function with viewport option
+  window.detectHints = (viewportOnly = true) => {
     let hints = [];
     const allElements = getAllElements(document.documentElement);
 
     // First pass: collect all hints
     allElements.forEach((element) => {
-      if (!isVisible(element)) return;
+      if (!isVisible(element, viewportOnly)) return;
 
       const interactInfo = isInteractable(element);
       if (!interactInfo.clickable) return;
@@ -541,8 +581,8 @@
   };
 
   // Get structured data for AI agent
-  window.getInteractableElements = () => {
-    const hints = window.detectHints();
+  window.getInteractableElements = (viewportOnly = true) => {
+    const hints = window.detectHints(viewportOnly);
     return hints.map((hint, index) => ({
       id: index + 1,
       type: determineElementType(hint),
@@ -575,9 +615,9 @@
   };
 
   // Click element by ID (for AI agent)
-  window.clickElementById = (id) => {
+  window.clickElementById = (id, viewportOnly = true) => {
     const elements = getAllElements(document.documentElement);
-    const hints = window.detectHints();
+    const hints = window.detectHints(viewportOnly);
     const targetHint = hints[id - 1];
     
     if (!targetHint) return false;
@@ -608,34 +648,65 @@
     return false;
   };
 
-  // Set up automatic hint management
-  let hintRefreshTimeout;
-
-  const refreshHints = () => {
-    clearTimeout(hintRefreshTimeout);
-    hintRefreshTimeout = setTimeout(() => {
-      if (window.showHints) {
-        window.showHints();
+  // Performance optimization: throttle and debounce utilities
+  const throttle = (func, delay) => {
+    let lastCall = 0;
+    let timeout;
+    return (...args) => {
+      const now = Date.now();
+      clearTimeout(timeout);
+      if (now - lastCall >= delay) {
+        lastCall = now;
+        func(...args);
+      } else {
+        timeout = setTimeout(() => {
+          lastCall = Date.now();
+          func(...args);
+        }, delay - (now - lastCall));
       }
-    }, 100); // Debounce rapid events
+    };
   };
+
+  const debounce = (func, delay) => {
+    let timeout;
+    return (...args) => {
+      clearTimeout(timeout);
+      timeout = setTimeout(() => func(...args), delay);
+    };
+  };
+
+  // Set up automatic hint management
+  const refreshHints = () => {
+    if (window.showHints) {
+      window.showHints(); // Defaults to viewport only
+    }
+  };
+
+  // Use requestIdleCallback for periodic updates
+  const refreshHintsIdle = () => {
+    requestIdleCallback(() => {
+      refreshHints();
+    }, { timeout: 2000 });
+  };
+
+  // Debounced refresh for mutations
+  const refreshHintsDebounced = debounce(refreshHints, 100);
+  
+  // Throttled refresh for scroll/resize
+  const refreshHintsThrottled = throttle(refreshHints, 150);
 
   // Auto-show hints when page loads
   setTimeout(() => {
-    if (window.showHints) {
-      window.showHints();
-    }
+    refreshHints();
   }, 1000);
 
-  // Refresh hints on scroll to maintain correct positioning
-  window.addEventListener("scroll", refreshHints, { passive: true });
+  // Use throttled refresh for scroll/resize events
+  window.addEventListener("scroll", refreshHintsThrottled, { passive: true });
+  window.addEventListener("resize", refreshHintsThrottled, { passive: true });
 
-  // Refresh hints when window is resized
-  window.addEventListener("resize", refreshHints, { passive: true });
-
-  // Set up mutation observer for dynamic content
+  // Set up mutation observer for dynamic content with debounced refresh
   const observer = new MutationObserver(() => {
-    refreshHints();
+    refreshHintsDebounced();
   });
 
   // Start observing the document for changes
@@ -648,10 +719,11 @@
     });
   }
 
-  // Also refresh hints periodically to catch any missed changes
-  setInterval(() => {
-    if (window.showHints) {
-      window.showHints();
-    }
-  }, 5000);
+  // Use requestIdleCallback for periodic updates
+  const periodicRefresh = () => {
+    refreshHintsIdle();
+    // Schedule next refresh
+    setTimeout(periodicRefresh, 5000);
+  };
+  setTimeout(periodicRefresh, 5000);
 })();
