@@ -226,10 +226,20 @@ export class StateBridge {
       return { success: true };
     });
 
-    // Hide/show views
-    ipcMain.handle('app:setViewVisibility', async (_event: IpcMainInvokeEvent, isHidden: boolean) => {
-      // This is UI-only state, just acknowledge it
-      return { success: true };
+    // Hide/show views using the View's setVisible API
+    ipcMain.handle('app:setViewVisibility', async (_event: IpcMainInvokeEvent, { viewId, isHidden }: { viewId: string; isHidden: boolean }) => {
+      try {
+        const webView = this.stateManager.getWebContentsView(viewId);
+        if (webView) {
+          // Use the View's setVisible method (isHidden = true means hide, so visible = false)
+          webView.setVisible(!isHidden);
+          return { success: true };
+        }
+        return { success: false, error: 'View not found' };
+      } catch (error) {
+        console.error('Error setting view visibility:', error);
+        return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+      }
     });
 
     // Settings handlers
@@ -315,14 +325,13 @@ export class StateBridge {
     const state = this.stateManager.getFullState();
     const activeViewId = state.activeViewId;
 
-    // Hide all non-active views and show active view
-    Object.values(state.views).forEach(view => {
-      if (view.id === activeViewId) {
+    // Update bounds for active view only - visibility is handled separately
+    if (activeViewId) {
+      const view = state.views[activeViewId];
+      if (view) {
         this.stateManager.setViewBounds(view.id, containerBounds);
-      } else {
-        this.stateManager.setViewBounds(view.id, { x: 0, y: 0, width: 0, height: 0 });
       }
-    });
+    }
   }
 
   /**
