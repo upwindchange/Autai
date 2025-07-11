@@ -47,7 +47,7 @@ class SettingsService {
         return value;
       });
       return this.settings;
-    } catch (error) {
+    } catch (_error) {
       // If file doesn't exist or is invalid, create default settings
       const defaultSettings: SettingsState = {
         profiles: [

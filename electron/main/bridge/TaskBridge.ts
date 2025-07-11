@@ -81,7 +81,7 @@ export class TaskBridge extends BaseBridge {
     // Expand/collapse task (UI-only state)
     this.handle(
       "app:setExpandedTask",
-      async (_event: IpcMainInvokeEvent, taskId: string | null) => {
+      async (_event: IpcMainInvokeEvent, _taskId: string | null) => {
         // This is UI-only state, just acknowledge it
         return { success: true };
       }

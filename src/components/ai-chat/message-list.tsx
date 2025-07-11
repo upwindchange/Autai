@@ -4,7 +4,7 @@ import type { MessageListProps } from "./types";
 /**
  * Component that displays a list of chat messages
  */
-export function MessageList({ messages, taskId }: MessageListProps) {
+export function MessageList({ messages }: MessageListProps) {
   if (messages.length === 0) {
     return (
       <div className="text-center text-muted-foreground py-8">

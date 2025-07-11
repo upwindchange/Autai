@@ -14,7 +14,7 @@ export class AgentBridge extends BaseBridge {
         event: IpcMainInvokeEvent,
         taskId: string,
         message: string,
-        includeContext: boolean = false
+        _includeContext: boolean = false
       ) => {
         const agent = agentManagerService.getOrCreateAgent(taskId);
         const streamId = `${taskId}-${Date.now()}`;

@@ -11,7 +11,8 @@
       "Bash(rg:*)",
       "WebFetch(*)",
       "Bash(find:*)",
-      "Bash(ls:*)"
+      "Bash(ls:*)",
+      "Bash(pnpm lint:*)"
     ],
     "deny": []
   }

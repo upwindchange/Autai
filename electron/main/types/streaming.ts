@@ -5,7 +5,7 @@
 export interface StreamChunk {
   type: 'token' | 'error' | 'metadata' | 'tool_call';
   content: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface StreamingAgentConfig {
@@ -20,6 +20,6 @@ export interface AgentStreamOptions {
   context?: {
     currentUrl?: string;
     pageTitle?: string;
-    interactableElements?: any[];
+    interactableElements?: unknown[];
   };
 }
