@@ -1,12 +1,6 @@
 import { useEffect, useRef } from "react";
 import "./App.css";
 import { SidebarLeft } from "@/components/sidebar-left";
-import {
-  Breadcrumb,
-  BreadcrumbItem,
-  BreadcrumbList,
-  BreadcrumbPage,
-} from "@/components/ui/breadcrumb";
 import { Separator } from "@/components/ui/separator";
 import {
   SidebarInset,
@@ -28,7 +22,7 @@ import { useAppStore } from "@/store/appStore";
 function AppContent() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { activeTaskId, activeViewId, setContainerRef } = useAppStore();
-  
+
   // Get selected page URL from active task/page
   const selectedPageUrl = useAppStore((state) => {
     if (!state.activeTaskId) return null;
@@ -59,16 +53,9 @@ function AppContent() {
                     orientation="vertical"
                     className="mr-2 data-[orientation=vertical]:h-4"
                   />
-                  <Breadcrumb>
-                    <BreadcrumbList>
-                      <BreadcrumbItem>
-                        <BreadcrumbPage className="line-clamp-1">
-                          {selectedPageUrl ||
-                            "Project Management & Task Tracking"}
-                        </BreadcrumbPage>
-                      </BreadcrumbItem>
-                    </BreadcrumbList>
-                  </Breadcrumb>
+                  <div>
+                    {selectedPageUrl || "Project Management & Task Tracking"}
+                  </div>
                 </div>
               </header>
               <div
