@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Dialog,
   DialogContent,
@@ -12,46 +12,27 @@ import { Settings2 } from "lucide-react";
 import { SettingsForm } from "./settings-form";
 import { ProfileSelector } from "./profile-selector";
 import { useSettings } from "./settings-context";
-import { useAppStore } from "@/store/appStore";
-
-const EMPTY_BOUNDS = { x: 0, y: 0, width: 0, height: 0 } as const;
+import { useViewVisibility } from "@/hooks/use-view-visibility";
 
 export function SettingsDialog() {
   const [open, setOpen] = useState(false);
   const { activeProfile } = useSettings();
-  const { containerRef, activeViewId, setViewVisibility } = useAppStore();
+  const { hideView, showView, hasActiveView } = useViewVisibility('settings');
 
-  const handleOpenChange = async (newOpen: boolean) => {
-    if (!activeViewId || !containerRef?.current) {
+  const handleOpenChange = (newOpen: boolean) => {
+    if (!hasActiveView) {
       setOpen(newOpen);
       return;
     }
 
     if (newOpen) {
-      // Mark view as hidden and hide it
-      setViewVisibility(true);
-      await window.ipcRenderer.invoke("app:setViewBounds", { 
-        viewId: activeViewId, 
-        bounds: EMPTY_BOUNDS 
-      });
+      // Hide view immediately when dialog opens
+      hideView();
       setOpen(true);
     } else {
       setOpen(false);
-      // Mark view as visible and restore it after dialog animation completes
-      setViewVisibility(false);
-      setTimeout(() => {
-        const rect = containerRef.current!.getBoundingClientRect();
-        const bounds = {
-          x: Math.round(rect.x),
-          y: Math.round(rect.y),
-          width: Math.round(rect.width),
-          height: Math.round(rect.height),
-        };
-        window.ipcRenderer.invoke("app:setViewBounds", { 
-          viewId: activeViewId, 
-          bounds 
-        });
-      }, 100);
+      // Show view after dialog animation completes
+      showView(100);
     }
   };
 

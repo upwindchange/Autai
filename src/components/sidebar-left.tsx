@@ -1,15 +1,19 @@
 "use client";
 import type { ComponentProps } from "react";
+import { useEffect } from "react";
 
 import {
   Sidebar,
   SidebarContent,
   SidebarHeader,
+  useSidebar,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { NavSecondary } from "@/components/nav-secondary";
 import { NavTasks } from "@/components/nav-tasks";
 import { useAppStore } from "@/store/appStore";
+import { useViewVisibility } from "@/hooks/use-view-visibility";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 /**
  * Props for the SidebarLeft component
@@ -29,6 +33,24 @@ export function SidebarLeft(props: SidebarLeftProps) {
     selectPage,
     setExpandedTask
   } = useAppStore();
+  
+  const { state, open, openMobile } = useSidebar();
+  const { hideView, showView } = useViewVisibility('sidebar');
+  const isMobile = useIsMobile();
+  
+  // Handle view visibility when sidebar state changes in mobile/tablet mode
+  useEffect(() => {
+    // Only manage view visibility in offcanvas mode (mobile/tablet)
+    if (!isMobile) return;
+    
+    if (openMobile) {
+      // Sidebar is open in mobile, hide the web view to prevent overlap
+      hideView();
+    } else {
+      // Sidebar is closed, show the web view
+      showView(200); // Slightly longer delay for sidebar animation
+    }
+  }, [openMobile, isMobile, hideView, showView]);
   
   // Convert Map to array for NavTasks component
   const tasksArray = Array.from(tasks.values()).map(task => ({

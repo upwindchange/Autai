@@ -14,6 +14,7 @@ interface AppStore {
   // UI-only state
   expandedTaskId: string | null;
   isViewHidden: boolean;
+  viewHiddenReasons: Set<string>; // Track which components want the view hidden
   containerRef: RefObject<HTMLDivElement | null> | null;
   containerBounds: DOMRect | null;
   
@@ -27,7 +28,7 @@ interface AppStore {
   
   // Actions - UI operations
   setExpandedTask: (taskId: string | null) => void;
-  setViewVisibility: (isHidden: boolean) => void;
+  setViewVisibility: (isHidden: boolean, reason?: string) => void;
   setContainerRef: (ref: RefObject<HTMLDivElement | null>) => void;
   updateContainerBounds: () => void;
   
@@ -69,6 +70,7 @@ const useAppStore = create<AppStore>()(
     activeViewId: null,
     expandedTaskId: null,
     isViewHidden: false,
+    viewHiddenReasons: new Set(),
     containerRef: null,
     containerBounds: null,
 
@@ -168,25 +170,29 @@ const useAppStore = create<AppStore>()(
       window.ipcRenderer.invoke('app:setExpandedTask', taskId);
     },
 
-    setViewVisibility: (isHidden: boolean) => {
-      set({ isViewHidden: isHidden });
-      window.ipcRenderer.invoke('app:setViewVisibility', isHidden);
-      
-      // Update view bounds when visibility changes
+    setViewVisibility: (isHidden: boolean, reason: string = 'default') => {
       const state = get();
-      if (state.activeViewId && state.containerBounds) {
-        const bounds = isHidden 
-          ? { x: 0, y: 0, width: 0, height: 0 }
-          : {
-              x: Math.round(state.containerBounds.x),
-              y: Math.round(state.containerBounds.y),
-              width: Math.round(state.containerBounds.width),
-              height: Math.round(state.containerBounds.height)
-            };
-        
-        window.ipcRenderer.invoke('app:setViewBounds', {
+      const reasons = new Set(state.viewHiddenReasons);
+      
+      if (isHidden) {
+        reasons.add(reason);
+      } else {
+        reasons.delete(reason);
+      }
+      
+      // View should be hidden if ANY component wants it hidden
+      const shouldBeHidden = reasons.size > 0;
+      
+      set({ 
+        viewHiddenReasons: reasons,
+        isViewHidden: shouldBeHidden 
+      });
+      
+      if (state.activeViewId) {
+        // Use the View's setVisible API instead of manipulating bounds
+        window.ipcRenderer.invoke('app:setViewVisibility', {
           viewId: state.activeViewId,
-          bounds
+          isHidden: shouldBeHidden
         });
       }
     },
