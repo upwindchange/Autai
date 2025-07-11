@@ -20,18 +20,26 @@ import {
 } from "@/components/ui/resizable";
 import { ChatContainer } from "@/components/ai-chat";
 import { SettingsProvider } from "@/components/settings";
-import { TasksProvider, useTasks } from "@/contexts";
+import { useAppStore } from "@/store/appStore";
 
 /**
- * Inner app component that uses TasksContext
+ * Inner app component that uses Zustand store
  */
 function AppContent() {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const { state, setContainerRef } = useTasks();
-  const { selectedPageUrl, activeTaskId, activeViewKey } = state;
+  const { activeTaskId, activeViewId, setContainerRef } = useAppStore();
+  
+  // Get selected page URL from active task/page
+  const selectedPageUrl = useAppStore((state) => {
+    if (!state.activeTaskId) return null;
+    const task = state.tasks.get(state.activeTaskId);
+    if (!task || !task.activePageId) return null;
+    const page = task.pages.get(task.activePageId);
+    return page?.url || null;
+  });
 
   /**
-   * Set the container ref in the TasksContext when it's available
+   * Set the container ref in the store when it's available
    */
   useEffect(() => {
     setContainerRef(containerRef);
@@ -77,7 +85,7 @@ function AppContent() {
           maxSize={75}
           className="h-full overflow-hidden"
         >
-          <ChatContainer taskId={activeTaskId} activeViewKey={activeViewKey} />
+          <ChatContainer taskId={activeTaskId} activeViewKey={activeViewId} />
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
@@ -91,9 +99,7 @@ function AppContent() {
 function App() {
   return (
     <SettingsProvider>
-      <TasksProvider>
-        <AppContent />
-      </TasksProvider>
+      <AppContent />
     </SettingsProvider>
   );
 }

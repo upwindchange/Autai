@@ -88,7 +88,8 @@
         "vite-plugin-electron": "^0.29.0",
         "vite-plugin-electron-renderer": "^0.14.6",
         "vitest": "^3.2.4",
-        "zod": "^4.0.2"
+        "zod": "^4.0.2",
+        "zustand": "^5.0.6"
     },
     "debug": {
         "env": {
