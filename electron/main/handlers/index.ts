@@ -1,16 +1,2 @@
-import { BrowserWindow } from "electron";
-import { ViewManager, NavigationService } from "../services";
-import { setupNavigationHandlers } from "./navigationHandler";
-import { setupViewHandlers } from "./viewHandler";
-import { setupSettingsHandlers } from "./settingsHandler";
-import { registerStreamingAIHandlers } from "./streamingAIHandler";
-
-export function setupIpcHandlers(win: BrowserWindow, viewManager: ViewManager) {
-  const navigationService = new NavigationService(viewManager);
-
-  // Setup all handlers
-  setupViewHandlers(viewManager, win);
-  setupNavigationHandlers(navigationService);
-  setupSettingsHandlers();
-  registerStreamingAIHandlers();
-}
+// This file has been replaced by electron/main/bridge/StateBridge.ts
+// All IPC handling has been consolidated into a single bridge class

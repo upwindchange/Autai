@@ -12,18 +12,17 @@ import { Settings2 } from "lucide-react";
 import { SettingsForm } from "./settings-form";
 import { ProfileSelector } from "./profile-selector";
 import { useSettings } from "./settings-context";
-import { useTasks } from "@/contexts";
+import { useAppStore } from "@/store/appStore";
 
 const EMPTY_BOUNDS = { x: 0, y: 0, width: 0, height: 0 } as const;
 
 export function SettingsDialog() {
   const [open, setOpen] = useState(false);
   const { activeProfile } = useSettings();
-  const { containerRef, state, setViewVisibility } = useTasks();
-  const { activeViewKey } = state;
+  const { containerRef, activeViewId, setViewVisibility } = useAppStore();
 
   const handleOpenChange = async (newOpen: boolean) => {
-    if (!activeViewKey || !containerRef?.current) {
+    if (!activeViewId || !containerRef?.current) {
       setOpen(newOpen);
       return;
     }
@@ -31,7 +30,10 @@ export function SettingsDialog() {
     if (newOpen) {
       // Mark view as hidden and hide it
       setViewVisibility(true);
-      await window.ipcRenderer.invoke("view:setBounds", activeViewKey, EMPTY_BOUNDS);
+      await window.ipcRenderer.invoke("app:setViewBounds", { 
+        viewId: activeViewId, 
+        bounds: EMPTY_BOUNDS 
+      });
       setOpen(true);
     } else {
       setOpen(false);
@@ -45,7 +47,10 @@ export function SettingsDialog() {
           width: Math.round(rect.width),
           height: Math.round(rect.height),
         };
-        window.ipcRenderer.invoke("view:setBounds", activeViewKey, bounds);
+        window.ipcRenderer.invoke("app:setViewBounds", { 
+          viewId: activeViewId, 
+          bounds 
+        });
       }, 100);
     }
   };
