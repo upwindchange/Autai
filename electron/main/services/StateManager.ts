@@ -11,12 +11,14 @@ export class StateManager {
   private views = new Map<string, View>();
   private agents = new Map<string, Agent>();
   private webContentsViews = new Map<string, WebContentsView>();
+  private eventListeners = new Map<string, (() => void)[]>(); // Track event listeners for cleanup
   
   private activeTaskId: string | null = null;
   private activeViewId: string | null = null;
   
   private stateChangeListeners: ((event: StateChangeEvent) => void)[] = [];
   private win: BrowserWindow;
+  private isDestroyed = false;
 
   constructor(win: BrowserWindow) {
     this.win = win;
@@ -184,26 +186,34 @@ export class StateManager {
 
     webView.setBackgroundColor('#00000000');
     
-    // Set up event handlers
-    webView.webContents.on('page-title-updated', (_, title) => {
+    // Set up event handlers and track them for cleanup
+    const listeners: (() => void)[] = [];
+    
+    const titleHandler = (_: any, title: string) => {
       this.updatePage(taskId, pageId, { title });
-    });
+    };
+    webView.webContents.on('page-title-updated', titleHandler);
+    listeners.push(() => webView.webContents.off('page-title-updated', titleHandler));
 
-    webView.webContents.on('page-favicon-updated', (_, favicons) => {
+    const faviconHandler = (_: any, favicons: string[]) => {
       if (favicons.length > 0) {
         this.updatePage(taskId, pageId, { favicon: favicons[0] });
       }
-    });
+    };
+    webView.webContents.on('page-favicon-updated', faviconHandler);
+    listeners.push(() => webView.webContents.off('page-favicon-updated', faviconHandler));
 
-    webView.webContents.on('did-finish-load', () => {
+    const loadHandler = () => {
       // Inject hint detector for AI interaction
       const hintDetectorScript = getHintDetectorScript();
       webView.webContents.executeJavaScript(hintDetectorScript)
         .catch(error => console.error('Failed to inject hint detector:', error));
-    });
+    };
+    webView.webContents.on('did-finish-load', loadHandler);
+    listeners.push(() => webView.webContents.off('did-finish-load', loadHandler));
 
     // Forward console messages from injected scripts to main process
-    webView.webContents.on('console-message', (event, level, message, line, sourceId) => {
+    const consoleHandler = (event: any, level: number, message: string, line: number, sourceId: string) => {
       // Only forward messages from hintDetector script
       if (message.includes('[HintDetector]') || sourceId.includes('hintDetector')) {
         const logPrefix = `[WebView ${viewId}]`;
@@ -221,7 +231,44 @@ export class StateManager {
             console.log(`${logPrefix} ${message}`);
         }
       }
+    };
+    webView.webContents.on('console-message', consoleHandler);
+    listeners.push(() => webView.webContents.off('console-message', consoleHandler));
+    
+    // Handle webContents destroyed event
+    const destroyedHandler = () => {
+      console.log(`WebContents for view ${viewId} was destroyed`);
+      // Clean up our references if webContents is destroyed externally
+      if (this.views.has(viewId)) {
+        this.destroyView(viewId);
+      }
+    };
+    webView.webContents.on('destroyed', destroyedHandler);
+    listeners.push(() => {
+      if (!webView.webContents.isDestroyed()) {
+        webView.webContents.off('destroyed', destroyedHandler);
+      }
     });
+    
+    // Handle navigation errors
+    const failLoadHandler = (event: any, errorCode: number, errorDescription: string, validatedURL: string) => {
+      console.error(`Failed to load ${validatedURL} in view ${viewId}: ${errorDescription} (${errorCode})`);
+      this.updatePage(taskId, pageId, { title: `Error: ${errorDescription}` });
+    };
+    webView.webContents.on('did-fail-load', failLoadHandler);
+    listeners.push(() => webView.webContents.off('did-fail-load', failLoadHandler));
+    
+    // Handle crashes
+    const crashHandler = (event: any, details: any) => {
+      console.error(`Renderer process crashed for view ${viewId}:`, details);
+      // Optionally recreate the view or notify the user
+      this.emit({ type: 'VIEW_CRASHED', viewId, details });
+    };
+    webView.webContents.on('render-process-gone', crashHandler);
+    listeners.push(() => webView.webContents.off('render-process-gone', crashHandler));
+    
+    // Store listeners for cleanup
+    this.eventListeners.set(viewId, listeners);
 
     // Load URL
     try {
@@ -258,18 +305,54 @@ export class StateManager {
     
     if (!view || !webView) return;
 
-    // Remove from window
-    this.win.contentView.removeChildView(webView);
-    
-    // Clean up WebContents
-    if (!webView.webContents.isDestroyed()) {
-      webView.webContents.stop();
-      webView.webContents.removeAllListeners();
-      if (webView.webContents.close) {
-        webView.webContents.close();
+    try {
+      // First, clean up all event listeners we registered
+      const listeners = this.eventListeners.get(viewId);
+      if (listeners) {
+        listeners.forEach(removeListener => {
+          try {
+            removeListener();
+          } catch (err) {
+            // Ignore errors during listener cleanup
+          }
+        });
+        this.eventListeners.delete(viewId);
       }
+      
+      // Stop any pending navigation or loading
+      if (webView.webContents && !webView.webContents.isDestroyed()) {
+        try {
+          // Stop loading
+          webView.webContents.stop();
+          webView.webContents.removeAllListeners();
+          // Clear any injected JavaScript
+          webView.webContents.executeJavaScript('window.location.href = "about:blank"')
+            .catch(() => {}); // Ignore errors
+          // Close the webContents properly
+          webView.webContents.close({ waitForBeforeUnload: false });
+          
+          // Force crash the renderer process for complete cleanup
+          // This is safe because each page has its own isolated WebContentsView
+          webView.webContents.forcefullyCrashRenderer();
+        } catch (error) {
+          // Ignore errors during cleanup
+        }
+      }
+      
+      // Remove from window only if window is not destroyed
+      if (this.win && !this.win.isDestroyed() && this.win.contentView) {
+        try {
+          this.win.contentView.removeChildView(webView);
+        } catch (error) {
+          console.error(`Error removing view from window:`, error);
+        }
+      }
+    } catch (error) {
+      // Log but don't throw - we still want to clean up our internal state
+      console.error(`Error destroying view ${viewId}:`, error);
     }
 
+    // Always clean up internal state
     this.views.delete(viewId);
     this.webContentsViews.delete(viewId);
 
@@ -456,8 +539,15 @@ export class StateManager {
    * Cleanup
    */
   destroy(): void {
+    // Prevent multiple destroy calls
+    if (this.isDestroyed) return;
+    this.isDestroyed = true;
+
     // Destroy all views
     Array.from(this.views.keys()).forEach(viewId => this.destroyView(viewId));
+    
+    // Clear all event listeners
+    this.eventListeners.clear();
     
     // Clear all data
     this.tasks.clear();
