@@ -217,12 +217,15 @@ export class StateManager {
       webContentsId: webView.webContents.id,
       bounds: { x: 0, y: 0, width: 0, height: 0 },
       isActive: false,
-      isVisible: false
+      isVisible: true  // Default to visible, frontend will control this
     };
 
     this.views.set(viewId, view);
     this.webContentsViews.set(viewId, webView);
     this.win.contentView.addChildView(webView);
+    
+    // Initially hide the view until it's made active
+    webView.setVisible(false);
 
     this.emit({ type: 'VIEW_CREATED', view });
     return view;
@@ -241,7 +244,9 @@ export class StateManager {
     if (!webView.webContents.isDestroyed()) {
       webView.webContents.stop();
       webView.webContents.removeAllListeners();
-      webView.webContents.close();
+      if (webView.webContents.close) {
+        webView.webContents.close();
+      }
     }
 
     this.views.delete(viewId);
@@ -261,15 +266,40 @@ export class StateManager {
     
     if (!view || !webView) return;
 
+    // Update stored bounds
     view.bounds = bounds;
-    view.isVisible = bounds.width > 0 && bounds.height > 0;
     
-    // Only set bounds for the active view or when explicitly hiding
-    if (viewId === this.activeViewId || bounds.width === 0) {
+    // Only update actual bounds if this is the active view and it's visible
+    if (viewId === this.activeViewId && webView.getVisible()) {
       webView.setBounds(bounds);
     }
 
-    this.emit({ type: 'VIEW_UPDATED', viewId, updates: { bounds, isVisible: view.isVisible } });
+    this.emit({ type: 'VIEW_UPDATED', viewId, updates: { bounds } });
+  }
+
+  /**
+   * Sets the visibility state of a view (used by frontend UI controls)
+   */
+  setViewVisibility(viewId: string, isVisible: boolean): void {
+    const view = this.views.get(viewId);
+    const webView = this.webContentsViews.get(viewId);
+    
+    if (!view || !webView) return;
+
+    // Update the view's visibility state
+    view.isVisible = isVisible;
+    
+    // Apply visibility if this is the active view
+    if (viewId === this.activeViewId) {
+      webView.setVisible(isVisible);
+      
+      // Update bounds when showing
+      if (isVisible) {
+        webView.setBounds(view.bounds);
+      }
+    }
+
+    this.emit({ type: 'VIEW_UPDATED', viewId, updates: { isVisible } });
   }
 
   setActiveView(viewId: string | null): void {
@@ -308,12 +338,17 @@ export class StateManager {
       const webView = this.webContentsViews.get(viewId);
       if (!webView) return;
       
-      if (viewId === this.activeViewId && view.isVisible) {
-        // Show active view with its current bounds
+      // Active view should be visible unless explicitly hidden by frontend
+      const shouldBeVisible = viewId === this.activeViewId && view.isVisible;
+      
+      if (shouldBeVisible) {
+        // Show active view
+        webView.setVisible(true);
+        // Update bounds when showing
         webView.setBounds(view.bounds);
       } else {
-        // Hide non-active views
-        webView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+        // Hide non-active views using the View's setVisible API
+        webView.setVisible(false);
       }
     });
   }

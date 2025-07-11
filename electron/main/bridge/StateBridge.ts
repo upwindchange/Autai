@@ -229,13 +229,9 @@ export class StateBridge {
     // Hide/show views using the View's setVisible API
     ipcMain.handle('app:setViewVisibility', async (_event: IpcMainInvokeEvent, { viewId, isHidden }: { viewId: string; isHidden: boolean }) => {
       try {
-        const webView = this.stateManager.getWebContentsView(viewId);
-        if (webView) {
-          // Use the View's setVisible method (isHidden = true means hide, so visible = false)
-          webView.setVisible(!isHidden);
-          return { success: true };
-        }
-        return { success: false, error: 'View not found' };
+        // Use the StateManager's method which handles visibility properly
+        this.stateManager.setViewVisibility(viewId, !isHidden);
+        return { success: true };
       } catch (error) {
         console.error('Error setting view visibility:', error);
         return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
