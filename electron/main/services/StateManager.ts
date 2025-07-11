@@ -202,6 +202,27 @@ export class StateManager {
         .catch(error => console.error('Failed to inject hint detector:', error));
     });
 
+    // Forward console messages from injected scripts to main process
+    webView.webContents.on('console-message', (event, level, message, line, sourceId) => {
+      // Only forward messages from hintDetector script
+      if (message.includes('[HintDetector]') || sourceId.includes('hintDetector')) {
+        const logPrefix = `[WebView ${viewId}]`;
+        switch (level) {
+          case 0: // info
+            console.log(`${logPrefix} ${message}`);
+            break;
+          case 1: // warning
+            console.warn(`${logPrefix} ${message}`);
+            break;
+          case 2: // error
+            console.error(`${logPrefix} ${message}`);
+            break;
+          default:
+            console.log(`${logPrefix} ${message}`);
+        }
+      }
+    });
+
     // Load URL
     try {
       await webView.webContents.loadURL(page.url);
