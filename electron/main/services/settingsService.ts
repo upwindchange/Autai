@@ -112,7 +112,7 @@ class SettingsService {
 
       // Try a simple completion to test the connection
       const response = await testModel.invoke("Hello, this is a test message.");
-      
+
       if (response && response.content) {
         return {
           success: true,
@@ -125,7 +125,8 @@ class SettingsService {
         message: "Connection failed: No response from API",
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
       return {
         success: false,
         message: `Connection failed: ${errorMessage}`,
