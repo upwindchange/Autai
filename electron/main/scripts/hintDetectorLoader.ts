@@ -1,6 +1,6 @@
-import { readFileSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { readFileSync, existsSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -10,11 +10,11 @@ export function getHintDetectorScript(): string {
   if (!hintDetectorScript) {
     // Try multiple paths to support both development and production
     const possiblePaths = [
-      join(__dirname, 'hintDetector.js'), // Production path
-      join(__dirname, '../../../electron/main/scripts/hintDetector.js'), // Development path from dist-electron
-      join(process.cwd(), 'electron/main/scripts/hintDetector.js'), // Development path from project root
+      join(__dirname, "hintDetector.js"), // Production path
+      join(__dirname, "../../../electron/main/scripts/hintDetector.js"), // Development path from dist-electron
+      join(process.cwd(), "electron/main/scripts/hintDetector.js"), // Development path from project root
     ];
-    
+
     let scriptPath: string | null = null;
     for (const path of possiblePaths) {
       if (existsSync(path)) {
@@ -22,12 +22,16 @@ export function getHintDetectorScript(): string {
         break;
       }
     }
-    
+
     if (!scriptPath) {
-      throw new Error(`Could not find hintDetector.js in any of these paths: ${possiblePaths.join(', ')}`);
+      throw new Error(
+        `Could not find hintDetector.js in any of these paths: ${possiblePaths.join(
+          ", "
+        )}`
+      );
     }
-    
-    hintDetectorScript = readFileSync(scriptPath, 'utf-8');
+
+    hintDetectorScript = readFileSync(scriptPath, "utf-8");
   }
   return hintDetectorScript;
 }

@@ -4,7 +4,11 @@ import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { settingsService } from "./settingsService";
-import type { StreamingAgentConfig, AgentStreamOptions, StreamChunk } from '../types/streaming';
+import type {
+  StreamingAgentConfig,
+  AgentStreamOptions,
+  StreamChunk,
+} from "../types/streaming";
 
 /**
  * Streaming-enabled AI agent service for task-specific conversations.
@@ -27,15 +31,19 @@ export class StreamingAgentService {
    */
   private getModel(useComplexModel: boolean = false): ChatOpenAI {
     const settings = settingsService.getActiveSettings();
-    
+
     if (!settings || !settings.apiKey) {
-      throw new Error("AI settings not configured. Please configure your API settings first.");
+      throw new Error(
+        "AI settings not configured. Please configure your API settings first."
+      );
     }
 
     // Use config overrides if provided, otherwise use settings
     const apiKey = this.config.apiKey || settings.apiKey;
     const apiUrl = this.config.apiUrl || settings.apiUrl;
-    const modelName = this.config.model || (useComplexModel ? settings.complexModel : settings.simpleModel);
+    const modelName =
+      this.config.model ||
+      (useComplexModel ? settings.complexModel : settings.simpleModel);
 
     return new ChatOpenAI({
       temperature: 0,
@@ -51,7 +59,9 @@ export class StreamingAgentService {
   /**
    * Stream a message response with conversation context
    */
-  async *streamMessage(options: AgentStreamOptions): AsyncGenerator<StreamChunk> {
+  async *streamMessage(
+    options: AgentStreamOptions
+  ): AsyncGenerator<StreamChunk> {
     try {
       // Get or create model
       this.model = this.getModel();
@@ -61,15 +71,27 @@ export class StreamingAgentService {
 
       // Create prompt with context
       const prompt = ChatPromptTemplate.fromMessages([
-        ["system", "You are a helpful AI assistant integrated into a web browser. You can help users navigate web pages, answer questions, and provide assistance with their tasks."],
-        ...(options.context ? [
-          ["system", `Current context:
-- Page URL: ${options.context.currentUrl || 'Unknown'}
-- Page Title: ${options.context.pageTitle || 'Unknown'}
-${options.context.interactableElements ? `- Interactive elements available: ${options.context.interactableElements.length}` : ''}`]
-        ] as const : []),
+        [
+          "system",
+          "You are a helpful AI assistant integrated into a web browser. You can help users navigate web pages, answer questions, and provide assistance with their tasks.",
+        ],
+        ...(options.context
+          ? ([
+              [
+                "system",
+                `Current context:
+- Page URL: ${options.context.currentUrl || "Unknown"}
+- Page Title: ${options.context.pageTitle || "Unknown"}
+${
+  options.context.interactableElements
+    ? `- Interactive elements available: ${options.context.interactableElements.length}`
+    : ""
+}`,
+              ],
+            ] as const)
+          : []),
         ["placeholder", "{chat_history}"],
-        ["human", "{input}"]
+        ["human", "{input}"],
       ]);
 
       // Get chat history
@@ -83,31 +105,31 @@ ${options.context.interactableElements ? `- Interactive elements available: ${op
       let fullResponse = "";
       const stream = await chain.stream({
         chat_history: chatHistory,
-        input: options.message
+        input: options.message,
       });
 
       for await (const chunk of stream) {
         fullResponse += chunk;
         yield {
-          type: 'token',
+          type: "token",
           content: chunk,
           metadata: {
-            taskId: this.taskId
-          }
+            taskId: this.taskId,
+          },
         };
       }
 
       // Add AI response to memory
       await this.memory.addMessage(new AIMessage(fullResponse));
-
     } catch (error) {
-      console.error('Streaming error:', error);
+      console.error("Streaming error:", error);
       yield {
-        type: 'error',
-        content: error instanceof Error ? error.message : 'An unknown error occurred',
+        type: "error",
+        content:
+          error instanceof Error ? error.message : "An unknown error occurred",
         metadata: {
-          taskId: this.taskId
-        }
+          taskId: this.taskId,
+        },
       };
     }
   }
