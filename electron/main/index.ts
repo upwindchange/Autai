@@ -4,8 +4,9 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
 import { update } from "./update";
-import { ViewManager, settingsService } from "./services";
-import { setupIpcHandlers } from "./handlers";
+import { settingsService } from "./services";
+import { StateManager } from "./services/StateManager";
+import { StateBridge } from "./bridge/StateBridge";
 
 const require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -39,7 +40,8 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null;
-let viewManager: ViewManager | null = null;
+let stateManager: StateManager | null = null;
+let stateBridge: StateBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
 
@@ -67,8 +69,8 @@ async function createWindow() {
   /**
    * Initialize core services
    */
-  viewManager = new ViewManager(win);
-  setupIpcHandlers(win, viewManager);
+  stateManager = new StateManager(win);
+  stateBridge = new StateBridge(stateManager, win);
 
   /**
    * Force external links to open in default browser
@@ -87,10 +89,14 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", async () => {
-  // Clean up all views before quitting
-  if (viewManager) {
-    await viewManager.destroy();
-    viewManager = null;
+  // Clean up all state before quitting
+  if (stateBridge) {
+    stateBridge.destroy();
+    stateBridge = null;
+  }
+  if (stateManager) {
+    stateManager.destroy();
+    stateManager = null;
   }
   win = null;
   if (process.platform !== "darwin") app.quit();
@@ -119,10 +125,16 @@ app.on("activate", () => {
  * Clean up before app quits
  */
 app.on("before-quit", async (event) => {
-  if (viewManager) {
+  if (stateManager || stateBridge) {
     event.preventDefault();
-    await viewManager.destroy();
-    viewManager = null;
+    if (stateBridge) {
+      stateBridge.destroy();
+      stateBridge = null;
+    }
+    if (stateManager) {
+      stateManager.destroy();
+      stateManager = null;
+    }
     app.quit();
   }
 });

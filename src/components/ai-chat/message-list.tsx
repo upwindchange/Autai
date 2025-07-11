@@ -1,7 +1,3 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Card, CardContent } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
 import { MessageItem } from "./message-item";
 import type { MessageListProps } from "./types";
 
