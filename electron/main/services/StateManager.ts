@@ -208,7 +208,7 @@ export class StateManager {
     // Set up event handlers and track them for cleanup
     const listeners: (() => void)[] = [];
 
-    const titleHandler = (_: any, title: string) => {
+    const titleHandler = (_event: unknown, title: string) => {
       this.updatePage(taskId, pageId, { title });
     };
     webView.webContents.on("page-title-updated", titleHandler);
@@ -216,7 +216,7 @@ export class StateManager {
       webView.webContents.off("page-title-updated", titleHandler)
     );
 
-    const faviconHandler = (_: any, favicons: string[]) => {
+    const faviconHandler = (_event: unknown, favicons: string[]) => {
       if (favicons.length > 0) {
         this.updatePage(taskId, pageId, { favicon: favicons[0] });
       }
@@ -241,13 +241,15 @@ export class StateManager {
     );
 
     // Forward console messages from injected scripts to main process
-    const consoleHandler = (
-      event: any,
-      level: number,
-      message: string,
-      line: number,
-      sourceId: string
-    ) => {
+    const consoleHandler = ({
+      level,
+      message,
+      sourceId,
+    }: {
+      level: string;
+      message: string;
+      sourceId: string;
+    }) => {
       // Only forward messages from hintDetector script
       if (
         message.includes("[HintDetector]") ||
@@ -255,14 +257,17 @@ export class StateManager {
       ) {
         const logPrefix = `[WebView ${viewId}]`;
         switch (level) {
-          case 0: // info
+          case "info":
             console.log(`${logPrefix} ${message}`);
             break;
-          case 1: // warning
+          case "warning":
             console.warn(`${logPrefix} ${message}`);
             break;
-          case 2: // error
+          case "error":
             console.error(`${logPrefix} ${message}`);
+            break;
+          case "debug":
+            console.log(`${logPrefix} ${message}`);
             break;
           default:
             console.log(`${logPrefix} ${message}`);
@@ -291,7 +296,7 @@ export class StateManager {
 
     // Handle navigation errors
     const failLoadHandler = (
-      event: any,
+      _event: unknown,
       errorCode: number,
       errorDescription: string,
       validatedURL: string
@@ -307,7 +312,7 @@ export class StateManager {
     );
 
     // Handle crashes
-    const crashHandler = (event: any, details: any) => {
+    const crashHandler = (_event: unknown, details: unknown) => {
       console.error(`Renderer process crashed for view ${viewId}:`, details);
       // Optionally recreate the view or notify the user
       this.emit({ type: "VIEW_CRASHED", viewId, details });
@@ -362,7 +367,7 @@ export class StateManager {
         listeners.forEach((removeListener) => {
           try {
             removeListener();
-          } catch (err) {
+          } catch (_err) {
             // Ignore errors during listener cleanup
           }
         });
@@ -385,7 +390,7 @@ export class StateManager {
           // Force crash the renderer process for complete cleanup
           // This is safe because each page has its own isolated WebContentsView
           webView.webContents.forcefullyCrashRenderer();
-        } catch (error) {
+        } catch (_error) {
           // Ignore errors during cleanup
         }
       }
@@ -562,7 +567,7 @@ export class StateManager {
     this.tasks.forEach((task, id) => {
       tasksObj[id] = {
         ...task,
-        pages: Object.fromEntries(task.pages) as any, // Will be converted back to Map in renderer
+        pages: Object.fromEntries(task.pages) as Record<string, Page>, // Will be converted back to Map in renderer
       };
     });
 

@@ -2,7 +2,6 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import type {
   Task,
-  Page,
   View,
   Agent,
   AppState,
@@ -64,7 +63,7 @@ function restoreTaskPages(task: Task): Task {
   return {
     ...task,
     pages:
-      task.pages instanceof Map ? task.pages : objectToMap(task.pages as any),
+      task.pages instanceof Map ? task.pages : objectToMap(task.pages as Record<string, import("../../electron/shared/types").Page>),
   };
 }
 
@@ -280,44 +279,49 @@ const useAppStore = create<AppStore>()(
       const state = get();
 
       switch (event.type) {
-        case "TASK_CREATED":
+        case "TASK_CREATED": {
           state.tasks.set(event.task.id, restoreTaskPages(event.task));
           set({
             tasks: new Map(state.tasks),
             expandedTaskId: event.task.id, // Auto-expand newly created task
           });
           break;
+        }
 
-        case "TASK_DELETED":
+        case "TASK_DELETED": {
           state.tasks.delete(event.taskId);
           set({ tasks: new Map(state.tasks) });
           break;
+        }
 
-        case "TASK_UPDATED":
+        case "TASK_UPDATED": {
           const task = state.tasks.get(event.taskId);
           if (task) {
             Object.assign(task, event.updates);
             set({ tasks: new Map(state.tasks) });
           }
           break;
+        }
 
-        case "PAGE_ADDED":
+        case "PAGE_ADDED": {
           const taskForPage = state.tasks.get(event.taskId);
           if (taskForPage) {
             taskForPage.pages.set(event.page.id, event.page);
             set({ tasks: new Map(state.tasks) });
           }
           break;
+        }
 
-        case "PAGE_REMOVED":
+        case "PAGE_REMOVED": {
           const taskForRemoval = state.tasks.get(event.taskId);
           if (taskForRemoval) {
             taskForRemoval.pages.delete(event.pageId);
             set({ tasks: new Map(state.tasks) });
           }
           break;
+        }
 
-        case "PAGE_UPDATED":
+        case "PAGE_UPDATED": {
           const taskForUpdate = state.tasks.get(event.taskId);
           const page = taskForUpdate?.pages.get(event.pageId);
           if (page) {
@@ -325,26 +329,30 @@ const useAppStore = create<AppStore>()(
             set({ tasks: new Map(state.tasks) });
           }
           break;
+        }
 
-        case "VIEW_CREATED":
+        case "VIEW_CREATED": {
           state.views.set(event.view.id, event.view);
           set({ views: new Map(state.views) });
           break;
+        }
 
-        case "VIEW_DELETED":
+        case "VIEW_DELETED": {
           state.views.delete(event.viewId);
           set({ views: new Map(state.views) });
           break;
+        }
 
-        case "VIEW_UPDATED":
+        case "VIEW_UPDATED": {
           const view = state.views.get(event.viewId);
           if (view) {
             Object.assign(view, event.updates);
             set({ views: new Map(state.views) });
           }
           break;
+        }
 
-        case "ACTIVE_VIEW_CHANGED":
+        case "ACTIVE_VIEW_CHANGED": {
           set({ activeViewId: event.viewId });
           // Update bounds for the newly active view
           const currentState = get();
@@ -364,28 +372,33 @@ const useAppStore = create<AppStore>()(
             });
           }
           break;
+        }
 
-        case "ACTIVE_TASK_CHANGED":
+        case "ACTIVE_TASK_CHANGED": {
           set({ activeTaskId: event.taskId });
           break;
+        }
 
-        case "AGENT_CREATED":
+        case "AGENT_CREATED": {
           state.agents.set(event.agent.id, event.agent);
           set({ agents: new Map(state.agents) });
           break;
+        }
 
-        case "AGENT_DELETED":
+        case "AGENT_DELETED": {
           state.agents.delete(event.agentId);
           set({ agents: new Map(state.agents) });
           break;
+        }
 
-        case "AGENT_STATUS_CHANGED":
+        case "AGENT_STATUS_CHANGED": {
           const agent = state.agents.get(event.agentId);
           if (agent) {
             agent.status = event.status;
             set({ agents: new Map(state.agents) });
           }
           break;
+        }
       }
     },
 

@@ -8,7 +8,7 @@ import { settingsService } from "./services";
 import { StateManager } from "./services/StateManager";
 import { StateBridge } from "./bridge/StateBridge";
 
-const require = createRequire(import.meta.url);
+const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**

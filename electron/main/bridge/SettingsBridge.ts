@@ -2,6 +2,28 @@ import { IpcMainInvokeEvent } from "electron";
 import { BaseBridge } from "./BaseBridge";
 import { settingsService } from "../services";
 
+interface SettingsState {
+  profiles: Array<{
+    id: string;
+    name: string;
+    settings: {
+      apiUrl: string;
+      apiKey: string;
+      complexModel: string;
+      simpleModel: string;
+    };
+    createdAt: Date;
+    updatedAt: Date;
+  }>;
+  activeProfileId: string;
+}
+
+interface TestConfig {
+  apiUrl: string;
+  apiKey: string;
+  model: string;
+}
+
 /**
  * Handles settings-related IPC operations
  */
@@ -15,7 +37,7 @@ export class SettingsBridge extends BaseBridge {
     // Save settings
     this.handle(
       "settings:save",
-      async (_event: IpcMainInvokeEvent, settings: any) => {
+      async (_event: IpcMainInvokeEvent, settings: SettingsState) => {
         await settingsService.saveSettings(settings);
         return { success: true };
       }
@@ -24,7 +46,7 @@ export class SettingsBridge extends BaseBridge {
     // Test connection
     this.handle(
       "settings:test",
-      async (_event: IpcMainInvokeEvent, config: any) => {
+      async (_event: IpcMainInvokeEvent, config: TestConfig) => {
         return await settingsService.testConnection(config);
       }
     );

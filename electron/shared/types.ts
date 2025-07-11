@@ -64,7 +64,7 @@ export type StateChangeEvent =
   | { type: 'VIEW_CREATED'; view: View }
   | { type: 'VIEW_DELETED'; viewId: string }
   | { type: 'VIEW_UPDATED'; viewId: string; updates: Partial<View> }
-  | { type: 'VIEW_CRASHED'; viewId: string; details: any }
+  | { type: 'VIEW_CRASHED'; viewId: string; details: unknown }
   | { type: 'ACTIVE_VIEW_CHANGED'; viewId: string | null }
   | { type: 'ACTIVE_TASK_CHANGED'; taskId: string | null }
   | { type: 'AGENT_CREATED'; agent: Agent }

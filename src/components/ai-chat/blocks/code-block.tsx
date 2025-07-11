@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Check, Copy } from 'lucide-react';
 import { loadHighlighter, getTheme } from '../utils/highlighter';
+import type { HighlighterCore } from 'shiki/core';
 import { useState, useEffect } from 'react';
 
 /**
@@ -27,7 +28,7 @@ function parseCodeBlock(output: string): { language: string; code: string } {
  */
 export const CodeBlock: LLMOutputComponent = ({ blockMatch }) => {
   const [copied, setCopied] = useState(false);
-  const [highlighter, setHighlighter] = useState<any>(null);
+  const [highlighter, setHighlighter] = useState<HighlighterCore | null>(null);
   const { language, code } = parseCodeBlock(blockMatch.output);
   
   // Load highlighter asynchronously
@@ -88,7 +89,7 @@ export const CodeBlock: LLMOutputComponent = ({ blockMatch }) => {
       lang: language,
       theme: getTheme(),
     });
-  } catch (error) {
+  } catch (_error) {
     // Fallback for unsupported languages
     html = highlighter.codeToHtml(code, {
       lang: 'text',

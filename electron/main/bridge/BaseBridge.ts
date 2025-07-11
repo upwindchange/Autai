@@ -23,15 +23,15 @@ export abstract class BaseBridge {
   /**
    * Register an IPC handler with error handling
    */
-  protected handle<T = any, R = any>(
+  protected handle<R = unknown>(
     channel: string,
-    handler: (event: IpcMainInvokeEvent, ...args: any[]) => Promise<R> | R
+    handler: (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<R> | R
   ): void {
     this.handlers.set(channel, channel);
 
     ipcMain.handle(
       channel,
-      async (event: IpcMainInvokeEvent, ...args: any[]) => {
+      async (event: IpcMainInvokeEvent, ...args: unknown[]) => {
         try {
           return await handler(event, ...args);
         } catch (error) {
@@ -48,7 +48,7 @@ export abstract class BaseBridge {
   /**
    * Send a message to the renderer process
    */
-  protected send(channel: string, ...args: any[]): void {
+  protected send(channel: string, ...args: unknown[]): void {
     if (!this.win.isDestroyed() && this.win.webContents) {
       this.win.webContents.send(channel, ...args);
     }

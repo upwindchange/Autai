@@ -21,7 +21,7 @@ export interface Message {
 export interface StreamChunk {
   type: 'token' | 'error' | 'metadata' | 'tool_call';
   content: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 /**
