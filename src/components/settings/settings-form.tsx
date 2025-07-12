@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { EyeIcon, EyeOffIcon, Save, TestTube } from "lucide-react";
+import { EyeIcon, EyeOffIcon, Save, TestTube, Loader2 } from "lucide-react";
 import { useSettings } from "./settings-context";
 import { SettingsProfile } from "./types";
 
@@ -16,6 +16,7 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
   const { updateProfile } = useSettings();
   const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
     success: boolean;
     message: string;
@@ -62,22 +63,33 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
   };
 
   const handleTest = async () => {
-    setIsLoading(true);
+    setIsTesting(true);
     setTestResult(null);
+    
     try {
       const result = await window.ipcRenderer.invoke("settings:test", {
         apiUrl: formData.apiUrl,
         apiKey: formData.apiKey,
         model: formData.simpleModel,
       });
-      setTestResult(result);
+      
+      // Ensure we have a proper result
+      if (result && typeof result === 'object' && 'success' in result) {
+        setTestResult(result);
+      } else {
+        setTestResult({
+          success: false,
+          message: "Unexpected response format from test",
+        });
+      }
     } catch (error) {
+      console.error("Test connection error:", error);
       setTestResult({
         success: false,
         message: error instanceof Error ? error.message : "Test failed",
       });
     } finally {
-      setIsLoading(false);
+      setIsTesting(false);
     }
   };
 
@@ -183,10 +195,10 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
       </Card>
 
       {testResult && (
-        <Card className={testResult.success ? "border-green-500" : "border-red-500"}>
+        <Card className={`border-2 ${testResult.success ? "border-green-500 bg-green-50 dark:bg-green-950/20" : "border-red-500 bg-red-50 dark:bg-red-950/20"}`}>
           <CardContent className="pt-6">
-            <p className={`text-sm ${testResult.success ? "text-green-600" : "text-red-600"}`}>
-              {testResult.message}
+            <p className={`text-sm font-medium ${testResult.success ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
+              {testResult.success ? "✓ " : "✗ "}{testResult.message}
             </p>
           </CardContent>
         </Card>
@@ -196,14 +208,32 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
         <Button
           variant="outline"
           onClick={handleTest}
-          disabled={isLoading || !formData.apiKey || !formData.apiUrl}
+          disabled={isLoading || isTesting || !formData.apiKey || !formData.apiUrl}
         >
-          <TestTube className="h-4 w-4 mr-2" />
-          Test Connection
+          {isTesting ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Testing...
+            </>
+          ) : (
+            <>
+              <TestTube className="h-4 w-4 mr-2" />
+              Test Connection
+            </>
+          )}
         </Button>
-        <Button onClick={handleSave} disabled={isLoading}>
-          <Save className="h-4 w-4 mr-2" />
-          Save Changes
+        <Button onClick={handleSave} disabled={isLoading || isTesting}>
+          {isLoading ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4 mr-2" />
+              Save Changes
+            </>
+          )}
         </Button>
       </div>
     </div>

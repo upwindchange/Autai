@@ -13,7 +13,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { ChatContainer } from "@/components/ai-chat";
-import { SettingsProvider } from "@/components/settings";
+import { SettingsProvider, SettingsView } from "@/components/settings";
 import { useAppStore } from "@/store/appStore";
 
 /**
@@ -21,7 +21,7 @@ import { useAppStore } from "@/store/appStore";
  */
 function AppContent() {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const { activeTaskId, activeViewId, setContainerRef } = useAppStore();
+  const { activeTaskId, activeViewId, setContainerRef, showSettings, setShowSettings } = useAppStore();
 
   // Get selected page URL from active task/page
   const selectedPageUrl = useAppStore((state) => {
@@ -54,14 +54,18 @@ function AppContent() {
                     className="mr-2 data-[orientation=vertical]:h-4"
                   />
                   <div>
-                    {selectedPageUrl || "Project Management & Task Tracking"}
+                    {showSettings ? "Settings" : (selectedPageUrl || "Project Management & Task Tracking")}
                   </div>
                 </div>
               </header>
               <div
                 ref={containerRef}
-                className="relative flex flex-1 flex-col gap-4 p-4 overflow-y-auto h-full"
-              />
+                className="relative flex flex-1 flex-col overflow-hidden h-full"
+              >
+                {showSettings && (
+                  <SettingsView onClose={() => setShowSettings(false)} />
+                )}
+              </div>
             </SidebarInset>
           </SidebarProvider>
         </ResizablePanel>
