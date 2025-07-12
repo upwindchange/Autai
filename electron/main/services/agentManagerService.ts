@@ -1,5 +1,5 @@
 import { StreamingAgentService } from "./streamingAgentService";
-import type { StreamingAgentConfig } from "../../shared/types/streaming";
+import type { StreamingAgentConfig } from "../../shared/types/index";
 import type { BaseMessage } from "@langchain/core/messages";
 
 /**

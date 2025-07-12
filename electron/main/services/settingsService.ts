@@ -2,7 +2,11 @@ import { app } from "electron";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { OpenAI } from "@langchain/openai";
-import type { AISettings, SettingsProfile, SettingsState } from "../../shared/types/settings";
+import type {
+  AISettings,
+  SettingsProfile,
+  SettingsState,
+} from "../../shared/types/index";
 
 class SettingsService {
   private settingsPath: string;

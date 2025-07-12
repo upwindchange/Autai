@@ -8,7 +8,7 @@ import type {
   StreamingAgentConfig,
   AgentStreamOptions,
   StreamChunk,
-} from "../../shared/types/streaming";
+} from "../../shared/types/index";
 
 /**
  * Streaming-enabled AI agent service for task-specific conversations.

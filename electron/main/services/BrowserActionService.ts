@@ -1,12 +1,6 @@
 import { WebContentsView } from "electron";
 import type { StateManager } from "./StateManager";
-import type {
-  ActionResult,
-  InteractableElement,
-  ScreenshotOptions,
-  BrowserActionOptions,
-} from "../../shared/types/browserActions";
-import { getHintDetectorScript } from "../scripts/hintDetectorLoader";
+import type { ActionResult, ScreenshotOptions } from "../../shared/types/index";
 
 export class BrowserActionService {
   private stateManager: StateManager;
@@ -108,7 +102,8 @@ export class BrowserActionService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to click element",
+        error:
+          error instanceof Error ? error.message : "Failed to click element",
       };
     }
   }
@@ -122,7 +117,9 @@ export class BrowserActionService {
     try {
       const webView = await this.getWebContentsView(taskId, pageId);
       const result = await webView.webContents.executeJavaScript(`
-        window.typeTextById && window.typeTextById(${elementId}, ${JSON.stringify(text)})
+        window.typeTextById && window.typeTextById(${elementId}, ${JSON.stringify(
+        text
+      )})
       `);
       return result || { success: false, error: "Failed to type text" };
     } catch (error) {
@@ -192,7 +189,10 @@ export class BrowserActionService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to get page elements",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to get page elements",
       };
     }
   }
@@ -218,7 +218,8 @@ export class BrowserActionService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to extract text",
+        error:
+          error instanceof Error ? error.message : "Failed to extract text",
       };
     }
   }
@@ -235,7 +236,10 @@ export class BrowserActionService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to capture screenshot",
+        error:
+          error instanceof Error
+            ? error.message
+            : "Failed to capture screenshot",
       };
     }
   }
@@ -286,7 +290,9 @@ export class BrowserActionService {
       return {
         success: false,
         error:
-          error instanceof Error ? error.message : "Failed to scroll to element",
+          error instanceof Error
+            ? error.message
+            : "Failed to scroll to element",
       };
     }
   }
@@ -308,7 +314,8 @@ export class BrowserActionService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to hover element",
+        error:
+          error instanceof Error ? error.message : "Failed to hover element",
       };
     }
   }
@@ -337,7 +344,9 @@ export class BrowserActionService {
       return {
         success: false,
         error:
-          error instanceof Error ? error.message : "Failed to wait for selector",
+          error instanceof Error
+            ? error.message
+            : "Failed to wait for selector",
       };
     }
   }
@@ -353,14 +362,17 @@ export class BrowserActionService {
       const webView = await this.getWebContentsView(taskId, pageId);
 
       const result = await webView.webContents.executeJavaScript(`
-        window.setElementValue && window.setElementValue(${elementId}, ${JSON.stringify(value)})
+        window.setElementValue && window.setElementValue(${elementId}, ${JSON.stringify(
+        value
+      )})
       `);
 
       return result || { success: false, error: "Failed to select option" };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to select option",
+        error:
+          error instanceof Error ? error.message : "Failed to select option",
       };
     }
   }
@@ -393,7 +405,8 @@ export class BrowserActionService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to set checkbox",
+        error:
+          error instanceof Error ? error.message : "Failed to set checkbox",
       };
     }
   }
@@ -411,15 +424,13 @@ export class BrowserActionService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to execute script",
+        error:
+          error instanceof Error ? error.message : "Failed to execute script",
       };
     }
   }
 
-  async getCurrentUrl(
-    taskId: string,
-    pageId: string
-  ): Promise<ActionResult> {
+  async getCurrentUrl(taskId: string, pageId: string): Promise<ActionResult> {
     try {
       const webView = await this.getWebContentsView(taskId, pageId);
       const url = webView.webContents.getURL();
@@ -427,15 +438,13 @@ export class BrowserActionService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to get current URL",
+        error:
+          error instanceof Error ? error.message : "Failed to get current URL",
       };
     }
   }
 
-  async getPageTitle(
-    taskId: string,
-    pageId: string
-  ): Promise<ActionResult> {
+  async getPageTitle(taskId: string, pageId: string): Promise<ActionResult> {
     try {
       const webView = await this.getWebContentsView(taskId, pageId);
       const title = webView.webContents.getTitle();
@@ -443,7 +452,8 @@ export class BrowserActionService {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : "Failed to get page title",
+        error:
+          error instanceof Error ? error.message : "Failed to get page title",
       };
     }
   }

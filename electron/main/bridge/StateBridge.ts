@@ -5,7 +5,7 @@ import { ViewBridge } from "./ViewBridge";
 import { NavigationBridge } from "./NavigationBridge";
 import { SettingsBridge } from "./SettingsBridge";
 import { AgentBridge } from "./AgentBridge";
-import type { StateChangeEvent } from "../../shared/types";
+import type { StateChangeEvent } from "../../shared/types/index";
 
 /**
  * Bridges IPC communication between main and renderer processes.

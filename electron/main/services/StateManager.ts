@@ -6,7 +6,7 @@ import type {
   Agent,
   AppState,
   StateChangeEvent,
-} from "../../shared/types";
+} from "../../shared/types/index";
 import { getHintDetectorScript } from "../scripts/hintDetectorLoader";
 
 /**

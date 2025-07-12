@@ -75,7 +75,7 @@ The application follows Electron's multi-process architecture:
 
 1. **New IPC Communication**:
 
-   - Add types to `electron/shared/types.ts`
+   - Add types to `electron/shared/types/`
    - Create/update bridge in `electron/main/bridge/`
    - Add handler in relevant service
    - Update renderer store in `src/store/`

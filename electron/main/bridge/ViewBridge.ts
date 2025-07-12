@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from "electron";
 import { BaseBridge } from "./BaseBridge";
-import type { SetViewBoundsCommand, SetViewVisibilityCommand } from "../../shared/types";
+import type { SetViewBoundsCommand, SetViewVisibilityCommand } from "../../shared/types/index";
 
 /**
  * Handles view-related IPC operations
