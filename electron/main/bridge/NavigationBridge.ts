@@ -3,7 +3,7 @@ import { BaseBridge } from "./BaseBridge";
 import type {
   NavigateCommand,
   NavigationControlCommand,
-} from "../../shared/types";
+} from "../../shared/types/index";
 import { BrowserActionService, StateManager } from "../services";
 
 /**

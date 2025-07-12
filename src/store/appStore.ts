@@ -6,7 +6,7 @@ import type {
   Agent,
   AppState,
   StateChangeEvent,
-} from "../../electron/shared/types";
+} from "../../electron/shared/types/index";
 import type { RefObject } from "react";
 
 interface AppStore {
@@ -68,7 +68,7 @@ function restoreTaskPages(task: Task): Task {
         : objectToMap(
             task.pages as Record<
               string,
-              import("../../electron/shared/types").Page
+              import("../../electron/shared/types/index").Page
             >
           ),
   };

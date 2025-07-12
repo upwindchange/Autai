@@ -7,7 +7,7 @@ import type {
   AddPageCommand,
   DeletePageCommand,
   SelectPageCommand,
-} from "../../shared/types";
+} from "../../shared/types/index";
 
 /**
  * Handles task and page-related IPC operations

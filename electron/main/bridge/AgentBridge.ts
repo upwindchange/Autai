@@ -1,7 +1,7 @@
 import { IpcMainInvokeEvent } from "electron";
 import { BaseBridge } from "./BaseBridge";
 import { agentManagerService } from "../services";
-import type { StreamMessageCommand, ClearHistoryCommand } from "../../shared/types";
+import type { StreamMessageCommand, ClearHistoryCommand } from "../../shared/types/index";
 
 /**
  * Handles AI agent-related IPC operations

@@ -2,7 +2,7 @@
  * Core types for the AI chat system with streaming support
  */
 
-import type { StreamChunk } from '../../../electron/shared/types/streaming';
+import type { StreamChunk } from "../../../electron/shared/types/index";
 
 /**
  * Represents a single message in the chat
@@ -10,7 +10,7 @@ import type { StreamChunk } from '../../../electron/shared/types/streaming';
 export interface Message {
   id: string;
   content: string;
-  sender: 'user' | 'assistant' | 'system';
+  sender: "user" | "assistant" | "system";
   isComplete: boolean;
   timestamp: Date;
   taskId: string;
