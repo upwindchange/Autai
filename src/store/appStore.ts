@@ -23,6 +23,7 @@ interface AppStore {
   viewHiddenReasons: Set<string>; // Track which components want the view hidden
   containerRef: RefObject<HTMLDivElement | null> | null;
   containerBounds: DOMRect | null;
+  showSettings: boolean; // Track if settings should be shown instead of web view
 
   // Actions - Backend operations
   createTask: (title?: string, initialUrl?: string) => Promise<void>;
@@ -37,6 +38,7 @@ interface AppStore {
   setViewVisibility: (isHidden: boolean, reason?: string) => void;
   setContainerRef: (ref: RefObject<HTMLDivElement | null>) => void;
   updateContainerBounds: () => void;
+  setShowSettings: (show: boolean) => void;
 
   // Actions - State sync
   syncState: (state: AppState) => void;
@@ -87,6 +89,7 @@ const useAppStore = create<AppStore>()(
     viewHiddenReasons: new Set(),
     containerRef: null,
     containerBounds: null,
+    showSettings: false,
 
     // Backend operations
     createTask: async (title?: string, initialUrl?: string) => {
@@ -170,7 +173,8 @@ const useAppStore = create<AppStore>()(
         if (
           state.activeViewId &&
           state.containerBounds &&
-          !state.isViewHidden
+          !state.isViewHidden &&
+          !state.showSettings
         ) {
           await window.ipcRenderer.invoke("app:setViewBounds", {
             viewId: state.activeViewId,
@@ -254,7 +258,7 @@ const useAppStore = create<AppStore>()(
       set({ containerBounds: rect });
 
       // Update active view bounds
-      if (state.activeViewId && !state.isViewHidden) {
+      if (state.activeViewId && !state.isViewHidden && !state.showSettings) {
         window.ipcRenderer.invoke("app:setViewBounds", {
           viewId: state.activeViewId,
           bounds: {
@@ -264,6 +268,16 @@ const useAppStore = create<AppStore>()(
             height: Math.round(rect.height),
           },
         });
+      }
+    },
+
+    setShowSettings: (show: boolean) => {
+      const state = get();
+      set({ showSettings: show });
+      
+      // Hide/show the web view when toggling settings
+      if (state.activeViewId) {
+        state.setViewVisibility(show, 'settings');
       }
     },
 
@@ -367,7 +381,8 @@ const useAppStore = create<AppStore>()(
           if (
             event.viewId &&
             currentState.containerBounds &&
-            !currentState.isViewHidden
+            !currentState.isViewHidden &&
+            !currentState.showSettings
           ) {
             window.ipcRenderer.invoke("app:setViewBounds", {
               viewId: event.viewId,

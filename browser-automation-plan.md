@@ -32,7 +32,7 @@ This document outlines the plan to implement browser automation features in Auta
 
 ### Key Gaps vs Browser-Use
 
-1. **Limited Browser Actions**
+1. **Limited Browser Actions** (already done in phase 1)
 
    - Missing: text input, scrolling, hover, drag & drop, form filling
    - No screenshot capture for vision models
