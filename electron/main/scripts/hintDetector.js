@@ -775,4 +775,113 @@
     setTimeout(periodicRefresh, 5000);
   };
   setTimeout(periodicRefresh, 5000);
+
+  // New functions for BrowserActionService
+
+  // Get DOM element by hint ID
+  window.getElementByHintId = function (id) {
+    // Use the existing XPath from getInteractableElements
+    const elements = window.getInteractableElements(false);
+    const targetElement = elements[id - 1]; // Convert to 0-based index
+    if (!targetElement || !targetElement.xpath) return null;
+
+    const result = document.evaluate(
+      targetElement.xpath,
+      document,
+      null,
+      XPathResult.FIRST_ORDERED_NODE_TYPE,
+      null
+    );
+    return result.singleNodeValue;
+  };
+
+  // Type text with proper event simulation
+  window.typeTextById = function (id, text) {
+    const element = window.getElementByHintId(id);
+    if (!element) return { success: false, error: "Element not found" };
+
+    element.focus();
+
+    // Handle different input types
+    if ("value" in element) {
+      element.value = "";
+      // Simulate typing each character
+      for (const char of text) {
+        element.value += char;
+        element.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    } else if (element.isContentEditable) {
+      element.textContent = text;
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+    }
+
+    return { success: true };
+  };
+
+  // Extract text using same logic as getLinkText
+  window.getElementTextContent = function (id) {
+    const element = window.getElementByHintId(id);
+    if (!element) return "";
+
+    // Reuse getLinkText logic for consistency
+    return getLinkText(element);
+  };
+
+  // Get/Set element values for forms
+  window.getElementValue = function (id) {
+    const element = window.getElementByHintId(id);
+    if (!element) return null;
+
+    if ("value" in element) return element.value;
+    if (element.isContentEditable) return element.textContent;
+    return null;
+  };
+
+  window.setElementValue = function (id, value) {
+    const element = window.getElementByHintId(id);
+    if (!element) return { success: false, error: "Element not found" };
+
+    const tagName = element.tagName.toLowerCase();
+
+    if ("value" in element) {
+      element.value = value;
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+      return { success: true };
+    } else if (element.isContentEditable) {
+      element.textContent = value;
+      element.dispatchEvent(new Event("input", { bubbles: true }));
+      return { success: true };
+    }
+
+    return { success: false, error: "Element does not support value setting" };
+  };
+
+  // Hover action
+  window.hoverElementById = function (id) {
+    const element = window.getElementByHintId(id);
+    if (!element) return { success: false, error: "Element not found" };
+
+    const rect = element.getBoundingClientRect();
+    const event = new MouseEvent("mouseover", {
+      view: window,
+      bubbles: true,
+      cancelable: true,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2,
+    });
+
+    element.dispatchEvent(event);
+    return { success: true };
+  };
+
+  // Scroll to element
+  window.scrollToElementById = function (id) {
+    const element = window.getElementByHintId(id);
+    if (!element) return { success: false, error: "Element not found" };
+
+    element.scrollIntoView({ behavior: "smooth", block: "center" });
+    return { success: true };
+  };
 })();

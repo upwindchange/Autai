@@ -304,7 +304,6 @@ export class StateManager {
       console.error(
         `Failed to load ${validatedURL} in view ${viewId}: ${errorDescription} (${errorCode})`
       );
-      this.updatePage(taskId, pageId, { title: `Error: ${errorDescription}` });
     };
     webView.webContents.on("did-fail-load", failLoadHandler);
     listeners.push(() =>
