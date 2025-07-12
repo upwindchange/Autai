@@ -1,5 +1,5 @@
 /**
- * Types for streaming AI functionality in the main process
+ * Streaming-related types shared between main and renderer processes
  */
 
 export interface StreamChunk {

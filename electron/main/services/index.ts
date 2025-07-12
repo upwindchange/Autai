@@ -1,3 +1,4 @@
 export { StateManager } from "./StateManager";
-export { NavigationService } from "./navigationService";
 export { settingsService } from "./settingsService";
+export { agentManagerService } from "./agentManagerService";
+export { BrowserActionService } from "./BrowserActionService";

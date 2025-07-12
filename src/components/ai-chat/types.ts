@@ -2,6 +2,8 @@
  * Core types for the AI chat system with streaming support
  */
 
+import type { StreamChunk } from '../../../electron/shared/types/streaming';
+
 /**
  * Represents a single message in the chat
  */
@@ -15,14 +17,8 @@ export interface Message {
   error?: string;
 }
 
-/**
- * Represents a streaming chunk from the AI
- */
-export interface StreamChunk {
-  type: 'token' | 'error' | 'metadata' | 'tool_call';
-  content: string;
-  metadata?: Record<string, unknown>;
-}
+// Re-export StreamChunk for convenience
+export type { StreamChunk };
 
 /**
  * Chat state for a specific task

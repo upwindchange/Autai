@@ -38,7 +38,10 @@ export function useTaskChat(taskId: string | null): UseTaskChatReturn {
 
     try {
       // Start streaming with task-specific agent
-      const streamId = await window.ipcRenderer.invoke('ai:streamMessage', taskId, content);
+      const streamId = await window.ipcRenderer.invoke('ai:streamMessage', {
+        taskId,
+        message: content
+      });
       
       // Add AI placeholder message
       const aiMessageId = `${taskId}-ai-${Date.now()}`;
@@ -163,7 +166,7 @@ export function useTaskChat(taskId: string | null): UseTaskChatReturn {
     });
 
     // Also clear history in backend
-    window.ipcRenderer.invoke('ai:clearHistory', taskId);
+    window.ipcRenderer.invoke('ai:clearHistory', { taskId });
   }, [taskId]);
 
   /**
@@ -190,7 +193,7 @@ export function useTaskChat(taskId: string | null): UseTaskChatReturn {
       });
       
       // Remove agent from backend
-      window.ipcRenderer.invoke('ai:removeAgent', deletedTaskId);
+      window.ipcRenderer.invoke('ai:removeAgent', { taskId: deletedTaskId });
     };
 
     window.ipcRenderer.on('task:deleted', handleTaskDeleted);

@@ -1,5 +1,5 @@
 import { ipcMain, BrowserWindow, IpcMainInvokeEvent } from "electron";
-import { StateManager } from "../services/StateManager";
+import { StateManager } from "../services";
 
 /**
  * Base class for all IPC bridge implementations.
@@ -23,17 +23,17 @@ export abstract class BaseBridge {
   /**
    * Register an IPC handler with error handling
    */
-  protected handle<R = unknown>(
+  protected handle<TCommand = unknown, TResult = unknown>(
     channel: string,
-    handler: (event: IpcMainInvokeEvent, ...args: unknown[]) => Promise<R> | R
+    handler: (event: IpcMainInvokeEvent, command: TCommand) => Promise<TResult> | TResult
   ): void {
     this.handlers.set(channel, channel);
 
     ipcMain.handle(
       channel,
-      async (event: IpcMainInvokeEvent, ...args: unknown[]) => {
+      async (event: IpcMainInvokeEvent, command: TCommand) => {
         try {
-          return await handler(event, ...args);
+          return await handler(event, command);
         } catch (error) {
           console.error(`Error in ${channel}:`, error);
           return {
