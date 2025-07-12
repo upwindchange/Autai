@@ -30,7 +30,7 @@ interface AppStore {
   addPage: (taskId: string, url: string) => Promise<void>;
   deletePage: (taskId: string, pageId: string) => Promise<void>;
   selectPage: (taskId: string, pageId: string) => Promise<void>;
-  navigate: (pageId: string, url: string) => Promise<void>;
+  navigate: (taskId: string, pageId: string, url: string) => Promise<void>;
 
   // Actions - UI operations
   setExpandedTask: (taskId: string | null) => void;
@@ -43,10 +43,10 @@ interface AppStore {
   handleStateChange: (event: StateChangeEvent) => void;
 
   // Navigation actions
-  goBack: () => Promise<void>;
-  goForward: () => Promise<void>;
-  reload: () => Promise<void>;
-  stop: () => Promise<void>;
+  goBack: (taskId: string, pageId: string) => Promise<void>;
+  goForward: (taskId: string, pageId: string) => Promise<void>;
+  reload: (taskId: string, pageId: string) => Promise<void>;
+  stop: (taskId: string, pageId: string) => Promise<void>;
 }
 
 // Helper to convert plain objects back to Maps
@@ -63,7 +63,14 @@ function restoreTaskPages(task: Task): Task {
   return {
     ...task,
     pages:
-      task.pages instanceof Map ? task.pages : objectToMap(task.pages as Record<string, import("../../electron/shared/types").Page>),
+      task.pages instanceof Map
+        ? task.pages
+        : objectToMap(
+            task.pages as Record<
+              string,
+              import("../../electron/shared/types").Page
+            >
+          ),
   };
 }
 
@@ -180,9 +187,10 @@ const useAppStore = create<AppStore>()(
       }
     },
 
-    navigate: async (pageId: string, url: string) => {
+    navigate: async (taskId: string, pageId: string, url: string) => {
       try {
         const result = await window.ipcRenderer.invoke("app:navigate", {
+          taskId,
           pageId,
           url,
         });
@@ -403,12 +411,16 @@ const useAppStore = create<AppStore>()(
     },
 
     // Navigation actions
-    goBack: async () => {
-      const viewId = get().activeViewId;
-      if (!viewId) return;
-
+    goBack: async (taskId: string, pageId: string) => {
       try {
-        const result = await window.ipcRenderer.invoke("app:goBack", viewId);
+        const result = await window.ipcRenderer.invoke(
+          "app:navigationControl",
+          {
+            taskId,
+            pageId,
+            action: "back",
+          }
+        );
         if (!result.success) {
           console.error("Failed to go back:", result.error);
         }
@@ -417,12 +429,16 @@ const useAppStore = create<AppStore>()(
       }
     },
 
-    goForward: async () => {
-      const viewId = get().activeViewId;
-      if (!viewId) return;
-
+    goForward: async (taskId: string, pageId: string) => {
       try {
-        const result = await window.ipcRenderer.invoke("app:goForward", viewId);
+        const result = await window.ipcRenderer.invoke(
+          "app:navigationControl",
+          {
+            taskId,
+            pageId,
+            action: "forward",
+          }
+        );
         if (!result.success) {
           console.error("Failed to go forward:", result.error);
         }
@@ -431,12 +447,16 @@ const useAppStore = create<AppStore>()(
       }
     },
 
-    reload: async () => {
-      const viewId = get().activeViewId;
-      if (!viewId) return;
-
+    reload: async (taskId: string, pageId: string) => {
       try {
-        const result = await window.ipcRenderer.invoke("app:reload", viewId);
+        const result = await window.ipcRenderer.invoke(
+          "app:navigationControl",
+          {
+            taskId,
+            pageId,
+            action: "reload",
+          }
+        );
         if (!result.success) {
           console.error("Failed to reload:", result.error);
         }
@@ -445,12 +465,16 @@ const useAppStore = create<AppStore>()(
       }
     },
 
-    stop: async () => {
-      const viewId = get().activeViewId;
-      if (!viewId) return;
-
+    stop: async (taskId: string, pageId: string) => {
       try {
-        const result = await window.ipcRenderer.invoke("app:stop", viewId);
+        const result = await window.ipcRenderer.invoke(
+          "app:navigationControl",
+          {
+            taskId,
+            pageId,
+            action: "stop",
+          }
+        );
         if (!result.success) {
           console.error("Failed to stop:", result.error);
         }

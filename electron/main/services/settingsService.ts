@@ -2,26 +2,7 @@ import { app } from "electron";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { OpenAI } from "@langchain/openai";
-
-interface AISettings {
-  apiUrl: string;
-  apiKey: string;
-  complexModel: string;
-  simpleModel: string;
-}
-
-interface SettingsProfile {
-  id: string;
-  name: string;
-  settings: AISettings;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface SettingsState {
-  profiles: SettingsProfile[];
-  activeProfileId: string;
-}
+import type { AISettings, SettingsProfile, SettingsState } from "../../shared/types/settings";
 
 class SettingsService {
   private settingsPath: string;

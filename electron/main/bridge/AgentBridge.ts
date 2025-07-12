@@ -1,6 +1,7 @@
 import { IpcMainInvokeEvent } from "electron";
 import { BaseBridge } from "./BaseBridge";
-import { agentManagerService } from "../services/agentManagerService";
+import { agentManagerService } from "../services";
+import type { StreamMessageCommand, ClearHistoryCommand } from "../../shared/types";
 
 /**
  * Handles AI agent-related IPC operations
@@ -12,17 +13,15 @@ export class AgentBridge extends BaseBridge {
       "ai:streamMessage",
       async (
         event: IpcMainInvokeEvent,
-        taskId: string,
-        message: string,
-        _includeContext: boolean = false
+        command: StreamMessageCommand
       ) => {
-        const agent = agentManagerService.getOrCreateAgent(taskId);
-        const streamId = `${taskId}-${Date.now()}`;
+        const agent = agentManagerService.getOrCreateAgent(command.taskId);
+        const streamId = `${command.taskId}-${Date.now()}`;
 
         // Start streaming in background
         (async () => {
           try {
-            for await (const chunk of agent.streamMessage({ message })) {
+            for await (const chunk of agent.streamMessage({ message: command.message })) {
               if (!event.sender.isDestroyed()) {
                 event.sender.send(`ai:stream:${streamId}`, chunk);
               }
@@ -39,7 +38,7 @@ export class AgentBridge extends BaseBridge {
                   error instanceof Error
                     ? error.message
                     : "An error occurred during streaming",
-                metadata: { taskId },
+                metadata: { taskId: command.taskId },
               });
               event.sender.send(`ai:stream:${streamId}:end`);
             }
@@ -53,8 +52,8 @@ export class AgentBridge extends BaseBridge {
     // Clear history
     this.handle(
       "ai:clearHistory",
-      async (_event: IpcMainInvokeEvent, taskId: string) => {
-        await agentManagerService.clearHistory(taskId);
+      async (_event: IpcMainInvokeEvent, command: ClearHistoryCommand) => {
+        await agentManagerService.clearHistory(command.taskId);
         return { success: true };
       }
     );
@@ -62,8 +61,8 @@ export class AgentBridge extends BaseBridge {
     // Get history
     this.handle(
       "ai:getHistory",
-      async (_event: IpcMainInvokeEvent, taskId: string) => {
-        const history = await agentManagerService.getHistory(taskId);
+      async (_event: IpcMainInvokeEvent, command: { taskId: string }) => {
+        const history = await agentManagerService.getHistory(command.taskId);
         // Convert BaseMessage objects to plain objects for IPC
         return history.map((msg) => ({
           content: msg.content,
@@ -76,8 +75,8 @@ export class AgentBridge extends BaseBridge {
     // Remove agent
     this.handle(
       "ai:removeAgent",
-      async (_event: IpcMainInvokeEvent, taskId: string) => {
-        agentManagerService.removeAgent(taskId);
+      async (_event: IpcMainInvokeEvent, command: { taskId: string }) => {
+        agentManagerService.removeAgent(command.taskId);
         return { success: true };
       }
     );

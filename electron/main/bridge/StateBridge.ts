@@ -1,5 +1,5 @@
 import { BrowserWindow } from "electron";
-import { StateManager } from "../services/StateManager";
+import { StateManager } from "../services";
 import { TaskBridge } from "./TaskBridge";
 import { ViewBridge } from "./ViewBridge";
 import { NavigationBridge } from "./NavigationBridge";

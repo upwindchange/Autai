@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from "electron";
 import { BaseBridge } from "./BaseBridge";
-import type { SetViewBoundsCommand } from "../../shared/types";
+import type { SetViewBoundsCommand, SetViewVisibilityCommand } from "../../shared/types";
 
 /**
  * Handles view-related IPC operations
@@ -21,10 +21,10 @@ export class ViewBridge extends BaseBridge {
       "app:setViewVisibility",
       async (
         _event: IpcMainInvokeEvent,
-        { viewId, isHidden }: { viewId: string; isHidden: boolean }
+        command: SetViewVisibilityCommand
       ) => {
         // Use the StateManager's method which handles visibility properly
-        this.stateManager.setViewVisibility(viewId, !isHidden);
+        this.stateManager.setViewVisibility(command.viewId, !command.isHidden);
         return { success: true };
       }
     );
@@ -34,12 +34,12 @@ export class ViewBridge extends BaseBridge {
       "app:getInteractableElements",
       async (
         _event: IpcMainInvokeEvent,
-        viewId: string,
-        viewportOnly: boolean = true
+        command: { viewId: string; viewportOnly?: boolean }
       ) => {
-        const webView = this.stateManager.getWebContentsView(viewId);
+        const webView = this.stateManager.getWebContentsView(command.viewId);
         if (!webView) return [];
 
+        const viewportOnly = command.viewportOnly ?? true;
         const elements = await webView.webContents.executeJavaScript(
           `window.getInteractableElements ? window.getInteractableElements(${viewportOnly}) : []`
         );
@@ -52,15 +52,14 @@ export class ViewBridge extends BaseBridge {
       "app:clickElement",
       async (
         _event: IpcMainInvokeEvent,
-        viewId: string,
-        elementId: number,
-        viewportOnly: boolean = true
+        command: { viewId: string; elementId: number; viewportOnly?: boolean }
       ) => {
-        const webView = this.stateManager.getWebContentsView(viewId);
+        const webView = this.stateManager.getWebContentsView(command.viewId);
         if (!webView) return false;
 
+        const viewportOnly = command.viewportOnly ?? true;
         const result = await webView.webContents.executeJavaScript(
-          `window.clickElementById ? window.clickElementById(${elementId}, ${viewportOnly}) : false`
+          `window.clickElementById ? window.clickElementById(${command.elementId}, ${viewportOnly}) : false`
         );
         return result;
       }

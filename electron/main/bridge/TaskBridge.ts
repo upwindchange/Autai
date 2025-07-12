@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from "electron";
 import { BaseBridge } from "./BaseBridge";
-import { agentManagerService } from "../services/agentManagerService";
+import { agentManagerService } from "../services";
 import type {
   CreateTaskCommand,
   DeleteTaskCommand,
