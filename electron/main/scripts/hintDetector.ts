@@ -53,7 +53,7 @@ interface MarkerElement extends HTMLDivElement {
 
 // Constants
 const SAFE_ALL_SELECTOR = ":not(form)";
-const HINT_CONTAINER_ID = "vimium-hint-container";
+const HINT_CONTAINER_ID = "autai-hint-container";
 const ANGULAR_CLICK_ATTRIBUTES = [
   "ng-click",
   "data-ng-click",
@@ -698,19 +698,44 @@ function detectHints(viewportOnly = true): HintItem[] {
 }
 
 // Display hint markers
-function showHints(): HintItem[] {
+function showHints(): void {
   clearHints();
   const container = createHintContainer();
-  const hints = detectHints(true);
 
-  hints.forEach((hint, index) => {
+  // Use cached elements if available, otherwise generate new ones
+  if (!cachedElements || cacheViewportOnly !== true) {
+    console.log(
+      "[HintDetector] No cached elements for viewport, generating new hints"
+    );
+    getInteractableElements(true); // This will populate the cache
+  }
+
+  // Filter cached elements to only show those in viewport
+  const visibleElements = cachedElements!.filter((element) => {
+    // Check if element is in viewport
+    const rect = element.rect;
+    return !(
+      rect.bottom <= 0 ||
+      rect.top >= window.innerHeight ||
+      rect.right <= 0 ||
+      rect.left >= window.innerWidth
+    );
+  });
+
+  console.log(
+    `[HintDetector] Showing ${visibleElements.length} hints from ${
+      cachedElements!.length
+    } cached elements`
+  );
+
+  visibleElements.forEach((element, visibleIndex) => {
     const marker = document.createElement("div") as MarkerElement;
-    const hintLabel = String(index + 1);
+    const hintLabel = String(visibleIndex); // Use the persistent ID
 
     marker.style.cssText = `
       position: fixed !important;
-      left: ${hint.rect.left}px !important;
-      top: ${hint.rect.top}px !important;
+      left: ${element.rect.left}px !important;
+      top: ${element.rect.top}px !important;
       background: linear-gradient(to bottom, #FFF785 0%, #FFC542 100%) !important;
       border: 1px solid #C38A22 !important;
       border-radius: 3px !important;
@@ -729,71 +754,26 @@ function showHints(): HintItem[] {
     `;
 
     marker.textContent = hintLabel;
-    marker.title = hint.reason || hint.linkText || hint.href || "";
+    marker.title = element.reason || element.text || element.href || "";
 
     // Store hint data on the marker for click handling
-    marker.dataset.hintIndex = String(index);
-    marker.dataset.hintXpath = hint.xpath || "";
+    marker.dataset.hintIndex = String(element.id);
+    marker.dataset.hintXpath = element.xpath || "";
 
     // Add click handler to the marker
     marker.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const hintIndex = parseInt(marker.dataset.hintIndex);
-      const xpath = marker.dataset.hintXpath;
+      const elementId = parseInt(marker.dataset.hintIndex);
 
-      // Try XPath first
-      if (xpath) {
-        console.log(
-          `[HintDetector] Marker clicked: attempting to use XPath for hint ${
-            hintIndex + 1
-          }`
-        );
-        const element = evaluateXPath(xpath);
-        if (element) {
-          console.log(
-            `[HintDetector] Successfully clicked hint ${
-              hintIndex + 1
-            } using XPath`
-          );
-          executeClickAction(element);
-          return;
-        }
-        console.log(
-          `[HintDetector] XPath failed for hint ${
-            hintIndex + 1
-          }, trying fallback`
-        );
-      }
+      console.log(`[HintDetector] Marker clicked for element ID ${elementId}`);
 
-      // Fallback to old method if XPath fails
-      console.log(
-        `[HintDetector] Using rectangle comparison fallback for hint ${
-          hintIndex + 1
-        }`
-      );
-      const allHints = detectHints(false);
-      if (allHints[hintIndex]) {
-        const targetHint = allHints[hintIndex];
-        const elements = getAllElements(document.documentElement);
-
-        // Find the element that matches this hint
-        const element = findElementByRect(elements, targetHint.rect, true);
-        if (element) {
-          console.log(
-            `[HintDetector] Successfully clicked hint ${
-              hintIndex + 1
-            } using rectangle comparison`
-          );
-          executeClickAction(element);
-        }
-      }
+      // Use the existing clickElementById function which handles all the fallback logic
+      clickElementById(elementId);
     });
 
     container.appendChild(marker);
   });
-
-  return hints;
 }
 
 // Hide hint markers
@@ -801,10 +781,24 @@ function hideHints(): void {
   clearHints();
 }
 
+// Cache for persistent elements across AI interactions
+let cachedElements: InteractableElement[] | null = null;
+let cacheViewportOnly: boolean | null = null;
+
 // Get structured data for AI agent
 function getInteractableElements(viewportOnly = true): InteractableElement[] {
+  // Return cached elements if available and viewport setting matches
+  if (cachedElements && cacheViewportOnly === viewportOnly) {
+    console.log(
+      `[HintDetector] Returning cached elements (${cachedElements.length} items)`
+    );
+    return cachedElements;
+  }
+
+  // Generate new elements and cache them
+  console.log("[HintDetector] Generating new elements array for AI agent");
   const hints = detectHints(viewportOnly);
-  return hints.map((hint, index) => ({
+  cachedElements = hints.map((hint, index) => ({
     id: index + 1,
     type: determineElementType(hint),
     text: hint.linkText,
@@ -814,6 +808,22 @@ function getInteractableElements(viewportOnly = true): InteractableElement[] {
     xpath: hint.xpath,
     selector: hint.selector || "",
   }));
+  cacheViewportOnly = viewportOnly;
+
+  console.log(
+    `[HintDetector] Cached ${cachedElements.length} elements for AI agent`
+  );
+  return cachedElements;
+}
+
+// Explicitly refresh the cached elements (called by AI agent when needed)
+function refreshInteractableElements(
+  viewportOnly = true
+): InteractableElement[] {
+  console.log("[HintDetector] Explicitly refreshing cached elements");
+  cachedElements = null;
+  cacheViewportOnly = null;
+  return getInteractableElements(viewportOnly);
 }
 
 // Get DOM element by hint ID
@@ -1018,6 +1028,7 @@ function debounce<T extends (...args: any[]) => void>(
   (window as any).showHints = showHints;
   (window as any).hideHints = hideHints;
   (window as any).getInteractableElements = getInteractableElements;
+  (window as any).refreshInteractableElements = refreshInteractableElements;
   (window as any).clickElementById = clickElementById;
   (window as any).getElementByHintId = getElementByHintId;
   (window as any).typeTextById = typeTextById;
@@ -1047,9 +1058,13 @@ function debounce<T extends (...args: any[]) => void>(
   // Throttled refresh for scroll/resize
   const refreshHintsThrottled = throttle(showHints, 150);
 
-  // Auto-show hints when page loads
+  // Auto-show hints when page loads and populate cache
   setTimeout(() => {
-    showHints();
+    console.log(
+      "[HintDetector] Initial page load - populating cache and showing hints"
+    );
+    refreshInteractableElements(true); // Populate cache with full page elements
+    showHints(); // Show visible hints
   }, 1000);
 
   // Use throttled refresh for scroll/resize events
