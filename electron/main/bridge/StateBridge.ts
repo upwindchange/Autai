@@ -1,5 +1,5 @@
 import { BrowserWindow } from "electron";
-import { StateManager } from "../services";
+import { StateManager, type WebViewService } from "../services";
 import { TaskBridge } from "./TaskBridge";
 import { ViewBridge } from "./ViewBridge";
 import { NavigationBridge } from "./NavigationBridge";
@@ -23,14 +23,22 @@ export class StateBridge {
   private settingsBridge: SettingsBridge;
   private agentBridge: AgentBridge;
 
-  constructor(stateManager: StateManager, win: BrowserWindow) {
+  constructor(
+    stateManager: StateManager,
+    webViewService: WebViewService,
+    win: BrowserWindow
+  ) {
     this.stateManager = stateManager;
     this.win = win;
 
     // Initialize bridges
     this.taskBridge = new TaskBridge(stateManager, win);
-    this.viewBridge = new ViewBridge(stateManager, win);
-    this.navigationBridge = new NavigationBridge(stateManager, win);
+    this.viewBridge = new ViewBridge(stateManager, webViewService, win);
+    this.navigationBridge = new NavigationBridge(
+      stateManager,
+      webViewService,
+      win
+    );
     this.settingsBridge = new SettingsBridge(stateManager, win);
     this.agentBridge = new AgentBridge(stateManager, win);
 

@@ -1,27 +1,15 @@
-import { WebContentsView } from "electron";
-import type { StateManager } from "./StateManager";
+import type { WebViewService } from "./index";
 import type { ActionResult, ScreenshotOptions } from "../../shared/types/index";
 
+/**
+ * Service for browser actions and interactions
+ * Uses WebViewService for all WebContentsView access
+ */
 export class BrowserActionService {
-  private stateManager: StateManager;
+  private webViewService: WebViewService;
 
-  constructor(stateManager: StateManager) {
-    this.stateManager = stateManager;
-  }
-
-  private async getWebContentsView(
-    taskId: string,
-    pageId: string
-  ): Promise<WebContentsView> {
-    const view = this.stateManager.getViewForPage(taskId, pageId);
-    if (!view)
-      throw new Error(`No view found for task ${taskId}, page ${pageId}`);
-
-    const webView = this.stateManager.getWebContentsView(view.id);
-    if (!webView)
-      throw new Error(`WebContentsView not found for view ${view.id}`);
-
-    return webView;
+  constructor(webViewService: WebViewService) {
+    this.webViewService = webViewService;
   }
 
   // Navigation Actions
@@ -31,7 +19,10 @@ export class BrowserActionService {
     url: string
   ): Promise<ActionResult> {
     try {
-      const webView = await this.getWebContentsView(taskId, pageId);
+      const webView = this.webViewService.requireWebContentsView(
+        taskId,
+        pageId
+      );
       await webView.webContents.loadURL(url);
       return { success: true, data: { url } };
     } catch (error) {
@@ -44,7 +35,10 @@ export class BrowserActionService {
 
   async goBack(taskId: string, pageId: string): Promise<ActionResult> {
     try {
-      const webView = await this.getWebContentsView(taskId, pageId);
+      const webView = this.webViewService.requireWebContentsView(
+        taskId,
+        pageId
+      );
       if (webView.webContents.canGoBack()) {
         webView.webContents.goBack();
         return { success: true };
@@ -60,7 +54,10 @@ export class BrowserActionService {
 
   async goForward(taskId: string, pageId: string): Promise<ActionResult> {
     try {
-      const webView = await this.getWebContentsView(taskId, pageId);
+      const webView = this.webViewService.requireWebContentsView(
+        taskId,
+        pageId
+      );
       if (webView.webContents.canGoForward()) {
         webView.webContents.goForward();
         return { success: true };
@@ -76,7 +73,10 @@ export class BrowserActionService {
 
   async refresh(taskId: string, pageId: string): Promise<ActionResult> {
     try {
-      const webView = await this.getWebContentsView(taskId, pageId);
+      const webView = this.webViewService.requireWebContentsView(
+        taskId,
+        pageId
+      );
       webView.webContents.reload();
       return { success: true };
     } catch (error) {
@@ -87,25 +87,36 @@ export class BrowserActionService {
     }
   }
 
+  async stop(taskId: string, pageId: string): Promise<ActionResult> {
+    try {
+      const webView = this.webViewService.requireWebContentsView(
+        taskId,
+        pageId
+      );
+      webView.webContents.stop();
+      return { success: true };
+    } catch (error) {
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Failed to stop loading",
+      };
+    }
+  }
+
   // Element Interaction Actions
   async clickElement(
     taskId: string,
     pageId: string,
     elementId: number
   ): Promise<ActionResult> {
-    try {
-      const webView = await this.getWebContentsView(taskId, pageId);
-      const result = await webView.webContents.executeJavaScript(`
-        window.clickElementById && window.clickElementById(${elementId})
-      `);
-      return { success: result === true, data: result };
-    } catch (error) {
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to click element",
-      };
-    }
+    const result = await this.webViewService.executeWindowFunction(
+      taskId,
+      pageId,
+      "clickElementById",
+      elementId
+    );
+    return { success: result.data === true, data: result.data };
   }
 
   async typeText(
@@ -114,20 +125,16 @@ export class BrowserActionService {
     elementId: number,
     text: string
   ): Promise<ActionResult> {
-    try {
-      const webView = await this.getWebContentsView(taskId, pageId);
-      const result = await webView.webContents.executeJavaScript(`
-        window.typeTextById && window.typeTextById(${elementId}, ${JSON.stringify(
-        text
-      )})
-      `);
-      return result || { success: false, error: "Failed to type text" };
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Failed to type text",
-      };
-    }
+    const result = await this.webViewService.executeWindowFunction(
+      taskId,
+      pageId,
+      "typeTextById",
+      elementId,
+      text
+    );
+    return result.success
+      ? result
+      : { success: false, error: "Failed to type text" };
   }
 
   async pressKey(
@@ -136,7 +143,10 @@ export class BrowserActionService {
     key: string
   ): Promise<ActionResult> {
     try {
-      const webView = await this.getWebContentsView(taskId, pageId);
+      const webView = this.webViewService.requireWebContentsView(
+        taskId,
+        pageId
+      );
 
       // Map common keys to Electron accelerator format
       const keyMap: Record<string, string> = {
@@ -177,24 +187,14 @@ export class BrowserActionService {
     pageId: string,
     options?: { viewportOnly?: boolean }
   ): Promise<ActionResult> {
-    try {
-      const webView = await this.getWebContentsView(taskId, pageId);
-      const viewportOnly = options?.viewportOnly ?? true;
-
-      const elements = await webView.webContents.executeJavaScript(`
-        window.getInteractableElements && window.getInteractableElements(${viewportOnly})
-      `);
-
-      return { success: true, data: elements || [] };
-    } catch (error) {
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to get page elements",
-      };
-    }
+    const viewportOnly = options?.viewportOnly ?? true;
+    const result = await this.webViewService.executeWindowFunction(
+      taskId,
+      pageId,
+      "getInteractableElements",
+      viewportOnly
+    );
+    return result.success ? { success: true, data: result.data || [] } : result;
   }
 
   async extractText(
@@ -202,25 +202,21 @@ export class BrowserActionService {
     pageId: string,
     elementId?: number
   ): Promise<ActionResult> {
-    try {
-      const webView = await this.getWebContentsView(taskId, pageId);
-
-      if (elementId !== undefined) {
-        const script = `window.getElementTextContent && window.getElementTextContent(${elementId})`;
-        const text = await webView.webContents.executeJavaScript(script);
-        return { success: true, extractedContent: text || "" };
-      } else {
-        const text = await webView.webContents.executeJavaScript(
-          `document.body.innerText`
-        );
-        return { success: true, extractedContent: text || "" };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to extract text",
-      };
+    if (elementId !== undefined) {
+      const result = await this.webViewService.executeWindowFunction(
+        taskId,
+        pageId,
+        "getElementTextContent",
+        elementId
+      );
+      return { success: true, extractedContent: result.data || "" };
+    } else {
+      const result = await this.webViewService.executeScript(
+        taskId,
+        pageId,
+        "document.body.innerText"
+      );
+      return { success: true, extractedContent: result.data || "" };
     }
   }
 
@@ -230,7 +226,10 @@ export class BrowserActionService {
     options?: ScreenshotOptions
   ): Promise<ActionResult> {
     try {
-      const webView = await this.getWebContentsView(taskId, pageId);
+      const webView = this.webViewService.requireWebContentsView(
+        taskId,
+        pageId
+      );
       const image = await webView.webContents.capturePage(options?.rect);
       return { success: true, screenshot: image.toPNG() };
     } catch (error) {
@@ -251,26 +250,16 @@ export class BrowserActionService {
     direction: "up" | "down",
     amount?: number
   ): Promise<ActionResult> {
-    try {
-      const webView = await this.getWebContentsView(taskId, pageId);
-      const pixels = amount || 500;
+    const pixels = amount || 500;
+    const script = `
+      window.scrollBy({
+        top: ${direction === "down" ? pixels : -pixels},
+        behavior: 'smooth'
+      });
+      { success: true, scrollY: window.scrollY }
+    `;
 
-      const script = `
-        window.scrollBy({
-          top: ${direction === "down" ? pixels : -pixels},
-          behavior: 'smooth'
-        });
-        { success: true, scrollY: window.scrollY }
-      `;
-
-      const result = await webView.webContents.executeJavaScript(script);
-      return result;
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Failed to scroll page",
-      };
-    }
+    return this.webViewService.executeScript(taskId, pageId, script);
   }
 
   async scrollToElement(
@@ -278,23 +267,15 @@ export class BrowserActionService {
     pageId: string,
     elementId: number
   ): Promise<ActionResult> {
-    try {
-      const webView = await this.getWebContentsView(taskId, pageId);
-
-      const result = await webView.webContents.executeJavaScript(`
-        window.scrollToElementById && window.scrollToElementById(${elementId})
-      `);
-
-      return result || { success: false, error: "Failed to scroll to element" };
-    } catch (error) {
-      return {
-        success: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to scroll to element",
-      };
-    }
+    const result = await this.webViewService.executeWindowFunction(
+      taskId,
+      pageId,
+      "scrollToElementById",
+      elementId
+    );
+    return result.success
+      ? result
+      : { success: false, error: "Failed to scroll to element" };
   }
 
   // Advanced Actions
@@ -303,21 +284,15 @@ export class BrowserActionService {
     pageId: string,
     elementId: number
   ): Promise<ActionResult> {
-    try {
-      const webView = await this.getWebContentsView(taskId, pageId);
-
-      const result = await webView.webContents.executeJavaScript(`
-        window.hoverElementById && window.hoverElementById(${elementId})
-      `);
-
-      return result || { success: false, error: "Failed to hover element" };
-    } catch (error) {
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to hover element",
-      };
-    }
+    const result = await this.webViewService.executeWindowFunction(
+      taskId,
+      pageId,
+      "hoverElementById",
+      elementId
+    );
+    return result.success
+      ? result
+      : { success: false, error: "Failed to hover element" };
   }
 
   async waitForSelector(
@@ -327,7 +302,10 @@ export class BrowserActionService {
     timeout: number = 5000
   ): Promise<ActionResult> {
     try {
-      const webView = await this.getWebContentsView(taskId, pageId);
+      const webView = this.webViewService.requireWebContentsView(
+        taskId,
+        pageId
+      );
       const startTime = Date.now();
 
       while (Date.now() - startTime < timeout) {
@@ -358,23 +336,16 @@ export class BrowserActionService {
     elementId: number,
     value: string
   ): Promise<ActionResult> {
-    try {
-      const webView = await this.getWebContentsView(taskId, pageId);
-
-      const result = await webView.webContents.executeJavaScript(`
-        window.setElementValue && window.setElementValue(${elementId}, ${JSON.stringify(
-        value
-      )})
-      `);
-
-      return result || { success: false, error: "Failed to select option" };
-    } catch (error) {
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to select option",
-      };
-    }
+    const result = await this.webViewService.executeWindowFunction(
+      taskId,
+      pageId,
+      "setElementValue",
+      elementId,
+      value
+    );
+    return result.success
+      ? result
+      : { success: false, error: "Failed to select option" };
   }
 
   async setCheckbox(
@@ -383,32 +354,21 @@ export class BrowserActionService {
     elementId: number,
     checked: boolean
   ): Promise<ActionResult> {
-    try {
-      const webView = await this.getWebContentsView(taskId, pageId);
+    const script = `
+      (function() {
+        const element = window.getElementByHintId && window.getElementByHintId(${elementId});
+        if (!element || element.type !== 'checkbox') {
+          return { success: false, error: 'Element is not a checkbox' };
+        }
 
-      const script = `
-        (function() {
-          const element = window.getElementByHintId && window.getElementByHintId(${elementId});
-          if (!element || element.type !== 'checkbox') {
-            return { success: false, error: 'Element is not a checkbox' };
-          }
+        if (element.checked !== ${checked}) {
+          return window.clickElementById(${elementId});
+        }
+        return { success: true, checked: element.checked };
+      })()
+    `;
 
-          if (element.checked !== ${checked}) {
-            return window.clickElementById(${elementId});
-          }
-          return { success: true, checked: element.checked };
-        })()
-      `;
-
-      const result = await webView.webContents.executeJavaScript(script);
-      return result;
-    } catch (error) {
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to set checkbox",
-      };
-    }
+    return this.webViewService.executeScript(taskId, pageId, script);
   }
 
   // Utility Actions
@@ -417,22 +377,15 @@ export class BrowserActionService {
     pageId: string,
     script: string
   ): Promise<ActionResult> {
-    try {
-      const webView = await this.getWebContentsView(taskId, pageId);
-      const result = await webView.webContents.executeJavaScript(script);
-      return { success: true, data: result };
-    } catch (error) {
-      return {
-        success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to execute script",
-      };
-    }
+    return this.webViewService.executeScript(taskId, pageId, script);
   }
 
   async getCurrentUrl(taskId: string, pageId: string): Promise<ActionResult> {
     try {
-      const webView = await this.getWebContentsView(taskId, pageId);
+      const webView = this.webViewService.requireWebContentsView(
+        taskId,
+        pageId
+      );
       const url = webView.webContents.getURL();
       return { success: true, data: { url } };
     } catch (error) {
@@ -446,7 +399,10 @@ export class BrowserActionService {
 
   async getPageTitle(taskId: string, pageId: string): Promise<ActionResult> {
     try {
-      const webView = await this.getWebContentsView(taskId, pageId);
+      const webView = this.webViewService.requireWebContentsView(
+        taskId,
+        pageId
+      );
       const title = webView.webContents.getTitle();
       return { success: true, data: { title } };
     } catch (error) {

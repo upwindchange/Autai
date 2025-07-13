@@ -2,8 +2,6 @@
  * Core data types shared between main and renderer processes
  */
 
-import type { Rectangle } from 'electron';
-
 export interface Page {
   id: string;
   url: string;
@@ -26,10 +24,6 @@ export interface View {
   id: string;
   taskId: string;
   pageId: string;
-  webContentsId: number;
-  bounds: Rectangle;
-  isActive: boolean;
-  isVisible: boolean;
 }
 
 export interface Agent {

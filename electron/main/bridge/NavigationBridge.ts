@@ -4,38 +4,39 @@ import type {
   NavigateCommand,
   NavigationControlCommand,
 } from "../../shared/types/index";
-import { BrowserActionService, StateManager } from "../services";
+import {
+  StateManager,
+  NavigationService,
+  type WebViewService,
+} from "../services";
 
 /**
  * Handles navigation-related IPC operations
  */
 export class NavigationBridge extends BaseBridge {
-  private browserActionService: BrowserActionService;
+  private navigationService: NavigationService;
 
-  constructor(stateManager: StateManager, win: BrowserWindow) {
+  constructor(
+    stateManager: StateManager,
+    webViewService: WebViewService,
+    win: BrowserWindow
+  ) {
     super(stateManager, win);
-    this.browserActionService = new BrowserActionService(stateManager);
+    this.navigationService = new NavigationService(
+      stateManager,
+      webViewService
+    );
   }
   setupHandlers(): void {
     // Navigate to URL
     this.handle(
       "app:navigate",
       async (_event: IpcMainInvokeEvent, command: NavigateCommand) => {
-        const result = await this.browserActionService.navigateTo(
+        return this.navigationService.navigateToUrl(
           command.taskId,
           command.pageId,
           command.url
         );
-
-        if (result.success) {
-          // Update page URL
-          this.stateManager.updatePage(command.taskId, command.pageId, {
-            url: command.url,
-            lastVisited: Date.now(),
-          });
-        }
-
-        return result;
       }
     );
 
@@ -45,35 +46,22 @@ export class NavigationBridge extends BaseBridge {
       async (_event: IpcMainInvokeEvent, command: NavigationControlCommand) => {
         switch (command.action) {
           case "back":
-            return await this.browserActionService.goBack(
+            return this.navigationService.goBack(
               command.taskId,
               command.pageId
             );
           case "forward":
-            return await this.browserActionService.goForward(
+            return this.navigationService.goForward(
               command.taskId,
               command.pageId
             );
           case "reload":
-            return await this.browserActionService.refresh(
+            return this.navigationService.refresh(
               command.taskId,
               command.pageId
             );
-          case "stop": {
-            // Find the view by taskId and pageId
-            const view = this.stateManager.getViewForPage(
-              command.taskId,
-              command.pageId
-            );
-            if (view) {
-              const webView = this.stateManager.getWebContentsView(view.id);
-              if (webView) {
-                webView.webContents.stop();
-                return { success: true };
-              }
-            }
-            return { success: false, error: "View not found" };
-          }
+          case "stop":
+            return this.navigationService.stop(command.taskId, command.pageId);
           default:
             return { success: false, error: "Invalid action" };
         }
