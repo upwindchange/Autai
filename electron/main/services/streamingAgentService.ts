@@ -3,7 +3,7 @@ import { InMemoryChatMessageHistory } from "@langchain/core/chat_history";
 import { ChatPromptTemplate } from "@langchain/core/prompts";
 import { StringOutputParser } from "@langchain/core/output_parsers";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
-import { settingsService } from "./settingsService";
+import { settingsService } from "./index";
 import type {
   StreamingAgentConfig,
   AgentStreamOptions,

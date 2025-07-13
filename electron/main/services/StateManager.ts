@@ -1,4 +1,4 @@
-import { BrowserWindow, WebContentsView } from "electron";
+import { BrowserWindow } from "electron";
 import type {
   Task,
   Page,
@@ -7,7 +7,7 @@ import type {
   AppState,
   StateChangeEvent,
 } from "../../shared/types/index";
-import { getHintDetectorScript } from "../scripts/hintDetectorLoader";
+import type { WebViewService } from "./index";
 
 /**
  * Central state management for the entire application.
@@ -17,18 +17,30 @@ export class StateManager {
   private tasks = new Map<string, Task>();
   private views = new Map<string, View>();
   private agents = new Map<string, Agent>();
-  private webContentsViews = new Map<string, WebContentsView>();
-  private eventListeners = new Map<string, (() => void)[]>(); // Track event listeners for cleanup
 
   private activeTaskId: string | null = null;
   private activeViewId: string | null = null;
 
   private stateChangeListeners: ((event: StateChangeEvent) => void)[] = [];
   private win: BrowserWindow;
+  private webViewService!: WebViewService;
   private isDestroyed = false;
 
   constructor(win: BrowserWindow) {
     this.win = win;
+  }
+
+  /**
+   * Set the WebViewService dependency (called after both services are created)
+   */
+  setWebViewService(webViewService: WebViewService): void {
+    if (this.webViewService) {
+      throw new Error("WebViewService already set");
+    }
+    if (!webViewService) {
+      throw new Error("WebViewService cannot be null or undefined");
+    }
+    this.webViewService = webViewService;
   }
 
   /**
@@ -48,12 +60,19 @@ export class StateManager {
   }
 
   /**
+   * Public method to emit state changes (for use by other services)
+   */
+  emitStateChange(event: StateChangeEvent) {
+    this.emit(event);
+  }
+
+  /**
    * Task operations
    */
   createTask(title: string = "New Task", initialUrl?: string): Task {
     const taskId = `task-${Date.now()}-${Math.random()
       .toString(36)
-      .substr(2, 9)}`;
+      .substring(2, 11)}`;
     const task: Task = {
       id: taskId,
       title,
@@ -79,11 +98,10 @@ export class StateManager {
     if (!task) return;
 
     // Delete all views for this task
-    const viewsToDelete = Array.from(this.views.values()).filter(
-      (view) => view.taskId === taskId
-    );
-
-    viewsToDelete.forEach((view) => this.destroyView(view.id));
+    const viewsToDelete = this.getViewsForTask(taskId);
+    viewsToDelete.forEach((view) => {
+      this.webViewService.destroyView(view.id);
+    });
 
     // Delete all agents for this task
     const agentsToDelete = Array.from(this.agents.values()).filter(
@@ -112,7 +130,7 @@ export class StateManager {
 
     const pageId = `page-${Date.now()}-${Math.random()
       .toString(36)
-      .substr(2, 9)}`;
+      .substring(2, 11)}`;
     const page: Page = {
       id: pageId,
       url,
@@ -133,7 +151,7 @@ export class StateManager {
     this.emit({ type: "PAGE_ADDED", taskId, page });
 
     // Create view for this page
-    const view = await this.createView(taskId, pageId);
+    const view = await this.webViewService.createView(taskId, pageId, url);
     if (view && task.activePageId === pageId) {
       this.setActiveView(view.id);
     }
@@ -146,12 +164,9 @@ export class StateManager {
     if (!task || !task.pages.has(pageId)) return;
 
     // Find and destroy associated view
-    const view = Array.from(this.views.values()).find(
-      (v) => v.taskId === taskId && v.pageId === pageId
-    );
-
+    const view = this.getViewForPage(taskId, pageId);
     if (view) {
-      this.destroyView(view.id);
+      this.webViewService.destroyView(view.id);
     }
 
     task.pages.delete(pageId);
@@ -178,346 +193,37 @@ export class StateManager {
   }
 
   /**
-   * View operations
+   * View operations (metadata only - WebContentsView handled by WebViewService)
    */
-  async createView(taskId: string, pageId: string): Promise<View | null> {
-    const task = this.tasks.get(taskId);
-    const page = task?.pages.get(pageId);
-    if (!task || !page) return null;
-
-    // Check if view already exists
-    const existingView = Array.from(this.views.values()).find(
-      (v) => v.taskId === taskId && v.pageId === pageId
-    );
-    if (existingView) return existingView;
-
-    const viewId = `view-${Date.now()}-${Math.random()
-      .toString(36)
-      .substr(2, 9)}`;
-
-    // Create WebContentsView
-    const webView = new WebContentsView({
-      webPreferences: {
-        contextIsolation: true,
-        nodeIntegration: false,
-      },
-    });
-
-    webView.setBackgroundColor("#00000000");
-
-    // Set up event handlers and track them for cleanup
-    const listeners: (() => void)[] = [];
-
-    const titleHandler = (_event: unknown, title: string) => {
-      this.updatePage(taskId, pageId, { title });
-    };
-    webView.webContents.on("page-title-updated", titleHandler);
-    listeners.push(() =>
-      webView.webContents.off("page-title-updated", titleHandler)
-    );
-
-    const faviconHandler = (_event: unknown, favicons: string[]) => {
-      if (favicons.length > 0) {
-        this.updatePage(taskId, pageId, { favicon: favicons[0] });
-      }
-    };
-    webView.webContents.on("page-favicon-updated", faviconHandler);
-    listeners.push(() =>
-      webView.webContents.off("page-favicon-updated", faviconHandler)
-    );
-
-    const loadHandler = () => {
-      // Inject hint detector for AI interaction
-      const hintDetectorScript = getHintDetectorScript();
-      webView.webContents
-        .executeJavaScript(hintDetectorScript)
-        .catch((error) =>
-          console.error("Failed to inject hint detector:", error)
-        );
-    };
-    webView.webContents.on("did-finish-load", loadHandler);
-    listeners.push(() =>
-      webView.webContents.off("did-finish-load", loadHandler)
-    );
-
-    // Forward console messages from injected scripts to main process
-    const consoleHandler = ({
-      level,
-      message,
-      sourceId,
-    }: {
-      level: string;
-      message: string;
-      sourceId: string;
-    }) => {
-      // Only forward messages from hintDetector script
-      if (
-        message.includes("[HintDetector]") ||
-        sourceId.includes("hintDetector")
-      ) {
-        const logPrefix = `[WebView ${viewId}]`;
-        switch (level) {
-          case "info":
-            console.log(`${logPrefix} ${message}`);
-            break;
-          case "warning":
-            console.warn(`${logPrefix} ${message}`);
-            break;
-          case "error":
-            console.error(`${logPrefix} ${message}`);
-            break;
-          case "debug":
-            console.log(`${logPrefix} ${message}`);
-            break;
-          default:
-            console.log(`${logPrefix} ${message}`);
-        }
-      }
-    };
-    webView.webContents.on("console-message", consoleHandler);
-    listeners.push(() =>
-      webView.webContents.off("console-message", consoleHandler)
-    );
-
-    // Handle webContents destroyed event
-    const destroyedHandler = () => {
-      console.log(`WebContents for view ${viewId} was destroyed`);
-      // Clean up our references if webContents is destroyed externally
-      if (this.views.has(viewId)) {
-        this.destroyView(viewId);
-      }
-    };
-    webView.webContents.on("destroyed", destroyedHandler);
-    listeners.push(() => {
-      if (!webView.webContents.isDestroyed()) {
-        webView.webContents.off("destroyed", destroyedHandler);
-      }
-    });
-
-    // Handle navigation errors
-    const failLoadHandler = (
-      _event: unknown,
-      errorCode: number,
-      errorDescription: string,
-      validatedURL: string
-    ) => {
-      console.error(
-        `Failed to load ${validatedURL} in view ${viewId}: ${errorDescription} (${errorCode})`
-      );
-    };
-    webView.webContents.on("did-fail-load", failLoadHandler);
-    listeners.push(() =>
-      webView.webContents.off("did-fail-load", failLoadHandler)
-    );
-
-    // Handle crashes
-    const crashHandler = (_event: unknown, details: unknown) => {
-      console.error(`Renderer process crashed for view ${viewId}:`, details);
-      // Optionally recreate the view or notify the user
-      this.emit({ type: "VIEW_CRASHED", viewId, details });
-    };
-    webView.webContents.on("render-process-gone", crashHandler);
-    listeners.push(() =>
-      webView.webContents.off("render-process-gone", crashHandler)
-    );
-
-    // Store listeners for cleanup
-    this.eventListeners.set(viewId, listeners);
-
-    // Load URL
-    try {
-      await webView.webContents.loadURL(page.url);
-    } catch (error) {
-      console.error(`Failed to load URL ${page.url}:`, error);
-    }
-
-    // Create view metadata
-    const view: View = {
-      id: viewId,
-      taskId,
-      pageId,
-      webContentsId: webView.webContents.id,
-      bounds: { x: 0, y: 0, width: 0, height: 0 },
-      isActive: false,
-      isVisible: true, // Default to visible, frontend will control this
-    };
-
-    this.views.set(viewId, view);
-    this.webContentsViews.set(viewId, webView);
-    this.win.contentView.addChildView(webView);
-
-    // Initially hide the view until it's made active
-    webView.setVisible(false);
-
-    this.emit({ type: "VIEW_CREATED", view });
-    return view;
-  }
-
-  destroyView(viewId: string): void {
-    const view = this.views.get(viewId);
-    const webView = this.webContentsViews.get(viewId);
-
-    if (!view || !webView) return;
-
-    try {
-      // First, clean up all event listeners we registered
-      const listeners = this.eventListeners.get(viewId);
-      if (listeners) {
-        listeners.forEach((removeListener) => {
-          try {
-            removeListener();
-          } catch (_err) {
-            // Ignore errors during listener cleanup
-          }
-        });
-        this.eventListeners.delete(viewId);
-      }
-
-      // Stop any pending navigation or loading
-      if (webView.webContents && !webView.webContents.isDestroyed()) {
-        try {
-          // Stop loading
-          webView.webContents.stop();
-          webView.webContents.removeAllListeners();
-          // Clear any injected JavaScript
-          webView.webContents
-            .executeJavaScript('window.location.href = "about:blank"')
-            .catch(() => {}); // Ignore errors
-          // Close the webContents properly
-          webView.webContents.close({ waitForBeforeUnload: false });
-
-          // Force crash the renderer process for complete cleanup
-          // This is safe because each page has its own isolated WebContentsView
-          webView.webContents.forcefullyCrashRenderer();
-        } catch (_error) {
-          // Ignore errors during cleanup
-        }
-      }
-
-      // Remove from window only if window is not destroyed
-      if (this.win && !this.win.isDestroyed() && this.win.contentView) {
-        try {
-          this.win.contentView.removeChildView(webView);
-        } catch (error) {
-          console.error(`Error removing view from window:`, error);
-        }
-      }
-    } catch (error) {
-      // Log but don't throw - we still want to clean up our internal state
-      console.error(`Error destroying view ${viewId}:`, error);
-    }
-
-    // Always clean up internal state
-    this.views.delete(viewId);
-    this.webContentsViews.delete(viewId);
-
-    if (this.activeViewId === viewId) {
-      this.activeViewId = null;
-      this.emit({ type: "ACTIVE_VIEW_CHANGED", viewId: null });
-    }
-
-    this.emit({ type: "VIEW_DELETED", viewId });
-  }
-
-  setViewBounds(viewId: string, bounds: Electron.Rectangle): void {
-    const view = this.views.get(viewId);
-    const webView = this.webContentsViews.get(viewId);
-
-    if (!view || !webView) return;
-
-    // Update stored bounds
-    view.bounds = bounds;
-
-    // Only update actual bounds if this is the active view and it's visible
-    if (viewId === this.activeViewId && webView.getVisible()) {
-      webView.setBounds(bounds);
-    }
-
-    this.emit({ type: "VIEW_UPDATED", viewId, updates: { bounds } });
-  }
-
-  /**
-   * Sets the visibility state of a view (used by frontend UI controls)
-   */
-  setViewVisibility(viewId: string, isVisible: boolean): void {
-    const view = this.views.get(viewId);
-    const webView = this.webContentsViews.get(viewId);
-
-    if (!view || !webView) return;
-
-    // Update the view's visibility state
-    view.isVisible = isVisible;
-
-    // Apply visibility if this is the active view
-    if (viewId === this.activeViewId) {
-      webView.setVisible(isVisible);
-
-      // Update bounds when showing
-      if (isVisible) {
-        webView.setBounds(view.bounds);
-      }
-    }
-
-    this.emit({ type: "VIEW_UPDATED", viewId, updates: { isVisible } });
-  }
 
   setActiveView(viewId: string | null): void {
-    // Deactivate current view
-    if (this.activeViewId) {
-      const currentView = this.views.get(this.activeViewId);
-      if (currentView) {
-        currentView.isActive = false;
-        this.emit({
-          type: "VIEW_UPDATED",
-          viewId: this.activeViewId,
-          updates: { isActive: false },
-        });
-      }
-    }
-
-    // Activate new view
+    // Update active view ID
     this.activeViewId = viewId;
+
+    // Update active task if we have a view
     if (viewId) {
       const view = this.views.get(viewId);
       if (view) {
-        view.isActive = true;
         this.activeTaskId = view.taskId;
-        this.emit({
-          type: "VIEW_UPDATED",
-          viewId,
-          updates: { isActive: true },
-        });
         this.emit({ type: "ACTIVE_TASK_CHANGED", taskId: view.taskId });
       }
     }
 
     this.emit({ type: "ACTIVE_VIEW_CHANGED", viewId });
 
-    // Update view visibility - hide all views except the active one
-    this.updateViewVisibility();
+    // Update WebContentsView visibility
+    this.webViewService.updateViewVisibility();
   }
 
   /**
-   * Updates visibility of all views - shows only the active view
+   * Helper methods for WebViewService
    */
-  private updateViewVisibility(): void {
-    this.views.forEach((view, viewId) => {
-      const webView = this.webContentsViews.get(viewId);
-      if (!webView) return;
+  isActiveView(viewId: string): boolean {
+    return this.activeViewId === viewId;
+  }
 
-      // Active view should be visible unless explicitly hidden by frontend
-      const shouldBeVisible = viewId === this.activeViewId && view.isVisible;
-
-      if (shouldBeVisible) {
-        // Show active view
-        webView.setVisible(true);
-        // Update bounds when showing
-        webView.setBounds(view.bounds);
-      } else {
-        // Hide non-active views using the View's setVisible API
-        webView.setVisible(false);
-      }
-    });
+  getActiveViewId(): string | null {
+    return this.activeViewId;
   }
 
   /**
@@ -526,7 +232,7 @@ export class StateManager {
   createAgent(taskId: string): Agent {
     const agentId = `agent-${Date.now()}-${Math.random()
       .toString(36)
-      .substr(2, 9)}`;
+      .substring(2, 11)}`;
     const agent: Agent = {
       id: agentId,
       taskId,
@@ -587,10 +293,6 @@ export class StateManager {
     return this.views.get(viewId);
   }
 
-  getWebContentsView(viewId: string): WebContentsView | undefined {
-    return this.webContentsViews.get(viewId);
-  }
-
   getViewsForTask(taskId: string): View[] {
     return Array.from(this.views.values()).filter(
       (view) => view.taskId === taskId
@@ -604,6 +306,28 @@ export class StateManager {
   }
 
   /**
+   * Register a view (for use by WebViewService)
+   */
+  registerView(viewId: string, view: View): void {
+    this.views.set(viewId, view);
+    this.emit({ type: "VIEW_CREATED", view });
+  }
+
+  /**
+   * Unregister a view (for use by WebViewService)
+   */
+  unregisterView(viewId: string): void {
+    this.views.delete(viewId);
+
+    if (this.activeViewId === viewId) {
+      this.activeViewId = null;
+      this.emit({ type: "ACTIVE_VIEW_CHANGED", viewId: null });
+    }
+
+    this.emit({ type: "VIEW_DELETED", viewId });
+  }
+
+  /**
    * Cleanup
    */
   destroy(): void {
@@ -611,17 +335,12 @@ export class StateManager {
     if (this.isDestroyed) return;
     this.isDestroyed = true;
 
-    // Destroy all views
-    Array.from(this.views.keys()).forEach((viewId) => this.destroyView(viewId));
-
-    // Clear all event listeners
-    this.eventListeners.clear();
+    // Note: Views are destroyed by WebViewService
 
     // Clear all data
     this.tasks.clear();
     this.views.clear();
     this.agents.clear();
-    this.webContentsViews.clear();
     this.stateChangeListeners = [];
   }
 }
