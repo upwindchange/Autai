@@ -61,6 +61,7 @@
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
         "cmdk": "^1.1.1",
+        "css-selector-generator": "^3.6.9",
         "date-fns": "^4.1.0",
         "electron": "^37.2.1",
         "electron-builder": "^26.0.12",
