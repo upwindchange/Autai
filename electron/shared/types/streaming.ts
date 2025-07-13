@@ -3,7 +3,7 @@
  */
 
 export interface StreamChunk {
-  type: 'token' | 'error' | 'metadata' | 'tool_call';
+  type: "token" | "error" | "metadata" | "tool_call";
   content: string;
   metadata?: Record<string, unknown>;
 }
@@ -17,9 +17,4 @@ export interface StreamingAgentConfig {
 
 export interface AgentStreamOptions {
   message: string;
-  context?: {
-    currentUrl?: string;
-    pageTitle?: string;
-    interactableElements?: unknown[];
-  };
 }

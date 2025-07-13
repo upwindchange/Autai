@@ -1,7 +1,10 @@
 import { IpcMainInvokeEvent } from "electron";
 import { BaseBridge } from "./BaseBridge";
 import { agentManagerService } from "../services";
-import type { StreamMessageCommand, ClearHistoryCommand } from "../../shared/types/index";
+import type {
+  StreamMessageCommand,
+  ClearHistoryCommand,
+} from "../../shared/types/index";
 
 /**
  * Handles AI agent-related IPC operations
@@ -11,17 +14,16 @@ export class AgentBridge extends BaseBridge {
     // Stream message
     this.handle(
       "ai:streamMessage",
-      async (
-        event: IpcMainInvokeEvent,
-        command: StreamMessageCommand
-      ) => {
+      async (event: IpcMainInvokeEvent, command: StreamMessageCommand) => {
         const agent = agentManagerService.getOrCreateAgent(command.taskId);
         const streamId = `${command.taskId}-${Date.now()}`;
 
         // Start streaming in background
         (async () => {
           try {
-            for await (const chunk of agent.streamMessage({ message: command.message })) {
+            for await (const chunk of agent.streamMessage({
+              message: command.message,
+            })) {
               if (!event.sender.isDestroyed()) {
                 event.sender.send(`ai:stream:${streamId}`, chunk);
               }
@@ -66,7 +68,7 @@ export class AgentBridge extends BaseBridge {
         // Convert BaseMessage objects to plain objects for IPC
         return history.map((msg) => ({
           content: msg.content,
-          role: msg._getType(),
+          role: msg.getType(),
           timestamp: msg.additional_kwargs?.timestamp || Date.now(),
         }));
       }
