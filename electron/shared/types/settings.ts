@@ -30,6 +30,7 @@ export interface TestConnectionConfig {
 
 export interface TestConnectionResult {
   success: boolean;
+  message: string;
   error?: string;
   usage?: {
     promptTokens: number;

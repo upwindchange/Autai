@@ -1,11 +1,13 @@
 import { app } from "electron";
 import * as fs from "fs/promises";
 import * as path from "path";
-import { OpenAI } from "@langchain/openai";
+import { ChatOpenAI } from "@langchain/openai";
 import type {
   AISettings,
   SettingsProfile,
   SettingsState,
+  TestConnectionConfig,
+  TestConnectionResult,
 } from "../../shared/types/index";
 
 class SettingsService {
@@ -80,13 +82,11 @@ class SettingsService {
     return profile ? profile.settings : null;
   }
 
-  async testConnection(config: {
-    apiUrl: string;
-    apiKey: string;
-    model: string;
-  }): Promise<{ success: boolean; message: string }> {
+  async testConnection(
+    config: TestConnectionConfig
+  ): Promise<TestConnectionResult> {
     try {
-      const testModel = new OpenAI({
+      const testModel = new ChatOpenAI({
         temperature: 0,
         apiKey: config.apiKey,
         modelName: config.model,
@@ -102,6 +102,7 @@ class SettingsService {
         return {
           success: true,
           message: "Connection successful! API is working correctly.",
+          usage: response.response_metadata.tokenUsage,
         };
       }
 
@@ -114,7 +115,8 @@ class SettingsService {
         error instanceof Error ? error.message : "Unknown error";
       return {
         success: false,
-        message: `Connection failed: ${errorMessage}`,
+        message: `Connection failed`,
+        error: errorMessage,
       };
     }
   }
