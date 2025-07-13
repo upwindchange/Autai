@@ -75,21 +75,6 @@ export class StreamingAgentService {
           "system",
           "You are a helpful AI assistant integrated into a web browser. You can help users navigate web pages, answer questions, and provide assistance with their tasks.",
         ],
-        ...(options.context
-          ? ([
-              [
-                "system",
-                `Current context:
-- Page URL: ${options.context.currentUrl || "Unknown"}
-- Page Title: ${options.context.pageTitle || "Unknown"}
-${
-  options.context.interactableElements
-    ? `- Interactive elements available: ${options.context.interactableElements.length}`
-    : ""
-}`,
-              ],
-            ] as const)
-          : []),
         ["placeholder", "{chat_history}"],
         ["human", "{input}"],
       ]);
