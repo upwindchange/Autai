@@ -18,7 +18,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 /**
  * Props for the SidebarLeft component
  */
-interface SidebarLeftProps extends ComponentProps<typeof Sidebar> {}
+type SidebarLeftProps = ComponentProps<typeof Sidebar>
 
 /**
  * Left sidebar component that manages tasks and their associated web views.
@@ -34,7 +34,7 @@ export function SidebarLeft(props: SidebarLeftProps) {
     setExpandedTask
   } = useAppStore();
   
-  const { state, open, openMobile } = useSidebar();
+  const { openMobile } = useSidebar();
   const { hideView, showView } = useViewVisibility('sidebar');
   const isMobile = useIsMobile();
   

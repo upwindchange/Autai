@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { EyeIcon, EyeOffIcon, Save, TestTube } from "lucide-react";
+import { EyeIcon, EyeOffIcon, Save, TestTube, Loader2 } from "lucide-react";
 import { useSettings } from "./settings-context";
 import { SettingsProfile } from "./types";
 
@@ -16,9 +16,14 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
   const { updateProfile } = useSettings();
   const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isTesting, setIsTesting] = useState(false);
   const [testResult, setTestResult] = useState<{
     success: boolean;
     message: string;
+    details?: {
+      complex?: { success: boolean; message: string; error?: string };
+      simple?: { success: boolean; message: string; error?: string };
+    };
   } | null>(null);
 
   const [formData, setFormData] = useState({
@@ -62,22 +67,44 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
   };
 
   const handleTest = async () => {
-    setIsLoading(true);
+    setIsTesting(true);
     setTestResult(null);
+    
     try {
-      const result = await window.ipcRenderer.invoke("settings:test", {
-        apiUrl: formData.apiUrl,
-        apiKey: formData.apiKey,
-        model: formData.simpleModel,
+      // Test both models
+      const [simpleResult, complexResult] = await Promise.all([
+        window.ipcRenderer.invoke("settings:test", {
+          apiUrl: formData.apiUrl,
+          apiKey: formData.apiKey,
+          model: formData.simpleModel,
+        }),
+        window.ipcRenderer.invoke("settings:test", {
+          apiUrl: formData.apiUrl,
+          apiKey: formData.apiKey,
+          model: formData.complexModel,
+        })
+      ]);
+      
+      const bothSuccessful = simpleResult?.success && complexResult?.success;
+      
+      setTestResult({
+        success: bothSuccessful,
+        message: bothSuccessful 
+          ? "Both models tested successfully!" 
+          : "One or more models failed to connect",
+        details: {
+          simple: simpleResult,
+          complex: complexResult
+        }
       });
-      setTestResult(result);
     } catch (error) {
+      console.error("Test connection error:", error);
       setTestResult({
         success: false,
         message: error instanceof Error ? error.message : "Test failed",
       });
     } finally {
-      setIsLoading(false);
+      setIsTesting(false);
     }
   };
 
@@ -183,11 +210,27 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
       </Card>
 
       {testResult && (
-        <Card className={testResult.success ? "border-green-500" : "border-red-500"}>
-          <CardContent className="pt-6">
-            <p className={`text-sm ${testResult.success ? "text-green-600" : "text-red-600"}`}>
-              {testResult.message}
+        <Card className={`border-2 ${testResult.success ? "border-green-500 bg-green-50 dark:bg-green-950/20" : "border-red-500 bg-red-50 dark:bg-red-950/20"}`}>
+          <CardContent className="pt-6 space-y-3">
+            <p className={`text-sm font-medium ${testResult.success ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
+              {testResult.success ? "✓ " : "✗ "}{testResult.message}
             </p>
+            
+            {testResult.details && (
+              <div className="space-y-2 text-xs">
+                <div className={`flex items-center gap-2 ${testResult.details.simple?.success ? "text-green-600" : "text-red-600"}`}>
+                  <span className="font-medium">Simple Model ({formData.simpleModel}):</span>
+                  <span>{testResult.details.simple?.success ? "✓" : "✗"}</span>
+                  <span>{testResult.details.simple?.message}</span>
+                </div>
+                
+                <div className={`flex items-center gap-2 ${testResult.details.complex?.success ? "text-green-600" : "text-red-600"}`}>
+                  <span className="font-medium">Complex Model ({formData.complexModel}):</span>
+                  <span>{testResult.details.complex?.success ? "✓" : "✗"}</span>
+                  <span>{testResult.details.complex?.message}</span>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
@@ -196,14 +239,32 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
         <Button
           variant="outline"
           onClick={handleTest}
-          disabled={isLoading || !formData.apiKey || !formData.apiUrl}
+          disabled={isLoading || isTesting || !formData.apiKey || !formData.apiUrl}
         >
-          <TestTube className="h-4 w-4 mr-2" />
-          Test Connection
+          {isTesting ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Testing...
+            </>
+          ) : (
+            <>
+              <TestTube className="h-4 w-4 mr-2" />
+              Test Connection
+            </>
+          )}
         </Button>
-        <Button onClick={handleSave} disabled={isLoading}>
-          <Save className="h-4 w-4 mr-2" />
-          Save Changes
+        <Button onClick={handleSave} disabled={isLoading || isTesting}>
+          {isLoading ? (
+            <>
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Saving...
+            </>
+          ) : (
+            <>
+              <Save className="h-4 w-4 mr-2" />
+              Save Changes
+            </>
+          )}
         </Button>
       </div>
     </div>

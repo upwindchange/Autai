@@ -4,47 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Autai** is an Automatic AI Agent Driven Browser built with Electron, React, TypeScript, and Vite. It provides a desktop application that manages tasks, browser views, and AI agents for automated web interactions.
+Autai is an "Automatic AI Agent Driven Browser" - an Electron-based desktop application that integrates AI capabilities with web browsing functionality. It uses a multi-process architecture with React for the UI and LangChain for AI orchestration.
 
-### Tech Stack
-
-- **Desktop Framework**: Electron v37.2.0
-- **Frontend**: React v19.1.0 with TypeScript
-- **Build Tool**: Vite v7.0.4
-- **UI Components**: Radix UI + Tailwind CSS v4.1.11
-- **State Management**: Zustand v5.0.6
-- **AI Integration**: LangChain with OpenAI
-- **Testing**: Vitest + Playwright
-
-## Common Development Commands
+## Essential Commands
 
 ```bash
-# Install dependencies
-pnpm install
+# Development
+npm run dev          # Start development server with hot reload
 
-# Development mode with hot reload
-pnpm dev
+# Testing
+npm run test         # Run Vitest tests
+npm run lint         # Run ESLint checks
 
-# Build production application
-pnpm build
+# Building
+npm run build        # Full production build (TypeScript → Vite → Electron)
+npm run preview      # Preview production build locally
 
-# Run tests
-pnpm test
-
-# Run a single test file
-pnpm test test/e2e.spec.ts
-
-# Preview production build
-pnpm preview
-
-# Package application for distribution
-pnpm dist
-
-# Type check
-pnpm typecheck
-
-# Lint code
-pnpm lint
+# Testing a single file
+npx vitest test/path/to/file.test.ts
 ```
 
 **IMPORTANT INSTRUCTION**:
@@ -54,212 +31,102 @@ pnpm lint
 
 ## Architecture Overview
 
-### Core Domain Model
+The application follows Electron's multi-process architecture:
 
-The application follows a **Task-View-Agent** architecture:
+### Main Process (`electron/main/`)
 
-1. **Tasks**: Top-level containers representing user workflows
+- **StateManager**: Central state coordination
+- **Bridges**: IPC communication handlers (StateBridge, ViewBridge, AgentBridge)
+- **Services**: Business logic (NavigationService, SettingsService, TaskAgentService)
+- **Scripts**: Injected scripts like `hintDetector.js`
 
-   - Each task can have multiple pages
-   - Tasks maintain their own state and history
-   - Stored in `StateManager` with unique IDs
+### Renderer Process (`src/`)
 
-2. **Views**: Browser instances (WebContentsView) managed by Electron
+- **React Components**: UI layer using shadcn/ui components
+- **State Management**: Zustand store synced with main process
+- **Hooks**: Custom React hooks for app functionality
 
-   - Each view corresponds to a rendered web page
-   - Views are created/destroyed dynamically based on active tasks
-   - Managed through `electron/main/services/viewService.ts`
+### Key Architectural Patterns
 
-3. **Agents**: AI-powered automation components
+1. **Bridge Pattern**: All IPC communication goes through typed bridges
 
-   - Use LangChain for orchestration
-   - Stream responses in real-time
-   - Interact with browser views through injected scripts
+   - Example: `ViewBridge` manages WebContentsView lifecycle
+   - Bridges emit events that sync state between processes
 
-4. **Pages**: Individual web pages within a task
-   - Track URL, title, and navigation state
-   - Support browser history (back/forward)
+2. **Service Layer**: Business logic separated from IPC handling
 
-### Multi-Process Architecture
+   - Services handle complex operations
+   - Bridges act as thin wrappers for IPC
 
-```
-┌─────────────────────────────────────────────────────────┐
-│                    Main Process (Node.js)                │
-│  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐  │
-│  │StateManager │  │ViewService   │  │NavigationSvc  │  │
-│  └─────────────┘  └──────────────┘  └───────────────┘  │
-│           │               │                   │          │
-│           └───────────────┴───────────────────┘          │
-│                           │                              │
-│                      IPC Bridge                          │
-└───────────────────────────┼─────────────────────────────┘
-                            │
-┌───────────────────────────┼─────────────────────────────┐
-│                    Preload Script                        │
-│                 (Secure API Exposure)                    │
-└───────────────────────────┼─────────────────────────────┘
-                            │
-┌───────────────────────────┼─────────────────────────────┐
-│                 Renderer Process (Chromium)              │
-│  ┌─────────────┐  ┌──────────────┐  ┌───────────────┐  │
-│  │React App    │  │Zustand Store │  │UI Components  │  │
-│  └─────────────┘  └──────────────┘  └───────────────┘  │
-└─────────────────────────────────────────────────────────┘
-```
+3. **State Synchronization**:
 
-### State Synchronization
+   - Main process holds authoritative state
+   - Changes emit events to renderer
+   - Renderer updates optimistically then syncs
 
-State flows unidirectionally from Main → Renderer:
+4. **Task-Based AI Integration**:
+   - Each task represents a browsing session with AI assistance
+   - Tasks maintain their own conversation history
+   - AI agents stream responses using LangChain
 
-1. State changes occur in `StateManager` (main process)
-2. Changes are broadcast via IPC events
-3. Renderer updates Zustand store
-4. React components re-render automatically
-
-### Key Services and Their Responsibilities
-
-#### Main Process Services
-
-1. **StateManager** (`electron/main/services/StateManager.ts`)
-
-   - Central source of truth for all application state
-   - Manages tasks, views, agents, and settings
-   - Persists state to disk
-   - Broadcasts state changes to renderer
-
-2. **ViewService** (`electron/main/services/viewService.ts`)
-
-   - Creates and manages WebContentsView instances
-   - Handles view lifecycle (create, show, hide, destroy)
-   - Manages view positioning and sizing
-   - Injects scripts for browser automation
-
-3. **NavigationService** (`electron/main/services/navigationService.ts`)
-
-   - Handles all browser navigation (back, forward, reload, stop)
-   - Updates page state on navigation events
-   - Manages URL changes and redirects
-
-4. **StreamingAgentService** (`electron/main/services/streamingAgentService.ts`)
-   - Integrates LangChain for AI functionality
-   - Handles streaming responses from AI models
-   - Manages agent lifecycle and state
-
-#### Renderer Process Components
-
-1. **AppStore** (`src/store/appStore.ts`)
-
-   - Zustand store mirroring main process state
-   - Provides hooks for React components
-   - Handles optimistic updates for UI responsiveness
-
-2. **MainLayout** (`src/components/main-layout.tsx`)
-
-   - Root layout component
-   - Manages sidebar, main content area
-   - Handles responsive design
-
-3. **TaskManager** (`src/components/task-manager.tsx`)
-   - UI for creating and managing tasks
-   - Displays task list and active pages
-   - Handles task selection and deletion
-
-### IPC Communication Patterns
-
-All IPC communication follows these patterns:
-
-1. **State Sync**: `state:update` events from main → renderer
-2. **Commands**: `invoke` from renderer → main for actions
-3. **Navigation**: Dedicated navigation commands (back, forward, etc.)
-4. **Settings**: Separate channel for user preferences
-
-Example IPC usage:
-
-```typescript
-// Renderer → Main (command)
-await window.electronAPI.createTask({ name: "New Task" });
-
-// Main → Renderer (state update)
-mainWindow.webContents.send("state:update", newState);
-```
-
-## Testing Strategy
-
-### Unit Tests
-
-- Test individual services and utilities
-- Mock IPC communication for isolated testing
-- Focus on business logic validation
-
-### E2E Tests
-
-- Use Playwright to test full application flow
-- Test task creation, navigation, and AI interactions
-- Verify state synchronization between processes
-
-### Running Tests
-
-```bash
-# All tests
-pnpm test
-
-# Watch mode
-pnpm test:watch
-
-# E2E only
-pnpm test:e2e
-```
-
-## Development Tips
-
-### Working with Electron
-
-- Changes to main process require app restart
-- Use `pnpm dev` for hot reload of renderer
-- Check DevTools console for renderer errors
-- Check terminal for main process errors
-
-### State Management
-
-- All state mutations must go through StateManager
-- Never modify state directly in renderer
-- Use IPC commands to trigger state changes
-- State is automatically persisted to disk
+## Development Guidelines
 
 ### Adding New Features
 
-1. Define types in `electron/shared/types.ts`
-2. Add state management in `StateManager`
-3. Create IPC handlers in relevant service
-4. Update preload script if new API needed
-5. Add UI components in renderer
-6. Write tests for new functionality
+1. **New IPC Communication**:
 
-### Browser Automation
+   - Add types to `electron/shared/types/`
+   - Create/update bridge in `electron/main/bridge/`
+   - Add handler in relevant service
+   - Update renderer store in `src/store/`
 
-- Scripts injected via `webContents.executeJavaScript()`
-- Hint detection script at `electron/main/scripts/hintDetector.js`
-- Use `viewService.executeInView()` for script execution
+2. **New UI Components**:
 
-## Important Conventions
+   - Use shadcn/ui components when possible
+   - Follow existing component patterns in `src/components/`
+   - Use Tailwind CSS for styling
 
-### Code Style
+3. **AI/Agent Features**:
+   - Implement in `TaskAgentService`
+   - Use LangChain for LLM interactions
+   - Stream responses using existing streaming patterns
 
-- TypeScript strict mode enabled
-- Use async/await over promises
-- Prefer functional components with hooks
-- Follow existing file naming patterns
+### Code Conventions
 
-### Security
+- **TypeScript**: Strict mode enabled, use proper types
+- **Path Aliases**: Use `@/` for `src/` imports
+- **State Updates**: Always go through proper channels (no direct state mutation)
+- **Error Handling**: Use try-catch and return Result objects with success/error states
 
-- All IPC APIs must be explicitly exposed in preload
-- No direct Node.js access in renderer
-- Validate all IPC inputs
-- Use context isolation
+### Security Considerations
 
-### Performance
+- Context isolation is enabled
+- Use `contextBridge` for all IPC communication
+- External links open in default browser
+- WebviewTag is disabled
 
-- Lazy load heavy components
-- Use React.memo for expensive renders
-- Debounce frequent state updates
-- Profile with Chrome DevTools
+## Common Development Tasks
+
+### Working with WebContentsView
+
+- Views are managed by `ViewBridge`
+- Always set proper bounds when showing views
+- Inject scripts using `executeJavaScript` after DOM ready
+
+### Managing AI Conversations
+
+- Each task has its own agent instance
+- Use streaming for real-time responses
+- Store conversation history per task
+
+### Debugging
+
+- Main process: Use VSCode debugger or console.log
+- Renderer: Use Chrome DevTools
+- IPC: Log events in both processes to trace flow
+
+## Testing Approach
+
+- **Unit Tests**: Use Vitest for service/utility testing
+- **E2E Tests**: Playwright for full application flows
+- **Platform Specific**: Some tests skip on Linux due to Electron limitations

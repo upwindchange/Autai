@@ -7,7 +7,7 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from "@/components/ui/sidebar"
-import { SettingsDialog } from "@/components/settings"
+import { SettingsButton } from "@/components/settings"
 
 export function NavSecondary({
   ...props
@@ -18,7 +18,7 @@ export function NavSecondary({
         <SidebarSeparator className="mx-0" />
         <SidebarMenu>
           <SidebarMenuItem>
-            <SettingsDialog />
+            <SettingsButton />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarGroupContent>

@@ -1,20 +1,22 @@
-import { readFileSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+import { readFileSync, existsSync } from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 let hintDetectorScript: string | null = null;
+let cssSelectorGeneratorScript: string | null = null;
+let combinedScript: string | null = null;
 
-export function getHintDetectorScript(): string {
-  if (!hintDetectorScript) {
+function getCssSelectorGeneratorScript(): string {
+  if (!cssSelectorGeneratorScript) {
     // Try multiple paths to support both development and production
     const possiblePaths = [
-      join(__dirname, 'hintDetector.js'), // Production path
-      join(__dirname, '../../../electron/main/scripts/hintDetector.js'), // Development path from dist-electron
-      join(process.cwd(), 'electron/main/scripts/hintDetector.js'), // Development path from project root
+      join(__dirname, "../../../node_modules/css-selector-generator/build/index.js"),
+      join(process.cwd(), "node_modules/css-selector-generator/build/index.js"),
+      join(__dirname, "../../node_modules/css-selector-generator/build/index.js"),
     ];
-    
+
     let scriptPath: string | null = null;
     for (const path of possiblePaths) {
       if (existsSync(path)) {
@@ -22,14 +24,64 @@ export function getHintDetectorScript(): string {
         break;
       }
     }
-    
+
     if (!scriptPath) {
-      throw new Error(`Could not find hintDetector.js in any of these paths: ${possiblePaths.join(', ')}`);
+      throw new Error(
+        `Could not find css-selector-generator in any of these paths: ${possiblePaths.join(
+          ", "
+        )}`
+      );
     }
-    
-    hintDetectorScript = readFileSync(scriptPath, 'utf-8');
+
+    cssSelectorGeneratorScript = readFileSync(scriptPath, "utf-8");
   }
-  return hintDetectorScript;
+  return cssSelectorGeneratorScript;
+}
+
+export function getHintDetectorScript(): string {
+  if (!combinedScript) {
+    // First, get css-selector-generator
+    const cssSelector = getCssSelectorGeneratorScript();
+    
+    // Then, get hint detector
+    const possiblePaths = [
+      join(__dirname, "hintDetector.js"), // Production path
+      join(__dirname, "../../../electron/main/scripts/hintDetector.js"), // Development path from dist-electron
+      join(process.cwd(), "electron/main/scripts/hintDetector.js"), // Development path from project root
+    ];
+
+    let scriptPath: string | null = null;
+    for (const path of possiblePaths) {
+      if (existsSync(path)) {
+        scriptPath = path;
+        break;
+      }
+    }
+
+    if (!scriptPath) {
+      throw new Error(
+        `Could not find hintDetector.js in any of these paths: ${possiblePaths.join(
+          ", "
+        )}`
+      );
+    }
+
+    hintDetectorScript = readFileSync(scriptPath, "utf-8");
+    
+    // Combine the scripts
+    // The css-selector-generator UMD build exposes getCssSelector globally
+    combinedScript = `
+      // CSS Selector Generator Library
+      ${cssSelector}
+      
+      // Make getCssSelector available globally for the hint detector
+      window.getCssSelector = window.CssSelectorGenerator.getCssSelector;
+      
+      // Hint Detector Script
+      ${hintDetectorScript}
+    `;
+  }
+  return combinedScript;
 }
 
 export function getHintClickScript(index: number): string {

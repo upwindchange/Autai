@@ -43,7 +43,7 @@ export function NavTasks({
   /**
    * Validates if a value is a valid URL string for favicon display
    */
-  function isValidUrl(value: any): value is string {
+  function isValidUrl(value: unknown): value is string {
     if (typeof value !== "string") return false;
     try {
       return z.string().url().safeParse(value).success;
