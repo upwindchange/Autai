@@ -184,7 +184,7 @@ export class StateManager {
   updatePage(taskId: string, pageId: string, updates: Partial<Page>): void {
     const task = this.tasks.get(taskId);
     const page = task?.pages.get(pageId);
-    if (!page) return;
+    if (!page || !task) return;
 
     Object.assign(page, updates);
     task.updatedAt = Date.now();
@@ -272,7 +272,7 @@ export class StateManager {
     this.tasks.forEach((task, id) => {
       tasksObj[id] = {
         ...task,
-        pages: Object.fromEntries(task.pages) as Record<string, Page>, // Will be converted back to Map in renderer
+        pages: task.pages,
       };
     });
 

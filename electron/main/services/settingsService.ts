@@ -12,11 +12,29 @@ import type {
 
 class SettingsService {
   private settingsPath: string;
-  private settings: SettingsState | null = null;
+  private settings: SettingsState;
 
   constructor() {
     const userDataPath = app.getPath("userData");
     this.settingsPath = path.join(userDataPath, "settings.json");
+    // Initialize with default settings
+    this.settings = {
+      profiles: [
+        {
+          id: "default",
+          name: "Default",
+          settings: {
+            apiUrl: "https://api.openai.com/v1",
+            apiKey: "",
+            complexModel: "gpt-4",
+            simpleModel: "gpt-3.5-turbo",
+          },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        },
+      ],
+      activeProfileId: "default",
+    };
   }
 
   async initialize() {
@@ -33,30 +51,10 @@ class SettingsService {
         }
         return value;
       });
-      return this.settings;
     } catch (_error) {
-      // If file doesn't exist or is invalid, create default settings
-      const defaultSettings: SettingsState = {
-        profiles: [
-          {
-            id: "default",
-            name: "Default",
-            settings: {
-              apiUrl: "https://api.openai.com/v1",
-              apiKey: "",
-              complexModel: "gpt-4",
-              simpleModel: "gpt-3.5-turbo",
-            },
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          },
-        ],
-        activeProfileId: "default",
-      };
-      this.settings = defaultSettings;
-      await this.saveSettings(defaultSettings);
-      return defaultSettings;
+      // If file doesn't exist or is invalid, use existing settings
     }
+    return this.settings;
   }
 
   async saveSettings(settings: SettingsState): Promise<void> {
