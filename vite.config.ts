@@ -1,15 +1,53 @@
-import { rmSync, copyFileSync, mkdirSync } from 'node:fs'
+import { rmSync, copyFileSync, mkdirSync, existsSync } from 'node:fs'
 import path from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import electron from 'vite-plugin-electron/simple'
+import { spawn } from 'node:child_process'
 import pkg from './package.json'
 
 // https://vitejs.dev/config/
-// Custom plugin to copy hintDetector.js file
-const copyHintDetectorPlugin = () => ({
-  name: 'copy-hint-detector',
+// Custom plugin to build and copy hintDetector.js file
+const buildHintDetectorPlugin = () => ({
+  name: 'build-hint-detector',
+  async buildStart() {
+    // Build hintDetector.ts before the main build starts
+    console.log('Building hintDetector.ts...')
+    
+    const buildScriptPath = path.join(__dirname, 'electron/main/scripts/buildHintDetector.js')
+    
+    // Check if we need to build (source is newer than output)
+    const sourcePath = path.join(__dirname, 'electron/main/scripts/hintDetector.ts')
+    const outputPath = path.join(__dirname, 'electron/main/scripts/hintDetector.js')
+    
+    const shouldBuild = !existsSync(outputPath) || 
+      (existsSync(sourcePath) && existsSync(outputPath) && 
+       require('fs').statSync(sourcePath).mtime > require('fs').statSync(outputPath).mtime)
+    
+    if (shouldBuild) {
+      return new Promise((resolve, reject) => {
+        const child = spawn('node', [buildScriptPath], {
+          stdio: 'inherit',
+          shell: true
+        })
+        
+        child.on('close', (code) => {
+          if (code !== 0) {
+            reject(new Error(`buildHintDetector.js exited with code ${code}`))
+          } else {
+            resolve()
+          }
+        })
+        
+        child.on('error', (err) => {
+          reject(err)
+        })
+      })
+    } else {
+      console.log('hintDetector.js is up to date, skipping build')
+    }
+  },
   closeBundle() {
     // Create the scripts directory if it doesn't exist
     const scriptsDir = path.join(__dirname, 'dist-electron/main/scripts')
@@ -18,8 +56,13 @@ const copyHintDetectorPlugin = () => ({
     // Copy the hintDetector.js file
     const sourcePath = path.join(__dirname, 'electron/main/scripts/hintDetector.js')
     const destPath = path.join(scriptsDir, 'hintDetector.js')
-    copyFileSync(sourcePath, destPath)
-    console.log('Copied hintDetector.js to dist-electron/main/scripts/')
+    
+    if (existsSync(sourcePath)) {
+      copyFileSync(sourcePath, destPath)
+      console.log('Copied hintDetector.js to dist-electron/main/scripts/')
+    } else {
+      console.error('Warning: hintDetector.js not found at', sourcePath)
+    }
   }
 })
 
@@ -56,7 +99,7 @@ export default defineConfig(({ command }) => {
               outDir: 'dist-electron/main',
               rollupOptions: {
                 external: Object.keys('dependencies' in pkg ? pkg.dependencies : {}),
-                plugins: [copyHintDetectorPlugin()],
+                plugins: [buildHintDetectorPlugin()],
               },
             },
           },
