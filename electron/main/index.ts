@@ -4,11 +4,14 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
 import { update } from "./update";
-import { settingsService } from "./services";
-import { StateManager } from "./services/StateManager";
+import {
+  StateManager,
+  settingsService,
+  WebViewService,
+} from "./services/index";
 import { StateBridge } from "./bridge/StateBridge";
 
-const require = createRequire(import.meta.url);
+const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 /**
@@ -70,7 +73,12 @@ async function createWindow() {
    * Initialize core services
    */
   stateManager = new StateManager(win);
-  stateBridge = new StateBridge(stateManager, win);
+
+  // Create WebViewService and wire it up with StateManager
+  const webViewService = new WebViewService(stateManager, win);
+  stateManager.setWebViewService(webViewService);
+
+  stateBridge = new StateBridge(stateManager, webViewService, win);
 
   /**
    * Force external links to open in default browser

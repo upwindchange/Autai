@@ -38,7 +38,10 @@ export function useTaskChat(taskId: string | null): UseTaskChatReturn {
 
     try {
       // Start streaming with task-specific agent
-      const streamId = await window.ipcRenderer.invoke('ai:streamMessage', taskId, content);
+      const streamId = await window.ipcRenderer.invoke('ai:streamMessage', {
+        taskId,
+        message: content
+      });
       
       // Add AI placeholder message
       const aiMessageId = `${taskId}-ai-${Date.now()}`;
@@ -65,7 +68,7 @@ export function useTaskChat(taskId: string | null): UseTaskChatReturn {
       }
 
       // Handle streaming chunks
-      const handleChunk = (_event: any, chunk: StreamChunk) => {
+      const handleChunk = (_event: unknown, chunk: StreamChunk) => {
         setTaskMessages(prev => {
           const updated = new Map(prev);
           const taskMsgs = [...(updated.get(taskId) || [])];
@@ -163,7 +166,7 @@ export function useTaskChat(taskId: string | null): UseTaskChatReturn {
     });
 
     // Also clear history in backend
-    window.ipcRenderer.invoke('ai:clearHistory', taskId);
+    window.ipcRenderer.invoke('ai:clearHistory', { taskId });
   }, [taskId]);
 
   /**
@@ -182,7 +185,7 @@ export function useTaskChat(taskId: string | null): UseTaskChatReturn {
    */
   useEffect(() => {
     // This will be called from the parent when a task is deleted
-    const handleTaskDeleted = (_event: any, deletedTaskId: string) => {
+    const handleTaskDeleted = (_event: unknown, deletedTaskId: string) => {
       setTaskMessages(prev => {
         const updated = new Map(prev);
         updated.delete(deletedTaskId);
@@ -190,7 +193,7 @@ export function useTaskChat(taskId: string | null): UseTaskChatReturn {
       });
       
       // Remove agent from backend
-      window.ipcRenderer.invoke('ai:removeAgent', deletedTaskId);
+      window.ipcRenderer.invoke('ai:removeAgent', { taskId: deletedTaskId });
     };
 
     window.ipcRenderer.on('task:deleted', handleTaskDeleted);

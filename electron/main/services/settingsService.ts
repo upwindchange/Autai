@@ -1,27 +1,14 @@
 import { app } from "electron";
 import * as fs from "fs/promises";
 import * as path from "path";
-import { OpenAI } from "@langchain/openai";
-
-interface AISettings {
-  apiUrl: string;
-  apiKey: string;
-  complexModel: string;
-  simpleModel: string;
-}
-
-interface SettingsProfile {
-  id: string;
-  name: string;
-  settings: AISettings;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface SettingsState {
-  profiles: SettingsProfile[];
-  activeProfileId: string;
-}
+import { ChatOpenAI } from "@langchain/openai";
+import type {
+  AISettings,
+  SettingsProfile,
+  SettingsState,
+  TestConnectionConfig,
+  TestConnectionResult,
+} from "../../shared/types/index";
 
 class SettingsService {
   private settingsPath: string;
@@ -47,7 +34,7 @@ class SettingsService {
         return value;
       });
       return this.settings;
-    } catch (error) {
+    } catch (_error) {
       // If file doesn't exist or is invalid, create default settings
       const defaultSettings: SettingsState = {
         profiles: [
@@ -95,13 +82,11 @@ class SettingsService {
     return profile ? profile.settings : null;
   }
 
-  async testConnection(config: {
-    apiUrl: string;
-    apiKey: string;
-    model: string;
-  }): Promise<{ success: boolean; message: string }> {
+  async testConnection(
+    config: TestConnectionConfig
+  ): Promise<TestConnectionResult> {
     try {
-      const testModel = new OpenAI({
+      const testModel = new ChatOpenAI({
         temperature: 0,
         apiKey: config.apiKey,
         modelName: config.model,
@@ -112,11 +97,12 @@ class SettingsService {
 
       // Try a simple completion to test the connection
       const response = await testModel.invoke("Hello, this is a test message.");
-      
+
       if (response && response.content) {
         return {
           success: true,
           message: "Connection successful! API is working correctly.",
+          usage: response.response_metadata.tokenUsage,
         };
       }
 
@@ -125,10 +111,12 @@ class SettingsService {
         message: "Connection failed: No response from API",
       };
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
       return {
         success: false,
-        message: `Connection failed: ${errorMessage}`,
+        message: `Connection failed`,
+        error: errorMessage,
       };
     }
   }

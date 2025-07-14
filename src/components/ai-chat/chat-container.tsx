@@ -8,7 +8,7 @@ import type { ChatContainerProps } from "./types";
 /**
  * Main chat container that manages task-specific conversations
  */
-export function ChatContainer({ taskId, activeViewKey }: ChatContainerProps) {
+export function ChatContainer({ taskId }: ChatContainerProps) {
   const { messages, sendMessage, isStreaming } = useTaskChat(taskId);
 
   if (!taskId) {
