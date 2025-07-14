@@ -8,6 +8,7 @@
     "type": "module",
     "main": "dist-electron/main/index.js",
     "scripts": {
+        "prebuild": "node electron/main/scripts/buildHintDetector.js",
         "build": "tsc && vite build && electron-builder",
         "dev": "vite",
         "preview": "vite preview",
