@@ -1,10 +1,20 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
-import typescript from 'typescript';
+import {
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  statSync,
+} from "fs";
+import { join, dirname } from "path";
+import { fileURLToPath } from "url";
+import { execSync } from "child_process";
+import typescript from "typescript";
+import { createRequire } from "module";
+
+const require = createRequire(import.meta.url);
+const pkg = require("../../../package.json");
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -29,100 +39,172 @@ function compileTSToJS(tsCode, fileName) {
   });
 
   if (result.diagnostics && result.diagnostics.length > 0) {
-    const diagnostics = result.diagnostics.map(d => 
-      typescript.flattenDiagnosticMessageText(d.messageText, '\n')
-    ).join('\n');
+    const diagnostics = result.diagnostics
+      .map((d) => typescript.flattenDiagnosticMessageText(d.messageText, "\n"))
+      .join("\n");
     throw new Error(`TypeScript compilation errors:\n${diagnostics}`);
   }
 
   return result.outputText;
 }
 
-async function buildHintDetector() {
-  console.log('Building hintDetector.js...');
-  
+async function buildHintDetector(targetPath = null) {
+  console.log("Building hintDetector.js...");
+
   const scriptsDir = __dirname;
-  const projectRoot = join(__dirname, '../../../');
-  const distDir = join(projectRoot, 'dist-electron/main/scripts');
-  
-  // Ensure the output directory exists
-  mkdirSync(distDir, { recursive: true });
-  
+  const projectRoot = join(__dirname, "../../../");
+  const distDir = targetPath || join(projectRoot, "dist-electron/main/scripts");
+
+  // Check if we need to build
+  const sourcePath = join(scriptsDir, "hintDetector.ts");
+  let outputPath;
+
+  if (targetPath) {
+    // When target path is provided, check against the target output
+    outputPath = join(distDir, "hintDetector.js");
+  } else {
+    // Otherwise check against the local output
+    outputPath = join(scriptsDir, "hintDetector.js");
+  }
+
+  const shouldBuild =
+    !existsSync(outputPath) ||
+    (existsSync(sourcePath) &&
+      existsSync(outputPath) &&
+      statSync(sourcePath).mtime > statSync(outputPath).mtime);
+
+  if (!shouldBuild) {
+    console.log("hintDetector.js is up to date, skipping build");
+    return;
+  }
+
+  // Ensure the output directory exists if a target path is provided
+  if (targetPath) {
+    mkdirSync(distDir, { recursive: true });
+  }
+
   try {
+    // Get css-selector-generator version from imported package.json
+    const cssSelectorVersion = pkg.devDependencies["css-selector-generator"];
+
+    if (!cssSelectorVersion) {
+      throw new Error(
+        "css-selector-generator not found in package.json devDependencies"
+      );
+    }
+
+    // Extract version number (remove ^ or ~ if present)
+    const versionMatch = cssSelectorVersion.match(/[\d.]+/);
+    const version = versionMatch ? versionMatch[0] : "3.6.9";
+
+    console.log(`Using css-selector-generator version: ${version}`);
+
     // Read hintDetector.ts source
-    const hintDetectorTsPath = join(scriptsDir, 'hintDetector.ts');
+    const hintDetectorTsPath = join(scriptsDir, "hintDetector.ts");
     if (!existsSync(hintDetectorTsPath)) {
       throw new Error(`hintDetector.ts not found at: ${hintDetectorTsPath}`);
     }
-    
-    const hintDetectorTsCode = readFileSync(hintDetectorTsPath, 'utf-8');
-    
+
+    const hintDetectorTsCode = readFileSync(hintDetectorTsPath, "utf-8");
+
     // Compile TypeScript to JavaScript
-    console.log('Compiling TypeScript to JavaScript...');
-    let hintDetectorCode = compileTSToJS(hintDetectorTsCode, 'hintDetector.ts');
-    
-    // Read css-selector-generator from node_modules or fetch it
-    const cssSelectorPaths = [
-      join(projectRoot, 'node_modules/css-selector-generator/build/index.js'),
-      join(projectRoot, 'node_modules/css-selector-generator/dist/index.js'),
-      // Also check in devDependencies location
-      join(projectRoot, 'node_modules/.pnpm/css-selector-generator@3.6.9/node_modules/css-selector-generator/build/index.js'),
-    ];
-    
+    console.log("Compiling TypeScript to JavaScript...");
+    let hintDetectorCode = compileTSToJS(hintDetectorTsCode, "hintDetector.ts");
+
+    // Always download css-selector-generator from CDN
+    console.log("Downloading css-selector-generator from CDN...");
+
     let cssSelectorCode = null;
-    for (const path of cssSelectorPaths) {
-      if (existsSync(path)) {
-        cssSelectorCode = readFileSync(path, 'utf-8');
-        console.log(`Found css-selector-generator at: ${path}`);
-        break;
+
+    // Try jsDelivr first (usually faster and more reliable)
+    try {
+      console.log("Trying jsDelivr CDN...");
+      const jsDelivrResponse = await fetch(
+        `https://cdn.jsdelivr.net/npm/css-selector-generator@${version}/build/index.js`
+      );
+      if (jsDelivrResponse.ok) {
+        cssSelectorCode = await jsDelivrResponse.text();
+        console.log("Successfully downloaded from jsDelivr");
       }
+    } catch (jsDelivrError) {
+      console.warn("jsDelivr failed:", jsDelivrError.message);
     }
-    
+
+    // Fall back to unpkg if jsDelivr fails
     if (!cssSelectorCode) {
-      // If css-selector-generator is not in node_modules, we need to install it temporarily
-      console.log('css-selector-generator not found in node_modules, installing temporarily...');
-      
-      // Check if we're in CI/CD environment
-      const isCI = process.env.CI || process.env.GITHUB_ACTIONS;
-      
       try {
-        // Use npm ci if in CI, otherwise npm install
-        const installCmd = isCI 
-          ? 'npm ci --include=dev'
-          : 'npm install css-selector-generator@^3.6.9 --no-save';
-          
-        execSync(installCmd, { 
-          cwd: projectRoot,
-          stdio: 'inherit'
-        });
-      } catch (installError) {
-        console.warn('Failed to install via npm, trying alternative approach...');
-        
-        // Alternative: Download the UMD build directly
-        console.log('Downloading css-selector-generator UMD build...');
-        const response = await fetch('https://unpkg.com/css-selector-generator@3.6.9/build/index.js');
-        if (!response.ok) {
-          throw new Error(`Failed to download css-selector-generator: ${response.statusText}`);
+        console.log("Trying unpkg CDN as fallback...");
+        const unpkgResponse = await fetch(
+          `https://unpkg.com/css-selector-generator@${version}/build/index.js`
+        );
+        if (unpkgResponse.ok) {
+          cssSelectorCode = await unpkgResponse.text();
+          console.log("Successfully downloaded from unpkg");
         }
-        cssSelectorCode = await response.text();
-      }
-      
-      // Try again after installation
-      if (!cssSelectorCode) {
-        for (const path of cssSelectorPaths) {
-          if (existsSync(path)) {
-            cssSelectorCode = readFileSync(path, 'utf-8');
-            console.log(`Found css-selector-generator at: ${path}`);
-            break;
-          }
-        }
+      } catch (unpkgError) {
+        console.warn("unpkg failed:", unpkgError.message);
       }
     }
-    
+
+    // If CDN downloads failed, try local installation as last resort
     if (!cssSelectorCode) {
-      throw new Error('Failed to find or download css-selector-generator');
+      console.log("CDN downloads failed, checking local files...");
+
+      // Define paths to check
+      const cssSelectorPaths = [
+        join(projectRoot, "node_modules/css-selector-generator/build/index.js"),
+        join(projectRoot, "node_modules/css-selector-generator/dist/index.js"),
+        join(
+          projectRoot,
+          `node_modules/.pnpm/css-selector-generator@${version}/node_modules/css-selector-generator/build/index.js`
+        ),
+      ];
+
+      // First check if files already exist locally
+      for (const path of cssSelectorPaths) {
+        if (existsSync(path)) {
+          cssSelectorCode = readFileSync(path, "utf-8");
+          console.log(`Found existing css-selector-generator at: ${path}`);
+          break;
+        }
+      }
+
+      // Only run npm install if files don't exist
+      if (!cssSelectorCode) {
+        console.log("Local files not found, running npm install...");
+
+        // Check if we're in CI/CD environment
+        const isCI = process.env.CI || process.env.GITHUB_ACTIONS;
+
+        try {
+          // Use npm ci if in CI, otherwise npm install
+          const installCmd = isCI
+            ? "npm ci --include=dev"
+            : `npm install css-selector-generator@${cssSelectorVersion} --no-save`;
+
+          execSync(installCmd, {
+            cwd: projectRoot,
+            stdio: "inherit",
+          });
+
+          // Try to find the installed package
+          for (const path of cssSelectorPaths) {
+            if (existsSync(path)) {
+              cssSelectorCode = readFileSync(path, "utf-8");
+              console.log(`Found css-selector-generator at: ${path}`);
+              break;
+            }
+          }
+        } catch (installError) {
+          console.error("Failed to install via npm:", installError.message);
+        }
+      }
     }
-    
+
+    if (!cssSelectorCode) {
+      throw new Error("Failed to find or download css-selector-generator");
+    }
+
     // Create the combined script
     const combinedScript = `
 // Combined HintDetector with CSS Selector Generator
@@ -144,24 +226,26 @@ async function buildHintDetector() {
   ${hintDetectorCode}
 })();
 `;
-    
-    // Write the combined script to both locations
-    const outputPath = join(distDir, 'hintDetector.js');
-    writeFileSync(outputPath, combinedScript);
-    
     console.log(`✓ Built hintDetector.js with css-selector-generator bundled`);
-    console.log(`  Output: ${outputPath}`);
-    
-    // Also copy to the source directory for development
-    const devPath = join(scriptsDir, 'hintDetector.js');
+
+    // Write the combined script
+    const devPath = join(scriptsDir, "hintDetector.js");
     writeFileSync(devPath, combinedScript);
-    console.log(`  Dev copy: ${devPath}`);
-    
+    console.log(`✓ Built hintDetector.js into electron folder`);
+    console.log(`  Output: ${devPath}`);
+    if (targetPath) {
+      // If target path is provided, write to both target and source directory
+      const targetOutputPath = join(distDir, "hintDetector.js");
+      writeFileSync(targetOutputPath, combinedScript);
+      console.log(`✓ Built hintDetector.js into electron-dist folder`);
+      console.log(`  Output: ${targetOutputPath}`);
+    }
   } catch (error) {
-    console.error('Error building hintDetector:', error);
+    console.error("Error building hintDetector:", error);
     process.exit(1);
   }
 }
 
-// Run the build
-buildHintDetector();
+// Run the build with optional target path from command line
+const targetPath = process.argv[2] || null;
+buildHintDetector(targetPath);
