@@ -1,4 +1,4 @@
-import { rmSync, copyFileSync, mkdirSync, existsSync } from 'node:fs'
+import { rmSync, copyFileSync, mkdirSync, existsSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
@@ -23,7 +23,7 @@ const buildHintDetectorPlugin = () => ({
     
     const shouldBuild = !existsSync(outputPath) || 
       (existsSync(sourcePath) && existsSync(outputPath) && 
-       require('fs').statSync(sourcePath).mtime > require('fs').statSync(outputPath).mtime)
+       statSync(sourcePath).mtime > statSync(outputPath).mtime)
     
     if (shouldBuild) {
       return new Promise((resolve, reject) => {
