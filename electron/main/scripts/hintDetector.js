@@ -107,18 +107,6 @@ function getAllElements(root, elements = []) {
     }
     return elements;
 }
-// Get elements within the current viewport (without shadow DOM traversal)
-function getElementsInViewport(root = document.documentElement) {
-    const elements = [];
-    const children = root.querySelectorAll("*");
-    // Use existing isVisible function with viewport check enabled
-    for (const element of Array.from(children)) {
-        if (isVisible(element, true)) {
-            elements.push(element);
-        }
-    }
-    return elements;
-}
 // Check if element is scrollable
 function isScrollableElement(element) {
     const style = window.getComputedStyle(element);
@@ -293,17 +281,6 @@ function isInteractable(element) {
 function getLinkText(element) {
     const tagName = element.tagName.toLowerCase();
     let linkText = "";
-    const MAX_TEXT_LENGTH = 1024;
-    // Early return for custom elements with complex shadow DOM
-    if (element.tagName.includes("-") && element.children.length > 10) {
-        // For complex custom elements, try to get meaningful attributes instead
-        linkText =
-            element.getAttribute("post-title") ||
-                element.getAttribute("title") ||
-                element.getAttribute("aria-label") ||
-                `[${element.tagName}]`;
-        return linkText.slice(0, MAX_TEXT_LENGTH).trim();
-    }
     if (isHTMLInputElement(element)) {
         if (element.labels && element.labels.length > 0) {
             linkText = element.labels[0].textContent?.trim() || "";
@@ -318,40 +295,22 @@ function getLinkText(element) {
             linkText = element.value || element.placeholder || "";
         }
     }
-    else if (tagName === "a") {
-        // For links, prefer title or aria-label over textContent
-        linkText =
-            element.getAttribute("title") || element.getAttribute("aria-label") || "";
-        if (!linkText) {
-            // Only get first text node to avoid deep traversal
-            const firstTextNode = Array.from(element.childNodes).find((node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim());
-            linkText = firstTextNode?.textContent?.trim() || "";
+    else if (tagName === "a" && !element.textContent?.trim()) {
+        const img = element.querySelector("img");
+        if (img) {
+            linkText = img.alt || img.title || "";
         }
-        if (!linkText) {
-            const img = element.querySelector("img");
-            if (img) {
-                linkText = img.alt || img.title || "";
-            }
-        }
+    }
+    else if (element.textContent) {
+        linkText = element.textContent.slice(0, 256);
     }
     else if (element.hasAttribute("title")) {
         linkText = element.getAttribute("title") || "";
     }
-    else if (element.hasAttribute("aria-label")) {
-        linkText = element.getAttribute("aria-label") || "";
-    }
     else {
-        // For other elements, only get immediate text nodes, not deep text content
-        const textNodes = Array.from(element.childNodes)
-            .filter((node) => node.nodeType === Node.TEXT_NODE)
-            .map((node) => node.textContent?.trim())
-            .filter((text) => text);
-        linkText = textNodes.join(" ").slice(0, MAX_TEXT_LENGTH);
-        if (!linkText) {
-            linkText = `[${tagName}]`;
-        }
+        linkText = element.innerHTML.slice(0, 256);
     }
-    return linkText.trim().slice(0, MAX_TEXT_LENGTH);
+    return linkText.trim();
 }
 // Helper function to compare rectangles
 function areRectsEqual(rect1, rect2, includeSize = false) {
@@ -417,20 +376,6 @@ function getXPath(element) {
 function dispatchInputEvents(element) {
     element.dispatchEvent(new Event("input", { bubbles: true }));
     element.dispatchEvent(new Event("change", { bubbles: true }));
-}
-// Safe wrapper for CSS selector generation
-function generateCssSelector(element) {
-    try {
-        if (typeof getCssSelector === "function") {
-            return getCssSelector(element);
-        }
-    }
-    catch (error) {
-        console.warn("[HintDetector] Failed to generate CSS selector:", error);
-    }
-    // Return empty string if CSS selector generation fails
-    // XPath will be used as the primary identifier
-    return "";
 }
 // Create hint marker overlay container
 function createHintContainer() {
@@ -501,36 +446,16 @@ function determineElementType(hint) {
 // Main hint detection function
 function detectHints(viewportOnly = true) {
     const hints = [];
-    // Use viewport-optimized method by default, only use getAllElements as nuclear option
-    const elements = viewportOnly
-        ? getElementsInViewport()
-        : getAllElements(document.documentElement);
-    console.log(`[HintDetector] Using ${viewportOnly ? "viewport-only" : "full page"} mode, found ${elements.length} elements`);
+    const allElements = getAllElements(document.documentElement);
     // First pass: collect all hints
-    elements.forEach((element, index) => {
-        // Log each element's full HTML
-        console.log(`[HintDetector] Processing element ${index + 1}/${elements.length}:`, element.outerHTML || element);
-        // Log memory usage if available
-        if (performance.memory) {
-            const memInfo = performance.memory;
-            console.log(`[HintDetector] Memory usage: ${Math.round(memInfo.usedJSHeapSize / 1024 / 1024)}MB / Total ${Math.round(memInfo.totalJSHeapSize / 1024 / 1024)}MB`);
-        }
-        // Since getElementsInViewport already filtered by visibility when viewportOnly=true,
-        // we can skip the visibility check in that case for performance
-        if (!viewportOnly && !isVisible(element, viewportOnly))
+    allElements.forEach((element) => {
+        if (!isVisible(element, viewportOnly))
             return;
         const interactInfo = isInteractable(element);
         if (!interactInfo.clickable)
             return;
         const rect = element.getBoundingClientRect();
-        let linkText = "";
-        try {
-            linkText = getLinkText(element);
-        }
-        catch (error) {
-            console.error(`[HintDetector] Error getting text for element ${index}:`, error);
-            linkText = "[Error getting text]";
-        }
+        const linkText = getLinkText(element);
         // Handle image maps
         if (isHTMLImageElement(element)) {
             const mapName = element.getAttribute("usemap");
@@ -555,7 +480,6 @@ function detectHints(viewportOnly = true) {
                                 href: area.href || null,
                                 reason: interactInfo.reason,
                                 xpath: getXPath(area),
-                                selector: generateCssSelector(area),
                                 possibleFalsePositive: false,
                                 secondClassCitizen: false,
                             });
@@ -579,7 +503,6 @@ function detectHints(viewportOnly = true) {
             href: element.href || null,
             reason: interactInfo.reason,
             xpath: getXPath(element),
-            selector: generateCssSelector(element),
             possibleFalsePositive: interactInfo.possibleFalsePositive,
             secondClassCitizen: interactInfo.secondClassCitizen,
         });
@@ -592,13 +515,13 @@ function detectHints(viewportOnly = true) {
         const lookbackWindow = 6;
         const start = Math.max(0, index - lookbackWindow);
         for (let i = start; i < index; i++) {
-            const candidateElement = findElementByRect(elements, hints[i].rect);
+            const candidateElement = findElementByRect(allElements, hints[i].rect);
             if (candidateElement) {
                 let candidateDescendant = candidateElement;
                 // Check up to 3 levels of ancestry
                 for (let j = 0; j < 3; j++) {
                     candidateDescendant = candidateDescendant?.parentElement || null;
-                    const currentElement = findElementByRect(elements, hint.rect);
+                    const currentElement = findElementByRect(allElements, hint.rect);
                     if (candidateDescendant === currentElement) {
                         return false; // This is a false positive
                     }
@@ -611,7 +534,7 @@ function detectHints(viewportOnly = true) {
     const labelledElements = new Set();
     const deduplicatedHints = filteredHints.filter((hint) => {
         if (hint.tagName === "label") {
-            const element = findElementByRect(elements, hint.rect);
+            const element = findElementByRect(allElements, hint.rect);
             if (element && isHTMLLabelElement(element) && element.control) {
                 const controlId = element.control.id || String(element.control);
                 if (labelledElements.has(controlId)) {
@@ -700,12 +623,8 @@ function getInteractableElements(viewportOnly = true) {
         console.log(`[HintDetector] Returning cached elements (${cachedElements.length} items)`);
         return cachedElements;
     }
-    // Warn when using nuclear option
-    if (!viewportOnly) {
-        console.warn("[HintDetector] WARNING: Using full page scan mode (viewportOnly=false). This may cause memory issues on large pages with lazy loading.");
-    }
     // Generate new elements and cache them
-    console.log(`[HintDetector] Generating new elements array for AI agent (viewportOnly=${viewportOnly})`);
+    console.log("[HintDetector] Generating new elements array for AI agent");
     const hints = detectHints(viewportOnly);
     cachedElements = hints.map((hint, index) => ({
         id: index + 1,
@@ -715,7 +634,6 @@ function getInteractableElements(viewportOnly = true) {
         rect: hint.rect,
         reason: hint.reason,
         xpath: hint.xpath,
-        selector: hint.selector || "",
     }));
     cacheViewportOnly = viewportOnly;
     console.log(`[HintDetector] Cached ${cachedElements.length} elements for AI agent`);
@@ -734,20 +652,7 @@ function getElementByHintId(id) {
     const targetElement = elements[id - 1];
     if (!targetElement)
         return null;
-    // Try CSS selector first
-    if (targetElement.selector) {
-        try {
-            const element = document.querySelector(targetElement.selector);
-            if (element) {
-                console.log(`[HintDetector] Found element ${id} using CSS selector: ${targetElement.selector}`);
-                return element;
-            }
-        }
-        catch (error) {
-            console.warn(`[HintDetector] CSS selector failed for element ${id}:`, error);
-        }
-    }
-    // Fallback to XPath
+    // Try XPath first (skip CSS selector as we don't generate real selectors)
     if (targetElement.xpath) {
         const element = evaluateXPath(targetElement.xpath);
         if (element) {
@@ -756,17 +661,14 @@ function getElementByHintId(id) {
         }
     }
     // Final fallback to rectangle comparison
-    console.log(`[HintDetector] CSS selector and XPath failed for element ${id}, falling back to rectangle comparison`);
-    // For element lookup, we need to search more broadly but still avoid full page scan if possible
-    const searchElements = cachedElements && cacheViewportOnly
-        ? getElementsInViewport()
-        : getAllElements(document.documentElement);
-    const element = findElementByRect(searchElements, targetElement.rect, true);
+    console.log(`[HintDetector] XPath failed for element ${id}, falling back to rectangle comparison`);
+    const allElements = getAllElements(document.documentElement);
+    const element = findElementByRect(allElements, targetElement.rect, true);
     if (element) {
         console.log(`[HintDetector] Found element ${id} using rectangle comparison fallback`);
         return element;
     }
-    console.warn(`[HintDetector] Failed to find element ${id} using all methods (CSS selector, XPath, and rectangle comparison)`);
+    console.warn(`[HintDetector] Failed to find element ${id} using all methods (XPath and rectangle comparison)`);
     return null;
 }
 // Click element by ID (for AI agent)
