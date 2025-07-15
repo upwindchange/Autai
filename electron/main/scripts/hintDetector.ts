@@ -161,6 +161,23 @@ function getAllElements(
   return elements;
 }
 
+// Get elements within the current viewport (without shadow DOM traversal)
+function getElementsInViewport(
+  root: Element | DocumentFragment = document.documentElement
+): Element[] {
+  const elements: Element[] = [];
+  const children = root.querySelectorAll("*");
+
+  // Use existing isVisible function with viewport check enabled
+  for (const element of Array.from(children)) {
+    if (isVisible(element, true)) {
+      elements.push(element);
+    }
+  }
+
+  return elements;
+}
+
 // Check if element is scrollable
 function isScrollableElement(element: Element): boolean {
   const style = window.getComputedStyle(element);
@@ -573,17 +590,54 @@ function determineElementType(hint: HintItem): string {
 // Main hint detection function
 function detectHints(viewportOnly = true): HintItem[] {
   const hints: HintItem[] = [];
-  const allElements = getAllElements(document.documentElement);
+
+  // Use viewport-optimized method by default, only use getAllElements as nuclear option
+  const elements = viewportOnly
+    ? getElementsInViewport()
+    : getAllElements(document.documentElement);
+
+  console.log(
+    `[HintDetector] Using ${
+      viewportOnly ? "viewport-only" : "full page"
+    } mode, found ${elements.length} elements`
+  );
 
   // First pass: collect all hints
-  allElements.forEach((element) => {
-    if (!isVisible(element, viewportOnly)) return;
+  elements.forEach((element, index) => {
+    // Log each element's full HTML
+    console.log(
+      `[HintDetector] Processing element ${index + 1}/${elements.length}:`,
+      element.outerHTML || element
+    );
+
+    // Log memory usage if available
+    if ((performance as any).memory) {
+      const memInfo = (performance as any).memory;
+      console.log(
+        `[HintDetector] Memory usage: ${Math.round(
+          memInfo.usedJSHeapSize / 1024 / 1024
+        )}MB / Total ${Math.round(memInfo.totalJSHeapSize / 1024 / 1024)}MB`
+      );
+    }
+
+    // Since getElementsInViewport already filtered by visibility when viewportOnly=true,
+    // we can skip the visibility check in that case for performance
+    if (!viewportOnly && !isVisible(element, viewportOnly)) return;
 
     const interactInfo = isInteractable(element);
     if (!interactInfo.clickable) return;
 
     const rect = element.getBoundingClientRect();
-    const linkText = getLinkText(element);
+    let linkText = "";
+    try {
+      linkText = getLinkText(element);
+    } catch (error) {
+      console.error(
+        `[HintDetector] Error getting text for element ${index}:`,
+        error
+      );
+      linkText = "[Error getting text]";
+    }
 
     // Handle image maps
     if (isHTMLImageElement(element)) {
@@ -651,14 +705,14 @@ function detectHints(viewportOnly = true): HintItem[] {
     const start = Math.max(0, index - lookbackWindow);
 
     for (let i = start; i < index; i++) {
-      const candidateElement = findElementByRect(allElements, hints[i].rect);
+      const candidateElement = findElementByRect(elements, hints[i].rect);
 
       if (candidateElement) {
         let candidateDescendant: Element | null = candidateElement;
         // Check up to 3 levels of ancestry
         for (let j = 0; j < 3; j++) {
           candidateDescendant = candidateDescendant?.parentElement || null;
-          const currentElement = findElementByRect(allElements, hint.rect);
+          const currentElement = findElementByRect(elements, hint.rect);
           if (candidateDescendant === currentElement) {
             return false; // This is a false positive
           }
@@ -673,7 +727,7 @@ function detectHints(viewportOnly = true): HintItem[] {
   const labelledElements = new Set<string>();
   const deduplicatedHints = filteredHints.filter((hint) => {
     if (hint.tagName === "label") {
-      const element = findElementByRect(allElements, hint.rect);
+      const element = findElementByRect(elements, hint.rect);
 
       if (element && isHTMLLabelElement(element) && element.control) {
         const controlId = element.control.id || String(element.control);
@@ -797,8 +851,17 @@ function getInteractableElements(viewportOnly = true): InteractableElement[] {
     return cachedElements;
   }
 
+  // Warn when using nuclear option
+  if (!viewportOnly) {
+    console.warn(
+      "[HintDetector] WARNING: Using full page scan mode (viewportOnly=false). This may cause memory issues on large pages with lazy loading."
+    );
+  }
+
   // Generate new elements and cache them
-  console.log("[HintDetector] Generating new elements array for AI agent");
+  console.log(
+    `[HintDetector] Generating new elements array for AI agent (viewportOnly=${viewportOnly})`
+  );
   const hints = detectHints(viewportOnly);
   cachedElements = hints.map((hint, index) => ({
     id: index + 1,
@@ -867,8 +930,12 @@ function getElementByHintId(id: number): Element | null {
   console.log(
     `[HintDetector] CSS selector and XPath failed for element ${id}, falling back to rectangle comparison`
   );
-  const allElements = getAllElements(document.documentElement);
-  const element = findElementByRect(allElements, targetElement.rect, true);
+  // For element lookup, we need to search more broadly but still avoid full page scan if possible
+  const searchElements =
+    cachedElements && cacheViewportOnly
+      ? getElementsInViewport()
+      : getAllElements(document.documentElement);
+  const element = findElementByRect(searchElements, targetElement.rect, true);
   if (element) {
     console.log(
       `[HintDetector] Found element ${id} using rectangle comparison fallback`
