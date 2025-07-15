@@ -19,7 +19,6 @@
 // TypeScript implementation of hint detection for browser automation
 // Based on Vimium-C and Vimium hint detection algorithms
 // Constants
-const SAFE_ALL_SELECTOR = ":not(form)";
 const HINT_CONTAINER_ID = "autai-hint-container";
 const ANGULAR_CLICK_ATTRIBUTES = [
     "ng-click",
@@ -55,7 +54,7 @@ function isHTMLSelectElement(el) {
 function isHTMLDetailsElement(el) {
     return el.tagName.toLowerCase() === "details";
 }
-function isHTMLAreaElement(el) {
+function _isHTMLAreaElement(el) {
     return el.tagName.toLowerCase() === "area";
 }
 function isHTMLImageElement(el) {
@@ -165,11 +164,12 @@ function isInteractable(element) {
         case "button":
             clickable = !element.disabled;
             break;
-        case "textarea":
+        case "textarea": {
             const textarea = element;
             clickable = !textarea.disabled && !textarea.readOnly;
             break;
-        case "input":
+        }
+        case "input": {
             const input = element;
             clickable =
                 input.type !== "hidden" &&
@@ -177,14 +177,16 @@ function isInteractable(element) {
                     !(input.readOnly &&
                         ["text", "search", "email", "url", "tel", "password"].includes(input.type));
             break;
+        }
         case "select":
             clickable = !element.disabled;
             break;
-        case "label":
+        case "label": {
             const label = element;
             clickable =
                 label.control != null && !label.control.disabled;
             break;
+        }
         case "img":
             clickable = ["zoom-in", "zoom-out"].includes(style.cursor);
             break;
@@ -534,7 +536,7 @@ function detectHints(viewportOnly = true) {
                 let candidateDescendant = candidateElement;
                 // Check up to 3 levels of ancestry
                 for (let j = 0; j < 3; j++) {
-                    candidateDescendant = candidateDescendant?.parentElement;
+                    candidateDescendant = candidateDescendant?.parentElement || null;
                     const currentElement = findElementByRect(allElements, hint.rect);
                     if (candidateDescendant === currentElement) {
                         return false; // This is a false positive
@@ -715,7 +717,9 @@ function typeTextById(id, text) {
     const element = getElementByHintId(id);
     if (!element)
         return { success: false, error: "Element not found" };
-    element.focus();
+    if (element instanceof HTMLElement) {
+        element.focus();
+    }
     // Handle different input types
     if ("value" in element) {
         element.value = "";
