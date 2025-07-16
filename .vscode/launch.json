@@ -50,5 +50,24 @@
         "http://127.0.0.1:7777/**"
       ]
     },
+    {
+      "name": "Debug BrowserActionService Test",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron",
+      "windows": {
+        "runtimeExecutable": "${workspaceRoot}/node_modules/.bin/electron.cmd"
+      },
+      "runtimeArgs": [
+        "--no-sandbox",
+        "${workspaceRoot}/dist-electron/main/services/test-browser-action-integration.js"
+      ],
+      "preLaunchTask": "npm: build",
+      "console": "integratedTerminal",
+      "sourceMaps": true,
+      "outFiles": [
+        "${workspaceRoot}/dist-electron/**/*.js"
+      ]
+    }
   ]
 }

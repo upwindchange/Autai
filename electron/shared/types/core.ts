@@ -7,17 +7,13 @@ export interface Page {
   url: string;
   title: string;
   favicon: string;
-  createdAt: number;
-  lastVisited: number;
 }
 
 export interface Task {
   id: string;
   title: string;
-  pages: Map<string, Page>;  // pageId -> Page
+  pages: Map<string, Page>; // pageId -> Page
   activePageId: string | null;
-  createdAt: number;
-  updatedAt: number;
 }
 
 export interface View {
@@ -30,7 +26,7 @@ export interface Agent {
   id: string;
   taskId: string;
   processId: number;
-  status: 'idle' | 'processing' | 'error' | 'terminated';
+  status: "idle" | "processing" | "error" | "terminated";
   createdAt: number;
 }
 

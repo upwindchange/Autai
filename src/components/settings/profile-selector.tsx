@@ -23,7 +23,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useSettings } from "./settings-context";
-import { AISettings } from "./types";
+import type { AISettings } from "../../../electron/shared/types/settings";
 
 export function ProfileSelector() {
   const {

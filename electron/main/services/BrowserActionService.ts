@@ -255,14 +255,14 @@ export class BrowserActionService {
         "getElementTextContent",
         elementId
       );
-      return { success: true, extractedContent: result.data || "" };
+      return { success: true, extractedContent: String(result.data || "") };
     } else {
       const result = await this.webViewService.executeScript(
         taskId,
         pageId,
         "document.body.innerText"
       );
-      return { success: true, extractedContent: result.data || "" };
+      return { success: true, extractedContent: String(result.data || "") };
     }
   }
 

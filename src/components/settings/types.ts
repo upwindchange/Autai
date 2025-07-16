@@ -1,31 +1,4 @@
-/**
- * Configuration for AI model connection
- */
-export interface AISettings {
-  apiUrl: string;
-  apiKey: string;
-  complexModel: string;
-  simpleModel: string;
-}
-
-/**
- * Individual settings profile that can be switched between
- */
-export interface SettingsProfile {
-  id: string;
-  name: string;
-  settings: AISettings;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-/**
- * Global settings state structure
- */
-export interface SettingsState {
-  profiles: SettingsProfile[];
-  activeProfileId: string;
-}
+import type { SettingsProfile, AISettings } from '../../../electron/shared/types/settings';
 
 /**
  * Settings context API exposed to components
