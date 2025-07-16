@@ -32,7 +32,6 @@ export class NavigationService {
       // Update page URL and last visited time
       this.stateManager.updatePage(taskId, pageId, {
         url: url,
-        lastVisited: Date.now(),
       });
 
       return { success: true, data: { url } };

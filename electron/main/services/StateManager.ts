@@ -78,8 +78,6 @@ export class StateManager {
       title,
       pages: new Map(),
       activePageId: null,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
     };
 
     this.tasks.set(taskId, task);
@@ -136,12 +134,9 @@ export class StateManager {
       url,
       title: "Loading...",
       favicon: "",
-      createdAt: Date.now(),
-      lastVisited: Date.now(),
     };
 
     task.pages.set(pageId, page);
-    task.updatedAt = Date.now();
 
     // Set as active if it's the first page
     if (task.pages.size === 1) {
@@ -170,7 +165,6 @@ export class StateManager {
     }
 
     task.pages.delete(pageId);
-    task.updatedAt = Date.now();
 
     // Update active page if needed
     if (task.activePageId === pageId) {
@@ -187,7 +181,6 @@ export class StateManager {
     if (!page || !task) return;
 
     Object.assign(page, updates);
-    task.updatedAt = Date.now();
 
     this.emit({ type: "PAGE_UPDATED", taskId, pageId, updates });
   }
@@ -270,10 +263,7 @@ export class StateManager {
     // Convert Maps to plain objects for serialization
     const tasksObj: Record<string, Task> = {};
     this.tasks.forEach((task, id) => {
-      tasksObj[id] = {
-        ...task,
-        pages: task.pages,
-      };
+      tasksObj[id] = task;
     });
 
     return {
