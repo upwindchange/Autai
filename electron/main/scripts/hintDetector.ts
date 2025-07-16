@@ -21,15 +21,6 @@ interface HintItem {
   secondClassCitizen?: boolean;
 }
 
-interface InteractableElement {
-  id: number;
-  type: string;
-  text: string;
-  href: string | null;
-  rect: Rect;
-  reason: string | null;
-  xpath: string | null;
-}
 
 interface InteractabilityInfo {
   clickable: boolean;
@@ -70,6 +61,10 @@ const CLICKABLE_ROLES = [
   "radio",
 ];
 
+// Cache for persistent hints across AI interactions
+let cachedHints: HintItem[] | null = null;
+let cacheViewportOnly: boolean | null = null;
+
 // Type guards
 function isHTMLInputElement(el: Element): el is HTMLInputElement {
   return el.tagName.toLowerCase() === "input";
@@ -101,13 +96,21 @@ function isHTMLLabelElement(el: Element): el is HTMLLabelElement {
 
 // Helper functions
 function isVisible(element: Element, checkViewport = true): boolean {
-  const rect = element.getBoundingClientRect();
-  const style = window.getComputedStyle(element);
+  // Quick checks before expensive operations
+  if (element.tagName !== "BODY") {
+    return false; // Element is likely hidden
+  }
 
-  // Check if element has dimensions and is not hidden by CSS
+  const rect = element.getBoundingClientRect();
+
+  // Check if element has dimensions
+  if (rect.width <= 0 || rect.height <= 0) {
+    return false;
+  }
+
+  // Only check computed style if needed
+  const style = window.getComputedStyle(element);
   if (
-    rect.width <= 0 ||
-    rect.height <= 0 ||
     style.visibility === "hidden" ||
     style.display === "none" ||
     parseFloat(style.opacity) <= 0
@@ -140,16 +143,18 @@ function isVisible(element: Element, checkViewport = true): boolean {
   return false;
 }
 
-// Get all elements including shadow DOM
+// Get all elements including shadow DOM with depth limit
 function getAllElements(
   root: Element | DocumentFragment,
-  elements: Element[] = []
+  elements: Element[] = [],
+  depth: number = 0,
+  maxDepth: number = 5 // Limit shadow DOM recursion
 ): Element[] {
   const children = root.querySelectorAll("*");
   for (const element of Array.from(children)) {
     elements.push(element);
-    if (element.shadowRoot) {
-      getAllElements(element.shadowRoot, elements);
+    if (element.shadowRoot && depth < maxDepth) {
+      getAllElements(element.shadowRoot, elements, depth + 1, maxDepth);
     }
   }
   return elements;
@@ -485,7 +490,6 @@ function dispatchInputEvents(element: Element): void {
   element.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
-
 // Create hint marker overlay container
 function createHintContainer(): HTMLDivElement {
   let container = document.getElementById(HINT_CONTAINER_ID) as HTMLDivElement;
@@ -538,30 +542,25 @@ function executeClickAction(element: Element): void {
   }
 }
 
-// Determine element type for AI understanding
-function determineElementType(hint: HintItem): string {
-  if (hint.href && hint.tagName === "a") return "link";
-  if (hint.tagName === "button") return "button";
-  if (hint.tagName === "input") return "input";
-  if (hint.tagName === "select") return "select";
-  if (hint.tagName === "textarea") return "textarea";
-  if (hint.reason === "Scroll") return "scrollable";
-  if (hint.reason === "Frame") return "frame";
-  if (hint.reason === "Open/Close") return "details";
-  return "interactive";
-}
 
 // Main hint detection function
 function detectHints(viewportOnly = true): HintItem[] {
   const hints: HintItem[] = [];
+  const startTime = performance.now();
   const allElements = getAllElements(document.documentElement);
 
-  // First pass: collect all hints
-  allElements.forEach((element) => {
-    if (!isVisible(element, viewportOnly)) return;
+  console.log(
+    `[HintDetector] Collected ${allElements.length} elements in ${
+      performance.now() - startTime
+    }ms`
+  );
+
+  // First pass: collect all hints with early exit
+  for (const element of allElements) {
+    if (!isVisible(element, viewportOnly)) continue;
 
     const interactInfo = isInteractable(element);
-    if (!interactInfo.clickable) return;
+    if (!interactInfo.clickable) continue;
 
     const rect = element.getBoundingClientRect();
     const linkText = getLinkText(element);
@@ -597,7 +596,7 @@ function detectHints(viewportOnly = true): HintItem[] {
               });
             }
           }
-          return; // Skip the image itself
+          continue; // Skip the image itself
         }
       }
     }
@@ -619,7 +618,7 @@ function detectHints(viewportOnly = true): HintItem[] {
       possibleFalsePositive: interactInfo.possibleFalsePositive,
       secondClassCitizen: interactInfo.secondClassCitizen,
     });
-  });
+  }
 
   // Filter out false positives and duplicates
   const filteredHints = hints.filter((hint, index) => {
@@ -683,18 +682,24 @@ function showHints(): void {
   clearHints();
   const container = createHintContainer();
 
-  // Use cached elements if available, otherwise generate new ones
-  if (!cachedElements || cacheViewportOnly !== true) {
+  // Use cached hints if available, otherwise generate new ones
+  if (!cachedHints || cacheViewportOnly !== true) {
     console.log(
-      "[HintDetector] No cached elements for viewport, generating new hints"
+      "[HintDetector] No cached hints for viewport, generating new hints"
     );
     getInteractableElements(true); // This will populate the cache
   }
 
-  // Filter cached elements to only show those in viewport
-  const visibleElements = cachedElements!.filter((element) => {
-    // Check if element is in viewport
-    const rect = element.rect;
+  // Don't proceed if no cached hints
+  if (!cachedHints || cachedHints.length === 0) {
+    console.log("[HintDetector] No hints to show");
+    return;
+  }
+
+  // Filter cached hints to only show those in viewport
+  const visibleHints = cachedHints!.filter((hint) => {
+    // Check if hint is in viewport
+    const rect = hint.rect;
     return !(
       rect.bottom <= 0 ||
       rect.top >= window.innerHeight ||
@@ -704,19 +709,21 @@ function showHints(): void {
   });
 
   console.log(
-    `[HintDetector] Showing ${visibleElements.length} hints from ${
-      cachedElements!.length
-    } cached elements`
+    `[HintDetector] Showing ${visibleHints.length} hints from ${
+      cachedHints!.length
+    } cached hints`
   );
 
-  visibleElements.forEach((element, visibleIndex) => {
+  visibleHints.forEach((hint, visibleIndex) => {
+    // Find the actual index in the full cached hints array
+    const actualIndex = cachedHints!.indexOf(hint);
     const marker = document.createElement("div") as MarkerElement;
-    const hintLabel = String(visibleIndex); // Use the persistent ID
+    const hintLabel = String(actualIndex); // Use the actual index as ID
 
     marker.style.cssText = `
       position: fixed !important;
-      left: ${element.rect.left}px !important;
-      top: ${element.rect.top}px !important;
+      left: ${hint.rect.left}px !important;
+      top: ${hint.rect.top}px !important;
       background: linear-gradient(to bottom, #FFF785 0%, #FFC542 100%) !important;
       border: 1px solid #C38A22 !important;
       border-radius: 3px !important;
@@ -735,22 +742,22 @@ function showHints(): void {
     `;
 
     marker.textContent = hintLabel;
-    marker.title = element.reason || element.text || element.href || "";
+    marker.title = hint.reason || hint.linkText || hint.href || "";
 
     // Store hint data on the marker for click handling
-    marker.dataset.hintIndex = String(element.id);
-    marker.dataset.hintXpath = element.xpath || "";
+    marker.dataset.hintIndex = String(actualIndex);
+    marker.dataset.hintXpath = hint.xpath || "";
 
     // Add click handler to the marker
     marker.addEventListener("click", (e) => {
       e.preventDefault();
       e.stopPropagation();
-      const elementId = parseInt(marker.dataset.hintIndex);
+      const hintIndex = parseInt(marker.dataset.hintIndex);
 
-      console.log(`[HintDetector] Marker clicked for element ID ${elementId}`);
+      console.log(`[HintDetector] Marker clicked for hint index ${hintIndex}`);
 
       // Use the existing clickElementById function which handles all the fallback logic
-      clickElementById(elementId);
+      clickElementById(hintIndex);
     });
 
     container.appendChild(marker);
@@ -762,62 +769,50 @@ function hideHints(): void {
   clearHints();
 }
 
-// Cache for persistent elements across AI interactions
-let cachedElements: InteractableElement[] | null = null;
-let cacheViewportOnly: boolean | null = null;
-
 // Get structured data for AI agent
-function getInteractableElements(viewportOnly = true): InteractableElement[] {
-  // Return cached elements if available and viewport setting matches
-  if (cachedElements && cacheViewportOnly === viewportOnly) {
+function getInteractableElements(viewportOnly = true): HintItem[] {
+  // Return cached hints if available and viewport setting matches
+  if (cachedHints && cacheViewportOnly === viewportOnly) {
     console.log(
-      `[HintDetector] Returning cached elements (${cachedElements.length} items)`
+      `[HintDetector] Returning cached hints (${cachedHints.length} items)`
     );
-    return cachedElements;
+    return cachedHints;
   }
 
-  // Generate new elements and cache them
-  console.log("[HintDetector] Generating new elements array for AI agent");
+  // Generate new hints and cache them
+  console.log("[HintDetector] Generating new hints array for AI agent");
   const hints = detectHints(viewportOnly);
-  cachedElements = hints.map((hint, index) => ({
-    id: index + 1,
-    type: determineElementType(hint),
-    text: hint.linkText,
-    href: hint.href,
-    rect: hint.rect,
-    reason: hint.reason,
-    xpath: hint.xpath,
-  }));
+  cachedHints = hints;
   cacheViewportOnly = viewportOnly;
 
   console.log(
-    `[HintDetector] Cached ${cachedElements.length} elements for AI agent`
+    `[HintDetector] Cached ${cachedHints.length} hints for AI agent`
   );
-  return cachedElements;
+  return cachedHints;
 }
 
-// Explicitly refresh the cached elements (called by AI agent when needed)
+// Explicitly refresh the cached hints (called by AI agent when needed)
 function refreshInteractableElements(
   viewportOnly = true
-): InteractableElement[] {
-  console.log("[HintDetector] Explicitly refreshing cached elements");
-  cachedElements = null;
+): HintItem[] {
+  console.log("[HintDetector] Explicitly refreshing cached hints");
+  cachedHints = null;
   cacheViewportOnly = null;
   return getInteractableElements(viewportOnly);
 }
 
-// Get DOM element by hint ID
+// Get DOM element by hint ID (ID is the index in the hints array)
 function getElementByHintId(id: number): Element | null {
-  const elements = getInteractableElements(false);
-  const targetElement = elements[id - 1];
-  if (!targetElement) return null;
+  const hints = getInteractableElements(false);
+  const targetHint = hints[id]; // Direct array index access
+  if (!targetHint) return null;
 
-  // Try XPath first (skip CSS selector as we don't generate real selectors)
-  if (targetElement.xpath) {
-    const element = evaluateXPath(targetElement.xpath);
+  // Try XPath first
+  if (targetHint.xpath) {
+    const element = evaluateXPath(targetHint.xpath);
     if (element) {
       console.log(
-        `[HintDetector] Found element ${id} using XPath: ${targetElement.xpath}`
+        `[HintDetector] Found element at index ${id} using XPath: ${targetHint.xpath}`
       );
       return element;
     }
@@ -825,34 +820,34 @@ function getElementByHintId(id: number): Element | null {
 
   // Final fallback to rectangle comparison
   console.log(
-    `[HintDetector] XPath failed for element ${id}, falling back to rectangle comparison`
+    `[HintDetector] XPath failed for element at index ${id}, falling back to rectangle comparison`
   );
   const allElements = getAllElements(document.documentElement);
-  const element = findElementByRect(allElements, targetElement.rect, true);
+  const element = findElementByRect(allElements, targetHint.rect, true);
   if (element) {
     console.log(
-      `[HintDetector] Found element ${id} using rectangle comparison fallback`
+      `[HintDetector] Found element at index ${id} using rectangle comparison fallback`
     );
     return element;
   }
 
   console.warn(
-    `[HintDetector] Failed to find element ${id} using all methods (XPath and rectangle comparison)`
+    `[HintDetector] Failed to find element at index ${id} using all methods (XPath and rectangle comparison)`
   );
   return null;
 }
 
-// Click element by ID (for AI agent)
+// Click element by ID (for AI agent) - ID is the index in the hints array
 function clickElementById(id: number): boolean {
   const element = getElementByHintId(id);
   if (!element) {
     console.log(
-      `[HintDetector] Failed to click element ${id}: element not found`
+      `[HintDetector] Failed to click element at index ${id}: element not found`
     );
     return false;
   }
 
-  console.log(`[HintDetector] Clicking element ${id}`);
+  console.log(`[HintDetector] Clicking element at index ${id}`);
   executeClickAction(element);
   return true;
 }
@@ -952,37 +947,20 @@ function scrollToElementById(id: number): { success: boolean; error?: string } {
   return { success: true };
 }
 
-// Performance optimization utilities
-function throttle<T extends (...args: any[]) => void>(
-  func: T,
-  delay: number
-): T {
-  let lastCall = 0;
-  let timeout: NodeJS.Timeout | undefined;
-  return ((...args: Parameters<T>) => {
-    const now = Date.now();
-    if (timeout) clearTimeout(timeout);
-    if (now - lastCall >= delay) {
-      lastCall = now;
-      func(...args);
-    } else {
-      timeout = setTimeout(() => {
-        lastCall = Date.now();
-        func(...args);
-      }, delay - (now - lastCall));
-    }
-  }) as T;
-}
+// Initialize hint detector when requested
+function initializeHintDetector(): void {
+  // Only initialize once
+  if ((window as any).hintDetectorInitialized) {
+    console.log("[HintDetector] Already initialized");
+    return;
+  }
 
-function debounce<T extends (...args: any[]) => void>(
-  func: T,
-  delay: number
-): T {
-  let timeout: NodeJS.Timeout | undefined;
-  return ((...args: Parameters<T>) => {
-    if (timeout) clearTimeout(timeout);
-    timeout = setTimeout(() => func(...args), delay);
-  }) as T;
+  console.log("[HintDetector] Initializing on demand");
+
+  // First time initialization - populate cache without showing hints
+  refreshInteractableElements(true);
+
+  (window as any).hintDetectorInitialized = true;
 }
 
 // Initialize hint detector
@@ -1001,62 +979,8 @@ function debounce<T extends (...args: any[]) => void>(
   (window as any).setElementValue = setElementValue;
   (window as any).hoverElementById = hoverElementById;
   (window as any).scrollToElementById = scrollToElementById;
+  (window as any).initializeHintDetector = initializeHintDetector;
+  (window as any).hintDetectorReady = true;
 
-  // Use requestIdleCallback for periodic updates
-  const refreshHintsIdle = () => {
-    if ("requestIdleCallback" in window) {
-      requestIdleCallback(
-        () => {
-          showHints();
-        },
-        { timeout: 2000 }
-      );
-    } else {
-      setTimeout(() => showHints(), 2000);
-    }
-  };
-
-  // Debounced refresh for mutations
-  const refreshHintsDebounced = debounce(showHints, 100);
-
-  // Throttled refresh for scroll/resize
-  const refreshHintsThrottled = throttle(showHints, 150);
-
-  // Auto-show hints when page loads and populate cache
-  setTimeout(() => {
-    console.log(
-      "[HintDetector] Initial page load - populating cache and showing hints"
-    );
-    refreshInteractableElements(true); // Populate cache with full page elements
-    showHints(); // Show visible hints
-  }, 1000);
-
-  // Use throttled refresh for scroll/resize events
-  window.addEventListener("scroll", refreshHintsThrottled, { passive: true });
-  window.addEventListener("resize", refreshHintsThrottled, { passive: true });
-
-  // Set up mutation observer for dynamic content with debounced refresh
-  const observer = new MutationObserver(() => {
-    refreshHintsDebounced();
-  });
-
-  // Start observing the document for changes
-  if (document.body) {
-    observer.observe(document.body, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-      attributeFilter: ["style", "class", "hidden"],
-    });
-  }
-
-  // Use requestIdleCallback for periodic updates
-  const periodicRefresh = () => {
-    refreshHintsIdle();
-    // Schedule next refresh
-    setTimeout(periodicRefresh, 5000);
-  };
-  setTimeout(periodicRefresh, 5000);
-
-  console.log("[HintDetector] TypeScript hint detector initialized");
+  console.log("[HintDetector] Script loaded - waiting for initialization call");
 })();

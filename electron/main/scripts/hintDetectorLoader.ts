@@ -9,11 +9,7 @@ let hintDetectorScript: string | null = null;
 export function getHintDetectorScript(): string {
   if (!hintDetectorScript) {
     // The hintDetector.js now includes css-selector-generator bundled
-    const possiblePaths = [
-      join(__dirname, "scripts/hintDetector.js"), // Production path
-      join(__dirname, "../../../electron/main/scripts/hintDetector.js"), // Development path from dist-electron
-      join(process.cwd(), "electron/main/scripts/hintDetector.js"), // Development path from project root
-    ];
+    const possiblePaths = [join(__dirname, "scripts/hintDetector.js")];
 
     let scriptPath: string | null = null;
     for (const path of possiblePaths) {
