@@ -1,10 +1,17 @@
-import { rmSync } from "node:fs";
+import {
+  rmSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  existsSync,
+  statSync,
+} from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import electron from "vite-plugin-electron/simple";
-import { spawn } from "node:child_process";
+import typescript from "typescript";
 import pkg from "./package.json";
 
 // https://vitejs.dev/config/
@@ -12,32 +19,75 @@ import pkg from "./package.json";
 const buildHintDetectorPlugin = () => ({
   name: "build-hint-detector",
   async buildStart() {
-    // Build hintDetector.ts directly to dist-electron directory
-    console.log("Building hintDetector.ts...");
+    console.log("Building hintDetector.js...");
 
-    const buildScriptPath = path.join(
-      __dirname,
-      "electron/main/scripts/buildHintDetector.js"
-    );
+    const scriptsDir = path.join(__dirname, "electron/main/scripts");
+    const distDir = path.join(__dirname, "dist-electron/main/scripts");
+    mkdirSync(distDir, { recursive: true });
 
-    return new Promise((resolve, reject) => {
-      const child = spawn("node", [buildScriptPath], {
-        stdio: "inherit",
-        shell: true,
+    // Check if we need to build
+    const sourcePath = path.join(scriptsDir, "hintDetector.ts");
+    const outputPath = path.join(distDir, "hintDetector.js");
+
+    const shouldBuild =
+      !existsSync(outputPath) ||
+      (existsSync(sourcePath) &&
+        existsSync(outputPath) &&
+        statSync(sourcePath).mtime > statSync(outputPath).mtime);
+
+    if (!shouldBuild) {
+      console.log("hintDetector.js is up to date, skipping build");
+      return;
+    }
+
+    try {
+      // Read hintDetector.ts source
+      if (!existsSync(sourcePath)) {
+        throw new Error(`hintDetector.ts not found at: ${sourcePath}`);
+      }
+
+      const hintDetectorTsCode = readFileSync(sourcePath, "utf-8");
+
+      // Compile TypeScript to JavaScript
+      console.log("Compiling TypeScript to JavaScript...");
+      const compilerOptions: typescript.CompilerOptions = {
+        module: typescript.ModuleKind.None,
+        target: typescript.ScriptTarget.ES2020,
+        lib: ["es2020", "dom"],
+        strict: true,
+        skipLibCheck: true,
+        esModuleInterop: false,
+        allowSyntheticDefaultImports: true,
+        forceConsistentCasingInFileNames: true,
+        removeComments: false,
+        sourceMap: false,
+        declaration: false,
+      };
+
+      const result = typescript.transpileModule(hintDetectorTsCode, {
+        compilerOptions,
+        fileName: "hintDetector.ts",
       });
 
-      child.on("close", (code) => {
-        if (code !== 0) {
-          reject(new Error(`buildHintDetector.js exited with code ${code}`));
-        } else {
-          resolve();
-        }
-      });
+      if (result.diagnostics && result.diagnostics.length > 0) {
+        const diagnostics = result.diagnostics
+          .map((d) =>
+            typescript.flattenDiagnosticMessageText(d.messageText, "\n")
+          )
+          .join("\n");
+        throw new Error(`TypeScript compilation errors:\n${diagnostics}`);
+      }
 
-      child.on("error", (err) => {
-        reject(err);
-      });
-    });
+      console.log(`✓ Built hintDetector.js`);
+
+      // Write the compiled script
+      writeFileSync(outputPath, result.outputText);
+      console.log(`✓ Built hintDetector.js into electron-dist folder`);
+      console.log(`  Output: ${outputPath}`);
+    } catch (error) {
+      console.error("Error building hintDetector:", error);
+      throw error;
+    }
   },
 });
 
