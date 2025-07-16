@@ -714,7 +714,7 @@ function showHints(): void {
     } cached hints`
   );
 
-  visibleHints.forEach((hint, visibleIndex) => {
+  visibleHints.forEach((hint) => {
     // Find the actual index in the full cached hints array
     const actualIndex = cachedHints!.indexOf(hint);
     const marker = document.createElement("div") as MarkerElement;
@@ -947,10 +947,30 @@ function scrollToElementById(id: number): { success: boolean; error?: string } {
   return { success: true };
 }
 
+// Define window extensions
+interface HintDetectorWindow extends Window {
+  hintDetectorInitialized?: boolean;
+  hintDetectorReady?: boolean;
+  detectHints?: typeof detectHints;
+  showHints?: typeof showHints;
+  hideHints?: typeof hideHints;
+  getInteractableElements?: typeof getInteractableElements;
+  refreshInteractableElements?: typeof refreshInteractableElements;
+  clickElementById?: typeof clickElementById;
+  getElementByHintId?: typeof getElementByHintId;
+  typeTextById?: typeof typeTextById;
+  getElementTextContent?: typeof getElementTextContent;
+  getElementValue?: typeof getElementValue;
+  setElementValue?: typeof setElementValue;
+  hoverElementById?: typeof hoverElementById;
+  scrollToElementById?: typeof scrollToElementById;
+  initializeHintDetector?: typeof initializeHintDetector;
+}
+
 // Initialize hint detector when requested
 function initializeHintDetector(): void {
   // Only initialize once
-  if ((window as any).hintDetectorInitialized) {
+  if ((window as HintDetectorWindow).hintDetectorInitialized) {
     console.log("[HintDetector] Already initialized");
     return;
   }
@@ -960,27 +980,28 @@ function initializeHintDetector(): void {
   // First time initialization - populate cache without showing hints
   refreshInteractableElements(true);
 
-  (window as any).hintDetectorInitialized = true;
+  (window as HintDetectorWindow).hintDetectorInitialized = true;
 }
 
 // Initialize hint detector
 (function () {
+  const hintWindow = window as HintDetectorWindow;
   // Make functions available globally
-  (window as any).detectHints = detectHints;
-  (window as any).showHints = showHints;
-  (window as any).hideHints = hideHints;
-  (window as any).getInteractableElements = getInteractableElements;
-  (window as any).refreshInteractableElements = refreshInteractableElements;
-  (window as any).clickElementById = clickElementById;
-  (window as any).getElementByHintId = getElementByHintId;
-  (window as any).typeTextById = typeTextById;
-  (window as any).getElementTextContent = getElementTextContent;
-  (window as any).getElementValue = getElementValue;
-  (window as any).setElementValue = setElementValue;
-  (window as any).hoverElementById = hoverElementById;
-  (window as any).scrollToElementById = scrollToElementById;
-  (window as any).initializeHintDetector = initializeHintDetector;
-  (window as any).hintDetectorReady = true;
+  hintWindow.detectHints = detectHints;
+  hintWindow.showHints = showHints;
+  hintWindow.hideHints = hideHints;
+  hintWindow.getInteractableElements = getInteractableElements;
+  hintWindow.refreshInteractableElements = refreshInteractableElements;
+  hintWindow.clickElementById = clickElementById;
+  hintWindow.getElementByHintId = getElementByHintId;
+  hintWindow.typeTextById = typeTextById;
+  hintWindow.getElementTextContent = getElementTextContent;
+  hintWindow.getElementValue = getElementValue;
+  hintWindow.setElementValue = setElementValue;
+  hintWindow.hoverElementById = hoverElementById;
+  hintWindow.scrollToElementById = scrollToElementById;
+  hintWindow.initializeHintDetector = initializeHintDetector;
+  hintWindow.hintDetectorReady = true;
 
   console.log("[HintDetector] Script loaded - waiting for initialization call");
 })();

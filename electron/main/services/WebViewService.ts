@@ -257,7 +257,7 @@ export class WebViewService {
     taskId: string,
     pageId: string,
     functionName: string,
-    ...args: any[]
+    ...args: unknown[]
   ): Promise<ActionResult> {
     const script = `window.${functionName} && window.${functionName}(${args
       .map((arg) => JSON.stringify(arg))
