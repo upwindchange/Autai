@@ -1,10 +1,11 @@
 import { BrowserWindow } from "electron";
-import { StateManager, type WebViewService } from "../services";
+import { StateManager, type WebViewService, BrowserActionService } from "../services";
 import { TaskBridge } from "./TaskBridge";
 import { ViewBridge } from "./ViewBridge";
 import { NavigationBridge } from "./NavigationBridge";
 import { SettingsBridge } from "./SettingsBridge";
 import { AgentBridge } from "./AgentBridge";
+import { BrowserActionBridge } from "./BrowserActionBridge";
 import type { StateChangeEvent } from "../../shared/types/index";
 
 /**
@@ -22,6 +23,7 @@ export class StateBridge {
   private navigationBridge: NavigationBridge;
   private settingsBridge: SettingsBridge;
   private agentBridge: AgentBridge;
+  private browserActionBridge: BrowserActionBridge;
 
   constructor(
     stateManager: StateManager,
@@ -30,6 +32,9 @@ export class StateBridge {
   ) {
     this.stateManager = stateManager;
     this.win = win;
+
+    // Initialize services
+    const browserActionService = new BrowserActionService(webViewService);
 
     // Initialize bridges
     this.taskBridge = new TaskBridge(stateManager, win);
@@ -41,6 +46,11 @@ export class StateBridge {
     );
     this.settingsBridge = new SettingsBridge(stateManager, win);
     this.agentBridge = new AgentBridge(stateManager, win);
+    this.browserActionBridge = new BrowserActionBridge(
+      stateManager,
+      browserActionService,
+      win
+    );
 
     this.setupHandlers();
     this.setupStateSync();
@@ -53,6 +63,7 @@ export class StateBridge {
     this.navigationBridge.setupHandlers();
     this.settingsBridge.setupHandlers();
     this.agentBridge.setupHandlers();
+    this.browserActionBridge.setupHandlers();
   }
 
   private setupStateSync(): void {
@@ -99,5 +110,6 @@ export class StateBridge {
     this.settingsBridge.destroy();
     this.agentBridge.cleanup(); // Also calls agentManagerService.cleanup()
     this.agentBridge.destroy();
+    this.browserActionBridge.destroy();
   }
 }
