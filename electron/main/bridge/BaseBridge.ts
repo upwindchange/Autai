@@ -1,19 +1,11 @@
-import { ipcMain, BrowserWindow, IpcMainInvokeEvent } from "electron";
-import { StateManager } from "../services";
+import { ipcMain, IpcMainInvokeEvent } from "electron";
 
 /**
  * Base class for all IPC bridge implementations.
  * Provides common functionality and patterns for handling IPC communication.
  */
 export abstract class BaseBridge {
-  protected stateManager: StateManager;
-  protected win: BrowserWindow;
   protected handlers: Map<string, string> = new Map();
-
-  constructor(stateManager: StateManager, win: BrowserWindow) {
-    this.stateManager = stateManager;
-    this.win = win;
-  }
 
   /**
    * Setup IPC handlers. Must be implemented by subclasses.
@@ -43,15 +35,6 @@ export abstract class BaseBridge {
         }
       }
     );
-  }
-
-  /**
-   * Send a message to the renderer process
-   */
-  protected send(channel: string, ...args: unknown[]): void {
-    if (!this.win.isDestroyed() && this.win.webContents) {
-      this.win.webContents.send(channel, ...args);
-    }
   }
 
   /**

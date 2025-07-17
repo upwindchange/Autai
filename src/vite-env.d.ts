@@ -122,6 +122,33 @@ declare global {
         taskId: string | null
       ): Promise<void>;
 
+      // Chat transport operations
+      invoke(
+        channel: "chat:sendMessages",
+        data: {
+          id: string;
+          messages: Array<{
+            id: string;
+            role: 'user' | 'assistant' | 'system' | 'function' | 'data' | 'tool';
+            content: string;
+            [key: string]: any;
+          }>;
+          trigger: 'submit-user-message' | 'submit-tool-result' | 'regenerate-assistant-message';
+          messageId?: string;
+          metadata?: unknown;
+          body?: Record<string, any>;
+          streamId: string;
+        }
+      ): Promise<{ success: boolean; error?: string }>;
+      invoke(
+        channel: "chat:reconnectToStream",
+        data: {
+          id: string;
+          metadata?: unknown;
+          body?: Record<string, any>;
+        }
+      ): Promise<{ hasActiveStream: boolean; streamId?: string }>;
+
       // Generic invoke (fallback)
       invoke(channel: string, ...args: unknown[]): Promise<unknown>;
 
@@ -141,6 +168,15 @@ declare global {
       on(
         channel: `ai:stream:${string}`,
         listener: (event: unknown, chunk: StreamChunk) => void
+      ): void;
+      on(
+        channel: "chat:sendMessages:response" | "chat:reconnectToStream:response",
+        listener: (event: unknown, data: {
+          streamId: string;
+          type: 'chunk' | 'error' | 'done';
+          chunk?: any;
+          error?: string;
+        }) => void
       ): void;
       on(
         channel: string,
@@ -165,6 +201,15 @@ declare global {
       off(
         channel: "task:deleted",
         listener: (event: unknown, taskId: string) => void
+      ): void;
+      off(
+        channel: "chat:sendMessages:response" | "chat:reconnectToStream:response",
+        listener: (event: unknown, data: {
+          streamId: string;
+          type: 'chunk' | 'error' | 'done';
+          chunk?: any;
+          error?: string;
+        }) => void
       ): void;
 
       // Send operations (rarely used in renderer)

@@ -6,6 +6,7 @@ import { NavigationBridge } from "./NavigationBridge";
 import { SettingsBridge } from "./SettingsBridge";
 import { AgentBridge } from "./AgentBridge";
 import { BrowserActionBridge } from "./BrowserActionBridge";
+import { ChatBridge } from "./ChatBridge";
 import type { StateChangeEvent } from "../../shared/types/index";
 
 /**
@@ -24,6 +25,7 @@ export class StateBridge {
   private settingsBridge: SettingsBridge;
   private agentBridge: AgentBridge;
   private browserActionBridge: BrowserActionBridge;
+  private chatBridge: ChatBridge;
 
   constructor(
     stateManager: StateManager,
@@ -51,6 +53,7 @@ export class StateBridge {
       browserActionService,
       win
     );
+    this.chatBridge = new ChatBridge(win);
 
     this.setupHandlers();
     this.setupStateSync();
@@ -64,6 +67,7 @@ export class StateBridge {
     this.settingsBridge.setupHandlers();
     this.agentBridge.setupHandlers();
     this.browserActionBridge.setupHandlers();
+    this.chatBridge.setupHandlers();
   }
 
   private setupStateSync(): void {
@@ -111,5 +115,6 @@ export class StateBridge {
     this.agentBridge.cleanup(); // Also calls agentManagerService.cleanup()
     this.agentBridge.destroy();
     this.browserActionBridge.destroy();
+    this.chatBridge.destroy();
   }
 }
