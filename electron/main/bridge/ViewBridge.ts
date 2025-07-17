@@ -62,26 +62,6 @@ export class ViewBridge extends BaseBridge {
         return elements || [];
       }
     );
-
-    // Click element by ID (for AI agent)
-    this.handle(
-      "app:clickElement",
-      async (
-        _event: IpcMainInvokeEvent,
-        command: { viewId: string; elementId: number; viewportOnly?: boolean }
-      ) => {
-        const webView = this.webViewService.getWebContentsViewById(
-          command.viewId
-        );
-        if (!webView) return false;
-
-        const viewportOnly = command.viewportOnly ?? true;
-        const result = await webView.webContents.executeJavaScript(
-          `window.clickElementById ? window.clickElementById(${command.elementId}, ${viewportOnly}) : false`
-        );
-        return result;
-      }
-    );
   }
 
   /**

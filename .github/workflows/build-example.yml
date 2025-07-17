@@ -1,0 +1,42 @@
+name: Build Example
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '18'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Build hintDetector.js
+      run: npm run prebuild
+      
+    - name: Build application
+      run: npm run build
+      
+    - name: Verify hintDetector.js exists
+      run: |
+        if [ -f "dist-electron/main/scripts/hintDetector.js" ]; then
+          echo "✓ hintDetector.js built successfully"
+        else
+          echo "✗ hintDetector.js not found"
+          exit 1
+        fi
+      shell: bash

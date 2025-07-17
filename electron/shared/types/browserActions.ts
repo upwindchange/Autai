@@ -1,6 +1,6 @@
 export interface ActionResult {
   success: boolean;
-  data?: any;
+  data?: unknown;
   error?: string;
   extractedContent?: string;
   screenshot?: Buffer;

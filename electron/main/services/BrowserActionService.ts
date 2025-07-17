@@ -187,6 +187,17 @@ export class BrowserActionService {
     pageId: string,
     options?: { viewportOnly?: boolean }
   ): Promise<ActionResult> {
+    // First ensure hint detector is initialized
+    const initResult = await this.webViewService.executeWindowFunction(
+      taskId,
+      pageId,
+      "initializeHintDetector"
+    );
+    
+    if (!initResult.success) {
+      console.warn("[BrowserActionService] Failed to initialize hint detector");
+    }
+    
     const viewportOnly = options?.viewportOnly ?? true;
     const result = await this.webViewService.executeWindowFunction(
       taskId,
@@ -195,6 +206,41 @@ export class BrowserActionService {
       viewportOnly
     );
     return result.success ? { success: true, data: result.data || [] } : result;
+  }
+
+  async showHints(
+    taskId: string,
+    pageId: string
+  ): Promise<ActionResult> {
+    // First ensure hint detector is initialized
+    const initResult = await this.webViewService.executeWindowFunction(
+      taskId,
+      pageId,
+      "initializeHintDetector"
+    );
+    
+    if (!initResult.success) {
+      console.warn("[BrowserActionService] Failed to initialize hint detector");
+    }
+    
+    const result = await this.webViewService.executeWindowFunction(
+      taskId,
+      pageId,
+      "showHints"
+    );
+    return result;
+  }
+  
+  async hideHints(
+    taskId: string,
+    pageId: string
+  ): Promise<ActionResult> {
+    const result = await this.webViewService.executeWindowFunction(
+      taskId,
+      pageId,
+      "hideHints"
+    );
+    return result;
   }
 
   async extractText(
@@ -209,14 +255,14 @@ export class BrowserActionService {
         "getElementTextContent",
         elementId
       );
-      return { success: true, extractedContent: result.data || "" };
+      return { success: true, extractedContent: String(result.data || "") };
     } else {
       const result = await this.webViewService.executeScript(
         taskId,
         pageId,
         "document.body.innerText"
       );
-      return { success: true, extractedContent: result.data || "" };
+      return { success: true, extractedContent: String(result.data || "") };
     }
   }
 
