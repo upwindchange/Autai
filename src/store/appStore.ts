@@ -52,11 +52,13 @@ interface AppStore {
 }
 
 // Helper to convert plain objects back to Maps
-function objectToMap<T>(obj: Record<string, T>): Map<string, T> {
+function objectToMap<T>(obj: Record<string, T> | undefined | null): Map<string, T> {
   const map = new Map<string, T>();
-  Object.entries(obj).forEach(([key, value]) => {
-    map.set(key, value);
-  });
+  if (obj && typeof obj === 'object') {
+    Object.entries(obj).forEach(([key, value]) => {
+      map.set(key, value);
+    });
+  }
   return map;
 }
 
@@ -511,7 +513,11 @@ window.ipcRenderer.on("state:change", (_event, event: StateChangeEvent) => {
 
 // Get initial state
 window.ipcRenderer.invoke("app:getState").then((state: AppState) => {
-  useAppStore.getState().syncState(state);
+  if (state) {
+    useAppStore.getState().syncState(state);
+  }
+}).catch((error) => {
+  console.error("Failed to get initial app state:", error);
 });
 
 // Set up container bounds observer

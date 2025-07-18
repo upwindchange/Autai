@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import "./App.css";
 import { SidebarLeft } from "@/components/sidebar-left";
 import { Separator } from "@/components/ui/separator";
@@ -13,6 +13,7 @@ import {
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
 import { ChatContainer } from "@/components/ai-chat";
+import { ChatExample } from "@/components/ChatExample";
 import { SettingsProvider, SettingsView } from "@/components/settings";
 import { useAppStore } from "@/store/appStore";
 
@@ -22,6 +23,7 @@ import { useAppStore } from "@/store/appStore";
 function AppContent() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const { activeTaskId, activeViewId, setContainerRef, showSettings, setShowSettings } = useAppStore();
+  const [showChatExample, setShowChatExample] = useState(false);
 
   // Get selected page URL from active task/page
   const selectedPageUrl = useAppStore((state) => {
@@ -53,9 +55,15 @@ function AppContent() {
                     orientation="vertical"
                     className="mr-2 data-[orientation=vertical]:h-4"
                   />
-                  <div>
-                    {showSettings ? "Settings" : (selectedPageUrl || "Project Management & Task Tracking")}
+                  <div className="flex-1">
+                    {showSettings ? "Settings" : showChatExample ? "AI Chat Example" : (selectedPageUrl || "Project Management & Task Tracking")}
                   </div>
+                  <button
+                    onClick={() => setShowChatExample(!showChatExample)}
+                    className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90"
+                  >
+                    {showChatExample ? "Hide" : "Show"} Chat Example
+                  </button>
                 </div>
               </header>
               <div
@@ -76,7 +84,12 @@ function AppContent() {
           maxSize={75}
           className="h-full overflow-hidden"
         >
-          <ChatContainer taskId={activeTaskId} activeViewKey={activeViewId} />
+          {/* Toggle between ChatExample and ChatContainer */}
+          {showChatExample ? (
+            <ChatExample />
+          ) : (
+            <ChatContainer taskId={activeTaskId} activeViewKey={activeViewId} />
+          )}
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>

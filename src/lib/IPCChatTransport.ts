@@ -1,7 +1,4 @@
-import { parseJsonEventStream, ParseResult } from '@ai-sdk/provider-utils';
-import { UIMessageChunk, uiMessageChunkSchema } from 'ai';
-import { ChatTransport } from 'ai/ui';
-import { UIMessage } from 'ai/ui';
+import { UIMessage, ChatTransport, UIMessageChunk } from "ai";
 
 export type IPCChatTransportOptions<UI_MESSAGE extends UIMessage> = {
   /**
@@ -25,9 +22,9 @@ export type IPCChatTransportOptions<UI_MESSAGE extends UIMessage> = {
     requestMetadata: unknown;
     body: Record<string, any> | undefined;
     trigger:
-      | 'submit-user-message'
-      | 'submit-tool-result'
-      | 'regenerate-assistant-message';
+      | "submit-user-message"
+      | "submit-tool-result"
+      | "regenerate-assistant-message";
     messageId: string | undefined;
   }) => Record<string, any> | PromiseLike<Record<string, any>>;
 
@@ -58,20 +55,22 @@ export class IPCChatTransport<UI_MESSAGE extends UIMessage>
   private reconnectChannel: string;
   private metadata?: unknown;
   private body?: Record<string, any>;
-  private prepareSendMessagesRequest?: IPCChatTransportOptions<UI_MESSAGE>['prepareSendMessagesRequest'];
-  private prepareReconnectToStreamRequest?: IPCChatTransportOptions<UI_MESSAGE>['prepareReconnectToStreamRequest'];
+  private prepareSendMessagesRequest?: IPCChatTransportOptions<UI_MESSAGE>["prepareSendMessagesRequest"];
+  private prepareReconnectToStreamRequest?: IPCChatTransportOptions<UI_MESSAGE>["prepareReconnectToStreamRequest"];
 
   constructor(options: IPCChatTransportOptions<UI_MESSAGE> = {}) {
-    this.sendChannel = options.sendChannel ?? 'chat:sendMessages';
-    this.reconnectChannel = options.reconnectChannel ?? 'chat:reconnectToStream';
+    this.sendChannel = options.sendChannel ?? "chat:sendMessages";
+    this.reconnectChannel =
+      options.reconnectChannel ?? "chat:reconnectToStream";
     this.metadata = options.metadata;
     this.body = options.body;
     this.prepareSendMessagesRequest = options.prepareSendMessagesRequest;
-    this.prepareReconnectToStreamRequest = options.prepareReconnectToStreamRequest;
+    this.prepareReconnectToStreamRequest =
+      options.prepareReconnectToStreamRequest;
   }
 
   async sendMessages(
-    options: Parameters<ChatTransport<UI_MESSAGE>['sendMessages']>[0],
+    options: Parameters<ChatTransport<UI_MESSAGE>["sendMessages"]>[0]
   ): Promise<ReadableStream<UIMessageChunk>> {
     const preparedRequest = await this.prepareSendMessagesRequest?.({
       id: options.chatId,
@@ -103,24 +102,29 @@ export class IPCChatTransport<UI_MESSAGE extends UIMessage>
           const handleChunk = (_event: any, data: any) => {
             if (data.streamId !== streamId) return;
 
-            if (data.type === 'chunk') {
+            if (data.type === "chunk") {
               try {
-                // Parse the chunk as a UIMessageChunk
-                const result = uiMessageChunkSchema.safeParse(data.chunk);
-                if (result.success) {
-                  controller.enqueue(result.data);
+                // Enqueue the chunk directly as UIMessageChunk
+                if (data.chunk) {
+                  controller.enqueue(data.chunk as UIMessageChunk);
                 } else {
-                  console.error('Invalid chunk format:', result.error);
+                  console.error("Invalid chunk format: missing chunk data");
                 }
               } catch (error) {
                 controller.error(error);
               }
-            } else if (data.type === 'error') {
+            } else if (data.type === "error") {
               controller.error(new Error(data.error));
-              window.ipcRenderer.off(`${this.sendChannel}:response`, handleChunk);
-            } else if (data.type === 'done') {
+              window.ipcRenderer.off(
+                `${this.sendChannel}:response`,
+                handleChunk
+              );
+            } else if (data.type === "done") {
               controller.close();
-              window.ipcRenderer.off(`${this.sendChannel}:response`, handleChunk);
+              window.ipcRenderer.off(
+                `${this.sendChannel}:response`,
+                handleChunk
+              );
             }
           };
 
@@ -151,7 +155,7 @@ export class IPCChatTransport<UI_MESSAGE extends UIMessage>
   }
 
   async reconnectToStream(
-    options: Parameters<ChatTransport<UI_MESSAGE>['reconnectToStream']>[0],
+    options: Parameters<ChatTransport<UI_MESSAGE>["reconnectToStream"]>[0]
   ): Promise<ReadableStream<UIMessageChunk> | null> {
     const preparedRequest = await this.prepareReconnectToStreamRequest?.({
       id: options.chatId,
@@ -169,7 +173,7 @@ export class IPCChatTransport<UI_MESSAGE extends UIMessage>
     try {
       const response = await window.ipcRenderer.invoke(
         this.reconnectChannel,
-        requestData,
+        requestData
       );
 
       if (!response.hasActiveStream) {
@@ -184,27 +188,35 @@ export class IPCChatTransport<UI_MESSAGE extends UIMessage>
           const handleChunk = (_event: any, data: any) => {
             if (data.streamId !== streamId) return;
 
-            if (data.type === 'chunk') {
+            if (data.type === "chunk") {
               try {
-                const result = uiMessageChunkSchema.safeParse(data.chunk);
-                if (result.success) {
-                  controller.enqueue(result.data);
+                if (data.chunk) {
+                  controller.enqueue(data.chunk as UIMessageChunk);
                 } else {
-                  console.error('Invalid chunk format:', result.error);
+                  console.error("Invalid chunk format: missing chunk data");
                 }
               } catch (error) {
                 controller.error(error);
               }
-            } else if (data.type === 'error') {
+            } else if (data.type === "error") {
               controller.error(new Error(data.error));
-              window.ipcRenderer.off(`${this.reconnectChannel}:response`, handleChunk);
-            } else if (data.type === 'done') {
+              window.ipcRenderer.off(
+                `${this.reconnectChannel}:response`,
+                handleChunk
+              );
+            } else if (data.type === "done") {
               controller.close();
-              window.ipcRenderer.off(`${this.reconnectChannel}:response`, handleChunk);
+              window.ipcRenderer.off(
+                `${this.reconnectChannel}:response`,
+                handleChunk
+              );
             }
           };
 
-          window.ipcRenderer.on(`${this.reconnectChannel}:response`, handleChunk);
+          window.ipcRenderer.on(
+            `${this.reconnectChannel}:response`,
+            handleChunk
+          );
         },
 
         cancel: () => {
@@ -221,8 +233,14 @@ export class IPCChatTransport<UI_MESSAGE extends UIMessage>
 declare global {
   interface Window {
     ipcRenderer: {
-      on: (channel: string, listener: (event: any, ...args: any[]) => void) => void;
-      off: (channel: string, listener: (event: any, ...args: any[]) => void) => void;
+      on: (
+        channel: string,
+        listener: (event: any, ...args: any[]) => void
+      ) => void;
+      off: (
+        channel: string,
+        listener: (event: any, ...args: any[]) => void
+      ) => void;
       invoke: (channel: string, ...args: any[]) => Promise<any>;
     };
   }

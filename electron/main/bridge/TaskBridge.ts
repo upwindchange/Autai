@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from "electron";
 import { BaseBridge } from "./BaseBridge";
-import { agentManagerService } from "../services";
+import { agentManagerService, type StateManager } from "../services";
 import type {
   CreateTaskCommand,
   DeleteTaskCommand,
@@ -13,6 +13,13 @@ import type {
  * Handles task and page-related IPC operations
  */
 export class TaskBridge extends BaseBridge {
+  protected stateManager: StateManager;
+
+  constructor(stateManager: StateManager) {
+    super();
+    this.stateManager = stateManager;
+  }
+
   setupHandlers(): void {
     // Task operations
     this.handle(

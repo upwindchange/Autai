@@ -1,26 +1,24 @@
-import { IpcMainInvokeEvent, BrowserWindow } from "electron";
+import { IpcMainInvokeEvent } from "electron";
 import { BaseBridge } from "./BaseBridge";
 import type {
   SetViewBoundsCommand,
   SetViewVisibilityCommand,
 } from "../../shared/types/index";
-import type { StateManager } from "../services/StateManager";
-import type { WebViewService } from "../services/WebViewService";
+import type { WebViewService, StateManager } from "../services";
 
 /**
  * Handles view-related IPC operations
  */
 export class ViewBridge extends BaseBridge {
   private webViewService: WebViewService;
+  private stateManager: StateManager;
 
-  constructor(
-    stateManager: StateManager,
-    webViewService: WebViewService,
-    win: BrowserWindow
-  ) {
-    super(stateManager, win);
+  constructor(stateManager: StateManager, webViewService: WebViewService) {
+    super();
+    this.stateManager = stateManager;
     this.webViewService = webViewService;
   }
+
   setupHandlers(): void {
     // View bounds
     this.handle(

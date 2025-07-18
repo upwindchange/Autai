@@ -1,7 +1,6 @@
 import { BrowserWindow } from "electron";
 import { BaseBridge } from "./BaseBridge";
-import type { BrowserActionService } from "../services/BrowserActionService";
-import type { StateManager } from "../services/StateManager";
+import { BrowserActionService, type WebViewService } from "../services";
 
 /**
  * Bridge for browser actions and interactions
@@ -10,13 +9,9 @@ import type { StateManager } from "../services/StateManager";
 export class BrowserActionBridge extends BaseBridge {
   private browserActionService: BrowserActionService;
 
-  constructor(
-    stateManager: StateManager,
-    browserActionService: BrowserActionService,
-    win: BrowserWindow
-  ) {
-    super(stateManager, win);
-    this.browserActionService = browserActionService;
+  constructor(webViewService: WebViewService) {
+    super();
+    this.browserActionService = new BrowserActionService(webViewService);
   }
 
   setupHandlers(): void {
@@ -34,7 +29,10 @@ export class BrowserActionBridge extends BaseBridge {
     });
 
     this.handle("app:goForward", async (_event, command) => {
-      return this.browserActionService.goForward(command.taskId, command.pageId);
+      return this.browserActionService.goForward(
+        command.taskId,
+        command.pageId
+      );
     });
 
     this.handle("app:refresh", async (_event, command) => {
@@ -81,11 +79,17 @@ export class BrowserActionBridge extends BaseBridge {
     });
 
     this.handle("app:showHints", async (_event, command) => {
-      return this.browserActionService.showHints(command.taskId, command.pageId);
+      return this.browserActionService.showHints(
+        command.taskId,
+        command.pageId
+      );
     });
 
     this.handle("app:hideHints", async (_event, command) => {
-      return this.browserActionService.hideHints(command.taskId, command.pageId);
+      return this.browserActionService.hideHints(
+        command.taskId,
+        command.pageId
+      );
     });
 
     this.handle("app:extractText", async (_event, command) => {

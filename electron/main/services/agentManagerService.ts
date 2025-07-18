@@ -6,7 +6,7 @@ import type { BaseMessage } from "@langchain/core/messages";
  * Manages StreamingAgentService instances for different tasks.
  * Ensures each task has its own isolated AI agent with separate conversation history.
  */
-class AgentManagerService {
+export class AgentManagerService {
   private agents: Map<string, StreamingAgentService> = new Map();
 
   /**

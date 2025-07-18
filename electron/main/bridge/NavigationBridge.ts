@@ -1,11 +1,11 @@
-import { IpcMainInvokeEvent, BrowserWindow } from "electron";
+import { IpcMainInvokeEvent } from "electron";
 import { BaseBridge } from "./BaseBridge";
 import type {
   NavigateCommand,
   NavigationControlCommand,
 } from "../../shared/types/index";
 import {
-  StateManager,
+  type StateManager,
   NavigationService,
   type WebViewService,
 } from "../services";
@@ -16,17 +16,14 @@ import {
 export class NavigationBridge extends BaseBridge {
   private navigationService: NavigationService;
 
-  constructor(
-    stateManager: StateManager,
-    webViewService: WebViewService,
-    win: BrowserWindow
-  ) {
-    super(stateManager, win);
+  constructor(stateManager: StateManager, webViewService: WebViewService) {
+    super();
     this.navigationService = new NavigationService(
       stateManager,
       webViewService
     );
   }
+
   setupHandlers(): void {
     // Navigate to URL
     this.handle(

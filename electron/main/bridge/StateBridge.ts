@@ -1,5 +1,9 @@
 import { BrowserWindow } from "electron";
-import { StateManager, type WebViewService, BrowserActionService } from "../services";
+import {
+  StateManager,
+  type WebViewService,
+  BrowserActionService,
+} from "../services";
 import { TaskBridge } from "./TaskBridge";
 import { ViewBridge } from "./ViewBridge";
 import { NavigationBridge } from "./NavigationBridge";
@@ -35,24 +39,13 @@ export class StateBridge {
     this.stateManager = stateManager;
     this.win = win;
 
-    // Initialize services
-    const browserActionService = new BrowserActionService(webViewService);
-
     // Initialize bridges
-    this.taskBridge = new TaskBridge(stateManager, win);
-    this.viewBridge = new ViewBridge(stateManager, webViewService, win);
-    this.navigationBridge = new NavigationBridge(
-      stateManager,
-      webViewService,
-      win
-    );
-    this.settingsBridge = new SettingsBridge(stateManager, win);
-    this.agentBridge = new AgentBridge(stateManager, win);
-    this.browserActionBridge = new BrowserActionBridge(
-      stateManager,
-      browserActionService,
-      win
-    );
+    this.taskBridge = new TaskBridge(stateManager);
+    this.viewBridge = new ViewBridge(stateManager, webViewService);
+    this.navigationBridge = new NavigationBridge(stateManager, webViewService);
+    this.settingsBridge = new SettingsBridge();
+    this.agentBridge = new AgentBridge();
+    this.browserActionBridge = new BrowserActionBridge(webViewService);
     this.chatBridge = new ChatBridge(win);
 
     this.setupHandlers();
