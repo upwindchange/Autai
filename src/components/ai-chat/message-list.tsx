@@ -8,9 +8,7 @@ import type { MessageListProps } from "./types";
 /**
  * Component that displays a list of chat messages
  */
-export function MessageList({ messages }: MessageListProps) {
-  const isStreaming = messages.length > 0 && !messages[messages.length - 1].isComplete;
-
+export function MessageList({ messages, isStreaming }: MessageListProps) {
   if (messages.length === 0) {
     return (
       <div className="flex items-center justify-center h-full min-h-[200px]">
@@ -27,13 +25,21 @@ export function MessageList({ messages }: MessageListProps) {
     );
   }
 
+  const lastMessage = messages[messages.length - 1];
+  const isLastMessageEmpty = lastMessage?.content === "";
+  const showThinkingIndicator = isStreaming && isLastMessageEmpty;
+
+  const messagesToRender = showThinkingIndicator 
+    ? messages.slice(0, -1) 
+    : messages;
+
   return (
     <div className="space-y-6">
-      {messages.map((message) => (
+      {messagesToRender.map((message) => (
         <MessageItem key={message.id} message={message} />
       ))}
-      
-      {isStreaming && messages[messages.length - 1].content === '' && (
+
+      {showThinkingIndicator && (
         <div className="flex items-start space-x-3">
           <Avatar className="h-8 w-8">
             <AvatarFallback className="bg-primary/10">
@@ -44,7 +50,7 @@ export function MessageList({ messages }: MessageListProps) {
             <div className="flex items-center space-x-2 text-sm text-muted-foreground mb-1">
               <span className="font-medium">Assistant</span>
               <span>•</span>
-              <span>{format(new Date(), 'HH:mm')}</span>
+              <span>{format(new Date(), "HH:mm")}</span>
             </div>
             <Card className="inline-flex items-center space-x-2 px-4 py-2">
               <Loader2 className="h-4 w-4 animate-spin" />

@@ -35,6 +35,7 @@ export interface ChatContainerProps {
 export interface MessageListProps {
   messages: Message[];
   taskId: string;
+  isStreaming: boolean;
 }
 
 export interface MessageItemProps {

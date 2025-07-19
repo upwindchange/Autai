@@ -72,7 +72,7 @@ export function ChatContainer({ taskId }: ChatContainerProps) {
         onScroll={handleScroll}
       >
         <div className="pb-4">
-          <MessageList messages={messages} taskId={taskId} />
+          <MessageList messages={messages} taskId={taskId} isStreaming={isStreaming} />
         </div>
       </ScrollArea>
 
