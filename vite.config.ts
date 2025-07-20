@@ -5,6 +5,7 @@ import {
   mkdirSync,
   existsSync,
   statSync,
+  copyFileSync,
 } from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vite";
@@ -84,6 +85,18 @@ const buildHintDetectorPlugin = () => ({
       writeFileSync(outputPath, result.outputText);
       console.log(`✓ Built hintDetector.js into electron-dist folder`);
       console.log(`  Output: ${outputPath}`);
+      
+      // Copy index.js file
+      const indexSourcePath = path.join(scriptsDir, "index.js");
+      const indexOutputPath = path.join(distDir, "index.js");
+      
+      if (existsSync(indexSourcePath)) {
+        copyFileSync(indexSourcePath, indexOutputPath);
+        console.log(`✓ Copied index.js to electron-dist folder`);
+        console.log(`  Output: ${indexOutputPath}`);
+      } else {
+        console.warn(`Warning: index.js not found at: ${indexSourcePath}`);
+      }
     } catch (error) {
       console.error("Error building hintDetector:", error);
       throw error;

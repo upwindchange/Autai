@@ -1,4 +1,3 @@
-import { BrowserWindow } from "electron";
 import { BaseBridge } from "./BaseBridge";
 import { BrowserActionService, type WebViewService } from "../services";
 
@@ -181,6 +180,13 @@ export class BrowserActionBridge extends BaseBridge {
 
     this.handle("app:getPageTitle", async (_event, command) => {
       return this.browserActionService.getPageTitle(
+        command.taskId,
+        command.pageId
+      );
+    });
+
+    this.handle("app:buildDomTree", async (_event, command) => {
+      return this.browserActionService.buildDomTree(
         command.taskId,
         command.pageId
       );

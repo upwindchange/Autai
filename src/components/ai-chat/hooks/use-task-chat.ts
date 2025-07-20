@@ -98,6 +98,7 @@ async function handleDebugCommand(
 - debug:pressKey <key>
 - debug:waitFor <selector> [timeout]
 - debug:execute <script>
+- debug:buildDomTree
 
 **Form:**
 - debug:selectOption <elementId> <value>
@@ -308,6 +309,14 @@ async function handleDebugCommand(
           checked: parts[2] === 'true'
         });
         resultMessage = `Set checkbox result:\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
+        break;
+        
+      case 'debug:buildDomTree':
+        result = await window.ipcRenderer.invoke("app:buildDomTree", {
+          taskId: currentTask.id,
+          pageId: currentPage.id
+        });
+        resultMessage = `DOM Tree result:\n\`\`\`json\n${JSON.stringify(result, null, 2)}\n\`\`\``;
         break;
         
       default:

@@ -459,4 +459,38 @@ export class BrowserActionService {
       };
     }
   }
+
+  async buildDomTree(taskId: string, pageId: string): Promise<ActionResult> {
+    try {
+      const webView = this.webViewService.requireWebContentsView(
+        taskId,
+        pageId
+      );
+      
+      // Execute the buildDomTree function from the injected index.js
+      const script = `
+        (function() {
+          if (typeof buildDomTree === 'function') {
+            return buildDomTree({
+              doHighlightElements: false,
+              focusHighlightIndex: -1,
+              viewportExpansion: 0,
+              debugMode: true
+            });
+          } else {
+            throw new Error('buildDomTree function not found. Make sure index.js is injected.');
+          }
+        })()
+      `;
+      
+      const result = await webView.webContents.executeJavaScript(script);
+      return { success: true, data: result };
+    } catch (error) {
+      return {
+        success: false,
+        error:
+          error instanceof Error ? error.message : "Failed to build DOM tree",
+      };
+    }
+  }
 }

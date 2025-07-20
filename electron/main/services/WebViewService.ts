@@ -1,7 +1,7 @@
 import { WebContentsView, BrowserWindow } from "electron";
 import type { StateManager } from "./index";
 import type { View, ActionResult } from "../../shared/types/index";
-import { getHintDetectorScript } from "../scripts/hintDetectorLoader";
+import { getHintDetectorScript, getIndexScript } from "../scripts/hintDetectorLoader";
 
 /**
  * Single source of truth for all WebContentsView operations
@@ -301,13 +301,25 @@ export class WebViewService {
     );
 
     // Page load completion - inject scripts
-    const loadHandler = () => {
-      const hintDetectorScript = getHintDetectorScript();
-      webView.webContents
-        .executeJavaScript(hintDetectorScript)
-        .catch((error) =>
-          console.error("Failed to inject hint detector:", error)
-        );
+    const loadHandler = async () => {
+      try {
+        // Inject hint detector script
+        const hintDetectorScript = getHintDetectorScript();
+        await webView.webContents.executeJavaScript(hintDetectorScript);
+        
+        // Inject index.js script wrapped in IIFE to define buildDomTree globally
+        const indexScript = getIndexScript();
+        const wrappedIndexScript = `
+          (function() {
+            window.buildDomTree = ${indexScript};
+          })();
+        `;
+        await webView.webContents.executeJavaScript(wrappedIndexScript);
+        
+        console.log(`Successfully injected scripts for view ${viewId}`);
+      } catch (error) {
+        console.error("Failed to inject scripts:", error);
+      }
     };
     webView.webContents.on("did-finish-load", loadHandler);
     listeners.push(() =>
