@@ -22,3 +22,6 @@ export * from './streaming';
 
 // Browser action types
 export * from './browserActions';
+
+// DOM types
+export * from './dom';

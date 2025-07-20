@@ -1,5 +1,6 @@
 import { BaseBridge } from "./BaseBridge";
 import { BrowserActionService, type WebViewService } from "../services";
+import { DomService } from "../services/dom";
 
 /**
  * Bridge for browser actions and interactions
@@ -7,10 +8,12 @@ import { BrowserActionService, type WebViewService } from "../services";
  */
 export class BrowserActionBridge extends BaseBridge {
   private browserActionService: BrowserActionService;
+  private webViewService: WebViewService;
 
   constructor(webViewService: WebViewService) {
     super();
     this.browserActionService = new BrowserActionService(webViewService);
+    this.webViewService = webViewService;
   }
 
   setupHandlers(): void {
@@ -186,10 +189,12 @@ export class BrowserActionBridge extends BaseBridge {
     });
 
     this.handle("app:buildDomTree", async (_event, command) => {
-      return this.browserActionService.buildDomTree(
+      const webView = this.webViewService.requireWebContentsView(
         command.taskId,
         command.pageId
       );
+      const domService = new DomService(webView.webContents);
+      return domService.buildDomTree();
     });
   }
 }
