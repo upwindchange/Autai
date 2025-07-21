@@ -3,3 +3,4 @@ export { settingsService } from "./settingsService";
 export { BrowserActionService } from "./BrowserActionService";
 export { NavigationService } from "./NavigationService";
 export { WebViewService } from "./WebViewService";
+export { apiServer } from "./apiServer";

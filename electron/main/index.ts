@@ -8,6 +8,7 @@ import {
   StateManager,
   settingsService,
   WebViewService,
+  apiServer,
 } from "./services/index";
 import { StateBridge } from "./bridge/StateBridge";
 
@@ -93,6 +94,8 @@ async function createWindow() {
 
 app.whenReady().then(async () => {
   await settingsService.initialize();
+  // Start API server
+  apiServer.start();
   createWindow();
 });
 
@@ -106,6 +109,8 @@ app.on("window-all-closed", async () => {
     stateManager.destroy();
     stateManager = null;
   }
+  // Stop API server
+  apiServer.stop();
   win = null;
   if (process.platform !== "darwin") app.quit();
 });
