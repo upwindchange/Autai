@@ -15,7 +15,10 @@
       "Bash(pnpm lint:*)",
       "WebFetch(domain:*)",
       "mcp__context7__resolve-library-id",
-      "mcp__context7__get-library-docs"
+      "mcp__context7__get-library-docs",
+      "WebFetch(domain:llm-ui.com)",
+      "Bash(cat:*)",
+      "WebFetch(domain:www.assistant-ui.com)"
     ],
     "deny": []
   }

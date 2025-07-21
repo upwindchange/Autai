@@ -16,17 +16,18 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "electron-updater": "^6.6.2"
+    "electron-updater": "^6.6.2",
+    "mermaid": "^11.9.0",
+    "react-shiki": "^0.7.2"
   },
   "devDependencies": {
+    "@assistant-ui/react": "^0.10.26",
+    "@assistant-ui/react-markdown": "^0.10.6",
     "@eslint/js": "^9.31.0",
     "@hookform/resolvers": "^5.1.1",
     "@langchain/core": "^0.3.66",
     "@langchain/langgraph": "^0.3.10",
     "@langchain/openai": "^0.6.2",
-    "@llm-ui/code": "^0.13.3",
-    "@llm-ui/markdown": "^0.13.3",
-    "@llm-ui/react": "^0.13.3",
     "@playwright/test": "^1.54.1",
     "@radix-ui/react-accordion": "^1.2.11",
     "@radix-ui/react-alert-dialog": "^1.1.14",
@@ -58,6 +59,7 @@
     "@types/react": "^19.1.8",
     "@types/react-dom": "^19.1.6",
     "@vitejs/plugin-react": "^4.7.0",
+    "assistant-ui": "^0.0.56",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
@@ -77,6 +79,7 @@
     "react-hook-form": "^7.60.0",
     "react-markdown": "^10.1.0",
     "react-resizable-panels": "^3.0.3",
+    "react-syntax-highlighter": "^15.6.1",
     "recharts": "^2.15.4",
     "remark-gfm": "^4.0.1",
     "shiki": "^3.8.1",
