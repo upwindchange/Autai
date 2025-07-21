@@ -62,7 +62,7 @@ async function handleDebugCommand(
   const debugCmd = parts[0];
 
   try {
-    let result: any;
+    let result: unknown;
     let resultMessage = "";
 
     switch (debugCmd) {
@@ -170,7 +170,7 @@ async function handleDebugCommand(
         )}\n\`\`\``;
         break;
 
-      case "debug:getElements":
+      case "debug:getElements": {
         const viewportOnly = parts[1] !== "false";
         result = await window.ipcRenderer.invoke("app:getPageElements", {
           taskId: currentTask.id,
@@ -183,6 +183,7 @@ async function handleDebugCommand(
           2
         )}\n\`\`\``;
         break;
+      }
 
       case "debug:showHints":
         result = await window.ipcRenderer.invoke("app:showHints", {

@@ -18,7 +18,8 @@
       "mcp__context7__get-library-docs",
       "WebFetch(domain:llm-ui.com)",
       "Bash(cat:*)",
-      "WebFetch(domain:www.assistant-ui.com)"
+      "WebFetch(domain:www.assistant-ui.com)",
+      "Bash(del \"C:\\Users\\HTPC\\Documents\\dev\\Autai\\electron\\main\\bridge\\AgentBridge.ts\")"
     ],
     "deny": []
   }

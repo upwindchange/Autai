@@ -10,15 +10,13 @@ Autai is an "Automatic AI Agent Driven Browser" - a desktop application built wi
 
 ```bash
 # Development
-pnpm run dev          # Start development server with hot reload
-pnpm run build        # Build production app
-pnpm run test         # Run tests with Vitest
-pnpm run lint         # Run ESLint checks
+pnpm dev          # Start development server with hot reload
+pnpm build        # Build production app
+pnpm test         # Run tests with Vitest
+pnpm lint         # Run ESLint checks
 
 # Building & Packaging
-pnpm run build:win    # Build for Windows
-pnpm run build:mac    # Build for macOS
-pnpm run build:linux  # Build for Linux
+pnpm build
 ```
 
 ## Architecture

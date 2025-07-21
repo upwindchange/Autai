@@ -38,14 +38,6 @@ export interface SetViewVisibilityCommand {
   isHidden: boolean;
 }
 
-export interface StreamMessageCommand {
-  taskId: string;
-  message: string;
-}
-
-export interface ClearHistoryCommand {
-  taskId: string;
-}
 
 export interface NavigationControlCommand {
   taskId: string;

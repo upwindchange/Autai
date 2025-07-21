@@ -12,7 +12,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { ChatContainer } from "@/components/ai-chat";
+import { AssistantChatContainer } from "@/components/ai-chat";
 import { SettingsProvider, SettingsView } from "@/components/settings";
 import { useAppStore } from "@/store/appStore";
 
@@ -23,7 +23,6 @@ function AppContent() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const {
     activeTaskId,
-    activeViewId,
     setContainerRef,
     showSettings,
     setShowSettings,
@@ -84,7 +83,7 @@ function AppContent() {
           maxSize={75}
           className="h-full overflow-hidden"
         >
-          <ChatContainer taskId={activeTaskId} activeViewKey={activeViewId} />
+          <AssistantChatContainer taskId={activeTaskId} />
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>

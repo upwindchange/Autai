@@ -1,6 +1,6 @@
 import { IpcMainInvokeEvent } from "electron";
 import { BaseBridge } from "./BaseBridge";
-import { agentManagerService, type StateManager } from "../services";
+import { type StateManager } from "../services";
 import type {
   CreateTaskCommand,
   DeleteTaskCommand,
@@ -36,9 +36,6 @@ export class TaskBridge extends BaseBridge {
     this.handle(
       "app:deleteTask",
       async (_event: IpcMainInvokeEvent, command: DeleteTaskCommand) => {
-        // Remove the AI agent associated with this task
-        agentManagerService.removeAgent(command.taskId);
-
         // Delete the task
         this.stateManager.deleteTask(command.taskId);
         return { success: true };

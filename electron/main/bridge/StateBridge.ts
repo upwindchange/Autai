@@ -4,7 +4,6 @@ import { TaskBridge } from "./TaskBridge";
 import { ViewBridge } from "./ViewBridge";
 import { NavigationBridge } from "./NavigationBridge";
 import { SettingsBridge } from "./SettingsBridge";
-import { AgentBridge } from "./AgentBridge";
 import { BrowserActionBridge } from "./BrowserActionBridge";
 import type { StateChangeEvent } from "../../shared/types/index";
 
@@ -22,7 +21,6 @@ export class StateBridge {
   private viewBridge: ViewBridge;
   private navigationBridge: NavigationBridge;
   private settingsBridge: SettingsBridge;
-  private agentBridge: AgentBridge;
   private browserActionBridge: BrowserActionBridge;
 
   constructor(
@@ -38,7 +36,6 @@ export class StateBridge {
     this.viewBridge = new ViewBridge(stateManager, webViewService);
     this.navigationBridge = new NavigationBridge(stateManager, webViewService);
     this.settingsBridge = new SettingsBridge();
-    this.agentBridge = new AgentBridge();
     this.browserActionBridge = new BrowserActionBridge(webViewService);
 
     this.setupHandlers();
@@ -51,7 +48,6 @@ export class StateBridge {
     this.viewBridge.setupHandlers();
     this.navigationBridge.setupHandlers();
     this.settingsBridge.setupHandlers();
-    this.agentBridge.setupHandlers();
     this.browserActionBridge.setupHandlers();
   }
 
@@ -97,8 +93,6 @@ export class StateBridge {
     this.viewBridge.destroy();
     this.navigationBridge.destroy();
     this.settingsBridge.destroy();
-    this.agentBridge.cleanup(); // Also calls agentManagerService.cleanup()
-    this.agentBridge.destroy();
     this.browserActionBridge.destroy();
   }
 }
