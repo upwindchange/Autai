@@ -3,12 +3,41 @@
 import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
 import { useThreadManager } from "./thread-manager";
-import { handleChatRequest } from "./api-handler";
+import { useSettings } from "@/components/settings";
 import type { FC, PropsWithChildren } from "react";
-import type { Message } from "ai";
 
 interface TaskRuntimeProviderProps extends PropsWithChildren {
   taskId: string;
+}
+
+// Create a simple API endpoint handler
+const API_ENDPOINT = "/api/chat";
+
+// In Electron, we'll intercept this and handle it directly
+if (typeof window !== "undefined" && window.ipcRenderer) {
+  // Register a handler for the chat API
+  window.fetch = new Proxy(window.fetch, {
+    apply: async (target, thisArg, args) => {
+      const [url, options] = args;
+      
+      if (typeof url === "string" && url === API_ENDPOINT && options?.method === "POST") {
+        // Handle chat API request directly
+        const { handleChatRequest } = await import("./api-handler");
+        const body = JSON.parse(options.body as string);
+        const { activeProfile } = useSettings();
+        
+        const response = await handleChatRequest({
+          ...body,
+          settings: activeProfile?.settings,
+        });
+        
+        return response;
+      }
+      
+      // For all other requests, use the original fetch
+      return target.apply(thisArg, args);
+    },
+  });
 }
 
 export const TaskRuntimeProvider: FC<TaskRuntimeProviderProps> = ({
@@ -23,22 +52,11 @@ export const TaskRuntimeProvider: FC<TaskRuntimeProviderProps> = ({
     thread = threadManager.createThread({ taskId });
   }
 
-  // Create runtime using useChatRuntime with custom API handler
+  // Create runtime using useChatRuntime with API endpoint
   const runtime = useChatRuntime({
-    api: async (messages: Message[]) => {
-      // Since we're in Electron, we handle the request directly
-      // instead of making an HTTP request
-      const response = await handleChatRequest({
-        messages,
-        taskId,
-      });
-      return response;
-    },
-    id: `chat-${taskId}`,
-    initialMessages: thread.messages,
-    onError: (error) => {
-      console.error("Chat error:", error);
-      threadManager.updateThread(taskId, { error: error as Error });
+    api: API_ENDPOINT,
+    body: {
+      taskId,
     },
   });
 
