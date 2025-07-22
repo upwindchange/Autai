@@ -17,7 +17,7 @@ import { useViewVisibility } from "@/hooks/use-view-visibility";
 export function SettingsDialog() {
   const [open, setOpen] = useState(false);
   const { activeProfile } = useSettings();
-  const { hideView, showView, hasActiveView } = useViewVisibility('settings');
+  const { hideView, showView, hasActiveView } = useViewVisibility();
 
   const handleOpenChange = (newOpen: boolean) => {
     if (!hasActiveView) {

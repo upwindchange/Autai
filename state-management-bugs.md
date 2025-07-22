@@ -8,29 +8,11 @@
 
 ## Potential Bugs Found
 
-### 1. Race Condition in Task Creation with Pages
-
-**Location**: StateManager.ts:86-89
-**Issue**: When creating a task with an initial URL, the page is added asynchronously but the task is returned immediately. This could cause issues if the renderer tries to access the page before it's created.
-**Fix**: Make `createTask` async and await the `addPage` call, or ensure proper state synchronization after page creation.
-
-### 4. Map Serialization Issues
-
-**Location**: appStore.ts:264-291
-**Issue**: The state synchronization converts Maps to plain objects and back. The `restoreTaskPages` function only handles the `pages` Map within tasks, but tasks themselves are stored in a Map. This inconsistent handling could lead to type mismatches.
-**Fix**: Ensure consistent Map/object conversion throughout the synchronization process.
-
 ### 5. Async Operation Without Error Boundaries
 
 **Location**: appStore.ts:515-521
 **Issue**: The initial state fetch happens outside any error boundary and only logs errors. If this fails, the app starts with no state and no user feedback.
 **Fix**: Implement a proper error state or retry mechanism for initial state loading.
-
-### 6. View Visibility State Inconsistency
-
-**Location**: appStore.ts:217-242
-**Issue**: The `setViewVisibility` uses a Set to track multiple reasons for hiding, but there's no validation that reasons are properly cleaned up. A component could add a reason and never remove it, permanently hiding the view.
-**Fix**: Implement a cleanup mechanism or timeout for visibility reasons.
 
 ### 7. ResizeObserver Cleanup Timing
 

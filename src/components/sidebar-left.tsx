@@ -35,7 +35,7 @@ export function SidebarLeft(props: SidebarLeftProps) {
   } = useAppStore();
   
   const { openMobile } = useSidebar();
-  const { hideView, showView } = useViewVisibility('sidebar');
+  const { hideView, showView } = useViewVisibility();
   const isMobile = useIsMobile();
   
   // Handle view visibility when sidebar state changes in mobile/tablet mode

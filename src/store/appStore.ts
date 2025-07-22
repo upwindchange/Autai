@@ -20,7 +20,6 @@ interface AppStore {
   // UI-only state
   expandedTaskId: string | null;
   isViewHidden: boolean;
-  viewHiddenReasons: Set<string>; // Track which components want the view hidden
   containerRef: RefObject<HTMLDivElement | null> | null;
   containerBounds: DOMRect | null;
   showSettings: boolean; // Track if settings should be shown instead of web view
@@ -35,7 +34,7 @@ interface AppStore {
 
   // Actions - UI operations
   setExpandedTask: (taskId: string | null) => void;
-  setViewVisibility: (isHidden: boolean, reason?: string) => void;
+  setViewVisibility: (isHidden: boolean) => void;
   setContainerRef: (ref: RefObject<HTMLDivElement | null>) => void;
   updateContainerBounds: () => void;
   setShowSettings: (show: boolean) => void;
@@ -90,7 +89,6 @@ const useAppStore = create<AppStore>()(
     activeViewId: null,
     expandedTaskId: null,
     isViewHidden: false,
-    viewHiddenReasons: new Set(),
     containerRef: null,
     containerBounds: null,
     showSettings: false,
@@ -216,29 +214,18 @@ const useAppStore = create<AppStore>()(
       window.ipcRenderer.invoke("app:setExpandedTask", taskId);
     },
 
-    setViewVisibility: (isHidden: boolean, reason: string = "default") => {
+    setViewVisibility: (isHidden: boolean) => {
       const state = get();
-      const reasons = new Set(state.viewHiddenReasons);
-
-      if (isHidden) {
-        reasons.add(reason);
-      } else {
-        reasons.delete(reason);
-      }
-
-      // View should be hidden if ANY component wants it hidden
-      const shouldBeHidden = reasons.size > 0;
-
+      
       set({
-        viewHiddenReasons: reasons,
-        isViewHidden: shouldBeHidden,
+        isViewHidden: isHidden,
       });
 
       if (state.activeViewId) {
         // Use the View's setVisible API instead of manipulating bounds
         window.ipcRenderer.invoke("app:setViewVisibility", {
           viewId: state.activeViewId,
-          isHidden: shouldBeHidden,
+          isHidden: isHidden,
         });
       }
     },
@@ -281,7 +268,7 @@ const useAppStore = create<AppStore>()(
 
       // Hide/show the web view when toggling settings
       if (state.activeViewId) {
-        state.setViewVisibility(show, "settings");
+        state.setViewVisibility(show);
       }
     },
 

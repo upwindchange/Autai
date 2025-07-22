@@ -4,11 +4,9 @@ import { useAppStore } from '@/store/appStore';
 /**
  * Hook for managing web view visibility with proper timing for animations.
  * This hook provides a consistent way to hide/show web views across different components.
- * 
- * @param reason - A unique identifier for the component using this hook (e.g., 'sidebar', 'settings')
  */
-export function useViewVisibility(reason: string) {
-  const { setViewVisibility, activeViewId, containerRef, isViewHidden, viewHiddenReasons } = useAppStore();
+export function useViewVisibility() {
+  const { setViewVisibility, activeViewId, containerRef, isViewHidden } = useAppStore();
 
   /**
    * Hide the active web view
@@ -18,9 +16,9 @@ export function useViewVisibility(reason: string) {
       return;
     }
 
-    // Use the store's setViewVisibility with the component's reason
-    setViewVisibility(true, reason);
-  }, [activeViewId, containerRef, setViewVisibility, reason]);
+    // Use the store's setViewVisibility
+    setViewVisibility(true);
+  }, [activeViewId, containerRef, setViewVisibility]);
 
   /**
    * Show the active web view
@@ -34,13 +32,13 @@ export function useViewVisibility(reason: string) {
     if (delay > 0) {
       // Delay showing to allow for animations
       setTimeout(() => {
-        setViewVisibility(false, reason);
+        setViewVisibility(false);
       }, delay);
     } else {
       // Show immediately
-      setViewVisibility(false, reason);
+      setViewVisibility(false);
     }
-  }, [activeViewId, containerRef, setViewVisibility, reason]);
+  }, [activeViewId, containerRef, setViewVisibility]);
 
   /**
    * Toggle view visibility
@@ -60,7 +58,6 @@ export function useViewVisibility(reason: string) {
     showView,
     setVisibility,
     isViewHidden,
-    hasActiveView: !!activeViewId && !!containerRef?.current,
-    isHiddenByMe: viewHiddenReasons.has(reason)
+    hasActiveView: !!activeViewId && !!containerRef?.current
   };
 }
