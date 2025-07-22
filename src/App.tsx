@@ -47,6 +47,20 @@ function AppContent() {
   useEffect(() => {
     setContainerRef(containerRef);
   }, [setContainerRef]);
+  
+  /**
+   * Force update bounds when container is mounted
+   */
+  useEffect(() => {
+    // Small delay to ensure DOM is fully rendered
+    const timer = setTimeout(() => {
+      if (containerRef.current) {
+        useAppStore.getState().updateContainerBounds();
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div className="w-dvw flex flex-row h-dvh">

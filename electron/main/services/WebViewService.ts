@@ -126,6 +126,9 @@ export class WebViewService implements IViewManager {
     this.webContentsViews.set(viewId, webView);
     this.stateManager.registerView(viewId, view);
     this.win.contentView.addChildView(webView);
+    
+    // Set default bounds (1080p) and hide initially
+    webView.setBounds({ x: 0, y: 0, width: 1920, height: 1080 });
     webView.setVisible(false); // Initially hidden
 
     return view;

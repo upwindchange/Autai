@@ -8,6 +8,11 @@ import type {
   StateChangeEvent,
 } from "../../electron/shared/types";
 import type { RefObject } from "react";
+import {
+  shouldUpdateViewBounds,
+  createBoundsUpdatePayload,
+  getContainerBounds,
+} from "@/lib/bounds";
 
 interface AppStore {
   // State from backend
@@ -172,21 +177,16 @@ const useAppStore = create<AppStore>()(
 
         // Update view bounds for the newly selected view
         const state = get();
-        if (
-          state.activeViewId &&
-          state.containerBounds &&
-          !state.isViewHidden &&
-          !state.showSettings
-        ) {
-          await window.ipcRenderer.invoke("app:setViewBounds", {
-            viewId: state.activeViewId,
-            bounds: {
-              x: Math.round(state.containerBounds.x),
-              y: Math.round(state.containerBounds.y),
-              width: Math.round(state.containerBounds.width),
-              height: Math.round(state.containerBounds.height),
-            },
-          });
+        if (shouldUpdateViewBounds(state)) {
+          // Get real bounds from container ref if available, otherwise use stored bounds
+          const bounds = state.containerRef
+            ? getContainerBounds(state.containerRef)
+            : state.containerBounds;
+
+          await window.ipcRenderer.invoke(
+            "app:setViewBounds",
+            createBoundsUpdatePayload(state.activeViewId!, bounds)
+          );
         }
       } catch (error) {
         console.error("Error selecting page:", error);
@@ -216,7 +216,7 @@ const useAppStore = create<AppStore>()(
 
     setViewVisibility: (isHidden: boolean) => {
       const state = get();
-      
+
       set({
         isViewHidden: isHidden,
       });
@@ -227,6 +227,20 @@ const useAppStore = create<AppStore>()(
           viewId: state.activeViewId,
           isHidden: isHidden,
         });
+        
+        // When making view visible, immediately update its bounds
+        if (!isHidden && !state.showSettings) {
+          const bounds = state.containerRef
+            ? getContainerBounds(state.containerRef)
+            : state.containerBounds;
+          
+          if (bounds) {
+            window.ipcRenderer.invoke(
+              "app:setViewBounds",
+              createBoundsUpdatePayload(state.activeViewId, bounds)
+            );
+          }
+        }
       }
     },
 
@@ -238,27 +252,20 @@ const useAppStore = create<AppStore>()(
 
     updateContainerBounds: () => {
       const state = get();
-      const container = state.containerRef?.current;
 
-      if (!container) {
-        set({ containerBounds: null });
-        return;
-      }
-
-      const rect = container.getBoundingClientRect();
+      // Get real bounds from container ref
+      const rect = state.containerRef
+        ? getContainerBounds(state.containerRef)
+        : null;
+      
       set({ containerBounds: rect });
 
       // Update active view bounds
-      if (state.activeViewId && !state.isViewHidden && !state.showSettings) {
-        window.ipcRenderer.invoke("app:setViewBounds", {
-          viewId: state.activeViewId,
-          bounds: {
-            x: Math.round(rect.x),
-            y: Math.round(rect.y),
-            width: Math.round(rect.width),
-            height: Math.round(rect.height),
-          },
-        });
+      if (shouldUpdateViewBounds(state) && rect) {
+        window.ipcRenderer.invoke(
+          "app:setViewBounds",
+          createBoundsUpdatePayload(state.activeViewId!, rect)
+        );
       }
     },
 
@@ -269,6 +276,20 @@ const useAppStore = create<AppStore>()(
       // Hide/show the web view when toggling settings
       if (state.activeViewId) {
         state.setViewVisibility(show);
+      }
+      
+      // When closing settings, update view bounds to current container position
+      if (!show && state.activeViewId && !state.isViewHidden) {
+        const bounds = state.containerRef
+          ? getContainerBounds(state.containerRef)
+          : state.containerBounds;
+        
+        if (bounds) {
+          window.ipcRenderer.invoke(
+            "app:setViewBounds",
+            createBoundsUpdatePayload(state.activeViewId, bounds)
+          );
+        }
       }
     },
 
@@ -347,6 +368,23 @@ const useAppStore = create<AppStore>()(
         case "VIEW_CREATED": {
           state.views.set(event.view.id, event.view);
           set({ views: new Map(state.views) });
+
+          // Set initial bounds for the newly created view if it's active
+          const currentState = get();
+          if (
+            event.view.id === currentState.activeViewId &&
+            shouldUpdateViewBounds(currentState)
+          ) {
+            // Get real bounds from container ref
+            const bounds = currentState.containerRef
+              ? getContainerBounds(currentState.containerRef)
+              : currentState.containerBounds;
+
+            window.ipcRenderer.invoke(
+              "app:setViewBounds",
+              createBoundsUpdatePayload(event.view.id, bounds)
+            );
+          }
           break;
         }
 
@@ -371,19 +409,20 @@ const useAppStore = create<AppStore>()(
           const currentState = get();
           if (
             event.viewId &&
-            currentState.containerBounds &&
-            !currentState.isViewHidden &&
-            !currentState.showSettings
+            shouldUpdateViewBounds({
+              ...currentState,
+              activeViewId: event.viewId,
+            })
           ) {
-            window.ipcRenderer.invoke("app:setViewBounds", {
-              viewId: event.viewId,
-              bounds: {
-                x: Math.round(currentState.containerBounds.x),
-                y: Math.round(currentState.containerBounds.y),
-                width: Math.round(currentState.containerBounds.width),
-                height: Math.round(currentState.containerBounds.height),
-              },
-            });
+            // Get real bounds from container ref if available
+            const bounds = currentState.containerRef
+              ? getContainerBounds(currentState.containerRef)
+              : currentState.containerBounds;
+
+            window.ipcRenderer.invoke(
+              "app:setViewBounds",
+              createBoundsUpdatePayload(event.viewId, bounds)
+            );
           }
           break;
         }
@@ -544,8 +583,8 @@ export const cleanupResizeObserver = () => {
 };
 
 // Clean up on window unload
-if (typeof window !== 'undefined') {
-  window.addEventListener('beforeunload', cleanupResizeObserver);
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", cleanupResizeObserver);
 }
 
 export { useAppStore };
