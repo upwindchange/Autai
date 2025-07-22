@@ -1,10 +1,19 @@
 import type { UIActions, UIState, CoreState } from "../types";
-import type { StateCreator } from "zustand";
-import type { SetViewVisibilityCommand, SetViewBoundsCommand } from "../../../electron/shared/types/commands";
-import { shouldUpdateViewBounds, createBoundsUpdatePayload, getContainerBounds } from "@/lib/bounds";
+import type {
+  SetViewVisibilityCommand,
+  SetViewBoundsCommand,
+} from "../../../electron/shared/types/commands";
+import {
+  shouldUpdateViewBounds,
+  createBoundsUpdatePayload,
+  getContainerBounds,
+} from "@/lib/bounds";
 
-type GetState = () => UIState & CoreState;
-type SetState = StateCreator<UIState & CoreState>["setState"];
+type StoreState = UIState & CoreState;
+type GetState = () => StoreState;
+type SetState = (
+  partial: Partial<StoreState> | ((state: StoreState) => Partial<StoreState>)
+) => void;
 
 export const createUIActions = (set: SetState, get: GetState): UIActions => ({
   setExpandedTask: (taskId: string | null) => {
@@ -34,11 +43,11 @@ export const createUIActions = (set: SetState, get: GetState): UIActions => ({
           : state.containerBounds;
 
         if (bounds) {
-          const boundsCommand = createBoundsUpdatePayload(state.activeViewId, bounds) as SetViewBoundsCommand;
-          window.ipcRenderer.invoke(
-            "app:setViewBounds",
-            boundsCommand
-          );
+          const boundsCommand = createBoundsUpdatePayload(
+            state.activeViewId,
+            bounds
+          ) as SetViewBoundsCommand;
+          window.ipcRenderer.invoke("app:setViewBounds", boundsCommand);
         }
       }
     }
@@ -63,11 +72,11 @@ export const createUIActions = (set: SetState, get: GetState): UIActions => ({
 
     // Update active view bounds
     if (shouldUpdateViewBounds(state) && rect) {
-      const boundsCommand = createBoundsUpdatePayload(state.activeViewId!, rect) as SetViewBoundsCommand;
-      window.ipcRenderer.invoke(
-        "app:setViewBounds",
-        boundsCommand
-      );
+      const boundsCommand = createBoundsUpdatePayload(
+        state.activeViewId!,
+        rect
+      ) as SetViewBoundsCommand;
+      window.ipcRenderer.invoke("app:setViewBounds", boundsCommand);
     }
   },
 
@@ -88,11 +97,11 @@ export const createUIActions = (set: SetState, get: GetState): UIActions => ({
         : state.containerBounds;
 
       if (bounds) {
-        const boundsCommand = createBoundsUpdatePayload(state.activeViewId, bounds) as SetViewBoundsCommand;
-        window.ipcRenderer.invoke(
-          "app:setViewBounds",
-          boundsCommand
-        );
+        const boundsCommand = createBoundsUpdatePayload(
+          state.activeViewId,
+          bounds
+        ) as SetViewBoundsCommand;
+        window.ipcRenderer.invoke("app:setViewBounds", boundsCommand);
       }
     }
   },

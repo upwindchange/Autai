@@ -1,14 +1,14 @@
 import type { RefObject } from "react";
 import type { StoreApi } from "zustand";
+import type { AppStore } from "./types";
 
 let resizeObserver: ResizeObserver | null = null;
 
-export function setupResizeObserver(
-  store: StoreApi<{ updateContainerBounds: () => void }>
-) {
+export function setupResizeObserver(store: StoreApi<AppStore>) {
+  // Use the subscribe method with selector from subscribeWithSelector middleware
   const unsubscribe = store.subscribe(
-    (state: any) => state.containerRef,
-    (containerRef: RefObject<HTMLDivElement | null>) => {
+    (state: AppStore) => state.containerRef,
+    (containerRef: RefObject<HTMLDivElement | null> | null) => {
       // Clean up old observer
       if (resizeObserver) {
         resizeObserver.disconnect();

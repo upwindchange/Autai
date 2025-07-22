@@ -156,7 +156,14 @@ declare global {
         listener: (event: unknown, ...args: unknown[]) => void
       ): void;
 
-      off(channel: string, listener?: (...args: unknown[]) => void): void;
+      off(
+        channel: "state:sync",
+        listener: (event: unknown, state: AppState) => void
+      ): void;
+      off(
+        channel: "state:change",
+        listener: (event: unknown, event: StateChangeEvent) => void
+      ): void;
       off(
         channel: `ai:stream:${string}`,
         listener: (event: unknown, chunk: StreamChunk) => void
@@ -166,6 +173,7 @@ declare global {
         channel: "task:deleted",
         listener: (event: unknown, taskId: string) => void
       ): void;
+      off(channel: string, listener?: (...args: unknown[]) => void): void;
 
       // Send operations (rarely used in renderer)
       send(channel: string, ...args: unknown[]): void;

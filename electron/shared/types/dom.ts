@@ -25,11 +25,13 @@ interface DOMElementNodeType extends z.infer<typeof DOMBaseNodeSchema> {
   highlightIndex?: number | null;
   shadowRoot: boolean;
   viewportInfo?: ViewportInfo | null;
+  parent: DOMElementNodeType | null;
 }
 
 interface DOMTextNodeType extends z.infer<typeof DOMBaseNodeSchema> {
   type: 'TEXT_NODE';
   text: string;
+  parent: DOMElementNodeType | null;
 }
 
 // Base node schema (without parent to avoid circular reference)

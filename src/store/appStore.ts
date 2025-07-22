@@ -96,5 +96,5 @@ export const cleanup = () => {
   unsubscribeResizeObserver();
 };
 
-export { useAppStore };
+export { useAppStore, cleanupResizeObserver };
 export type { AppStore };

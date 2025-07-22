@@ -15,25 +15,30 @@ const earlyMessageQueue: {
 let storeReady = false;
 let storeHandlers: IpcHandlers | null = null;
 
-// Set up IPC listeners before store creation to catch early messages
-export function setupIpcListeners() {
-  window.ipcRenderer.on("state:sync", (_event, state: AppState) => {
+// Store listener references for cleanup
+const listeners = {
+  stateSync: (_event: any, state: AppState) => {
     if (!storeReady || !storeHandlers) {
       // Store not ready yet, queue the message
       earlyMessageQueue.push({ type: "sync", payload: state });
     } else {
       storeHandlers.syncState(state);
     }
-  });
-
-  window.ipcRenderer.on("state:change", (_event, event: StateChangeEvent) => {
+  },
+  stateChange: (_event: any, event: StateChangeEvent) => {
     if (!storeReady || !storeHandlers) {
       // Store not ready yet, queue the message
       earlyMessageQueue.push({ type: "change", payload: event });
     } else {
       storeHandlers.handleStateChange(event);
     }
-  });
+  }
+};
+
+// Set up IPC listeners before store creation to catch early messages
+export function setupIpcListeners() {
+  window.ipcRenderer.on("state:sync", listeners.stateSync);
+  window.ipcRenderer.on("state:change", listeners.stateChange);
 }
 
 // Call this after store is created to process queued messages
@@ -58,6 +63,6 @@ export function processQueuedMessages(handlers: IpcHandlers) {
 
 // Clean up listeners
 export function cleanupIpcListeners() {
-  window.ipcRenderer.removeAllListeners("state:sync");
-  window.ipcRenderer.removeAllListeners("state:change");
+  window.ipcRenderer.off("state:sync", listeners.stateSync);
+  window.ipcRenderer.off("state:change", listeners.stateChange);
 }

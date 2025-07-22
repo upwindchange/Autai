@@ -4,7 +4,6 @@ import type {
   StateChangeEvent,
   SetViewBoundsCommand,
 } from "../../../electron/shared/types";
-import type { StateCreator } from "zustand";
 import { objectToMap, restoreTaskPages } from "../utils";
 import { loadInitialState } from "../initialization";
 import {
@@ -13,10 +12,11 @@ import {
   getContainerBounds,
 } from "@/lib/bounds";
 
-type GetState = () => CoreState & UIState & InitState & SyncActions;
-type SetState = StateCreator<
-  CoreState & UIState & InitState & SyncActions
->["setState"];
+type StoreState = CoreState & UIState & InitState & SyncActions;
+type GetState = () => StoreState;
+type SetState = (
+  partial: Partial<StoreState> | ((state: StoreState) => Partial<StoreState>)
+) => void;
 
 export const createSyncActions = (
   set: SetState,
