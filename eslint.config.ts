@@ -14,6 +14,7 @@ export default tseslint.config(
       "*.config.ts",
       "electron/main/scripts/*.js",
       "src/components/ui/**",
+      "src/components/assistant-ui/**",
       "vimium/**",
       "vimium-c/**",
       "browser-use/**",

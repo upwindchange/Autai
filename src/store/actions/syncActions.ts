@@ -5,7 +5,7 @@ import type {
   SetViewBoundsCommand,
 } from "../../../electron/shared/types";
 import { objectToMap, restoreTaskPages } from "../utils";
-import { loadInitialState } from "../initialization";
+import { loadInitialState, type InitializationState } from "../initialization";
 import {
   shouldUpdateViewBounds,
   createBoundsUpdatePayload,
@@ -193,7 +193,7 @@ export const createSyncActions = (
 
     const handlers = {
       syncState: get().syncState,
-      setState: (state: any) => set(state),
+      setState: (state: Partial<InitializationState>) => set(state),
     };
 
     await loadInitialState(0, handlers);

@@ -1,12 +1,13 @@
-import express from "express";
+import express, { type Express } from "express";
 import cors from "cors";
 import { createOpenAI } from "@ai-sdk/openai";
 import { convertToCoreMessages, streamText } from "ai";
 import { settingsService } from "../settingsService";
+import { type Server } from "http";
 
 export class ApiServer {
-  private app: express.Express;
-  private server: any = null;
+  private app: Express;
+  private server: Server | null = null;
   private port: number = 3001;
 
   constructor() {

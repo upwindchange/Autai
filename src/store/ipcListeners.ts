@@ -1,4 +1,5 @@
 import type { AppState, StateChangeEvent } from "../../electron/shared/types";
+import type { IpcRendererEvent } from "electron";
 
 interface IpcHandlers {
   syncState: (state: AppState) => void;
@@ -17,7 +18,7 @@ let storeHandlers: IpcHandlers | null = null;
 
 // Store listener references for cleanup
 const listeners = {
-  stateSync: (_event: any, state: AppState) => {
+  stateSync: (_event: IpcRendererEvent, state: AppState) => {
     if (!storeReady || !storeHandlers) {
       // Store not ready yet, queue the message
       earlyMessageQueue.push({ type: "sync", payload: state });
@@ -25,7 +26,7 @@ const listeners = {
       storeHandlers.syncState(state);
     }
   },
-  stateChange: (_event: any, event: StateChangeEvent) => {
+  stateChange: (_event: IpcRendererEvent, event: StateChangeEvent) => {
     if (!storeReady || !storeHandlers) {
       // Store not ready yet, queue the message
       earlyMessageQueue.push({ type: "change", payload: event });
