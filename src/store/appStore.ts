@@ -1,216 +1,54 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import type {
-  Task,
-  View,
-  Agent,
-  AppState,
-  StateChangeEvent,
-} from "../../electron/shared/types";
-import type { RefObject } from "react";
-import {
-  shouldUpdateViewBounds,
-  createBoundsUpdatePayload,
-  getContainerBounds,
-} from "@/lib/bounds";
+import type { AppStore } from "./types";
+import type { SelectPageCommand, SetViewBoundsCommand } from "../../electron/shared/types/commands";
+import { createBackendActions } from "./actions/backendActions";
+import { createUIActions } from "./actions/uiActions";
+import { createNavigationActions } from "./actions/navigationActions";
+import { createSyncActions } from "./actions/syncActions";
+import { setupIpcListeners, processQueuedMessages } from "./ipcListeners";
+import { loadInitialState } from "./initialization";
+import { setupResizeObserver, cleanupResizeObserver } from "./resizeObserver";
+import { shouldUpdateViewBounds, createBoundsUpdatePayload, getContainerBounds } from "@/lib/bounds";
 
-interface AppStore {
-  // State from backend
-  tasks: Map<string, Task>;
-  views: Map<string, View>;
-  agents: Map<string, Agent>;
-  activeTaskId: string | null;
-  activeViewId: string | null;
-
-  // UI-only state
-  expandedTaskId: string | null;
-  isViewHidden: boolean;
-  containerRef: RefObject<HTMLDivElement | null> | null;
-  containerBounds: DOMRect | null;
-  showSettings: boolean; // Track if settings should be shown instead of web view
-
-  // Initial state loading
-  isInitializing: boolean;
-  initializationError: string | null;
-  initializationRetryCount: number;
-
-  // Actions - Backend operations
-  createTask: (title?: string, initialUrl?: string) => Promise<void>;
-  deleteTask: (taskId: string) => Promise<void>;
-  addPage: (taskId: string, url: string) => Promise<void>;
-  deletePage: (taskId: string, pageId: string) => Promise<void>;
-  selectPage: (taskId: string, pageId: string) => Promise<void>;
-  navigate: (taskId: string, pageId: string, url: string) => Promise<void>;
-
-  // Actions - UI operations
-  setExpandedTask: (taskId: string | null) => void;
-  setViewVisibility: (isHidden: boolean) => void;
-  setContainerRef: (ref: RefObject<HTMLDivElement | null>) => void;
-  updateContainerBounds: () => void;
-  setShowSettings: (show: boolean) => void;
-
-  // Actions - State sync
-  syncState: (state: AppState) => void;
-  handleStateChange: (event: StateChangeEvent) => void;
-  retryInitialization: () => Promise<void>;
-
-  // Navigation actions
-  goBack: (taskId: string, pageId: string) => Promise<void>;
-  goForward: (taskId: string, pageId: string) => Promise<void>;
-  reload: (taskId: string, pageId: string) => Promise<void>;
-  stop: (taskId: string, pageId: string) => Promise<void>;
-}
-
-// Helper to convert plain objects back to Maps
-function objectToMap<T>(
-  obj: Record<string, T> | undefined | null
-): Map<string, T> {
-  const map = new Map<string, T>();
-  if (obj && typeof obj === "object") {
-    Object.entries(obj).forEach(([key, value]) => {
-      map.set(key, value);
-    });
-  }
-  return map;
-}
-
-// Helper to restore page Maps in tasks
-function restoreTaskPages(task: Task): Task {
-  return {
-    ...task,
-    pages:
-      task.pages instanceof Map
-        ? task.pages
-        : objectToMap(
-            task.pages as Record<
-              string,
-              import("../../electron/shared/types").Page
-            >
-          ),
-  };
-}
-
-// Function to load initial state with retry logic
-const MAX_RETRY_ATTEMPTS = 3;
-const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff
-
-// Queue for early IPC messages that arrive before store is ready
-const earlyMessageQueue: {
-  type: 'sync' | 'change';
-  payload: AppState | StateChangeEvent;
-}[] = [];
-
-// Flag to track if store is ready
-let storeReady = false;
-
-// Set up IPC listeners before store creation to catch early messages
-window.ipcRenderer.on("state:sync", (_event, state: AppState) => {
-  if (!storeReady) {
-    // Store not ready yet, queue the message
-    earlyMessageQueue.push({ type: 'sync', payload: state });
-  } else {
-    useAppStore.getState().syncState(state);
-  }
-});
-
-window.ipcRenderer.on("state:change", (_event, event: StateChangeEvent) => {
-  if (!storeReady) {
-    // Store not ready yet, queue the message
-    earlyMessageQueue.push({ type: 'change', payload: event });
-  } else {
-    useAppStore.getState().handleStateChange(event);
-  }
-});
+// Set up IPC listeners before store creation
+setupIpcListeners();
 
 const useAppStore = create<AppStore>()(
   subscribeWithSelector((set, get) => ({
-    // Initial state
+    // Initial state - Core
     tasks: new Map(),
     views: new Map(),
     agents: new Map(),
     activeTaskId: null,
     activeViewId: null,
+
+    // Initial state - UI
     expandedTaskId: null,
     isViewHidden: false,
     containerRef: null,
     containerBounds: null,
     showSettings: false,
+
+    // Initial state - Initialization
     isInitializing: true,
     initializationError: null,
     initializationRetryCount: 0,
 
-    // Backend operations
-    createTask: async (title?: string, initialUrl?: string) => {
-      try {
-        // Default to Reddit or Amazon for testing
-        const defaultUrls = [
-          "https://www.reddit.com",
-          "https://www.amazon.com",
-        ];
-        const defaultUrl =
-          initialUrl ||
-          defaultUrls[Math.floor(Math.random() * defaultUrls.length)];
+    // Actions
+    ...createBackendActions(),
+    ...createUIActions(set, get),
+    ...createNavigationActions(),
+    ...createSyncActions(set, get),
 
-        const result = await window.ipcRenderer.invoke("app:createTask", {
-          title: title || "New Task",
-          initialUrl: defaultUrl,
-        });
-
-        if (!result.success) {
-          console.error("Failed to create task:", result.error);
-        }
-      } catch (error) {
-        console.error("Error creating task:", error);
-      }
-    },
-
-    deleteTask: async (taskId: string) => {
-      try {
-        const result = await window.ipcRenderer.invoke("app:deleteTask", {
-          taskId,
-        });
-        if (!result.success) {
-          console.error("Failed to delete task:", result.error);
-        }
-      } catch (error) {
-        console.error("Error deleting task:", error);
-      }
-    },
-
-    addPage: async (taskId: string, url: string) => {
-      try {
-        const result = await window.ipcRenderer.invoke("app:addPage", {
-          taskId,
-          url,
-        });
-        if (!result.success) {
-          console.error("Failed to add page:", result.error);
-        }
-      } catch (error) {
-        console.error("Error adding page:", error);
-      }
-    },
-
-    deletePage: async (taskId: string, pageId: string) => {
-      try {
-        const result = await window.ipcRenderer.invoke("app:deletePage", {
-          taskId,
-          pageId,
-        });
-        if (!result.success) {
-          console.error("Failed to delete page:", result.error);
-        }
-      } catch (error) {
-        console.error("Error deleting page:", error);
-      }
-    },
-
+    // Override selectPage to handle view bounds update
     selectPage: async (taskId: string, pageId: string) => {
       try {
-        const result = await window.ipcRenderer.invoke("app:selectPage", {
+        const command: SelectPageCommand = {
           taskId,
           pageId,
-        });
+        };
+        const result = await window.ipcRenderer.invoke("app:selectPage", command);
         if (!result.success) {
           console.error("Failed to select page:", result.error);
           return;
@@ -224,464 +62,39 @@ const useAppStore = create<AppStore>()(
             ? getContainerBounds(state.containerRef)
             : state.containerBounds;
 
+          const boundsCommand = createBoundsUpdatePayload(state.activeViewId!, bounds) as SetViewBoundsCommand;
           await window.ipcRenderer.invoke(
             "app:setViewBounds",
-            createBoundsUpdatePayload(state.activeViewId!, bounds)
+            boundsCommand
           );
         }
       } catch (error) {
         console.error("Error selecting page:", error);
       }
     },
-
-    navigate: async (taskId: string, pageId: string, url: string) => {
-      try {
-        const result = await window.ipcRenderer.invoke("app:navigate", {
-          taskId,
-          pageId,
-          url,
-        });
-        if (!result.success) {
-          console.error("Failed to navigate:", result.error);
-        }
-      } catch (error) {
-        console.error("Error navigating:", error);
-      }
-    },
-
-    // UI operations
-    setExpandedTask: (taskId: string | null) => {
-      set({ expandedTaskId: taskId });
-      window.ipcRenderer.invoke("app:setExpandedTask", taskId);
-    },
-
-    setViewVisibility: (isHidden: boolean) => {
-      const state = get();
-
-      set({
-        isViewHidden: isHidden,
-      });
-
-      if (state.activeViewId) {
-        // Use the View's setVisible API instead of manipulating bounds
-        window.ipcRenderer.invoke("app:setViewVisibility", {
-          viewId: state.activeViewId,
-          isHidden: isHidden,
-        });
-
-        // When making view visible, immediately update its bounds
-        if (!isHidden && !state.showSettings) {
-          const bounds = state.containerRef
-            ? getContainerBounds(state.containerRef)
-            : state.containerBounds;
-
-          if (bounds) {
-            window.ipcRenderer.invoke(
-              "app:setViewBounds",
-              createBoundsUpdatePayload(state.activeViewId, bounds)
-            );
-          }
-        }
-      }
-    },
-
-    setContainerRef: (ref: RefObject<HTMLDivElement | null>) => {
-      set({ containerRef: ref });
-      // Update bounds immediately
-      get().updateContainerBounds();
-    },
-
-    updateContainerBounds: () => {
-      const state = get();
-
-      // Get real bounds from container ref
-      const rect = state.containerRef
-        ? getContainerBounds(state.containerRef)
-        : null;
-
-      set({ containerBounds: rect });
-
-      // Update active view bounds
-      if (shouldUpdateViewBounds(state) && rect) {
-        window.ipcRenderer.invoke(
-          "app:setViewBounds",
-          createBoundsUpdatePayload(state.activeViewId!, rect)
-        );
-      }
-    },
-
-    setShowSettings: (show: boolean) => {
-      const state = get();
-      set({ showSettings: show });
-
-      // Hide/show the web view when toggling settings
-      if (state.activeViewId) {
-        state.setViewVisibility(show);
-      }
-
-      // When closing settings, update view bounds to current container position
-      if (!show && state.activeViewId && !state.isViewHidden) {
-        const bounds = state.containerRef
-          ? getContainerBounds(state.containerRef)
-          : state.containerBounds;
-
-        if (bounds) {
-          window.ipcRenderer.invoke(
-            "app:setViewBounds",
-            createBoundsUpdatePayload(state.activeViewId, bounds)
-          );
-        }
-      }
-    },
-
-    // State sync
-    syncState: (state: AppState) => {
-      const tasks = objectToMap(state.tasks);
-      tasks.forEach((task, id) => {
-        tasks.set(id, restoreTaskPages(task));
-      });
-
-      set({
-        tasks,
-        views: objectToMap(state.views),
-        agents: objectToMap(state.agents),
-        activeTaskId: state.activeTaskId,
-        activeViewId: state.activeViewId,
-      });
-    },
-
-    handleStateChange: (event: StateChangeEvent) => {
-      const state = get();
-
-      switch (event.type) {
-        case "TASK_CREATED": {
-          state.tasks.set(event.task.id, restoreTaskPages(event.task));
-          set({
-            tasks: new Map(state.tasks),
-            expandedTaskId: event.task.id, // Auto-expand newly created task
-          });
-          break;
-        }
-
-        case "TASK_DELETED": {
-          state.tasks.delete(event.taskId);
-          set({ tasks: new Map(state.tasks) });
-          break;
-        }
-
-        case "TASK_UPDATED": {
-          const task = state.tasks.get(event.taskId);
-          if (task) {
-            Object.assign(task, event.updates);
-            set({ tasks: new Map(state.tasks) });
-          }
-          break;
-        }
-
-        case "PAGE_ADDED": {
-          const taskForPage = state.tasks.get(event.taskId);
-          if (taskForPage) {
-            taskForPage.pages.set(event.page.id, event.page);
-            set({ tasks: new Map(state.tasks) });
-          }
-          break;
-        }
-
-        case "PAGE_REMOVED": {
-          const taskForRemoval = state.tasks.get(event.taskId);
-          if (taskForRemoval) {
-            taskForRemoval.pages.delete(event.pageId);
-            set({ tasks: new Map(state.tasks) });
-          }
-          break;
-        }
-
-        case "PAGE_UPDATED": {
-          const taskForUpdate = state.tasks.get(event.taskId);
-          const page = taskForUpdate?.pages.get(event.pageId);
-          if (page) {
-            Object.assign(page, event.updates);
-            set({ tasks: new Map(state.tasks) });
-          }
-          break;
-        }
-
-        case "VIEW_CREATED": {
-          state.views.set(event.view.id, event.view);
-          set({ views: new Map(state.views) });
-
-          // Set initial bounds for the newly created view if it's active
-          const currentState = get();
-          if (
-            event.view.id === currentState.activeViewId &&
-            shouldUpdateViewBounds(currentState)
-          ) {
-            // Get real bounds from container ref
-            const bounds = currentState.containerRef
-              ? getContainerBounds(currentState.containerRef)
-              : currentState.containerBounds;
-
-            window.ipcRenderer.invoke(
-              "app:setViewBounds",
-              createBoundsUpdatePayload(event.view.id, bounds)
-            );
-          }
-          break;
-        }
-
-        case "VIEW_DELETED": {
-          state.views.delete(event.viewId);
-          set({ views: new Map(state.views) });
-          break;
-        }
-
-        case "VIEW_UPDATED": {
-          const view = state.views.get(event.viewId);
-          if (view) {
-            Object.assign(view, event.updates);
-            set({ views: new Map(state.views) });
-          }
-          break;
-        }
-
-        case "ACTIVE_VIEW_CHANGED": {
-          set({ activeViewId: event.viewId });
-          // Update bounds for the newly active view
-          const currentState = get();
-          if (
-            event.viewId &&
-            shouldUpdateViewBounds({
-              ...currentState,
-              activeViewId: event.viewId,
-            })
-          ) {
-            // Get real bounds from container ref if available
-            const bounds = currentState.containerRef
-              ? getContainerBounds(currentState.containerRef)
-              : currentState.containerBounds;
-
-            window.ipcRenderer.invoke(
-              "app:setViewBounds",
-              createBoundsUpdatePayload(event.viewId, bounds)
-            );
-          }
-          break;
-        }
-
-        case "ACTIVE_TASK_CHANGED": {
-          set({ activeTaskId: event.taskId });
-          break;
-        }
-
-        case "AGENT_CREATED": {
-          state.agents.set(event.agent.id, event.agent);
-          set({ agents: new Map(state.agents) });
-          break;
-        }
-
-        case "AGENT_DELETED": {
-          state.agents.delete(event.agentId);
-          set({ agents: new Map(state.agents) });
-          break;
-        }
-
-        case "AGENT_STATUS_CHANGED": {
-          const agent = state.agents.get(event.agentId);
-          if (agent) {
-            agent.status = event.status;
-            set({ agents: new Map(state.agents) });
-          }
-          break;
-        }
-      }
-    },
-
-    // Navigation actions
-    goBack: async (taskId: string, pageId: string) => {
-      try {
-        const result = await window.ipcRenderer.invoke(
-          "app:navigationControl",
-          {
-            taskId,
-            pageId,
-            action: "back",
-          }
-        );
-        if (!result.success) {
-          console.error("Failed to go back:", result.error);
-        }
-      } catch (error) {
-        console.error("Error going back:", error);
-      }
-    },
-
-    goForward: async (taskId: string, pageId: string) => {
-      try {
-        const result = await window.ipcRenderer.invoke(
-          "app:navigationControl",
-          {
-            taskId,
-            pageId,
-            action: "forward",
-          }
-        );
-        if (!result.success) {
-          console.error("Failed to go forward:", result.error);
-        }
-      } catch (error) {
-        console.error("Error going forward:", error);
-      }
-    },
-
-    reload: async (taskId: string, pageId: string) => {
-      try {
-        const result = await window.ipcRenderer.invoke(
-          "app:navigationControl",
-          {
-            taskId,
-            pageId,
-            action: "reload",
-          }
-        );
-        if (!result.success) {
-          console.error("Failed to reload:", result.error);
-        }
-      } catch (error) {
-        console.error("Error reloading:", error);
-      }
-    },
-
-    stop: async (taskId: string, pageId: string) => {
-      try {
-        const result = await window.ipcRenderer.invoke(
-          "app:navigationControl",
-          {
-            taskId,
-            pageId,
-            action: "stop",
-          }
-        );
-        if (!result.success) {
-          console.error("Failed to stop:", result.error);
-        }
-      } catch (error) {
-        console.error("Error stopping:", error);
-      }
-    },
-
-    retryInitialization: async () => {
-      useAppStore.setState({
-        initializationRetryCount: 0,
-        initializationError: null,
-      });
-      await loadInitialState(0);
-    },
   }))
 );
 
-// Mark store as ready
-storeReady = true;
-
-// Process any queued messages that arrived before store was ready
-if (earlyMessageQueue.length > 0) {
-  console.log(`Processing ${earlyMessageQueue.length} early state messages`);
-  earlyMessageQueue.forEach(message => {
-    if (message.type === 'sync') {
-      useAppStore.getState().syncState(message.payload as AppState);
-    } else if (message.type === 'change') {
-      useAppStore.getState().handleStateChange(message.payload as StateChangeEvent);
-    }
-  });
-  // Clear the queue
-  earlyMessageQueue.length = 0;
-}
-
-// Define loadInitialState function
-async function loadInitialState(attemptNumber: number): Promise<void> {
-  const store = useAppStore.getState();
-
-  try {
-    useAppStore.setState({ isInitializing: true, initializationError: null });
-
-    const state = await window.ipcRenderer.invoke("app:getState");
-
-    if (state) {
-      store.syncState(state);
-      useAppStore.setState({
-        isInitializing: false,
-        initializationError: null,
-        initializationRetryCount: 0,
-      });
-    } else {
-      throw new Error("Received empty state from main process");
-    }
-  } catch (error) {
-    console.error("Failed to get initial app state:", error);
-
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error occurred";
-
-    if (attemptNumber < MAX_RETRY_ATTEMPTS - 1) {
-      // Retry with exponential backoff
-      useAppStore.setState({
-        initializationError: `Failed to load initial state. Retrying... (${
-          attemptNumber + 1
-        }/${MAX_RETRY_ATTEMPTS})`,
-        initializationRetryCount: attemptNumber + 1,
-      });
-
-      setTimeout(() => {
-        loadInitialState(attemptNumber + 1);
-      }, RETRY_DELAYS[attemptNumber] || 5000);
-    } else {
-      // Max retries reached
-      useAppStore.setState({
-        isInitializing: false,
-        initializationError: `Failed to load application state after ${MAX_RETRY_ATTEMPTS} attempts: ${errorMessage}`,
-        initializationRetryCount: MAX_RETRY_ATTEMPTS,
-      });
-    }
-  }
-}
+// Process any queued IPC messages
+processQueuedMessages({
+  syncState: useAppStore.getState().syncState,
+  handleStateChange: useAppStore.getState().handleStateChange,
+});
 
 // Start loading initial state
-loadInitialState(0);
+loadInitialState(0, {
+  syncState: useAppStore.getState().syncState,
+  setState: (state) => useAppStore.setState(state),
+});
 
 // Set up container bounds observer
-let resizeObserver: ResizeObserver | null = null;
+const unsubscribeResizeObserver = setupResizeObserver(useAppStore);
 
-const unsubscribeContainerRef = useAppStore.subscribe(
-  (state) => state.containerRef,
-  (containerRef) => {
-    // Clean up old observer
-    if (resizeObserver) {
-      resizeObserver.disconnect();
-      resizeObserver = null;
-    }
-
-    // Set up new observer
-    if (containerRef?.current) {
-      resizeObserver = new ResizeObserver(() => {
-        useAppStore.getState().updateContainerBounds();
-      });
-      resizeObserver.observe(containerRef.current);
-    }
-  }
-);
-
-// Cleanup function for ResizeObserver
-export const cleanupResizeObserver = () => {
-  if (resizeObserver) {
-    resizeObserver.disconnect();
-    resizeObserver = null;
-  }
-  unsubscribeContainerRef();
+// Export cleanup function
+export const cleanup = () => {
+  cleanupResizeObserver();
+  unsubscribeResizeObserver();
 };
-
-// Clean up on window unload
-if (typeof window !== "undefined") {
-  window.addEventListener("beforeunload", cleanupResizeObserver);
-}
 
 export { useAppStore };
 export type { AppStore };
