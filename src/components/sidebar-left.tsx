@@ -31,7 +31,8 @@ export function SidebarLeft(props: SidebarLeftProps) {
     createTask,
     deleteTask,
     selectPage,
-    setExpandedTask
+    setExpandedTask,
+    showSettings
   } = useAppStore();
   
   const { openMobile } = useSidebar();
@@ -47,10 +48,12 @@ export function SidebarLeft(props: SidebarLeftProps) {
       // Sidebar is open in mobile, hide the web view to prevent overlap
       hideView();
     } else {
-      // Sidebar is closed, show the web view
-      showView(200); // Slightly longer delay for sidebar animation
+      // Sidebar is closed, only show the web view if settings is not open
+      if (!showSettings) {
+        showView(200); // Slightly longer delay for sidebar animation
+      }
     }
-  }, [openMobile, isMobile, hideView, showView]);
+  }, [openMobile, isMobile, hideView, showView, showSettings]);
   
   // Convert Map to array for NavTasks component
   const tasksArray = Array.from(tasks.values()).map(task => ({
