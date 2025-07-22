@@ -7,6 +7,7 @@ import {
   ThreadPrimitive,
 } from "@assistant-ui/react";
 import type { FC } from "react";
+import { useRef, useEffect } from "react";
 import {
   ArrowDownIcon,
   CheckIcon,
@@ -18,40 +19,79 @@ import {
   SendHorizontalIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAppStore } from "@/store/appStore";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 
 import { Button } from "@/components/ui/button";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 
 export const Thread: FC = () => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const { setContainerRef } = useAppStore();
+
+  useEffect(() => {
+    setContainerRef(containerRef);
+  }, [setContainerRef]);
+
+  useEffect(() => {
+    // Small delay to ensure DOM is fully rendered
+    const timer = setTimeout(() => {
+      if (containerRef.current) {
+        useAppStore.getState().updateContainerBounds();
+      }
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
-    <ThreadPrimitive.Root
-      className="bg-background box-border flex h-full flex-col overflow-hidden"
-      style={{
-        ["--thread-max-width" as string]: "42rem",
-      }}
-    >
-      <ThreadPrimitive.Viewport className="flex h-full flex-col items-center overflow-y-scroll scroll-smooth bg-inherit px-4 pt-8">
-        <ThreadWelcome />
-
-        <ThreadPrimitive.Messages
-          components={{
-            UserMessage: UserMessage,
-            EditComposer: EditComposer,
-            AssistantMessage: AssistantMessage,
-          }}
-        />
-
-        <ThreadPrimitive.If empty={false}>
-          <div className="min-h-8 flex-grow" />
-        </ThreadPrimitive.If>
-
-        <div className="sticky bottom-0 mt-3 flex w-full max-w-[var(--thread-max-width)] flex-col items-center justify-end rounded-t-lg bg-inherit pb-4">
-          <ThreadScrollToBottom />
-          <Composer />
+    <ResizablePanelGroup direction="horizontal" className="h-full">
+      <ResizablePanel defaultSize={70} minSize={30}>
+        <div ref={containerRef} className="h-full">
+          {/* This panel will be used for the browser view */}
+          <div className="flex items-center justify-center h-full text-muted-foreground">
+            Browser view will be displayed here
+          </div>
         </div>
-      </ThreadPrimitive.Viewport>
-    </ThreadPrimitive.Root>
+      </ResizablePanel>
+      <ResizableHandle />
+      <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+        <ThreadPrimitive.Root
+          className="bg-background box-border flex h-full flex-col overflow-hidden"
+          style={{
+            ["--thread-max-width" as string]: "100%",
+          }}
+        >
+          <ThreadPrimitive.Viewport className="flex h-full flex-col items-center overflow-y-scroll scroll-smooth bg-inherit px-4 pt-8">
+            <div className="flex flex-col w-full max-w-[var(--thread-max-width)]">
+              <ThreadWelcome />
+
+              <ThreadPrimitive.Messages
+                components={{
+                  UserMessage: UserMessage,
+                  EditComposer: EditComposer,
+                  AssistantMessage: AssistantMessage,
+                }}
+              />
+
+              <ThreadPrimitive.If empty={false}>
+                <div className="min-h-8 flex-grow" />
+              </ThreadPrimitive.If>
+            </div>
+
+            <div className="sticky bottom-0 mt-3 flex w-full max-w-[var(--thread-max-width)] flex-col items-center justify-end rounded-t-lg bg-inherit pb-4">
+              <ThreadScrollToBottom />
+              <Composer />
+            </div>
+          </ThreadPrimitive.Viewport>
+        </ThreadPrimitive.Root>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 };
 
