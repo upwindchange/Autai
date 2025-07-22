@@ -69,7 +69,7 @@ export class StateManager {
   /**
    * Task operations
    */
-  createTask(title: string = "New Task", initialUrl?: string): Task {
+  async createTask(title: string = "New Task", initialUrl?: string): Promise<Task> {
     const taskId = `task-${Date.now()}-${Math.random()
       .toString(36)
       .substring(2, 11)}`;
@@ -85,7 +85,14 @@ export class StateManager {
 
     // Create initial page if URL provided
     if (initialUrl) {
-      this.addPage(taskId, initialUrl);
+      const page = await this.addPage(taskId, initialUrl);
+      if (page) {
+        // Update the task's activePageId if it wasn't set in addPage
+        const updatedTask = this.tasks.get(taskId);
+        if (updatedTask && !updatedTask.activePageId) {
+          updatedTask.activePageId = page.id;
+        }
+      }
     }
 
     return task;

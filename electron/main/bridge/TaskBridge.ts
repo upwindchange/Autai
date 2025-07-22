@@ -25,7 +25,7 @@ export class TaskBridge extends BaseBridge {
     this.handle(
       "app:createTask",
       async (_event: IpcMainInvokeEvent, command: CreateTaskCommand) => {
-        const task = this.stateManager.createTask(
+        const task = await this.stateManager.createTask(
           command.title,
           command.initialUrl
         );
