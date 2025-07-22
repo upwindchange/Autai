@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { Message, UseTaskChatReturn } from "../types";
-import type { StreamChunk } from "../../../../electron/shared/types/index";
+import type { StreamChunk } from "../../../../electron/shared/types";
 import { useAppStore } from "@/store/appStore";
 
 /**
@@ -269,8 +269,10 @@ async function handleDebugCommand(
         });
         resultMessage = `Screenshot captured:\n\`\`\`json\n${JSON.stringify(
           {
-            ...(typeof result === 'object' && result !== null ? result : {}),
-            screenshot: (result as any)?.screenshot ? "[Binary Data]" : undefined,
+            ...(typeof result === "object" && result !== null ? result : {}),
+            screenshot: (result as any)?.screenshot
+              ? "[Binary Data]"
+              : undefined,
           },
           null,
           2

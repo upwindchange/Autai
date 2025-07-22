@@ -1,5 +1,5 @@
-import type { WebViewService } from "./index";
-import type { ActionResult, ScreenshotOptions } from "../../shared/types/index";
+import type { WebViewService } from ".";
+import type { ActionResult, ScreenshotOptions } from "../../shared/types";
 
 /**
  * Service for browser actions and interactions
@@ -193,11 +193,11 @@ export class BrowserActionService {
       pageId,
       "initializeHintDetector"
     );
-    
+
     if (!initResult.success) {
       console.warn("[BrowserActionService] Failed to initialize hint detector");
     }
-    
+
     const viewportOnly = options?.viewportOnly ?? true;
     const result = await this.webViewService.executeWindowFunction(
       taskId,
@@ -208,21 +208,18 @@ export class BrowserActionService {
     return result.success ? { success: true, data: result.data || [] } : result;
   }
 
-  async showHints(
-    taskId: string,
-    pageId: string
-  ): Promise<ActionResult> {
+  async showHints(taskId: string, pageId: string): Promise<ActionResult> {
     // First ensure hint detector is initialized
     const initResult = await this.webViewService.executeWindowFunction(
       taskId,
       pageId,
       "initializeHintDetector"
     );
-    
+
     if (!initResult.success) {
       console.warn("[BrowserActionService] Failed to initialize hint detector");
     }
-    
+
     const result = await this.webViewService.executeWindowFunction(
       taskId,
       pageId,
@@ -230,11 +227,8 @@ export class BrowserActionService {
     );
     return result;
   }
-  
-  async hideHints(
-    taskId: string,
-    pageId: string
-  ): Promise<ActionResult> {
+
+  async hideHints(taskId: string, pageId: string): Promise<ActionResult> {
     const result = await this.webViewService.executeWindowFunction(
       taskId,
       pageId,

@@ -21,7 +21,7 @@ import type {
   AISettings,
   TestConnectionConfig,
   TestConnectionResult,
-} from "../electron/shared/types/index";
+} from "../electron/shared/types";
 
 // Generic result type for IPC operations
 interface IPCResult {

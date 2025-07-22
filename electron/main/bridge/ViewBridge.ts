@@ -3,7 +3,7 @@ import { BaseBridge } from "./BaseBridge";
 import type {
   SetViewBoundsCommand,
   SetViewVisibilityCommand,
-} from "../../shared/types/index";
+} from "../../shared/types";
 import type { WebViewService, StateManager } from "../services";
 
 /**

@@ -1,5 +1,5 @@
-import type { StateManager, WebViewService } from "./index";
-import type { ActionResult } from "../../shared/types/index";
+import type { StateManager, WebViewService } from ".";
+import type { ActionResult } from "../../shared/types";
 
 /**
  * Service for handling navigation operations and state updates

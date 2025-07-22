@@ -6,7 +6,7 @@ import type {
   Agent,
   AppState,
   StateChangeEvent,
-} from "../../electron/shared/types/index";
+} from "../../electron/shared/types";
 import type { RefObject } from "react";
 
 interface AppStore {
@@ -52,9 +52,11 @@ interface AppStore {
 }
 
 // Helper to convert plain objects back to Maps
-function objectToMap<T>(obj: Record<string, T> | undefined | null): Map<string, T> {
+function objectToMap<T>(
+  obj: Record<string, T> | undefined | null
+): Map<string, T> {
   const map = new Map<string, T>();
-  if (obj && typeof obj === 'object') {
+  if (obj && typeof obj === "object") {
     Object.entries(obj).forEach(([key, value]) => {
       map.set(key, value);
     });
@@ -72,7 +74,7 @@ function restoreTaskPages(task: Task): Task {
         : objectToMap(
             task.pages as Record<
               string,
-              import("../../electron/shared/types/index").Page
+              import("../../electron/shared/types").Page
             >
           ),
   };
@@ -276,10 +278,10 @@ const useAppStore = create<AppStore>()(
     setShowSettings: (show: boolean) => {
       const state = get();
       set({ showSettings: show });
-      
+
       // Hide/show the web view when toggling settings
       if (state.activeViewId) {
-        state.setViewVisibility(show, 'settings');
+        state.setViewVisibility(show, "settings");
       }
     },
 
@@ -512,13 +514,16 @@ window.ipcRenderer.on("state:change", (_event, event: StateChangeEvent) => {
 });
 
 // Get initial state
-window.ipcRenderer.invoke("app:getState").then((state: AppState) => {
-  if (state) {
-    useAppStore.getState().syncState(state);
-  }
-}).catch((error) => {
-  console.error("Failed to get initial app state:", error);
-});
+window.ipcRenderer
+  .invoke("app:getState")
+  .then((state: AppState) => {
+    if (state) {
+      useAppStore.getState().syncState(state);
+    }
+  })
+  .catch((error) => {
+    console.error("Failed to get initial app state:", error);
+  });
 
 // Set up container bounds observer
 let resizeObserver: ResizeObserver | null = null;

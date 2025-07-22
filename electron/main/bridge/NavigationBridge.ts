@@ -3,7 +3,7 @@ import { BaseBridge } from "./BaseBridge";
 import type {
   NavigateCommand,
   NavigationControlCommand,
-} from "../../shared/types/index";
+} from "../../shared/types";
 import {
   type StateManager,
   NavigationService,

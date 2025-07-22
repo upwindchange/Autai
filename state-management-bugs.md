@@ -14,12 +14,6 @@
 **Issue**: When creating a task with an initial URL, the page is added asynchronously but the task is returned immediately. This could cause issues if the renderer tries to access the page before it's created.
 **Fix**: Make `createTask` async and await the `addPage` call, or ensure proper state synchronization after page creation.
 
-### 2. Circular Dependency Risk
-
-**Location**: StateManager.ts:36-44
-**Issue**: The `setWebViewService` method creates a circular dependency between StateManager and WebViewService. If not carefully managed during initialization, this could lead to undefined service references.
-**Fix**: Consider using dependency injection or a service locator pattern to manage these dependencies more cleanly.
-
 ### 4. Map Serialization Issues
 
 **Location**: appStore.ts:264-291

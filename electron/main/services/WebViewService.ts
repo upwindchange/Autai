@@ -1,7 +1,10 @@
 import { WebContentsView, BrowserWindow } from "electron";
-import type { StateManager } from "./index";
-import type { View, ActionResult, IViewManager } from "../../shared/types/index";
-import { getHintDetectorScript, getIndexScript } from "../scripts/hintDetectorLoader";
+import type { StateManager } from ".";
+import type { View, ActionResult, IViewManager } from "../../shared/types";
+import {
+  getHintDetectorScript,
+  getIndexScript,
+} from "../scripts/hintDetectorLoader";
 
 /**
  * Single source of truth for all WebContentsView operations
@@ -306,7 +309,7 @@ export class WebViewService implements IViewManager {
         // Inject hint detector script
         const hintDetectorScript = getHintDetectorScript();
         await webView.webContents.executeJavaScript(hintDetectorScript);
-        
+
         // Inject index.js script wrapped in IIFE to define buildDomTree globally
         const indexScript = getIndexScript();
         const wrappedIndexScript = `
@@ -315,7 +318,7 @@ export class WebViewService implements IViewManager {
           })();
         `;
         await webView.webContents.executeJavaScript(wrappedIndexScript);
-        
+
         console.log(`Successfully injected scripts for view ${viewId}`);
       } catch (error) {
         console.error("Failed to inject scripts:", error);
