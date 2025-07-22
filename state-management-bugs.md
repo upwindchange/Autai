@@ -14,12 +14,6 @@
 **Issue**: The initial state fetch happens outside any error boundary and only logs errors. If this fails, the app starts with no state and no user feedback.
 **Fix**: Implement a proper error state or retry mechanism for initial state loading.
 
-### 7. ResizeObserver Cleanup Timing
-
-**Location**: appStore.ts:526-543
-**Issue**: The ResizeObserver cleanup happens when containerRef changes, but not when the component unmounts. This could cause errors if the observer fires after unmount.
-**Fix**: Add cleanup on store destruction or component unmount.
-
 ### 8. Missing Validation in Page Updates
 
 **Location**: StateManager.ts:178-186
