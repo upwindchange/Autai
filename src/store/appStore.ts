@@ -94,6 +94,34 @@ function restoreTaskPages(task: Task): Task {
 const MAX_RETRY_ATTEMPTS = 3;
 const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff
 
+// Queue for early IPC messages that arrive before store is ready
+const earlyMessageQueue: {
+  type: 'sync' | 'change';
+  payload: AppState | StateChangeEvent;
+}[] = [];
+
+// Flag to track if store is ready
+let storeReady = false;
+
+// Set up IPC listeners before store creation to catch early messages
+window.ipcRenderer.on("state:sync", (_event, state: AppState) => {
+  if (!storeReady) {
+    // Store not ready yet, queue the message
+    earlyMessageQueue.push({ type: 'sync', payload: state });
+  } else {
+    useAppStore.getState().syncState(state);
+  }
+});
+
+window.ipcRenderer.on("state:change", (_event, event: StateChangeEvent) => {
+  if (!storeReady) {
+    // Store not ready yet, queue the message
+    earlyMessageQueue.push({ type: 'change', payload: event });
+  } else {
+    useAppStore.getState().handleStateChange(event);
+  }
+});
+
 const useAppStore = create<AppStore>()(
   subscribeWithSelector((set, get) => ({
     // Initial state
@@ -551,14 +579,22 @@ const useAppStore = create<AppStore>()(
   }))
 );
 
-// Set up IPC listeners
-window.ipcRenderer.on("state:sync", (_event, state: AppState) => {
-  useAppStore.getState().syncState(state);
-});
+// Mark store as ready
+storeReady = true;
 
-window.ipcRenderer.on("state:change", (_event, event: StateChangeEvent) => {
-  useAppStore.getState().handleStateChange(event);
-});
+// Process any queued messages that arrived before store was ready
+if (earlyMessageQueue.length > 0) {
+  console.log(`Processing ${earlyMessageQueue.length} early state messages`);
+  earlyMessageQueue.forEach(message => {
+    if (message.type === 'sync') {
+      useAppStore.getState().syncState(message.payload as AppState);
+    } else if (message.type === 'change') {
+      useAppStore.getState().handleStateChange(message.payload as StateChangeEvent);
+    }
+  });
+  // Clear the queue
+  earlyMessageQueue.length = 0;
+}
 
 // Define loadInitialState function
 async function loadInitialState(attemptNumber: number): Promise<void> {
