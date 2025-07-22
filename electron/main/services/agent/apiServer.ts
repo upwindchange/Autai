@@ -1,8 +1,8 @@
-import express from 'express';
-import cors from 'cors';
+import express from "express";
+import cors from "cors";
 import { createOpenAI } from "@ai-sdk/openai";
 import { convertToCoreMessages, streamText } from "ai";
-import { settingsService } from "./settingsService";
+import { settingsService } from "../settingsService";
 
 export class ApiServer {
   private app: express.Express;
@@ -18,21 +18,21 @@ export class ApiServer {
   private setupMiddleware(): void {
     // Enable CORS for all origins
     this.app.use(cors());
-    
+
     // Parse JSON bodies
     this.app.use(express.json());
   }
 
   private setupRoutes(): void {
     // Chat endpoint
-    this.app.post('/api/chat', async (req, res) => {
+    this.app.post("/api/chat", async (req, res) => {
       try {
         const { messages, taskId } = req.body;
-        
+
         // Get settings
         const settings = settingsService.getActiveSettings();
         if (!settings?.apiKey) {
-          return res.status(400).json({ error: 'API key not configured' });
+          return res.status(400).json({ error: "API key not configured" });
         }
 
         // Create OpenAI provider
@@ -48,39 +48,42 @@ export class ApiServer {
           system: `You are a helpful AI assistant integrated into a web browser automation tool. 
                    You can help users navigate web pages, answer questions about the current page content, 
                    and provide assistance with browser automation tasks.
-                   ${taskId ? `Current task ID: ${taskId}` : ''}`,
+                   ${taskId ? `Current task ID: ${taskId}` : ""}`,
         });
 
         // Convert to data stream response
         const response = await result.toDataStreamResponse();
-        
+
         // Set appropriate headers for streaming
-        res.setHeader('Content-Type', response.headers.get('Content-Type') || 'text/event-stream');
-        res.setHeader('Cache-Control', 'no-cache');
-        res.setHeader('Connection', 'keep-alive');
+        res.setHeader(
+          "Content-Type",
+          response.headers.get("Content-Type") || "text/event-stream"
+        );
+        res.setHeader("Cache-Control", "no-cache");
+        res.setHeader("Connection", "keep-alive");
 
         // Stream the response body
         const reader = response.body?.getReader();
         if (reader) {
           const decoder = new TextDecoder();
-          
+
           while (true) {
             const { done, value } = await reader.read();
             if (done) break;
             res.write(decoder.decode(value, { stream: true }));
           }
         }
-        
+
         res.end();
       } catch (error) {
-        console.error('Chat API error:', error);
-        res.status(500).json({ error: 'Internal server error' });
+        console.error("Chat API error:", error);
+        res.status(500).json({ error: "Internal server error" });
       }
     });
 
     // Health check endpoint
-    this.app.get('/health', (req, res) => {
-      res.json({ status: 'ok', port: this.port });
+    this.app.get("/health", (req, res) => {
+      res.json({ status: "ok", port: this.port });
     });
   }
 

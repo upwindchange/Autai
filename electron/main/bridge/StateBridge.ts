@@ -15,6 +15,7 @@ export class StateBridge {
   private stateManager: StateManager;
   private win: BrowserWindow;
   private unsubscribe: (() => void) | null = null;
+  private syncIntervalId: NodeJS.Timeout | null = null;
 
   // Bridge instances
   private taskBridge: TaskBridge;
@@ -62,7 +63,7 @@ export class StateBridge {
     );
 
     // Send full state sync periodically (as backup)
-    setInterval(() => {
+    this.syncIntervalId = setInterval(() => {
       if (!this.win.isDestroyed() && this.win.webContents) {
         this.win.webContents.send(
           "state:sync",
@@ -86,6 +87,12 @@ export class StateBridge {
     if (this.unsubscribe) {
       this.unsubscribe();
       this.unsubscribe = null;
+    }
+
+    // Clear the sync interval to prevent memory leak
+    if (this.syncIntervalId) {
+      clearInterval(this.syncIntervalId);
+      this.syncIntervalId = null;
     }
 
     // Clean up all bridges

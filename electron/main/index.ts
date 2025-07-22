@@ -9,7 +9,7 @@ import {
   settingsService,
   WebViewService,
   apiServer,
-} from "./services/index";
+} from "./services";
 import { StateBridge } from "./bridge/StateBridge";
 
 const _require = createRequire(import.meta.url);
