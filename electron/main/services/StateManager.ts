@@ -6,8 +6,8 @@ import type {
   Agent,
   AppState,
   StateChangeEvent,
-} from "../../shared/types/index";
-import type { WebViewService } from "./index";
+  IViewManager,
+} from "../../shared/types";
 
 /**
  * Central state management for the entire application.
@@ -23,7 +23,7 @@ export class StateManager {
 
   private stateChangeListeners: ((event: StateChangeEvent) => void)[] = [];
   private win: BrowserWindow;
-  private webViewService!: WebViewService;
+  private viewManager: IViewManager | null = null;
   private isDestroyed = false;
 
   constructor(win: BrowserWindow) {
@@ -31,16 +31,16 @@ export class StateManager {
   }
 
   /**
-   * Set the WebViewService dependency (called after both services are created)
+   * Set the view manager dependency (called after both services are created)
    */
-  setWebViewService(webViewService: WebViewService): void {
-    if (this.webViewService) {
-      throw new Error("WebViewService already set");
+  setViewManager(viewManager: IViewManager): void {
+    if (this.viewManager) {
+      throw new Error("ViewManager already set");
     }
-    if (!webViewService) {
-      throw new Error("WebViewService cannot be null or undefined");
+    if (!viewManager) {
+      throw new Error("ViewManager cannot be null or undefined");
     }
-    this.webViewService = webViewService;
+    this.viewManager = viewManager;
   }
 
   /**
@@ -98,7 +98,7 @@ export class StateManager {
     // Delete all views for this task
     const viewsToDelete = this.getViewsForTask(taskId);
     viewsToDelete.forEach((view) => {
-      this.webViewService.destroyView(view.id);
+      this.viewManager?.destroyView(view.id);
     });
 
     // Delete all agents for this task
@@ -146,7 +146,7 @@ export class StateManager {
     this.emit({ type: "PAGE_ADDED", taskId, page });
 
     // Create view for this page
-    const view = await this.webViewService.createView(taskId, pageId, url);
+    const view = await this.viewManager?.createView(taskId, pageId, url);
     if (view && task.activePageId === pageId) {
       this.setActiveView(view.id);
     }
@@ -161,7 +161,7 @@ export class StateManager {
     // Find and destroy associated view
     const view = this.getViewForPage(taskId, pageId);
     if (view) {
-      this.webViewService.destroyView(view.id);
+      this.viewManager?.destroyView(view.id);
     }
 
     task.pages.delete(pageId);
@@ -205,7 +205,7 @@ export class StateManager {
     this.emit({ type: "ACTIVE_VIEW_CHANGED", viewId });
 
     // Update WebContentsView visibility
-    this.webViewService.updateViewVisibility();
+    this.viewManager?.updateViewVisibility();
   }
 
   /**

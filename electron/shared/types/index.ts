@@ -25,3 +25,6 @@ export * from './browserActions';
 
 // DOM types
 export * from './dom';
+
+// Service interface types
+export * from './services';

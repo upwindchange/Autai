@@ -1,13 +1,13 @@
 import { WebContentsView, BrowserWindow } from "electron";
 import type { StateManager } from "./index";
-import type { View, ActionResult } from "../../shared/types/index";
+import type { View, ActionResult, IViewManager } from "../../shared/types/index";
 import { getHintDetectorScript, getIndexScript } from "../scripts/hintDetectorLoader";
 
 /**
  * Single source of truth for all WebContentsView operations
  * Consolidates view resolution, lifecycle management, and access patterns
  */
-export class WebViewService {
+export class WebViewService implements IViewManager {
   private stateManager: StateManager;
   private win: BrowserWindow;
   private webContentsViews = new Map<string, WebContentsView>();

@@ -77,7 +77,7 @@ async function createWindow() {
 
   // Create WebViewService and wire it up with StateManager
   const webViewService = new WebViewService(stateManager, win);
-  stateManager.setWebViewService(webViewService);
+  stateManager.setViewManager(webViewService);
 
   stateBridge = new StateBridge(stateManager, webViewService, win);
 
