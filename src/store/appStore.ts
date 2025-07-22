@@ -29,6 +29,11 @@ interface AppStore {
   containerBounds: DOMRect | null;
   showSettings: boolean; // Track if settings should be shown instead of web view
 
+  // Initial state loading
+  isInitializing: boolean;
+  initializationError: string | null;
+  initializationRetryCount: number;
+
   // Actions - Backend operations
   createTask: (title?: string, initialUrl?: string) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
@@ -47,6 +52,7 @@ interface AppStore {
   // Actions - State sync
   syncState: (state: AppState) => void;
   handleStateChange: (event: StateChangeEvent) => void;
+  retryInitialization: () => Promise<void>;
 
   // Navigation actions
   goBack: (taskId: string, pageId: string) => Promise<void>;
@@ -84,6 +90,10 @@ function restoreTaskPages(task: Task): Task {
   };
 }
 
+// Function to load initial state with retry logic
+const MAX_RETRY_ATTEMPTS = 3;
+const RETRY_DELAYS = [1000, 2000, 4000]; // Exponential backoff
+
 const useAppStore = create<AppStore>()(
   subscribeWithSelector((set, get) => ({
     // Initial state
@@ -97,6 +107,9 @@ const useAppStore = create<AppStore>()(
     containerRef: null,
     containerBounds: null,
     showSettings: false,
+    isInitializing: true,
+    initializationError: null,
+    initializationRetryCount: 0,
 
     // Backend operations
     createTask: async (title?: string, initialUrl?: string) => {
@@ -227,13 +240,13 @@ const useAppStore = create<AppStore>()(
           viewId: state.activeViewId,
           isHidden: isHidden,
         });
-        
+
         // When making view visible, immediately update its bounds
         if (!isHidden && !state.showSettings) {
           const bounds = state.containerRef
             ? getContainerBounds(state.containerRef)
             : state.containerBounds;
-          
+
           if (bounds) {
             window.ipcRenderer.invoke(
               "app:setViewBounds",
@@ -257,7 +270,7 @@ const useAppStore = create<AppStore>()(
       const rect = state.containerRef
         ? getContainerBounds(state.containerRef)
         : null;
-      
+
       set({ containerBounds: rect });
 
       // Update active view bounds
@@ -277,13 +290,13 @@ const useAppStore = create<AppStore>()(
       if (state.activeViewId) {
         state.setViewVisibility(show);
       }
-      
+
       // When closing settings, update view bounds to current container position
       if (!show && state.activeViewId && !state.isViewHidden) {
         const bounds = state.containerRef
           ? getContainerBounds(state.containerRef)
           : state.containerBounds;
-        
+
         if (bounds) {
           window.ipcRenderer.invoke(
             "app:setViewBounds",
@@ -527,6 +540,14 @@ const useAppStore = create<AppStore>()(
         console.error("Error stopping:", error);
       }
     },
+
+    retryInitialization: async () => {
+      useAppStore.setState({
+        initializationRetryCount: 0,
+        initializationError: null,
+      });
+      await loadInitialState(0);
+    },
   }))
 );
 
@@ -539,17 +560,56 @@ window.ipcRenderer.on("state:change", (_event, event: StateChangeEvent) => {
   useAppStore.getState().handleStateChange(event);
 });
 
-// Get initial state
-window.ipcRenderer
-  .invoke("app:getState")
-  .then((state: AppState) => {
+// Define loadInitialState function
+async function loadInitialState(attemptNumber: number): Promise<void> {
+  const store = useAppStore.getState();
+
+  try {
+    useAppStore.setState({ isInitializing: true, initializationError: null });
+
+    const state = await window.ipcRenderer.invoke("app:getState");
+
     if (state) {
-      useAppStore.getState().syncState(state);
+      store.syncState(state);
+      useAppStore.setState({
+        isInitializing: false,
+        initializationError: null,
+        initializationRetryCount: 0,
+      });
+    } else {
+      throw new Error("Received empty state from main process");
     }
-  })
-  .catch((error) => {
+  } catch (error) {
     console.error("Failed to get initial app state:", error);
-  });
+
+    const errorMessage =
+      error instanceof Error ? error.message : "Unknown error occurred";
+
+    if (attemptNumber < MAX_RETRY_ATTEMPTS - 1) {
+      // Retry with exponential backoff
+      useAppStore.setState({
+        initializationError: `Failed to load initial state. Retrying... (${
+          attemptNumber + 1
+        }/${MAX_RETRY_ATTEMPTS})`,
+        initializationRetryCount: attemptNumber + 1,
+      });
+
+      setTimeout(() => {
+        loadInitialState(attemptNumber + 1);
+      }, RETRY_DELAYS[attemptNumber] || 5000);
+    } else {
+      // Max retries reached
+      useAppStore.setState({
+        isInitializing: false,
+        initializationError: `Failed to load application state after ${MAX_RETRY_ATTEMPTS} attempts: ${errorMessage}`,
+        initializationRetryCount: MAX_RETRY_ATTEMPTS,
+      });
+    }
+  }
+}
+
+// Start loading initial state
+loadInitialState(0);
 
 // Set up container bounds observer
 let resizeObserver: ResizeObserver | null = null;

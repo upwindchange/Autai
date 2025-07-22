@@ -16,6 +16,7 @@ import { AssistantChatContainer } from "@/components/ai-chat";
 import { SettingsProvider, SettingsView } from "@/components/settings";
 import { useAppStore } from "@/store/appStore";
 import { useResizeObserverCleanup } from "@/hooks/use-cleanup";
+import { InitializationError } from "@/components/InitializationError";
 
 /**
  * Inner app component that uses Zustand store
@@ -115,6 +116,7 @@ function AppContent() {
 function App() {
   return (
     <SettingsProvider>
+      <InitializationError />
       <AppContent />
     </SettingsProvider>
   );
