@@ -2,12 +2,24 @@
  * Core data types shared between main and renderer processes
  */
 
-export interface Page {
-  id: string;
-  url: string;
-  title: string;
-  favicon: string;
-}
+import { z } from "zod";
+
+// Define Page schema as the source of truth
+export const PageSchema = z.object({
+  id: z.string(),
+  url: z.string(),
+  title: z.string(),
+  favicon: z.string(),
+});
+
+// Derive Page type from schema
+export type Page = z.infer<typeof PageSchema>;
+
+// Schema for validating page updates (partial, without id)
+export const PageUpdateSchema = PageSchema.omit({ id: true }).partial().strict().refine(
+  (data) => !data.url || data.url.length > 0,
+  { message: "URL cannot be empty if provided", path: ["url"] }
+);
 
 export interface Task {
   id: string;

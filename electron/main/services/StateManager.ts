@@ -8,6 +8,7 @@ import type {
   StateChangeEvent,
   IViewManager,
 } from "../../shared/types";
+import { PageUpdateSchema } from "../../shared/types";
 
 /**
  * Central state management for the entire application.
@@ -187,9 +188,16 @@ export class StateManager {
     const page = task?.pages.get(pageId);
     if (!page || !task) return;
 
-    Object.assign(page, updates);
+    // Validate updates with Zod
+    const validation = PageUpdateSchema.safeParse(updates);
+    if (!validation.success) {
+      console.warn(`Invalid page update for ${pageId}:`, validation.error.format());
+      return;
+    }
 
-    this.emit({ type: "PAGE_UPDATED", taskId, pageId, updates });
+    Object.assign(page, validation.data);
+
+    this.emit({ type: "PAGE_UPDATED", taskId, pageId, updates: validation.data });
   }
 
   /**
