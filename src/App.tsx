@@ -15,6 +15,7 @@ import {
 import { AssistantChatContainer } from "@/components/ai-chat";
 import { SettingsProvider, SettingsView } from "@/components/settings";
 import { useAppStore } from "@/store/appStore";
+import { useResizeObserverCleanup } from "@/hooks/use-cleanup";
 
 /**
  * Inner app component that uses Zustand store
@@ -27,6 +28,9 @@ function AppContent() {
     showSettings,
     setShowSettings,
   } = useAppStore();
+  
+  // Ensure proper cleanup of ResizeObserver
+  useResizeObserverCleanup();
 
   // Get selected page URL from active task/page
   const selectedPageUrl = useAppStore((state) => {

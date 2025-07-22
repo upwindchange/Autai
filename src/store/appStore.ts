@@ -515,7 +515,7 @@ window.ipcRenderer
 // Set up container bounds observer
 let resizeObserver: ResizeObserver | null = null;
 
-useAppStore.subscribe(
+const unsubscribeContainerRef = useAppStore.subscribe(
   (state) => state.containerRef,
   (containerRef) => {
     // Clean up old observer
@@ -533,6 +533,20 @@ useAppStore.subscribe(
     }
   }
 );
+
+// Cleanup function for ResizeObserver
+export const cleanupResizeObserver = () => {
+  if (resizeObserver) {
+    resizeObserver.disconnect();
+    resizeObserver = null;
+  }
+  unsubscribeContainerRef();
+};
+
+// Clean up on window unload
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', cleanupResizeObserver);
+}
 
 export { useAppStore };
 export type { AppStore };

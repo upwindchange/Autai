@@ -13,6 +13,7 @@
     "preview": "vite preview",
     "pretest": "vite build --mode=test",
     "test": "vitest run",
+    "tsc": "tsc --noEmit",
     "lint": "eslint ."
   },
   "dependencies": {
