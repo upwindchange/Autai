@@ -2,6 +2,7 @@ import type { UIActions, UIState, CoreState } from "../types";
 import type {
   SetViewVisibilityCommand,
   SetViewBoundsCommand,
+  SetActiveViewCommand,
 } from "../../../electron/shared/types/commands";
 import {
   shouldUpdateViewBounds,
@@ -29,42 +30,18 @@ export const createUIActions = (set: SetState, get: GetState): UIActions => ({
     });
 
     if (state.activeViewId) {
-      // When making view visible, update bounds BEFORE setting visibility
-      if (!isHidden && !state.showSettings) {
-        const bounds = state.containerRef
-          ? getContainerBounds(state.containerRef)
-          : state.containerBounds;
+      // Get current bounds for when showing the view
+      const bounds = !isHidden && state.containerRef
+        ? getContainerBounds(state.containerRef)
+        : null;
 
-        if (bounds) {
-          const boundsCommand = createBoundsUpdatePayload(
-            state.activeViewId,
-            bounds
-          ) as SetViewBoundsCommand;
-          // Set bounds first
-          window.ipcRenderer.invoke("app:setViewBounds", boundsCommand).then(() => {
-            // Then set visibility after bounds are updated
-            const command: SetViewVisibilityCommand = {
-              viewId: state.activeViewId,
-              isHidden: isHidden,
-            };
-            window.ipcRenderer.invoke("app:setViewVisibility", command);
-          });
-        } else {
-          // If no bounds available, just set visibility
-          const command: SetViewVisibilityCommand = {
-            viewId: state.activeViewId,
-            isHidden: isHidden,
-          };
-          window.ipcRenderer.invoke("app:setViewVisibility", command);
-        }
-      } else {
-        // When hiding or showing settings, just update visibility
-        const command: SetViewVisibilityCommand = {
-          viewId: state.activeViewId,
-          isHidden: isHidden,
-        };
-        window.ipcRenderer.invoke("app:setViewVisibility", command);
-      }
+      const command: SetViewVisibilityCommand = {
+        viewId: state.activeViewId,
+        isHidden: isHidden,
+        bounds: bounds ? createBoundsUpdatePayload(state.activeViewId, bounds).bounds : undefined,
+      };
+      
+      window.ipcRenderer.invoke("app:setViewVisibility", command);
     }
   },
 
@@ -85,10 +62,10 @@ export const createUIActions = (set: SetState, get: GetState): UIActions => ({
 
     set({ containerBounds: rect });
 
-    // Update active view bounds
-    if (shouldUpdateViewBounds(state) && rect) {
+    // Update active view bounds if visible
+    if (state.activeViewId && !state.isViewHidden && !state.showSettings && rect) {
       const boundsCommand = createBoundsUpdatePayload(
-        state.activeViewId!,
+        state.activeViewId,
         rect
       ) as SetViewBoundsCommand;
       window.ipcRenderer.invoke("app:setViewBounds", boundsCommand);

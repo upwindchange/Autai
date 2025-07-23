@@ -156,7 +156,9 @@ export class StateManager {
     // Create view for this page
     const view = await this.viewManager?.createView(taskId, pageId, url);
     if (view && task.activePageId === pageId) {
+      // Set as active view and make visible
       this.setActiveView(view.id);
+      this.viewManager?.setActiveView(view.id);
     }
 
     return page;
@@ -205,6 +207,9 @@ export class StateManager {
    */
 
   setActiveView(viewId: string | null): void {
+    // Don't update if it's already the active view
+    if (this.activeViewId === viewId) return;
+
     // Update active view ID
     this.activeViewId = viewId;
 
@@ -218,9 +223,6 @@ export class StateManager {
     }
 
     this.emit({ type: "ACTIVE_VIEW_CHANGED", viewId });
-
-    // Update WebContentsView visibility
-    this.viewManager?.updateViewVisibility();
   }
 
   /**

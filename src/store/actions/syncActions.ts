@@ -2,15 +2,9 @@ import type { SyncActions, CoreState, UIState, InitState } from "../types";
 import type {
   AppState,
   StateChangeEvent,
-  SetViewBoundsCommand,
 } from "../../../electron/shared/types";
 import { objectToMap, restoreTaskPages } from "../utils";
 import { loadInitialState, type InitializationState } from "../initialization";
-import {
-  shouldUpdateViewBounds,
-  createBoundsUpdatePayload,
-  getContainerBounds,
-} from "@/lib/bounds";
 
 type StoreState = CoreState & UIState & InitState & SyncActions;
 type GetState = () => StoreState;
@@ -96,24 +90,6 @@ export const createSyncActions = (
       case "VIEW_CREATED": {
         state.views.set(event.view.id, event.view);
         set({ views: new Map(state.views) });
-
-        // Set initial bounds for the newly created view if it's active
-        const currentState = get();
-        if (
-          event.view.id === currentState.activeViewId &&
-          shouldUpdateViewBounds(currentState)
-        ) {
-          // Get real bounds from container ref
-          const bounds = currentState.containerRef
-            ? getContainerBounds(currentState.containerRef)
-            : currentState.containerBounds;
-
-          const boundsCommand = createBoundsUpdatePayload(
-            event.view.id,
-            bounds
-          ) as SetViewBoundsCommand;
-          window.ipcRenderer.invoke("app:setViewBounds", boundsCommand);
-        }
         break;
       }
 
@@ -134,26 +110,6 @@ export const createSyncActions = (
 
       case "ACTIVE_VIEW_CHANGED": {
         set({ activeViewId: event.viewId });
-        // Update bounds for the newly active view
-        const currentState = get();
-        if (
-          event.viewId &&
-          shouldUpdateViewBounds({
-            ...currentState,
-            activeViewId: event.viewId,
-          })
-        ) {
-          // Get real bounds from container ref if available
-          const bounds = currentState.containerRef
-            ? getContainerBounds(currentState.containerRef)
-            : currentState.containerBounds;
-
-          const boundsCommand = createBoundsUpdatePayload(
-            event.viewId,
-            bounds
-          ) as SetViewBoundsCommand;
-          window.ipcRenderer.invoke("app:setViewBounds", boundsCommand);
-        }
         break;
       }
 

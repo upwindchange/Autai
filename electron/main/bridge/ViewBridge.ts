@@ -20,23 +20,33 @@ export class ViewBridge extends BaseBridge {
   }
 
   setupHandlers(): void {
-    // View bounds
+    // Update view bounds
     this.handle(
       "app:setViewBounds",
       async (_event: IpcMainInvokeEvent, command: SetViewBoundsCommand) => {
-        this.webViewService.setViewBounds(command.viewId, command.bounds);
+        this.webViewService.updateViewBounds(command.viewId, command.bounds);
         return { success: true };
       }
     );
 
-    // View visibility
+    // Set active view (handles visibility automatically)
+    this.handle(
+      "app:setActiveView",
+      async (_event: IpcMainInvokeEvent, command: { viewId: string | null; bounds?: Electron.Rectangle }) => {
+        this.webViewService.setActiveView(command.viewId, command.bounds);
+        return { success: true };
+      }
+    );
+
+    // Hide/show active view
     this.handle(
       "app:setViewVisibility",
       async (_event: IpcMainInvokeEvent, command: SetViewVisibilityCommand) => {
-        this.webViewService.setViewVisibility(
-          command.viewId,
-          !command.isHidden
-        );
+        if (command.isHidden) {
+          this.webViewService.hideActiveView();
+        } else {
+          this.webViewService.showActiveView(command.bounds);
+        }
         return { success: true };
       }
     );
@@ -63,14 +73,12 @@ export class ViewBridge extends BaseBridge {
   }
 
   /**
-   * Update view bounds for all views based on container bounds
+   * Update view bounds for the active view
    */
-  updateViewBounds(containerBounds: Electron.Rectangle): void {
+  updateActiveViewBounds(bounds: Electron.Rectangle): void {
     const activeViewId = this.stateManager.getActiveViewId();
-
-    // Update bounds for active view only - visibility is handled separately
     if (activeViewId) {
-      this.webViewService.setViewBounds(activeViewId, containerBounds);
+      this.webViewService.updateViewBounds(activeViewId, bounds);
     }
   }
 }

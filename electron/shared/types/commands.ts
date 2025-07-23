@@ -6,12 +6,14 @@ import { z } from 'zod';
 import { TaskIdSchema, PageIdSchema, ViewIdSchema } from './core';
 
 // Rectangle schema matching Electron's Rectangle interface
-const RectangleSchema = z.object({
+export const RectangleSchema = z.object({
   x: z.number(),
   y: z.number(),
   width: z.number().positive(),
   height: z.number().positive(),
 });
+
+export type Rectangle = z.infer<typeof RectangleSchema>;
 
 // Command schemas
 export const CreateTaskCommandSchema = z.object({
@@ -46,6 +48,12 @@ export const SetViewBoundsCommandSchema = z.object({
 export const SetViewVisibilityCommandSchema = z.object({
   viewId: ViewIdSchema,
   isHidden: z.boolean(),
+  bounds: RectangleSchema.optional(), // Optional bounds update when showing
+});
+
+export const SetActiveViewCommandSchema = z.object({
+  viewId: ViewIdSchema.nullable(),
+  bounds: RectangleSchema.optional(), // Optional bounds when activating
 });
 
 export const NavigationControlCommandSchema = z.object({
@@ -166,6 +174,7 @@ export type DeleteTaskCommand = z.infer<typeof DeleteTaskCommandSchema>;
 export type DeletePageCommand = z.infer<typeof DeletePageCommandSchema>;
 export type SetViewBoundsCommand = z.infer<typeof SetViewBoundsCommandSchema>;
 export type SetViewVisibilityCommand = z.infer<typeof SetViewVisibilityCommandSchema>;
+export type SetActiveViewCommand = z.infer<typeof SetActiveViewCommandSchema>;
 export type NavigationControlCommand = z.infer<typeof NavigationControlCommandSchema>;
 export type NavigateToCommand = z.infer<typeof NavigateToCommandSchema>;
 export type BrowserNavigationCommand = z.infer<typeof BrowserNavigationCommandSchema>;

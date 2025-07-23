@@ -127,8 +127,8 @@ export class WebViewService implements IViewManager {
     this.stateManager.registerView(viewId, view);
     this.win.contentView.addChildView(webView);
 
-    // Set default bounds (1080p) and hide initially
-    webView.setVisible(false); // Initially hidden
+    // Set default bounds (1080p) and ensure initially hidden
+    webView.setVisible(false);
     webView.setBounds({ x: 0, y: 0, width: 1920, height: 1080 });
 
     return view;
@@ -191,41 +191,79 @@ export class WebViewService implements IViewManager {
   // ===================
 
   /**
-   * Sets view bounds
+   * Sets the active view and updates visibility for all views
+   * This is the single entry point for view activation
    */
-  setViewBounds(viewId: string, bounds: Electron.Rectangle): void {
+  setActiveView(viewId: string | null, bounds?: Electron.Rectangle): void {
+    // First, hide all views
+    this.webContentsViews.forEach((webView) => {
+      if (webView.getVisible()) {
+        webView.setVisible(false);
+      }
+    });
+
+    // If no view should be active, we're done
+    if (!viewId) {
+      this.stateManager.setActiveView(null);
+      return;
+    }
+
+    // Get the view to activate
+    const webView = this.webContentsViews.get(viewId);
+    if (!webView) {
+      console.warn(`Cannot activate non-existent view: ${viewId}`);
+      return;
+    }
+
+    // Update state manager first
+    this.stateManager.setActiveView(viewId);
+
+    // Set bounds if provided, then make visible
+    if (bounds) {
+      webView.setBounds(bounds);
+    }
+    webView.setVisible(true);
+  }
+
+  /**
+   * Updates bounds for a view
+   * Automatically applies to visible views, stores for invisible views
+   */
+  updateViewBounds(viewId: string, bounds: Electron.Rectangle): void {
     const webView = this.webContentsViews.get(viewId);
     if (!webView) return;
 
+    // Always update bounds - Electron handles this correctly for both visible and invisible views
     webView.setBounds(bounds);
   }
 
   /**
-   * Sets view visibility
+   * Hides the currently active view
    */
-  setViewVisibility(viewId: string, isVisible: boolean): void {
-    const webView = this.webContentsViews.get(viewId);
-    if (!webView) return;
+  hideActiveView(): void {
+    const activeViewId = this.stateManager.getActiveViewId();
+    if (!activeViewId) return;
 
-    // Apply visibility if this is the active view
-    if (this.stateManager.isActiveView(viewId)) {
-      webView.setVisible(isVisible);
+    const webView = this.webContentsViews.get(activeViewId);
+    if (webView && webView.getVisible()) {
+      webView.setVisible(false);
     }
   }
 
   /**
-   * Updates visibility of all views - shows only the active view
+   * Shows the currently active view with optional bounds update
    */
-  updateViewVisibility(): void {
+  showActiveView(bounds?: Electron.Rectangle): void {
     const activeViewId = this.stateManager.getActiveViewId();
+    if (!activeViewId) return;
 
-    this.webContentsViews.forEach((webView, viewId) => {
-      if (viewId === activeViewId) {
-        webView.setVisible(true);
-      } else {
-        webView.setVisible(false);
-      }
-    });
+    const webView = this.webContentsViews.get(activeViewId);
+    if (!webView) return;
+
+    if (bounds) {
+      webView.setBounds(bounds);
+    }
+    webView.setVisible(true);
   }
 
   // ===================

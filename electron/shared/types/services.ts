@@ -11,5 +11,5 @@ import type { View } from './core';
 export interface IViewManager {
   createView(taskId: string, pageId: string, url: string): Promise<View | null>;
   destroyView(viewId: string): void;
-  updateViewVisibility(): void;
+  setActiveView(viewId: string | null, bounds?: Electron.Rectangle): void;
 }

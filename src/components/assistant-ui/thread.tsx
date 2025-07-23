@@ -49,6 +49,22 @@ export const Thread: FC = () => {
     return () => clearTimeout(timer);
   }, []);
 
+  // Set up ResizeObserver to track container size changes
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      useAppStore.getState().updateContainerBounds();
+    });
+
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
   return (
     <div className="flex flex-col h-full">
       <ResizablePanelGroup direction="horizontal" className="flex-1">
