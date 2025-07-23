@@ -40,18 +40,6 @@ export function NavTasks({
   onTaskDelete: (index: number) => void;
   onPageSelect?: (taskIndex: number, pageIndex: number) => void;
 }) {
-  /**
-   * Validates if a value is a valid URL string for favicon display
-   */
-  function isValidUrl(value: unknown): value is string {
-    if (typeof value !== "string") return false;
-    try {
-      return z.string().url().safeParse(value).success;
-    } catch {
-      return false;
-    }
-  }
-
   return (
     <SidebarGroup>
       <SidebarGroupLabel>Tasks</SidebarGroupLabel>
@@ -87,31 +75,6 @@ export function NavTasks({
                 >
                   <Trash2 size={16} />
                 </SidebarMenuAction>
-                <CollapsibleContent>
-                  <SidebarMenuSub>
-                    {task.pages.map((page, pageIndex) => (
-                      <SidebarMenuSubItem key={page.title}>
-                        <SidebarMenuSubButton
-                          asChild
-                          onClick={() => onPageSelect?.(index, pageIndex)}
-                        >
-                          <a href="#">
-                            {isValidUrl(page.favicon) ? (
-                              <img
-                                src={page.favicon}
-                                alt="Favicon"
-                                className="w-4 h-4"
-                              />
-                            ) : (
-                              <span>{page.favicon}</span>
-                            )}
-                            <span>{page.title}</span>
-                          </a>
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))}
-                  </SidebarMenuSub>
-                </CollapsibleContent>
               </SidebarMenuItem>
             </Collapsible>
           ))}
