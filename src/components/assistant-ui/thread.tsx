@@ -45,53 +45,57 @@ export const Thread: FC = () => {
         useAppStore.getState().updateContainerBounds();
       }
     }, 100);
-    
+
     return () => clearTimeout(timer);
   }, []);
 
   return (
-    <ResizablePanelGroup direction="horizontal" className="h-full">
-      <ResizablePanel defaultSize={70} minSize={30}>
-        <div ref={containerRef} className="h-full">
-          {/* This panel will be used for the browser view */}
-          <div className="flex items-center justify-center h-full text-muted-foreground">
-            Browser view will be displayed here
+    <div className="flex flex-col h-full">
+      <ResizablePanelGroup direction="horizontal" className="flex-1">
+        <ResizablePanel defaultSize={70} minSize={30}>
+          <div ref={containerRef} className="h-full">
+            {/* This panel will be used for the browser view */}
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              Browser view will be displayed here
+            </div>
           </div>
-        </div>
-      </ResizablePanel>
-      <ResizableHandle />
-      <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
-        <ThreadPrimitive.Root
-          className="bg-background box-border flex h-full flex-col overflow-hidden"
-          style={{
-            ["--thread-max-width" as string]: "100%",
-          }}
-        >
-          <ThreadPrimitive.Viewport className="flex h-full flex-col items-center overflow-y-scroll scroll-smooth bg-inherit px-4 pt-8">
-            <div className="flex flex-col w-full max-w-[var(--thread-max-width)]">
-              <ThreadWelcome />
+        </ResizablePanel>
+        <ResizableHandle />
+        <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+          <ThreadPrimitive.Root
+            className="bg-background box-border flex h-full flex-col overflow-hidden"
+            style={{
+              ["--thread-max-width" as string]: "100%",
+            }}
+          >
+            <ThreadPrimitive.Viewport className="flex h-full flex-col items-center overflow-y-scroll scroll-smooth bg-inherit px-4 pt-8">
+              <div className="flex flex-col w-full max-w-[var(--thread-max-width)]">
+                <ThreadWelcome />
 
-              <ThreadPrimitive.Messages
-                components={{
-                  UserMessage: UserMessage,
-                  EditComposer: EditComposer,
-                  AssistantMessage: AssistantMessage,
-                }}
-              />
+                <ThreadPrimitive.Messages
+                  components={{
+                    UserMessage: UserMessage,
+                    EditComposer: EditComposer,
+                    AssistantMessage: AssistantMessage,
+                  }}
+                />
 
-              <ThreadPrimitive.If empty={false}>
-                <div className="min-h-8 flex-grow" />
-              </ThreadPrimitive.If>
-            </div>
+                <ThreadPrimitive.If empty={false}>
+                  <div className="min-h-8 flex-grow" />
+                </ThreadPrimitive.If>
+              </div>
 
-            <div className="sticky bottom-0 mt-3 flex w-full max-w-[var(--thread-max-width)] flex-col items-center justify-end rounded-t-lg bg-inherit pb-4">
-              <ThreadScrollToBottom />
-              <Composer />
-            </div>
-          </ThreadPrimitive.Viewport>
-        </ThreadPrimitive.Root>
-      </ResizablePanel>
-    </ResizablePanelGroup>
+              <div className="sticky bottom-0 mt-3 flex w-full max-w-[var(--thread-max-width)] flex-col items-center justify-end rounded-t-lg bg-inherit pb-4">
+                <ThreadScrollToBottom />
+              </div>
+            </ThreadPrimitive.Viewport>
+          </ThreadPrimitive.Root>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+      <div className="border-t bg-background px-4 py-3">
+        <Composer />
+      </div>
+    </div>
   );
 };
 
@@ -151,7 +155,7 @@ const ThreadWelcomeSuggestions: FC = () => {
 
 const Composer: FC = () => {
   return (
-    <ComposerPrimitive.Root className="focus-within:border-ring/20 flex w-full flex-wrap items-end rounded-lg border bg-inherit px-2.5 shadow-sm transition-colors ease-in">
+    <ComposerPrimitive.Root className="focus-within:border-ring/20 flex max-w-4xl mx-auto w-full flex-wrap items-end rounded-lg border bg-inherit px-2.5 shadow-sm transition-colors ease-in">
       <ComposerPrimitive.Input
         rows={1}
         autoFocus
