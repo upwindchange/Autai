@@ -11,6 +11,8 @@ import { SettingsProvider, SettingsView } from "@/components/settings";
 import { useAppStore } from "@/store/appStore";
 import { useResizeObserverCleanup } from "@/hooks/use-cleanup";
 import { InitializationError } from "@/components/InitializationError";
+import { AssistantRuntimeProvider } from "@assistant-ui/react";
+import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
 
 /**
  * Inner app component that uses Zustand store
@@ -24,6 +26,11 @@ function AppContent() {
   
   // Ensure proper cleanup of ResizeObserver
   useResizeObserverCleanup();
+  
+  // Create runtime for the entire app
+  const runtime = useChatRuntime({
+    api: "http://localhost:3001/api/chat",
+  });
 
   // Get selected page URL from active task/page
   const selectedPageUrl = useAppStore((state) => {
@@ -36,10 +43,11 @@ function AppContent() {
 
 
   return (
-    <div className="w-dvw flex flex-row h-dvh">
-      <SidebarProvider>
-        <SidebarLeft />
-        <SidebarInset className="relative flex-1">
+    <AssistantRuntimeProvider runtime={runtime}>
+      <div className="w-dvw flex flex-row h-dvh">
+        <SidebarProvider>
+          <SidebarLeft />
+          <SidebarInset className="relative flex-1">
           <header className="bg-background sticky top-0 flex h-14 shrink-0 items-center gap-2">
             <div className="flex flex-1 items-center gap-2 px-3">
               <SidebarTrigger />
@@ -58,12 +66,13 @@ function AppContent() {
             {showSettings ? (
               <SettingsView onClose={() => setShowSettings(false)} />
             ) : (
-              <AssistantChatContainer taskId={activeTaskId} />
+              <AssistantChatContainer />
             )}
           </div>
         </SidebarInset>
       </SidebarProvider>
     </div>
+    </AssistantRuntimeProvider>
   );
 }
 
