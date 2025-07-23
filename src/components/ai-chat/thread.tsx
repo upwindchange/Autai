@@ -18,23 +18,58 @@ import {
 import { Button } from "@/components/ui/button";
 import { TooltipIconButton } from "./tooltip-icon-button";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 
-export const Thread: FC = () => {
+interface ThreadProps {
+  showSplitView?: boolean;
+}
+
+export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
   return (
     <ThreadPrimitive.Root className="bg-background flex h-full flex-col">
-      <ThreadPrimitive.Viewport className="flex-1 overflow-y-auto">
-        <div className="mx-auto max-w-3xl px-4 pb-12">
-          <ThreadWelcome />
+      {showSplitView ? (
+        <ResizablePanelGroup direction="horizontal" className="flex-1">
+          <ResizablePanel defaultSize={50} minSize={30}>
+            <div className="h-full bg-muted/30 flex items-center justify-center text-muted-foreground border-r">
+              <p>Workspace Area</p>
+            </div>
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel defaultSize={50} minSize={30}>
+            <ThreadPrimitive.Viewport className="h-full overflow-y-auto">
+              <div className="mx-auto max-w-3xl px-4 pb-12">
+                <ThreadWelcome />
 
-          <ThreadPrimitive.Messages
-            components={{
-              UserMessage,
-              AssistantMessage,
-              EditComposer,
-            }}
-          />
-        </div>
-      </ThreadPrimitive.Viewport>
+                <ThreadPrimitive.Messages
+                  components={{
+                    UserMessage,
+                    AssistantMessage,
+                    EditComposer,
+                  }}
+                />
+              </div>
+            </ThreadPrimitive.Viewport>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        <ThreadPrimitive.Viewport className="flex-1 overflow-y-auto">
+          <div className="mx-auto max-w-3xl px-4 pb-12">
+            <ThreadWelcome />
+
+            <ThreadPrimitive.Messages
+              components={{
+                UserMessage,
+                AssistantMessage,
+                EditComposer,
+              }}
+            />
+          </div>
+        </ThreadPrimitive.Viewport>
+      )}
 
       <div className="border-t bg-background p-4">
         <div className="mx-auto max-w-3xl">

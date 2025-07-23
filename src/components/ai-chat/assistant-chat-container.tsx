@@ -1,6 +1,12 @@
 import { Thread } from "./thread";
 import type { FC } from "react";
 
-export const AssistantChatContainer: FC = () => {
-  return <Thread />;
+interface AssistantChatContainerProps {
+  showSplitView?: boolean;
+}
+
+export const AssistantChatContainer: FC<AssistantChatContainerProps> = ({ 
+  showSplitView = false 
+}) => {
+  return <Thread showSplitView={showSplitView} />;
 };
