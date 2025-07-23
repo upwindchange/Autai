@@ -1,4 +1,4 @@
-import { Thread } from "@/components/assistant-ui/thread";
+import { Thread } from "./thread";
 import { TaskRuntimeProvider } from "@/services/ai-assistant/task-runtime-provider";
 import type { FC } from "react";
 

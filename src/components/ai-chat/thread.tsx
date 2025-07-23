@@ -5,8 +5,10 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useThreadComposer,
 } from "@assistant-ui/react";
 import type { FC } from "react";
+import { useRef, useEffect, useCallback } from "react";
 import {
   ArrowDownIcon,
   CheckIcon,
@@ -16,42 +18,102 @@ import {
   PencilIcon,
   RefreshCwIcon,
   SendHorizontalIcon,
+  CircleStopIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useAppStore } from "@/store/appStore";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
 
 import { Button } from "@/components/ui/button";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 
 export const Thread: FC = () => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const { setContainerRef } = useAppStore();
+
+  useEffect(() => {
+    setContainerRef(containerRef);
+  }, [setContainerRef]);
+
+  useEffect(() => {
+    // Small delay to ensure DOM is fully rendered
+    const timer = setTimeout(() => {
+      if (containerRef.current) {
+        useAppStore.getState().updateContainerBounds();
+      }
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Set up ResizeObserver to track container size changes
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver(() => {
+      useAppStore.getState().updateContainerBounds();
+    });
+
+    resizeObserver.observe(container);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
+
   return (
-    <ThreadPrimitive.Root
-      className="bg-background box-border flex h-full flex-col overflow-hidden"
-      style={{
-        ["--thread-max-width" as string]: "42rem",
-      }}
-    >
-      <ThreadPrimitive.Viewport className="flex h-full flex-col items-center overflow-y-scroll scroll-smooth bg-inherit px-4 pt-8">
-        <ThreadWelcome />
+    <div className="flex flex-col h-full">
+      <ResizablePanelGroup direction="horizontal" className="flex-1">
+        <ResizablePanel defaultSize={70} minSize={30}>
+          <div ref={containerRef} className="h-full">
+            {/* This panel will be used for the browser view */}
+            <div className="flex items-center justify-center h-full text-muted-foreground">
+              Browser view will be displayed here
+            </div>
+          </div>
+        </ResizablePanel>
+        <ResizableHandle />
+        <ResizablePanel defaultSize={30} minSize={20} maxSize={50}>
+          <ThreadPrimitive.Root
+            className="bg-background box-border flex h-full flex-col overflow-hidden"
+            style={{
+              ["--thread-max-width" as string]: "100%",
+            }}
+          >
+            <ThreadPrimitive.Viewport className="flex h-full flex-col items-center overflow-y-scroll scroll-smooth bg-inherit px-4 pt-8">
+              <div className="flex flex-col w-full max-w-[var(--thread-max-width)]">
+                <ThreadWelcome />
 
-        <ThreadPrimitive.Messages
-          components={{
-            UserMessage: UserMessage,
-            EditComposer: EditComposer,
-            AssistantMessage: AssistantMessage,
-          }}
-        />
+                <ThreadPrimitive.Messages
+                  components={{
+                    UserMessage: UserMessage,
+                    EditComposer: EditComposer,
+                    AssistantMessage: AssistantMessage,
+                  }}
+                />
 
-        <ThreadPrimitive.If empty={false}>
-          <div className="min-h-8 flex-grow" />
-        </ThreadPrimitive.If>
+                <ThreadPrimitive.If empty={false}>
+                  <div className="min-h-8 flex-grow" />
+                </ThreadPrimitive.If>
+              </div>
 
-        <div className="sticky bottom-0 mt-3 flex w-full max-w-[var(--thread-max-width)] flex-col items-center justify-end rounded-t-lg bg-inherit pb-4">
-          <ThreadScrollToBottom />
-          <Composer />
-        </div>
-      </ThreadPrimitive.Viewport>
-    </ThreadPrimitive.Root>
+              <div className="sticky bottom-0 mt-3 flex w-full max-w-[var(--thread-max-width)] flex-col items-center justify-end rounded-t-lg bg-inherit pb-4">
+                <ThreadScrollToBottom />
+              </div>
+            </ThreadPrimitive.Viewport>
+          </ThreadPrimitive.Root>
+        </ResizablePanel>
+      </ResizablePanelGroup>
+      <div className="border-t bg-background px-4 py-3">
+        <Composer />
+      </div>
+    </div>
   );
 };
 
@@ -70,13 +132,22 @@ const ThreadScrollToBottom: FC = () => {
 };
 
 const ThreadWelcome: FC = () => {
+  const activeTaskId = useAppStore((state) => state.activeTaskId);
+  
   return (
     <ThreadPrimitive.Empty>
       <div className="flex w-full max-w-[var(--thread-max-width)] flex-grow flex-col">
         <div className="flex w-full flex-grow flex-col items-center justify-center">
           <p className="mt-4 font-medium">
-            How can I help you today?
+            {activeTaskId 
+              ? "How can I help you today?" 
+              : "Start a conversation to create a new task"}
           </p>
+          {!activeTaskId && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Your first message will automatically create a new browser task
+            </p>
+          )}
         </div>
         <ThreadWelcomeSuggestions />
       </div>
@@ -85,26 +156,28 @@ const ThreadWelcome: FC = () => {
 };
 
 const ThreadWelcomeSuggestions: FC = () => {
+  const activeTaskId = useAppStore((state) => state.activeTaskId);
+  
   return (
     <div className="mt-3 flex w-full items-stretch justify-center gap-4">
       <ThreadPrimitive.Suggestion
         className="hover:bg-muted/80 flex max-w-sm grow basis-0 flex-col items-center justify-center rounded-lg border p-3 transition-colors ease-in"
-        prompt="What is the weather in Tokyo?"
+        prompt={activeTaskId ? "What is the weather in Tokyo?" : "Help me browse Amazon for a laptop"}
         method="replace"
         autoSend
       >
         <span className="line-clamp-2 text-ellipsis text-sm font-semibold">
-          What is the weather in Tokyo?
+          {activeTaskId ? "What is the weather in Tokyo?" : "Help me browse Amazon for a laptop"}
         </span>
       </ThreadPrimitive.Suggestion>
       <ThreadPrimitive.Suggestion
         className="hover:bg-muted/80 flex max-w-sm grow basis-0 flex-col items-center justify-center rounded-lg border p-3 transition-colors ease-in"
-        prompt="What is assistant-ui?"
+        prompt={activeTaskId ? "What is assistant-ui?" : "Search Reddit for programming tips"}
         method="replace"
         autoSend
       >
         <span className="line-clamp-2 text-ellipsis text-sm font-semibold">
-          What is assistant-ui?
+          {activeTaskId ? "What is assistant-ui?" : "Search Reddit for programming tips"}
         </span>
       </ThreadPrimitive.Suggestion>
     </div>
@@ -113,7 +186,7 @@ const ThreadWelcomeSuggestions: FC = () => {
 
 const Composer: FC = () => {
   return (
-    <ComposerPrimitive.Root className="focus-within:border-ring/20 flex w-full flex-wrap items-end rounded-lg border bg-inherit px-2.5 shadow-sm transition-colors ease-in">
+    <ComposerPrimitive.Root className="focus-within:border-ring/20 flex max-w-4xl mx-auto w-full flex-wrap items-end rounded-lg border bg-inherit px-2.5 shadow-sm transition-colors ease-in">
       <ComposerPrimitive.Input
         rows={1}
         autoFocus
@@ -126,18 +199,32 @@ const Composer: FC = () => {
 };
 
 const ComposerAction: FC = () => {
+  const threadComposer = useThreadComposer();
+  const activeTaskId = useAppStore(state => state.activeTaskId);
+  const createTask = useAppStore(state => state.createTask);
+  
+  const handleSend = useCallback(async () => {
+    // If no active task, create one before sending
+    if (!activeTaskId) {
+      await createTask("New Chat");
+      // Wait a bit for state to propagate
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    // Then send the message using the thread composer
+    threadComposer.send();
+  }, [activeTaskId, createTask, threadComposer]);
+
   return (
     <>
       <ThreadPrimitive.If running={false}>
-        <ComposerPrimitive.Send asChild>
-          <TooltipIconButton
-            tooltip="Send"
-            variant="default"
-            className="my-2.5 size-8 p-2 transition-opacity ease-in"
-          >
-            <SendHorizontalIcon />
-          </TooltipIconButton>
-        </ComposerPrimitive.Send>
+        <TooltipIconButton
+          tooltip="Send"
+          variant="default"
+          className="my-2.5 size-8 p-2 transition-opacity ease-in"
+          onClick={handleSend}
+        >
+          <SendHorizontalIcon />
+        </TooltipIconButton>
       </ThreadPrimitive.If>
       <ThreadPrimitive.If running>
         <ComposerPrimitive.Cancel asChild>
@@ -160,7 +247,7 @@ const UserMessage: FC = () => {
       <UserActionBar />
 
       <div className="bg-muted text-foreground max-w-[calc(var(--thread-max-width)*0.8)] break-words rounded-3xl px-5 py-2.5 col-start-2 row-start-2">
-        <MessagePrimitive.Parts />
+        <MessagePrimitive.Content />
       </div>
 
       <BranchPicker className="col-span-full col-start-1 row-start-3 -mr-1 justify-end" />
@@ -205,7 +292,7 @@ const AssistantMessage: FC = () => {
   return (
     <MessagePrimitive.Root className="grid grid-cols-[auto_auto_1fr] grid-rows-[auto_1fr] relative w-full max-w-[var(--thread-max-width)] py-4">
       <div className="text-foreground max-w-[calc(var(--thread-max-width)*0.8)] break-words leading-7 col-span-2 col-start-2 row-start-1 my-1.5">
-        <MessagePrimitive.Parts components={{ Text: MarkdownText }} />
+        <MessagePrimitive.Content components={{ Text: MarkdownText }} />
         <MessageError />
       </div>
 
@@ -260,7 +347,10 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
   return (
     <BranchPickerPrimitive.Root
       hideWhenSingleBranch
-      className={cn("text-muted-foreground inline-flex items-center text-xs", className)}
+      className={cn(
+        "text-muted-foreground inline-flex items-center text-xs",
+        className
+      )}
       {...rest}
     >
       <BranchPickerPrimitive.Previous asChild>
@@ -280,16 +370,3 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
   );
 };
 
-const CircleStopIcon = () => {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 16 16"
-      fill="currentColor"
-      width="16"
-      height="16"
-    >
-      <rect width="10" height="10" x="3" y="3" rx="2" />
-    </svg>
-  );
-};
