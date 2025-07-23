@@ -4,7 +4,7 @@ import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
 import { useThreadManager } from "./thread-manager";
 import { useAppStore } from "@/store/appStore";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import type { FC, PropsWithChildren } from "react";
 
 interface TaskRuntimeProviderProps extends PropsWithChildren {
@@ -24,11 +24,13 @@ export const TaskRuntimeProvider: FC<TaskRuntimeProviderProps> = ({
   const pendingTaskId = useRef(`pending-${Date.now()}`).current;
   const effectiveTaskId = currentTaskId || pendingTaskId;
 
-  // Get or create thread for this task
-  let thread = threadManager.getThread(effectiveTaskId);
-  if (!thread) {
-    thread = threadManager.createThread({ taskId: effectiveTaskId });
-  }
+  // Create thread in useEffect to avoid state updates during render
+  useEffect(() => {
+    const thread = threadManager.getThread(effectiveTaskId);
+    if (!thread) {
+      threadManager.createThread({ taskId: effectiveTaskId });
+    }
+  }, [effectiveTaskId, threadManager]);
 
   // Callback to create task on first message
   const handleCreateTask = useCallback(async () => {
@@ -60,10 +62,12 @@ export const TaskRuntimeProvider: FC<TaskRuntimeProviderProps> = ({
   });
 
   // Update current task ID when prop changes
-  if (taskId !== currentTaskId && taskId !== null) {
-    setCurrentTaskId(taskId);
-    isCreatingTask.current = false;
-  }
+  useEffect(() => {
+    if (taskId !== currentTaskId && taskId !== null) {
+      setCurrentTaskId(taskId);
+      isCreatingTask.current = false;
+    }
+  }, [taskId, currentTaskId]);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
