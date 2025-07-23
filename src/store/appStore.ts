@@ -24,7 +24,6 @@ const useAppStore = create<AppStore>()(
     activeViewId: null,
 
     // Initial state - UI
-    expandedTaskId: null,
     isViewHidden: false,
     containerRef: null,
     containerBounds: null,

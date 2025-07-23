@@ -18,7 +18,6 @@ export interface CoreState {
 
 // UI-only state
 export interface UIState {
-  expandedTaskId: string | null;
   isViewHidden: boolean;
   containerRef: RefObject<HTMLDivElement | null> | null;
   containerBounds: DOMRect | null;
@@ -44,7 +43,6 @@ export interface BackendActions {
 
 // UI operations
 export interface UIActions {
-  setExpandedTask: (taskId: string | null) => void;
   setViewVisibility: (isHidden: boolean) => void;
   setContainerRef: (ref: RefObject<HTMLDivElement | null>) => void;
   updateContainerBounds: () => void;

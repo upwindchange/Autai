@@ -17,11 +17,6 @@ type SetState = (
 ) => void;
 
 export const createUIActions = (set: SetState, get: GetState): UIActions => ({
-  setExpandedTask: (taskId: string | null) => {
-    set({ expandedTaskId: taskId });
-    window.ipcRenderer.invoke("app:setExpandedTask", taskId);
-  },
-
   setViewVisibility: (isHidden: boolean) => {
     const state = get();
 

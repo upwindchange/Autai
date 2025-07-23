@@ -27,11 +27,10 @@ type SidebarLeftProps = ComponentProps<typeof Sidebar>
 export function SidebarLeft(props: SidebarLeftProps) {
   const {
     tasks,
-    expandedTaskId,
+    activeTaskId,
     createTask,
     deleteTask,
     selectPage,
-    setExpandedTask,
     showSettings
   } = useAppStore();
   
@@ -67,9 +66,9 @@ export function SidebarLeft(props: SidebarLeftProps) {
     }))
   }));
   
-  // Find expanded index from taskId
-  const expandedIndex = expandedTaskId 
-    ? tasksArray.findIndex(task => task.id === expandedTaskId)
+  // Find expanded index from activeTaskId
+  const expandedIndex = activeTaskId 
+    ? tasksArray.findIndex(task => task.id === activeTaskId)
     : null;
 
   return (
@@ -85,7 +84,9 @@ export function SidebarLeft(props: SidebarLeftProps) {
           expandedIndex={expandedIndex}
           onExpandChange={(index) => {
             const taskId = index !== null ? tasksArray[index]?.id || null : null;
-            setExpandedTask(taskId);
+            if (taskId && tasksArray[index].items.length > 0) {
+              selectPage(taskId, tasksArray[index].items[0].id);
+            }
           }}
           onTaskDelete={(index) => {
             const taskId = tasksArray[index]?.id;

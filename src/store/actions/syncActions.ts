@@ -39,15 +39,27 @@ export const createSyncActions = (
         state.tasks.set(event.task.id, restoreTaskPages(event.task));
         set({
           tasks: new Map(state.tasks),
-          expandedTaskId: event.task.id, // Auto-expand newly created task
           activeTaskId: event.task.id, // Auto-select newly created task
         });
         break;
       }
 
       case "TASK_DELETED": {
-        state.tasks.delete(event.taskId);
-        set({ tasks: new Map(state.tasks) });
+        const newTasks = new Map(state.tasks);
+        newTasks.delete(event.taskId);
+        
+        // If this was the last task, clear activeTaskId
+        const updates: Partial<AppState> = { tasks: newTasks };
+        if (newTasks.size === 0) {
+          updates.activeTaskId = null;
+        } else if (state.activeTaskId === event.taskId) {
+          // If we deleted the active task but there are other tasks,
+          // select the first available task
+          const firstTask = Array.from(newTasks.keys())[0];
+          updates.activeTaskId = firstTask;
+        }
+        
+        set(updates);
         break;
       }
 

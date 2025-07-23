@@ -5,6 +5,7 @@ import {
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useThreadComposer,
 } from "@assistant-ui/react";
 import type { FC } from "react";
 import { useRef, useEffect } from "react";
@@ -197,18 +198,32 @@ const Composer: FC = () => {
 };
 
 const ComposerAction: FC = () => {
+  const threadComposer = useThreadComposer();
+  const activeTaskId = useAppStore(state => state.activeTaskId);
+  const createTask = useAppStore(state => state.createTask);
+  
+  const handleSend = async () => {
+    // If no active task, create one before sending
+    if (!activeTaskId) {
+      await createTask("New Chat");
+      // Wait a bit for state to propagate
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    // Then send the message using the thread composer
+    threadComposer.send();
+  };
+
   return (
     <>
       <ThreadPrimitive.If running={false}>
-        <ComposerPrimitive.Send asChild>
-          <TooltipIconButton
-            tooltip="Send"
-            variant="default"
-            className="my-2.5 size-8 p-2 transition-opacity ease-in"
-          >
-            <SendHorizontalIcon />
-          </TooltipIconButton>
-        </ComposerPrimitive.Send>
+        <TooltipIconButton
+          tooltip="Send"
+          variant="default"
+          className="my-2.5 size-8 p-2 transition-opacity ease-in"
+          onClick={handleSend}
+        >
+          <SendHorizontalIcon />
+        </TooltipIconButton>
       </ThreadPrimitive.If>
       <ThreadPrimitive.If running>
         <ComposerPrimitive.Cancel asChild>

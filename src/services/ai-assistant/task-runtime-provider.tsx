@@ -2,9 +2,6 @@
 
 import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
-import { useThreadManager } from "./thread-manager";
-import { useAppStore } from "@/store/appStore";
-import { useState, useRef, useCallback, useEffect } from "react";
 import type { FC, PropsWithChildren } from "react";
 
 interface TaskRuntimeProviderProps extends PropsWithChildren {
@@ -15,59 +12,14 @@ export const TaskRuntimeProvider: FC<TaskRuntimeProviderProps> = ({
   taskId,
   children,
 }) => {
-  const threadManager = useThreadManager();
-  const createTask = useAppStore((state) => state.createTask);
-  const [currentTaskId, setCurrentTaskId] = useState(taskId);
-  const isCreatingTask = useRef(false);
-
-  // Create a pending task ID for managing the thread before the actual task is created
-  const pendingTaskId = useRef(`pending-${Date.now()}`).current;
-  const effectiveTaskId = currentTaskId || pendingTaskId;
-
-  // Create thread in useEffect to avoid state updates during render
-  useEffect(() => {
-    const thread = threadManager.getThread(effectiveTaskId);
-    if (!thread) {
-      threadManager.createThread({ taskId: effectiveTaskId });
-    }
-  }, [effectiveTaskId, threadManager]);
-
-  // Callback to create task on first message
-  const handleCreateTask = useCallback(async () => {
-    if (!currentTaskId && !isCreatingTask.current) {
-      isCreatingTask.current = true;
-      try {
-        // Create a new task
-        await createTask("New Chat Task");
-        
-        // The task creation will update the store and should trigger a re-render
-        // with the new taskId from the parent component
-      } catch (error) {
-        console.error("Failed to create task:", error);
-        isCreatingTask.current = false;
-      }
-    }
-  }, [currentTaskId, createTask]);
-
   // Create runtime using useChatRuntime - use the local API server
+  // When no task exists, use a placeholder that the backend can recognize
   const runtime = useChatRuntime({
     api: "http://localhost:3001/api/chat",
     body: {
-      taskId: effectiveTaskId,
-    },
-    onBeforeSubmit: () => {
-      // Create task on first message if needed
-      handleCreateTask();
+      taskId: taskId || "no-task",
     },
   });
-
-  // Update current task ID when prop changes
-  useEffect(() => {
-    if (taskId !== currentTaskId && taskId !== null) {
-      setCurrentTaskId(taskId);
-      isCreatingTask.current = false;
-    }
-  }, [taskId, currentTaskId]);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
