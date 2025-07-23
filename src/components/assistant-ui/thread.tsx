@@ -130,11 +130,22 @@ const ThreadScrollToBottom: FC = () => {
 };
 
 const ThreadWelcome: FC = () => {
+  const activeTaskId = useAppStore((state) => state.activeTaskId);
+  
   return (
     <ThreadPrimitive.Empty>
       <div className="flex w-full max-w-[var(--thread-max-width)] flex-grow flex-col">
         <div className="flex w-full flex-grow flex-col items-center justify-center">
-          <p className="mt-4 font-medium">How can I help you today?</p>
+          <p className="mt-4 font-medium">
+            {activeTaskId 
+              ? "How can I help you today?" 
+              : "Start a conversation to create a new task"}
+          </p>
+          {!activeTaskId && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              Your first message will automatically create a new browser task
+            </p>
+          )}
         </div>
         <ThreadWelcomeSuggestions />
       </div>
@@ -143,26 +154,28 @@ const ThreadWelcome: FC = () => {
 };
 
 const ThreadWelcomeSuggestions: FC = () => {
+  const activeTaskId = useAppStore((state) => state.activeTaskId);
+  
   return (
     <div className="mt-3 flex w-full items-stretch justify-center gap-4">
       <ThreadPrimitive.Suggestion
         className="hover:bg-muted/80 flex max-w-sm grow basis-0 flex-col items-center justify-center rounded-lg border p-3 transition-colors ease-in"
-        prompt="What is the weather in Tokyo?"
+        prompt={activeTaskId ? "What is the weather in Tokyo?" : "Help me browse Amazon for a laptop"}
         method="replace"
         autoSend
       >
         <span className="line-clamp-2 text-ellipsis text-sm font-semibold">
-          What is the weather in Tokyo?
+          {activeTaskId ? "What is the weather in Tokyo?" : "Help me browse Amazon for a laptop"}
         </span>
       </ThreadPrimitive.Suggestion>
       <ThreadPrimitive.Suggestion
         className="hover:bg-muted/80 flex max-w-sm grow basis-0 flex-col items-center justify-center rounded-lg border p-3 transition-colors ease-in"
-        prompt="What is assistant-ui?"
+        prompt={activeTaskId ? "What is assistant-ui?" : "Search Reddit for programming tips"}
         method="replace"
         autoSend
       >
         <span className="line-clamp-2 text-ellipsis text-sm font-semibold">
-          What is assistant-ui?
+          {activeTaskId ? "What is assistant-ui?" : "Search Reddit for programming tips"}
         </span>
       </ThreadPrimitive.Suggestion>
     </div>

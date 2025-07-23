@@ -40,6 +40,7 @@ export const createSyncActions = (
         set({
           tasks: new Map(state.tasks),
           expandedTaskId: event.task.id, // Auto-expand newly created task
+          activeTaskId: event.task.id, // Auto-select newly created task
         });
         break;
       }
