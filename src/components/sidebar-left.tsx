@@ -18,7 +18,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 /**
  * Props for the SidebarLeft component
  */
-type SidebarLeftProps = ComponentProps<typeof Sidebar>
+type SidebarLeftProps = ComponentProps<typeof Sidebar>;
 
 /**
  * Left sidebar component that manages tasks and their associated web views.
@@ -31,18 +31,18 @@ export function SidebarLeft(props: SidebarLeftProps) {
     createTask,
     deleteTask,
     selectPage,
-    showSettings
+    showSettings,
   } = useAppStore();
-  
+
   const { openMobile } = useSidebar();
   const { hideView, showView } = useViewVisibility();
   const isMobile = useIsMobile();
-  
+
   // Handle view visibility when sidebar state changes in mobile/tablet mode
   useEffect(() => {
     // Only manage view visibility in offcanvas mode (mobile/tablet)
     if (!isMobile) return;
-    
+
     if (openMobile) {
       // Sidebar is open in mobile, hide the web view to prevent overlap
       hideView();
@@ -53,22 +53,22 @@ export function SidebarLeft(props: SidebarLeftProps) {
       }
     }
   }, [openMobile, isMobile, hideView, showView, showSettings]);
-  
+
   // Convert Map to array for NavTasks component
-  const tasksArray = Array.from(tasks.values()).map(task => ({
+  const tasksArray = Array.from(tasks.values()).map((task) => ({
     id: task.id,
     title: task.title,
     favicon: "📋", // Default icon
-    pages: Array.from(task.pages.values()).map(page => ({
+    pages: Array.from(task.pages.values()).map((page) => ({
       title: page.title,
       url: page.url,
-      favicon: page.favicon || "🌐"
-    }))
+      favicon: page.favicon || "🌐",
+    })),
   }));
-  
+
   // Find expanded index from activeTaskId
-  const expandedIndex = activeTaskId 
-    ? tasksArray.findIndex(task => task.id === activeTaskId)
+  const expandedIndex = activeTaskId
+    ? tasksArray.findIndex((task) => task.id === activeTaskId)
     : null;
 
   return (
@@ -83,7 +83,8 @@ export function SidebarLeft(props: SidebarLeftProps) {
           tasks={tasksArray}
           expandedIndex={expandedIndex}
           onExpandChange={(index) => {
-            const taskId = index !== null ? tasksArray[index]?.id || null : null;
+            const taskId =
+              index !== null ? tasksArray[index]?.id || null : null;
             if (taskId && tasksArray[index].items.length > 0) {
               selectPage(taskId, tasksArray[index].items[0].id);
             }
@@ -91,13 +92,6 @@ export function SidebarLeft(props: SidebarLeftProps) {
           onTaskDelete={(index) => {
             const taskId = tasksArray[index]?.id;
             if (taskId) deleteTask(taskId);
-          }}
-          onPageSelect={(taskIndex, pageIndex) => {
-            const task = tasksArray[taskIndex];
-            if (!task) return;
-            const pageIds = Array.from(tasks.get(task.id)?.pages.keys() || []);
-            const pageId = pageIds[pageIndex];
-            if (pageId) selectPage(task.id, pageId);
           }}
         />
         <NavSecondary className="mt-auto" />

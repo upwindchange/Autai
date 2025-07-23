@@ -1,7 +1,6 @@
 import { Trash2 } from "lucide-react";
-import { z } from "zod";
 
-import { Collapsible, CollapsibleContent } from "@/components/ui/collapsible";
+import { Collapsible } from "@/components/ui/collapsible";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -10,9 +9,6 @@ import {
   SidebarMenuAction,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSub,
-  SidebarMenuSubButton,
-  SidebarMenuSubItem,
 } from "@/components/ui/sidebar";
 
 /**
@@ -24,7 +20,6 @@ export function NavTasks({
   expandedIndex,
   onExpandChange,
   onTaskDelete,
-  onPageSelect,
 }: {
   tasks: {
     title: string;
