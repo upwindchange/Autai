@@ -5,10 +5,12 @@
 ### 1. Type Definitions and Interfaces
 
 #### Created Files:
+
 - `electron/shared/types/auiThread.ts` - Core type definitions
 - `electron/shared/types/services/auiThread.ts` - Service interfaces
 
 #### Key Types:
+
 - **AuiView**: Represents a browser view with `id`, `threadId`, `url`, `title`, `favicon`
 - **AuiViewMetadata**: Tracks view display state with `bounds` and `isVisible`
 - **AuiThreadViewState**: Maps threads to their views and active view
@@ -19,6 +21,7 @@
 ### 2. Backend Services Implementation
 
 #### AuiThreadViewManager (`electron/main/services/AuiThreadViewManager.ts`)
+
 - **Purpose**: Manages thread-view relationships
 - **Key Features**:
   - Tracks which views belong to which threads
@@ -28,6 +31,7 @@
   - Clean bidirectional mappings (thread→views, view→thread)
 
 #### BrowserViewManager (`electron/main/services/BrowserViewManager.ts`)
+
 - **Purpose**: Manages WebContentsView lifecycle
 - **Key Features**:
   - Creates/destroys WebContentsView instances
@@ -38,6 +42,7 @@
   - Clean resource cleanup on destroy
 
 #### ViewOrchestrator (`electron/main/services/ViewOrchestrator.ts`)
+
 - **Purpose**: Coordinates between managers and provides unified API
 - **Key Features**:
   - Creates views for threads with proper registration
@@ -49,6 +54,7 @@
 ### 3. IPC Bridge Implementation
 
 #### AuiThreadBridge (`electron/main/bridge/AuiThreadBridge.ts`)
+
 - **IPC Channels Implemented**:
   - Thread lifecycle: `auiThread:created`, `auiThread:switched`, `auiThread:deleted`
   - View operations: `auiView:create`, `auiView:navigate`, `auiView:execute`, `auiView:close`
@@ -59,6 +65,7 @@
 ### 4. Frontend Type Updates
 
 #### Updated `src/vite-env.d.ts`
+
 - Added all new AuiThread types to imports
 - Defined IPC channel types for:
   - All thread operations
@@ -78,38 +85,28 @@
 
 ## Remaining Steps (Brief)
 
-### 7. Create Frontend Browser Store and Components
-- Create `src/stores/browserStore.ts` using Zustand
-- Track active thread's views and browser state
-- Components needed:
-  - `BrowserContainer` - Main container
-  - `BrowserTabBar` - Tab UI
-  - `BrowserView` - WebContentsView wrapper
-  - `BrowserControls` - Navigation buttons
+### 1. Integrate with Assistant-UI Runtime
 
-### 8. Integrate with Assistant-UI Runtime
 - Hook into thread lifecycle events from assistant-ui
-- Auto-create view when thread created
-- Clean up views when thread deleted
-- Update main process initialization
+- DO NOT create view when thread created, view creation will be handled by backend main process using function call tools by agents. This will be implemented later.
+- containerref visible -> set active view for current active task visible.
+- containerref unmmounted -> set active view for current active task invisible.
 
-### 9. Test New Architecture
-- Test thread lifecycle
-- Test view creation/destruction
-- Test navigation and browser actions
-- Test bounds and visibility
-- Verify old code can be safely removed
+Remember:
+
+- Clean up views when thread deleted
+- True frontend functionality should be simply the above features.
+- WebContentView are operated in backend main process.
+- The front end is only responsible to send ipc signals to backend bridge to operate views. Nothing more fancy than this.
+- Double Check if the implemented AuiThreadBridge, ViewOrchestrator, BrowserViewManager, AuiThreadViewManager is capable to realize the above functionalities, if features missing, what is missing, and your plan to compliment the feature. Do not do implementation, let me know your investigation result first.
+
+### 2. Test New Architecture
+
+- Investigate how difficult it is to intercept user's sent input from composer (maybe composerruntime), and detect "debug:<commands>". If there is debug command, do not send it to agent, invoke ipc function call.
 
 ## Migration Strategy Notes
 
 - New services run parallel to old ones initially
-- No breaking changes until fully tested
-- Gradual cutover approach
+- Make breaking changes aggresively on new services
+- NO Gradual cutover approach
 - Keep old code in `_legacy` folder for reference
-
-## Next Session Starting Points
-
-1. Start with browserStore.ts implementation
-2. Create React components for browser UI
-3. Wire up assistant-ui runtime hooks
-4. Begin testing with simple scenarios
