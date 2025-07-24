@@ -25,6 +25,7 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable";
 import { useUiStore } from "@/stores/uiStore";
+import { useViewVisibility } from "@/hooks/useViewVisibility";
 
 interface ThreadProps {
   showSplitView?: boolean;
@@ -33,6 +34,9 @@ interface ThreadProps {
 export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
   const workspaceRef = useRef<HTMLDivElement>(null);
   const { setContainerRef, setContainerBounds } = useUiStore();
+  
+  // Sync view visibility with container state
+  useViewVisibility();
 
   useEffect(() => {
     if (showSplitView && workspaceRef.current) {
