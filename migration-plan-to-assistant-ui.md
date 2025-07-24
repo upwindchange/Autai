@@ -23,7 +23,7 @@ This plan details the complete migration from the current appStore-based archite
 
 - Remove initialization state from appStore
 
-## Phase 2: Integrate Browser Context with Assistant-UI
+## Phase 2 (Not Going to Do!): Integrate Browser Context with Assistant-UI
 
 ### 2.1 Extend the assistant runtime to include browser context:
 
@@ -116,12 +116,12 @@ interface ThreadViewAPI {
 }
 ```
 
-### 3.5 Remove ALL existing view/webview services:
+### 3.5 Remove ALL existing view/webview services (move to backup folder):
 
-- Delete `electron/main/services/WebViewService.ts`
-- Delete `electron/main/bridge/ViewBridge.ts`
-- Delete all view-related code from StateManager
-- Delete all existing IPC handlers for views
+- `electron/main/services/WebViewService.ts`
+- `electron/main/bridge/ViewBridge.ts`
+- all view-related code from StateManager
+- all existing IPC handlers for views
 
 ## Phase 4: Remove Task/Page Management Infrastructure
 

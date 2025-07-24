@@ -28,3 +28,6 @@ export * from './dom';
 
 // Service interface types
 export * from './services';
+
+// AuiThread types
+export * from './auiThread';

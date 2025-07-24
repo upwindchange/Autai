@@ -21,6 +21,19 @@ import type {
   AISettings,
   TestConnectionConfig,
   TestConnectionResult,
+  // AuiThread types
+  CreateAuiViewCommand,
+  NavigateAuiViewCommand,
+  ExecuteAuiViewCommand,
+  SetAuiViewBoundsCommand,
+  SetAuiViewVisibilityCommand,
+  AuiView,
+  AuiViewMetadata,
+  AuiThreadViewState,
+  AuiViewResult,
+  BrowserAction,
+  AuiThreadEvent,
+  AuiViewEvent,
 } from "../electron/shared/types";
 
 // Generic result type for IPC operations
@@ -115,6 +128,67 @@ declare global {
       invoke(channel: "settings:getActive"): Promise<AISettings | null>;
       invoke(channel: "settings:isConfigured"): Promise<boolean>;
 
+      // AuiThread operations
+      invoke(
+        channel: "auiThread:created",
+        threadId: string
+      ): Promise<IPCResult>;
+      invoke(
+        channel: "auiThread:switched",
+        threadId: string
+      ): Promise<IPCResult>;
+      invoke(
+        channel: "auiThread:deleted",
+        threadId: string
+      ): Promise<IPCResult>;
+      invoke(
+        channel: "auiThread:getViews",
+        threadId: string
+      ): Promise<{ success: boolean; data?: AuiView[] }>;
+      invoke(
+        channel: "auiThread:getActiveView",
+        threadId: string
+      ): Promise<{ success: boolean; data?: string | null }>;
+      invoke(
+        channel: "auiThread:getState",
+        threadId: string
+      ): Promise<{ success: boolean; data?: AuiThreadViewState | null }>;
+
+      // AuiView operations
+      invoke(
+        channel: "auiView:create",
+        command: CreateAuiViewCommand
+      ): Promise<{ success: boolean; data?: string; error?: string }>;
+      invoke(
+        channel: "auiView:navigate",
+        command: NavigateAuiViewCommand
+      ): Promise<IPCResult>;
+      invoke(
+        channel: "auiView:execute",
+        command: ExecuteAuiViewCommand
+      ): Promise<AuiViewResult>;
+      invoke(
+        channel: "auiView:executeAction",
+        command: { viewId: string; action: BrowserAction }
+      ): Promise<AuiViewResult>;
+      invoke(channel: "auiView:close", viewId: string): Promise<IPCResult>;
+      invoke(
+        channel: "auiView:setBounds",
+        command: SetAuiViewBoundsCommand
+      ): Promise<IPCResult>;
+      invoke(
+        channel: "auiView:setVisibility",
+        command: SetAuiViewVisibilityCommand
+      ): Promise<IPCResult>;
+      invoke(
+        channel: "auiView:setActive",
+        viewId: string | null
+      ): Promise<IPCResult>;
+      invoke(
+        channel: "auiView:getMetadata",
+        viewId: string
+      ): Promise<{ success: boolean; data?: AuiViewMetadata | null }>;
+
       // State operations
       invoke(channel: "app:getState"): Promise<AppState>;
       invoke(
@@ -141,6 +215,14 @@ declare global {
       on(
         channel: `ai:stream:${string}`,
         listener: (event: unknown, chunk: StreamChunk) => void
+      ): void;
+      on(
+        channel: "auiThread:event",
+        listener: (event: unknown, event: AuiThreadEvent) => void
+      ): void;
+      on(
+        channel: "auiView:event",
+        listener: (event: unknown, event: AuiViewEvent) => void
       ): void;
       on(
         channel: string,
@@ -172,6 +254,14 @@ declare global {
       off(
         channel: "task:deleted",
         listener: (event: unknown, taskId: string) => void
+      ): void;
+      off(
+        channel: "auiThread:event",
+        listener: (event: unknown, event: AuiThreadEvent) => void
+      ): void;
+      off(
+        channel: "auiView:event",
+        listener: (event: unknown, event: AuiViewEvent) => void
       ): void;
       off(channel: string, listener?: (...args: unknown[]) => void): void;
 

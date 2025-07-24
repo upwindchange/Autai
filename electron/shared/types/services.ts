@@ -13,3 +13,6 @@ export interface IViewManager {
   destroyView(viewId: string): void;
   setActiveView(viewId: string | null, bounds?: Electron.Rectangle): void;
 }
+
+// Export AuiThread service interfaces
+export * from './services/auiThread';
