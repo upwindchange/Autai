@@ -24,12 +24,6 @@ export interface UIState {
   showSettings: boolean;
 }
 
-// Initialization state
-export interface InitState {
-  isInitializing: boolean;
-  initializationError: string | null;
-  initializationRetryCount: number;
-}
 
 // Backend operations
 export interface BackendActions {
@@ -68,7 +62,6 @@ export interface NavigationActions {
 export interface AppStore extends 
   CoreState, 
   UIState, 
-  InitState,
   BackendActions,
   UIActions,
   SyncActions,

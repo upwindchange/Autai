@@ -3,7 +3,7 @@ import { SidebarLeft } from "@/components/side-bar/sidebar-left";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AssistantChatContainer } from "@/components/ai-chat";
 import { SettingsProvider, SettingsView } from "@/components/settings";
-import { useAppStore } from "@/store/appStore";
+import { useUiStore } from "@/stores/uiStore";
 import { useResizeObserverCleanup } from "@/hooks/use-cleanup";
 import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
@@ -15,7 +15,7 @@ import { useState } from "react";
  * Manages the sidebar, main content area, and AI chat interface.
  */
 function App() {
-  const { showSettings, setShowSettings } = useAppStore();
+  const { showSettings, setShowSettings } = useUiStore();
 
   // Ensure proper cleanup of ResizeObserver
   useResizeObserverCleanup();
@@ -28,14 +28,8 @@ function App() {
   // Layout toggle state
   const [showSplitView, setShowSplitView] = useState(false);
 
-  // Get selected page URL from active task/page
-  const selectedPageUrl = useAppStore((state) => {
-    if (!state.activeTaskId) return null;
-    const task = state.tasks.get(state.activeTaskId);
-    if (!task || !task.activePageId) return null;
-    const page = task.pages.get(task.activePageId);
-    return page?.url || null;
-  });
+  // TODO: Get selected page URL from new view system
+  const selectedPageUrl = null;
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>

@@ -7,7 +7,6 @@ import { createUIActions } from "./actions/uiActions";
 import { createNavigationActions } from "./actions/navigationActions";
 import { createSyncActions } from "./actions/syncActions";
 import { setupIpcListeners, processQueuedMessages } from "./ipcListeners";
-import { loadInitialState } from "./initialization";
 import { setupResizeObserver, cleanupResizeObserver } from "./resizeObserver";
 import { shouldUpdateViewBounds, createBoundsUpdatePayload, getContainerBounds } from "@/lib/bounds";
 
@@ -28,11 +27,6 @@ const useAppStore = create<AppStore>()(
     containerRef: null,
     containerBounds: null,
     showSettings: false,
-
-    // Initial state - Initialization
-    isInitializing: true,
-    initializationError: null,
-    initializationRetryCount: 0,
 
     // Actions
     ...createBackendActions(),
@@ -80,11 +74,7 @@ processQueuedMessages({
   handleStateChange: useAppStore.getState().handleStateChange,
 });
 
-// Start loading initial state
-loadInitialState(0, {
-  syncState: useAppStore.getState().syncState,
-  setState: (state) => useAppStore.setState(state),
-});
+// Note: Initial state loading removed as part of migration to assistant-ui
 
 // Set up container bounds observer
 const unsubscribeResizeObserver = setupResizeObserver(useAppStore);

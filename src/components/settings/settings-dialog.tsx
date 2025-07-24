@@ -12,32 +12,13 @@ import { Settings2 } from "lucide-react";
 import { SettingsForm } from "./settings-form";
 import { ProfileSelector } from "./profile-selector";
 import { useSettings } from "./settings-context";
-import { useViewVisibility } from "@/hooks/use-view-visibility";
 
 export function SettingsDialog() {
   const [open, setOpen] = useState(false);
   const { activeProfile } = useSettings();
-  const { hideView, showView, hasActiveView } = useViewVisibility();
-
-  const handleOpenChange = (newOpen: boolean) => {
-    if (!hasActiveView) {
-      setOpen(newOpen);
-      return;
-    }
-
-    if (newOpen) {
-      // Hide view immediately when dialog opens
-      hideView();
-      setOpen(true);
-    } else {
-      setOpen(false);
-      // Show view after dialog animation completes
-      showView(100);
-    }
-  };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
+    <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <SidebarMenuButton>
           <Settings2 />

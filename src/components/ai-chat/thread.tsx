@@ -5,6 +5,7 @@ import {
   ThreadPrimitive,
 } from "@assistant-ui/react";
 import type { FC } from "react";
+import { useRef, useEffect } from "react";
 import {
   ArrowDownIcon,
   CheckIcon,
@@ -23,12 +24,46 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable";
+import { useUiStore } from "@/stores/uiStore";
 
 interface ThreadProps {
   showSplitView?: boolean;
 }
 
 export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const { setContainerRef, setContainerBounds } = useUiStore();
+
+  useEffect(() => {
+    if (showSplitView && workspaceRef.current) {
+      setContainerRef(workspaceRef.current);
+      
+      // Set initial bounds
+      const rect = workspaceRef.current.getBoundingClientRect();
+      setContainerBounds({ width: rect.width, height: rect.height });
+
+      // Set up resize observer
+      const resizeObserver = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          const { width, height } = entry.contentRect;
+          setContainerBounds({ width, height });
+        }
+      });
+      
+      resizeObserver.observe(workspaceRef.current);
+
+      return () => {
+        resizeObserver.disconnect();
+        setContainerRef(null);
+        setContainerBounds(null);
+      };
+    } else {
+      // Clean up when not in split view
+      setContainerRef(null);
+      setContainerBounds(null);
+    }
+  }, [showSplitView, setContainerRef, setContainerBounds]);
+
   return (
     <ThreadPrimitive.Root className="bg-background flex h-full flex-col">
       {showSplitView ? (
@@ -50,7 +85,7 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
           </ResizablePanel>
           <ResizableHandle withHandle />
           <ResizablePanel defaultSize={50} minSize={30}>
-            <div className="h-full bg-muted/30 flex items-center justify-center text-muted-foreground border-r">
+            <div ref={workspaceRef} className="h-full bg-muted/30 flex items-center justify-center text-muted-foreground border-r">
               <p>Workspace Area</p>
             </div>
           </ResizablePanel>
