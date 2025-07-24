@@ -1,5 +1,5 @@
 import "./App.css";
-import { SidebarLeft } from "@/components/sidebar-left";
+import { SidebarLeft } from "@/components/side-bar/sidebar-left";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AssistantChatContainer } from "@/components/ai-chat";
 import { SettingsProvider, SettingsView } from "@/components/settings";
@@ -22,7 +22,7 @@ function App() {
 
   // Create runtime for the entire app
   const runtime = useChatRuntime({
-    api: "http://localhost:3001/api/chat",
+    api: "http://localhost:3001/chat",
   });
 
   // Layout toggle state

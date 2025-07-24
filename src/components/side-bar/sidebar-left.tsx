@@ -1,12 +1,9 @@
 "use client";
 import type { ComponentProps } from "react";
 
-import {
-  Sidebar,
-  SidebarContent,
-} from "@/components/ui/sidebar";
-import { NavSecondary } from "@/components/nav-secondary";
-import { ThreadList } from "@/components/ai-chat/thread-list";
+import { Sidebar, SidebarContent } from "@/components/ui/sidebar";
+import { NavSecondary } from "@/components/side-bar/nav-secondary";
+import { ThreadList } from "@/components/side-bar/thread-list";
 
 /**
  * Props for the SidebarLeft component

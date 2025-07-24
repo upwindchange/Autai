@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { TooltipIconButton } from "./tooltip-icon-button";
+import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import {
   ResizablePanelGroup,
@@ -34,12 +34,6 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
       {showSplitView ? (
         <ResizablePanelGroup direction="horizontal" className="flex-1">
           <ResizablePanel defaultSize={50} minSize={30}>
-            <div className="h-full bg-muted/30 flex items-center justify-center text-muted-foreground border-r">
-              <p>Workspace Area</p>
-            </div>
-          </ResizablePanel>
-          <ResizableHandle withHandle />
-          <ResizablePanel defaultSize={50} minSize={30}>
             <ThreadPrimitive.Viewport className="h-full overflow-y-auto">
               <div className="mx-auto max-w-3xl px-4 pb-12">
                 <ThreadWelcome />
@@ -53,6 +47,12 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
                 />
               </div>
             </ThreadPrimitive.Viewport>
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel defaultSize={50} minSize={30}>
+            <div className="h-full bg-muted/30 flex items-center justify-center text-muted-foreground border-r">
+              <p>Workspace Area</p>
+            </div>
           </ResizablePanel>
         </ResizablePanelGroup>
       ) : (
@@ -238,4 +238,3 @@ const AssistantActionBar: FC = () => {
     </ActionBarPrimitive.Root>
   );
 };
-

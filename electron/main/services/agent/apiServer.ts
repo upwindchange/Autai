@@ -26,7 +26,7 @@ export class ApiServer {
 
   private setupRoutes(): void {
     // Chat endpoint
-    this.app.post("/api/chat", async (req, res) => {
+    this.app.post("/chat", async (req, res) => {
       try {
         const { messages, taskId } = req.body;
 
