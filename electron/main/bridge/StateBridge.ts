@@ -1,11 +1,14 @@
 import { BrowserWindow } from "electron";
 import { StateManager, type WebViewService } from "../services";
-import { TaskBridge } from "./TaskBridge";
 import { ViewBridge } from "./ViewBridge";
-import { NavigationBridge } from "./NavigationBridge";
 import { SettingsBridge } from "./SettingsBridge";
 import { BrowserActionBridge } from "./BrowserActionBridge";
-import type { StateChangeEvent } from "../../shared/types";
+import { AuiThreadBridge } from "./AuiThreadBridge";
+import type { 
+  StateChangeEvent, 
+  IViewOrchestrator, 
+  IAuiThreadViewManager 
+} from "../../shared/types";
 
 /**
  * Bridges IPC communication between main and renderer processes.
@@ -18,26 +21,26 @@ export class StateBridge {
   private syncIntervalId: NodeJS.Timeout | null = null;
 
   // Bridge instances
-  private taskBridge: TaskBridge;
   private viewBridge: ViewBridge;
-  private navigationBridge: NavigationBridge;
   private settingsBridge: SettingsBridge;
   private browserActionBridge: BrowserActionBridge;
+  private auiThreadBridge: AuiThreadBridge;
 
   constructor(
     stateManager: StateManager,
     webViewService: WebViewService,
-    win: BrowserWindow
+    win: BrowserWindow,
+    viewOrchestrator: IViewOrchestrator,
+    auiThreadViewManager: IAuiThreadViewManager
   ) {
     this.stateManager = stateManager;
     this.win = win;
 
     // Initialize bridges
-    this.taskBridge = new TaskBridge(stateManager);
     this.viewBridge = new ViewBridge(stateManager, webViewService);
-    this.navigationBridge = new NavigationBridge(stateManager, webViewService);
     this.settingsBridge = new SettingsBridge();
     this.browserActionBridge = new BrowserActionBridge(webViewService);
+    this.auiThreadBridge = new AuiThreadBridge(viewOrchestrator, auiThreadViewManager);
 
     this.setupHandlers();
     this.setupStateSync();
@@ -45,11 +48,10 @@ export class StateBridge {
 
   private setupHandlers(): void {
     // Setup handlers for all bridges
-    this.taskBridge.setupHandlers();
     this.viewBridge.setupHandlers();
-    this.navigationBridge.setupHandlers();
     this.settingsBridge.setupHandlers();
     this.browserActionBridge.setupHandlers();
+    this.auiThreadBridge.setupHandlers();
   }
 
   private setupStateSync(): void {
@@ -96,10 +98,9 @@ export class StateBridge {
     }
 
     // Clean up all bridges
-    this.taskBridge.destroy();
     this.viewBridge.destroy();
-    this.navigationBridge.destroy();
     this.settingsBridge.destroy();
     this.browserActionBridge.destroy();
+    this.auiThreadBridge.destroy();
   }
 }

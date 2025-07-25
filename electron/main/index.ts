@@ -9,6 +9,9 @@ import {
   settingsService,
   WebViewService,
   apiServer,
+  ViewOrchestrator,
+  AuiThreadViewManager,
+  BrowserViewManager,
 } from "./services";
 import { StateBridge } from "./bridge/StateBridge";
 
@@ -79,7 +82,21 @@ async function createWindow() {
   const webViewService = new WebViewService(stateManager, win);
   stateManager.setViewManager(webViewService);
 
-  stateBridge = new StateBridge(stateManager, webViewService, win);
+  // Create AUI thread-related services
+  const auiThreadViewManager = new AuiThreadViewManager();
+  const browserViewManager = new BrowserViewManager(win);
+  const viewOrchestrator = new ViewOrchestrator(win);
+  
+  // Initialize ViewOrchestrator with its dependencies
+  viewOrchestrator.initialize(auiThreadViewManager, browserViewManager);
+
+  stateBridge = new StateBridge(
+    stateManager, 
+    webViewService, 
+    win,
+    viewOrchestrator,
+    auiThreadViewManager
+  );
 
   /**
    * Force external links to open in default browser
