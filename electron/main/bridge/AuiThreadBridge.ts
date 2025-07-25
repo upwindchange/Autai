@@ -190,7 +190,7 @@ export class AuiThreadBridge extends BaseBridge {
   /**
    * Send event to all windows
    */
-  private sendToAllWindows(channel: string, ...args: any[]): void {
+  private sendToAllWindows(channel: string, ...args: unknown[]): void {
     BrowserWindow.getAllWindows().forEach((window) => {
       if (!window.isDestroyed()) {
         window.webContents.send(channel, ...args);

@@ -1,7 +1,7 @@
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
-import { PanelRightIcon, SquareIcon } from "lucide-react";
+import { PanelRightIcon } from "lucide-react";
 import type { FC } from "react";
 
 interface AppHeaderProps {

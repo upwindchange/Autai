@@ -757,7 +757,7 @@ export class BrowserViewService {
 
     // Navigation error handler
     const failLoadHandler = (
-      _: any,
+      _: Electron.Event,
       errorCode: number,
       errorDescription: string,
       validatedURL: string
@@ -772,7 +772,7 @@ export class BrowserViewService {
     );
 
     // Crash handler
-    const crashHandler = (_: any, details: any) => {
+    const crashHandler = (_: Electron.Event, details: Electron.RenderProcessGoneDetails) => {
       console.error(`Renderer process crashed for view ${viewId}:`, details);
     };
     webView.webContents.on("render-process-gone", crashHandler);

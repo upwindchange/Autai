@@ -44,10 +44,7 @@ const ThreadListNew: FC = () => {
 const ThreadListItems: FC = () => {
   return (
     <div className="flex-1 overflow-y-auto px-3 pb-3">
-      <ThreadListPrimitive.Items
-        className="space-y-1"
-        components={{ ThreadListItem }}
-      />
+      <ThreadListPrimitive.Items components={{ ThreadListItem }} />
     </div>
   );
 };
