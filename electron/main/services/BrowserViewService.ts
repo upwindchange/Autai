@@ -7,10 +7,10 @@ import { WebContentsView, BrowserWindow, Rectangle } from "electron";
 import { EventEmitter } from "events";
 import type {
   IAuiThreadViewManager,
-  AuiThreadId,
-  AuiViewId,
-  AuiView,
-  AuiViewMetadata,
+  ThreadId,
+  ViewId,
+  ViewInfo,
+  ViewMetadata,
   ActionResult,
 } from "../../shared/types";
 import {
@@ -19,22 +19,21 @@ import {
 } from "../scripts/hintDetectorLoader";
 
 interface CreateViewConfig {
-  viewId: AuiViewId;
-  threadId?: AuiThreadId;
+  viewId: ViewId;
+  threadId?: ThreadId;
   url?: string;
   bounds?: Rectangle;
   target?: "tab" | "window";
 }
 
-export class AuiBrowserViewService {
-  private views = new Map<AuiViewId, WebContentsView>();
-  private viewInfo = new Map<AuiViewId, AuiView>();
-  private viewMetadata = new Map<AuiViewId, AuiViewMetadata>();
-  private activeView: AuiViewId | null = null;
+export class BrowserViewService {
+  private views = new Map<ViewId, WebContentsView>();
+  private viewMetadata = new Map<ViewId, ViewMetadata>();
+  private activeView: ViewId | null = null;
   private eventEmitter = new EventEmitter();
   private win: BrowserWindow;
   private threadViewManager!: IAuiThreadViewManager;
-  private eventCleanupMap = new Map<AuiViewId, (() => void)[]>();
+  private eventCleanupMap = new Map<ViewId, (() => void)[]>();
 
   constructor(win: BrowserWindow) {
     this.win = win;
@@ -88,18 +87,14 @@ export class AuiBrowserViewService {
     const cleanupHandlers = await this.setupEventHandlers(webView, viewId);
     this.eventCleanupMap.set(viewId, cleanupHandlers);
 
-    // Store view and info
+    // Store view and metadata
     this.views.set(viewId, webView);
-    this.viewInfo.set(viewId, {
+    this.viewMetadata.set(viewId, {
       id: viewId,
       threadId: threadId || "",
       url,
       title: "",
       favicon: undefined,
-    });
-
-    // Initialize metadata
-    this.viewMetadata.set(viewId, {
       bounds: bounds || { x: 0, y: 0, width: 1920, height: 1080 },
       isVisible: false,
     });
@@ -126,7 +121,14 @@ export class AuiBrowserViewService {
     }
 
     // Emit created event
-    const info = this.viewInfo.get(viewId)!;
+    const metadata = this.viewMetadata.get(viewId)!;
+    const info: ViewInfo = {
+      id: metadata.id,
+      threadId: metadata.threadId,
+      url: metadata.url,
+      title: metadata.title,
+      favicon: metadata.favicon,
+    };
     this.eventEmitter.emit("created", info);
 
     return webView;
@@ -136,9 +138,9 @@ export class AuiBrowserViewService {
    * Creates a view for a specific thread
    */
   async createViewForThread(
-    threadId: AuiThreadId,
+    threadId: ThreadId,
     target?: "tab" | "window"
-  ): Promise<AuiViewId> {
+  ): Promise<ViewId> {
     // Generate unique view ID
     const viewId = `view-${Date.now()}-${Math.random()
       .toString(36)
@@ -166,7 +168,7 @@ export class AuiBrowserViewService {
   /**
    * Destroys a view and cleans up all resources
    */
-  async destroyView(viewId: AuiViewId): Promise<void> {
+  async destroyView(viewId: ViewId): Promise<void> {
     const webView = this.views.get(viewId);
     if (!webView) return;
 
@@ -217,7 +219,6 @@ export class AuiBrowserViewService {
 
     // Clean up storage
     this.views.delete(viewId);
-    this.viewInfo.delete(viewId);
     this.viewMetadata.delete(viewId);
 
     // Clear active view if needed
@@ -232,7 +233,7 @@ export class AuiBrowserViewService {
   /**
    * Closes a view and switches to another in the same thread if available
    */
-  async closeView(viewId: AuiViewId): Promise<void> {
+  async closeView(viewId: ViewId): Promise<void> {
     const threadId = this.threadViewManager?.getThreadForView(viewId);
 
     // Destroy the view
@@ -255,7 +256,7 @@ export class AuiBrowserViewService {
   /**
    * Navigates a view to a URL
    */
-  async navigateView(viewId: AuiViewId, url: string): Promise<void> {
+  async navigateView(viewId: ViewId, url: string): Promise<void> {
     const webView = this.views.get(viewId);
     if (!webView) {
       throw new Error(`View ${viewId} not found`);
@@ -267,33 +268,33 @@ export class AuiBrowserViewService {
   /**
    * Goes back in navigation history
    */
-  async goBack(viewId: AuiViewId): Promise<boolean> {
+  async goBack(viewId: ViewId): Promise<boolean> {
     const webView = this.views.get(viewId);
-    if (!webView || !webView.webContents.canGoBack()) {
+    if (!webView || !webView.webContents.navigationHistory.canGoBack()) {
       return false;
     }
 
-    webView.webContents.goBack();
+    webView.webContents.navigationHistory.goBack();
     return true;
   }
 
   /**
    * Goes forward in navigation history
    */
-  async goForward(viewId: AuiViewId): Promise<boolean> {
+  async goForward(viewId: ViewId): Promise<boolean> {
     const webView = this.views.get(viewId);
-    if (!webView || !webView.webContents.canGoForward()) {
+    if (!webView || !webView.webContents.navigationHistory.canGoForward()) {
       return false;
     }
 
-    webView.webContents.goForward();
+    webView.webContents.navigationHistory.goForward();
     return true;
   }
 
   /**
    * Reloads the current page
    */
-  async reload(viewId: AuiViewId): Promise<void> {
+  async reload(viewId: ViewId): Promise<void> {
     const webView = this.views.get(viewId);
     if (!webView) {
       throw new Error(`View ${viewId} not found`);
@@ -305,7 +306,7 @@ export class AuiBrowserViewService {
   /**
    * Stops loading the current page
    */
-  async stop(viewId: AuiViewId): Promise<void> {
+  async stop(viewId: ViewId): Promise<void> {
     const webView = this.views.get(viewId);
     if (!webView) {
       throw new Error(`View ${viewId} not found`);
@@ -321,7 +322,7 @@ export class AuiBrowserViewService {
   /**
    * Sets the bounds of a view
    */
-  async setViewBounds(viewId: AuiViewId, bounds: Rectangle): Promise<void> {
+  async setViewBounds(viewId: ViewId, bounds: Rectangle): Promise<void> {
     const webView = this.views.get(viewId);
     if (!webView) return;
 
@@ -330,7 +331,8 @@ export class AuiBrowserViewService {
     if (metadata) {
       metadata.bounds = bounds;
     } else {
-      this.viewMetadata.set(viewId, { bounds, isVisible: false });
+      // This shouldn't happen as metadata should exist if view exists
+      console.warn(`Metadata not found for view ${viewId}`);
     }
 
     // Apply bounds if view is visible
@@ -342,10 +344,7 @@ export class AuiBrowserViewService {
   /**
    * Sets the visibility of a view
    */
-  async setViewVisibility(
-    viewId: AuiViewId,
-    isVisible: boolean
-  ): Promise<void> {
+  async setViewVisibility(viewId: ViewId, isVisible: boolean): Promise<void> {
     const webView = this.views.get(viewId);
     if (!webView) return;
 
@@ -384,7 +383,7 @@ export class AuiBrowserViewService {
   /**
    * Switches to a specific view
    */
-  async switchToView(viewId: AuiViewId): Promise<void> {
+  async switchToView(viewId: ViewId): Promise<void> {
     const webView = this.views.get(viewId);
     if (!webView) {
       console.warn(`Cannot switch to non-existent view: ${viewId}`);
@@ -417,7 +416,7 @@ export class AuiBrowserViewService {
   /**
    * Sets or clears the active view
    */
-  async setActiveView(viewId: AuiViewId | null): Promise<void> {
+  async setActiveView(viewId: ViewId | null): Promise<void> {
     if (viewId) {
       await this.switchToView(viewId);
     } else {
@@ -430,7 +429,7 @@ export class AuiBrowserViewService {
   /**
    * Switches to a thread by activating its active view
    */
-  async switchToThread(threadId: AuiThreadId): Promise<void> {
+  async switchToThread(threadId: ThreadId): Promise<void> {
     // Get the active view for this thread
     const activeViewId = this.getActiveViewForThread(threadId);
 
@@ -450,7 +449,7 @@ export class AuiBrowserViewService {
   /**
    * Captures a screenshot of a view
    */
-  async captureScreenshot(viewId: AuiViewId): Promise<Buffer> {
+  async captureScreenshot(viewId: ViewId): Promise<Buffer> {
     const webView = this.views.get(viewId);
     if (!webView) {
       throw new Error(`View ${viewId} not found`);
@@ -463,7 +462,7 @@ export class AuiBrowserViewService {
   /**
    * Executes JavaScript in a view
    */
-  async executeScript(viewId: AuiViewId, script: string): Promise<unknown> {
+  async executeScript(viewId: ViewId, script: string): Promise<unknown> {
     const webView = this.views.get(viewId);
     if (!webView) {
       throw new Error(`View ${viewId} not found`);
@@ -476,7 +475,7 @@ export class AuiBrowserViewService {
    * Executes a window function by name
    */
   async executeWindowFunction(
-    viewId: AuiViewId,
+    viewId: ViewId,
     functionName: string,
     ...args: unknown[]
   ): Promise<ActionResult> {
@@ -508,10 +507,7 @@ export class AuiBrowserViewService {
   /**
    * Clicks an element by hint ID
    */
-  async clickElement(
-    viewId: AuiViewId,
-    elementId: number
-  ): Promise<ActionResult> {
+  async clickElement(viewId: ViewId, elementId: number): Promise<ActionResult> {
     const result = await this.executeWindowFunction(
       viewId,
       "clickElementById",
@@ -524,7 +520,7 @@ export class AuiBrowserViewService {
    * Types text into an element by hint ID
    */
   async typeText(
-    viewId: AuiViewId,
+    viewId: ViewId,
     elementId: number,
     text: string
   ): Promise<ActionResult> {
@@ -542,7 +538,7 @@ export class AuiBrowserViewService {
   /**
    * Shows hint overlays on interactive elements
    */
-  async showHints(viewId: AuiViewId): Promise<void> {
+  async showHints(viewId: ViewId): Promise<void> {
     // First ensure hint detector is initialized
     const initResult = await this.executeWindowFunction(
       viewId,
@@ -550,9 +546,7 @@ export class AuiBrowserViewService {
     );
 
     if (!initResult.success) {
-      console.warn(
-        "[AuiBrowserViewService] Failed to initialize hint detector"
-      );
+      console.warn("[BrowserViewService] Failed to initialize hint detector");
     }
 
     await this.executeWindowFunction(viewId, "showHints");
@@ -561,7 +555,7 @@ export class AuiBrowserViewService {
   /**
    * Hides hint overlays
    */
-  async hideHints(viewId: AuiViewId): Promise<void> {
+  async hideHints(viewId: ViewId): Promise<void> {
     await this.executeWindowFunction(viewId, "hideHints");
   }
 
@@ -569,7 +563,7 @@ export class AuiBrowserViewService {
    * Gets all interactable elements in the viewport
    */
   async getPageElements(
-    viewId: AuiViewId,
+    viewId: ViewId,
     options?: { viewportOnly?: boolean }
   ): Promise<ActionResult> {
     // First ensure hint detector is initialized
@@ -579,9 +573,7 @@ export class AuiBrowserViewService {
     );
 
     if (!initResult.success) {
-      console.warn(
-        "[AuiBrowserViewService] Failed to initialize hint detector"
-      );
+      console.warn("[BrowserViewService] Failed to initialize hint detector");
     }
 
     const viewportOnly = options?.viewportOnly ?? true;
@@ -597,36 +589,44 @@ export class AuiBrowserViewService {
   // GETTERS (Synchronous for performance)
   // ===================
 
-  getView(viewId: AuiViewId): WebContentsView | null {
+  getView(viewId: ViewId): WebContentsView | null {
     return this.views.get(viewId) || null;
   }
 
-  getViewInfo(viewId: AuiViewId): AuiView | null {
-    return this.viewInfo.get(viewId) || null;
+  getViewInfo(viewId: ViewId): ViewInfo | null {
+    const metadata = this.viewMetadata.get(viewId);
+    if (!metadata) return null;
+    return {
+      id: metadata.id,
+      threadId: metadata.threadId,
+      url: metadata.url,
+      title: metadata.title,
+      favicon: metadata.favicon,
+    };
   }
 
-  getViewMetadata(viewId: AuiViewId): AuiViewMetadata | null {
+  getViewMetadata(viewId: ViewId): ViewMetadata | null {
     return this.viewMetadata.get(viewId) || null;
   }
 
-  getActiveView(): AuiViewId | null {
+  getActiveView(): ViewId | null {
     return this.activeView;
   }
 
-  getAllViews(): Map<AuiViewId, WebContentsView> {
+  getAllViews(): Map<ViewId, WebContentsView> {
     return new Map(this.views);
   }
 
-  getActiveViewForThread(threadId: AuiThreadId): AuiViewId | null {
+  getActiveViewForThread(threadId: ThreadId): ViewId | null {
     if (!this.threadViewManager) return null;
     const state = this.threadViewManager.getThreadViewState(threadId);
     return state?.activeViewId || null;
   }
 
-  getAllViewsForThread(threadId: AuiThreadId): AuiView[] {
+  getAllViewsForThread(threadId: ThreadId): ViewInfo[] {
     if (!this.threadViewManager) return [];
     const viewIds = this.threadViewManager.getViewsForThread(threadId);
-    const views: AuiView[] = [];
+    const views: ViewInfo[] = [];
 
     viewIds.forEach((viewId) => {
       const info = this.getViewInfo(viewId);
@@ -642,19 +642,19 @@ export class AuiBrowserViewService {
   // EVENT HANDLING
   // ===================
 
-  onViewCreated(callback: (view: AuiView) => void): () => void {
+  onViewCreated(callback: (view: ViewInfo) => void): () => void {
     this.eventEmitter.on("created", callback);
     return () => this.eventEmitter.off("created", callback);
   }
 
   onViewUpdated(
-    callback: (viewId: AuiViewId, updates: Partial<AuiView>) => void
+    callback: (viewId: ViewId, updates: Partial<ViewInfo>) => void
   ): () => void {
     this.eventEmitter.on("updated", callback);
     return () => this.eventEmitter.off("updated", callback);
   }
 
-  onViewDestroyed(callback: (viewId: AuiViewId) => void): () => void {
+  onViewDestroyed(callback: (viewId: ViewId) => void): () => void {
     this.eventEmitter.on("destroyed", callback);
     return () => this.eventEmitter.off("destroyed", callback);
   }
@@ -666,7 +666,7 @@ export class AuiBrowserViewService {
   /**
    * Hides all views except the specified one
    */
-  private async hideAllViewsExcept(exceptViewId?: AuiViewId): Promise<void> {
+  private async hideAllViewsExcept(exceptViewId?: ViewId): Promise<void> {
     const hidePromises: Promise<void>[] = [];
 
     this.views.forEach((view, id) => {
@@ -696,11 +696,15 @@ export class AuiBrowserViewService {
   /**
    * Updates view info
    */
-  private updateViewInfo(viewId: AuiViewId, updates: Partial<AuiView>): void {
-    const info = this.viewInfo.get(viewId);
-    if (!info) return;
+  private updateViewInfo(viewId: ViewId, updates: Partial<ViewInfo>): void {
+    const metadata = this.viewMetadata.get(viewId);
+    if (!metadata) return;
 
-    Object.assign(info, updates);
+    // Update the metadata with ViewInfo fields
+    if (updates.url !== undefined) metadata.url = updates.url;
+    if (updates.title !== undefined) metadata.title = updates.title;
+    if (updates.favicon !== undefined) metadata.favicon = updates.favicon;
+    
     this.eventEmitter.emit("updated", viewId, updates);
   }
 
@@ -709,7 +713,7 @@ export class AuiBrowserViewService {
    */
   private async setupEventHandlers(
     webView: WebContentsView,
-    viewId: AuiViewId
+    viewId: ViewId
   ): Promise<(() => void)[]> {
     const cleanupHandlers: (() => void)[] = [];
 
@@ -794,7 +798,6 @@ export class AuiBrowserViewService {
     await Promise.all(destroyPromises);
 
     this.views.clear();
-    this.viewInfo.clear();
     this.viewMetadata.clear();
     this.eventCleanupMap.clear();
     this.eventEmitter.removeAllListeners();

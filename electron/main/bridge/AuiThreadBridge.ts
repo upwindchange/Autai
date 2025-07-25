@@ -4,23 +4,23 @@
 
 import { IpcMainInvokeEvent, BrowserWindow } from "electron";
 import { BaseBridge } from "./BaseBridge";
-import type { AuiBrowserViewService } from "../services/AuiBrowserViewService";
+import type { BrowserViewService } from "../services/BrowserViewService";
 import type {
   IAuiThreadViewManager,
-  CreateAuiViewCommand,
-  NavigateAuiViewCommand,
-  SetAuiViewBoundsCommand,
-  SetAuiViewVisibilityCommand,
-  AuiThreadEvent,
-  AuiViewEvent,
+  CreateViewCommand,
+  NavigateViewCommand,
+  SetViewBoundsCommand,
+  SetViewVisibilityCommand,
+  ThreadEvent,
+  ViewEvent,
 } from "../../shared/types";
 
 export class AuiThreadBridge extends BaseBridge {
-  private browserViewService: AuiBrowserViewService;
+  private browserViewService: BrowserViewService;
   private threadViewManager: IAuiThreadViewManager;
 
   constructor(
-    browserViewService: AuiBrowserViewService,
+    browserViewService: BrowserViewService,
     threadViewManager: IAuiThreadViewManager
   ) {
     super();
@@ -57,23 +57,24 @@ export class AuiThreadBridge extends BaseBridge {
     // View operations
     this.handle(
       "auiView:create",
-      async (_event: IpcMainInvokeEvent, command: CreateAuiViewCommand) => {
+      async (_event: IpcMainInvokeEvent, command: CreateViewCommand) => {
         try {
           const viewId = await this.browserViewService.createViewForThread(
             command.threadId,
             command.target
           );
-          
+
           // Navigate if URL provided
           if (command.url) {
             await this.browserViewService.navigateView(viewId, command.url);
           }
-          
+
           return { success: true, data: viewId };
         } catch (error) {
           return {
             success: false,
-            error: error instanceof Error ? error.message : "Failed to create view",
+            error:
+              error instanceof Error ? error.message : "Failed to create view",
           };
         }
       }
@@ -81,19 +82,22 @@ export class AuiThreadBridge extends BaseBridge {
 
     this.handle(
       "auiView:navigate",
-      async (_event: IpcMainInvokeEvent, command: NavigateAuiViewCommand) => {
+      async (_event: IpcMainInvokeEvent, command: NavigateViewCommand) => {
         try {
-          await this.browserViewService.navigateView(command.viewId, command.url);
+          await this.browserViewService.navigateView(
+            command.viewId,
+            command.url
+          );
           return { success: true };
         } catch (error) {
           return {
             success: false,
-            error: error instanceof Error ? error.message : "Failed to navigate",
+            error:
+              error instanceof Error ? error.message : "Failed to navigate",
           };
         }
       }
     );
-
 
     this.handle(
       "auiView:close",
@@ -106,16 +110,22 @@ export class AuiThreadBridge extends BaseBridge {
     // View state management
     this.handle(
       "auiView:setBounds",
-      async (_event: IpcMainInvokeEvent, command: SetAuiViewBoundsCommand) => {
-        await this.browserViewService.setViewBounds(command.viewId, command.bounds);
+      async (_event: IpcMainInvokeEvent, command: SetViewBoundsCommand) => {
+        await this.browserViewService.setViewBounds(
+          command.viewId,
+          command.bounds
+        );
         return { success: true };
       }
     );
 
     this.handle(
       "auiView:setVisibility",
-      async (_event: IpcMainInvokeEvent, command: SetAuiViewVisibilityCommand) => {
-        await this.browserViewService.setViewVisibility(command.viewId, command.isVisible);
+      async (_event: IpcMainInvokeEvent, command: SetViewVisibilityCommand) => {
+        await this.browserViewService.setViewVisibility(
+          command.viewId,
+          command.isVisible
+        );
         return { success: true };
       }
     );
@@ -167,12 +177,12 @@ export class AuiThreadBridge extends BaseBridge {
 
   private setupEventForwarding(): void {
     // Forward thread events to renderer
-    this.threadViewManager.subscribeToThreadEvents((event: AuiThreadEvent) => {
+    this.threadViewManager.subscribeToThreadEvents((event: ThreadEvent) => {
       this.sendToAllWindows("auiThread:event", event);
     });
 
     // Forward view events to renderer
-    this.threadViewManager.subscribeToViewEvents((event: AuiViewEvent) => {
+    this.threadViewManager.subscribeToViewEvents((event: ViewEvent) => {
       this.sendToAllWindows("auiView:event", event);
     });
   }

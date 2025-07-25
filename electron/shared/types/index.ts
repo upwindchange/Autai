@@ -15,7 +15,7 @@ export * from "./browserActions";
 export * from "./dom";
 
 // Service interface types
-export * from "./services/auiThreadInterfaces";
+export * from "./services/threadInterfaces";
 
 // AuiThread types
-export * from "./auiThread";
+export * from "./thread";

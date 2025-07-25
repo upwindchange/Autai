@@ -7,8 +7,8 @@ import { update } from "./update";
 import {
   settingsService,
   apiServer,
-  AuiThreadViewManager,
-  AuiBrowserViewService,
+  ThreadViewManager,
+  BrowserViewService,
 } from "./services";
 import { AuiThreadBridge } from "./bridge/AuiThreadBridge";
 import { SettingsBridge } from "./bridge/SettingsBridge";
@@ -75,16 +75,19 @@ async function createWindow() {
    * Initialize core services
    */
   // Create AUI thread-related services
-  const auiThreadViewManager = new AuiThreadViewManager();
-  const browserViewService = new AuiBrowserViewService(win);
-  
+  const auiThreadViewManager = new ThreadViewManager();
+  const browserViewService = new BrowserViewService(win);
+
   // Initialize browserViewService with thread manager
   await browserViewService.initialize(auiThreadViewManager);
 
   // Initialize bridges
-  auiThreadBridge = new AuiThreadBridge(browserViewService, auiThreadViewManager);
+  auiThreadBridge = new AuiThreadBridge(
+    browserViewService,
+    auiThreadViewManager
+  );
   auiThreadBridge.setupHandlers();
-  
+
   settingsBridge = new SettingsBridge();
   settingsBridge.setupHandlers();
 

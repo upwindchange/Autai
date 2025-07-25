@@ -5,22 +5,22 @@
 import { EventEmitter } from "events";
 import type {
   IAuiThreadViewManager,
-  AuiThreadId,
-  AuiViewId,
-  AuiThreadViewState,
-  AuiThreadEvent,
-  AuiViewEvent,
+  ThreadId,
+  ViewId,
+  ThreadViewState,
+  ThreadEvent,
+  ViewEvent,
 } from "../../shared/types";
 
-export class AuiThreadViewManager implements IAuiThreadViewManager {
-  private threadViews = new Map<AuiThreadId, Set<AuiViewId>>();
-  private viewThreads = new Map<AuiViewId, AuiThreadId>();
-  private activeThread: AuiThreadId | null = null;
-  private threadStates = new Map<AuiThreadId, AuiThreadViewState>();
+export class ThreadViewManager implements IAuiThreadViewManager {
+  private threadViews = new Map<ThreadId, Set<ViewId>>();
+  private viewThreads = new Map<ViewId, ThreadId>();
+  private activeThread: ThreadId | null = null;
+  private threadStates = new Map<ThreadId, ThreadViewState>();
   private eventEmitter = new EventEmitter();
 
   // Thread lifecycle
-  async onThreadCreated(threadId: AuiThreadId): Promise<void> {
+  async onThreadCreated(threadId: ThreadId): Promise<void> {
     if (this.threadViews.has(threadId)) {
       console.warn(`Thread ${threadId} already exists`);
       return;
@@ -45,7 +45,7 @@ export class AuiThreadViewManager implements IAuiThreadViewManager {
     });
   }
 
-  async onThreadDeleted(threadId: AuiThreadId): Promise<void> {
+  async onThreadDeleted(threadId: ThreadId): Promise<void> {
     const viewIds = this.threadViews.get(threadId);
     if (!viewIds) {
       console.warn(`Thread ${threadId} does not exist`);
@@ -76,7 +76,7 @@ export class AuiThreadViewManager implements IAuiThreadViewManager {
     });
   }
 
-  async onThreadSwitched(threadId: AuiThreadId): Promise<void> {
+  async onThreadSwitched(threadId: ThreadId): Promise<void> {
     if (!this.threadViews.has(threadId)) {
       console.warn(`Cannot switch to non-existent thread ${threadId}`);
       return;
@@ -90,7 +90,7 @@ export class AuiThreadViewManager implements IAuiThreadViewManager {
   }
 
   // View associations
-  async registerView(threadId: AuiThreadId, viewId: AuiViewId): Promise<void> {
+  async registerView(threadId: ThreadId, viewId: ViewId): Promise<void> {
     const viewSet = this.threadViews.get(threadId);
     if (!viewSet) {
       throw new Error(`Thread ${threadId} does not exist`);
@@ -111,7 +111,7 @@ export class AuiThreadViewManager implements IAuiThreadViewManager {
     }
   }
 
-  async unregisterView(viewId: AuiViewId): Promise<void> {
+  async unregisterView(viewId: ViewId): Promise<void> {
     const threadId = this.viewThreads.get(viewId);
     if (!threadId) {
       console.warn(`View ${viewId} is not registered`);
@@ -138,44 +138,44 @@ export class AuiThreadViewManager implements IAuiThreadViewManager {
     this.viewThreads.delete(viewId);
   }
 
-  getViewsForThread(threadId: AuiThreadId): Set<AuiViewId> {
+  getViewsForThread(threadId: ThreadId): Set<ViewId> {
     return this.threadViews.get(threadId) || new Set();
   }
 
-  getThreadForView(viewId: AuiViewId): AuiThreadId | null {
+  getThreadForView(viewId: ViewId): ThreadId | null {
     return this.viewThreads.get(viewId) || null;
   }
 
   // Thread state
-  getActiveThread(): AuiThreadId | null {
+  getActiveThread(): ThreadId | null {
     return this.activeThread;
   }
 
-  getThreadViewState(threadId: AuiThreadId): AuiThreadViewState | null {
+  getThreadViewState(threadId: ThreadId): ThreadViewState | null {
     return this.threadStates.get(threadId) || null;
   }
 
-  getAllThreadStates(): Map<AuiThreadId, AuiThreadViewState> {
+  getAllThreadStates(): Map<ThreadId, ThreadViewState> {
     return new Map(this.threadStates);
   }
 
   // Event subscriptions
-  subscribeToThreadEvents(callback: (event: AuiThreadEvent) => void): () => void {
+  subscribeToThreadEvents(callback: (event: ThreadEvent) => void): () => void {
     this.eventEmitter.on("thread", callback);
     return () => this.eventEmitter.off("thread", callback);
   }
 
-  subscribeToViewEvents(callback: (event: AuiViewEvent) => void): () => void {
+  subscribeToViewEvents(callback: (event: ViewEvent) => void): () => void {
     this.eventEmitter.on("view", callback);
     return () => this.eventEmitter.off("view", callback);
   }
 
   // Private methods
-  private emitThreadEvent(event: AuiThreadEvent): void {
+  private emitThreadEvent(event: ThreadEvent): void {
     this.eventEmitter.emit("thread", event);
   }
 
-  private emitViewEvent(event: AuiViewEvent): void {
+  private emitViewEvent(event: ViewEvent): void {
     this.eventEmitter.emit("view", event);
   }
 
