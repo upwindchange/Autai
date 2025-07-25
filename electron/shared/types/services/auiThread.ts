@@ -20,13 +20,13 @@ import type {
  */
 export interface IAuiThreadViewManager {
   // Thread lifecycle
-  onThreadCreated(threadId: AuiThreadId): void;
-  onThreadDeleted(threadId: AuiThreadId): void;
-  onThreadSwitched(threadId: AuiThreadId): void;
+  onThreadCreated(threadId: AuiThreadId): Promise<void>;
+  onThreadDeleted(threadId: AuiThreadId): Promise<void>;
+  onThreadSwitched(threadId: AuiThreadId): Promise<void>;
 
   // View associations
-  registerView(threadId: AuiThreadId, viewId: AuiViewId): void;
-  unregisterView(viewId: AuiViewId): void;
+  registerView(threadId: AuiThreadId, viewId: AuiViewId): Promise<void>;
+  unregisterView(viewId: AuiViewId): Promise<void>;
   getViewsForThread(threadId: AuiThreadId): Set<AuiViewId>;
   getThreadForView(viewId: AuiViewId): AuiThreadId | null;
 
@@ -40,7 +40,7 @@ export interface IAuiThreadViewManager {
   subscribeToViewEvents(callback: (event: AuiViewEvent) => void): () => void;
 
   // Cleanup
-  destroy(): void;
+  destroy(): Promise<void>;
 }
 
 /**

@@ -1,12 +1,10 @@
 import { BrowserWindow } from "electron";
-import { StateManager, type WebViewService } from "../services";
+import { StateManager, type WebViewService, type AuiBrowserViewService } from "../services";
 import { ViewBridge } from "./ViewBridge";
 import { SettingsBridge } from "./SettingsBridge";
-import { BrowserActionBridge } from "./BrowserActionBridge";
 import { AuiThreadBridge } from "./AuiThreadBridge";
 import type { 
   StateChangeEvent, 
-  IViewOrchestrator, 
   IAuiThreadViewManager 
 } from "../../shared/types";
 
@@ -23,14 +21,13 @@ export class StateBridge {
   // Bridge instances
   private viewBridge: ViewBridge;
   private settingsBridge: SettingsBridge;
-  private browserActionBridge: BrowserActionBridge;
   private auiThreadBridge: AuiThreadBridge;
 
   constructor(
     stateManager: StateManager,
     webViewService: WebViewService,
     win: BrowserWindow,
-    viewOrchestrator: IViewOrchestrator,
+    browserViewService: AuiBrowserViewService,
     auiThreadViewManager: IAuiThreadViewManager
   ) {
     this.stateManager = stateManager;
@@ -39,8 +36,7 @@ export class StateBridge {
     // Initialize bridges
     this.viewBridge = new ViewBridge(stateManager, webViewService);
     this.settingsBridge = new SettingsBridge();
-    this.browserActionBridge = new BrowserActionBridge(webViewService);
-    this.auiThreadBridge = new AuiThreadBridge(viewOrchestrator, auiThreadViewManager);
+    this.auiThreadBridge = new AuiThreadBridge(browserViewService, auiThreadViewManager);
 
     this.setupHandlers();
     this.setupStateSync();
@@ -50,7 +46,6 @@ export class StateBridge {
     // Setup handlers for all bridges
     this.viewBridge.setupHandlers();
     this.settingsBridge.setupHandlers();
-    this.browserActionBridge.setupHandlers();
     this.auiThreadBridge.setupHandlers();
   }
 
@@ -100,7 +95,6 @@ export class StateBridge {
     // Clean up all bridges
     this.viewBridge.destroy();
     this.settingsBridge.destroy();
-    this.browserActionBridge.destroy();
     this.auiThreadBridge.destroy();
   }
 }

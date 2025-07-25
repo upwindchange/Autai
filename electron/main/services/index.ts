@@ -1,9 +1,7 @@
 export { StateManager } from "./StateManager";
 export { settingsService } from "./settingsService";
-export { BrowserActionService } from "./BrowserActionService";
 export { WebViewService } from "./WebViewService";
 export { apiServer } from "./agent";
 export { DomService } from "./dom";
-export { ViewOrchestrator } from "./ViewOrchestrator";
 export { AuiThreadViewManager } from "./AuiThreadViewManager";
-export { BrowserViewManager } from "./BrowserViewManager";
+export { AuiBrowserViewService } from "./AuiBrowserViewService";

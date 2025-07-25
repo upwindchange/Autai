@@ -3,31 +3,26 @@
  */
 
 // Core types
-export * from './core';
+export * from "./core";
 
 // Event types
-export * from './events';
+export * from "./events";
 
 // Command types
-export * from './commands';
+export * from "./commands";
 
-// Navigation types
-export * from './navigation';
 
 // Settings types
-export * from './settings';
-
-// Streaming types
-export * from './streaming';
+export * from "./settings";
 
 // Browser action types
-export * from './browserActions';
+export * from "./browserActions";
 
 // DOM types
-export * from './dom';
+export * from "./dom";
 
 // Service interface types
-export * from './services';
+export * from "./services";
 
 // AuiThread types
-export * from './auiThread';
+export * from "./auiThread";

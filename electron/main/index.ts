@@ -9,9 +9,8 @@ import {
   settingsService,
   WebViewService,
   apiServer,
-  ViewOrchestrator,
   AuiThreadViewManager,
-  BrowserViewManager,
+  AuiBrowserViewService,
 } from "./services";
 import { StateBridge } from "./bridge/StateBridge";
 
@@ -84,17 +83,16 @@ async function createWindow() {
 
   // Create AUI thread-related services
   const auiThreadViewManager = new AuiThreadViewManager();
-  const browserViewManager = new BrowserViewManager(win);
-  const viewOrchestrator = new ViewOrchestrator(win);
+  const browserViewService = new AuiBrowserViewService(win);
   
-  // Initialize ViewOrchestrator with its dependencies
-  viewOrchestrator.initialize(auiThreadViewManager, browserViewManager);
+  // Initialize browserViewService with thread manager
+  await browserViewService.initialize(auiThreadViewManager);
 
   stateBridge = new StateBridge(
     stateManager, 
     webViewService, 
     win,
-    viewOrchestrator,
+    browserViewService,
     auiThreadViewManager
   );
 

@@ -4,8 +4,8 @@
 
 import { IpcMainInvokeEvent } from "electron";
 import { BaseBridge } from "./BaseBridge";
+import type { AuiBrowserViewService } from "../services/AuiBrowserViewService";
 import type {
-  IViewOrchestrator,
   IAuiThreadViewManager,
   CreateAuiViewCommand,
   NavigateAuiViewCommand,
@@ -19,15 +19,15 @@ import type {
 } from "../../shared/types";
 
 export class AuiThreadBridge extends BaseBridge {
-  private orchestrator: IViewOrchestrator;
+  private browserViewService: AuiBrowserViewService;
   private threadViewManager: IAuiThreadViewManager;
 
   constructor(
-    orchestrator: IViewOrchestrator,
+    browserViewService: AuiBrowserViewService,
     threadViewManager: IAuiThreadViewManager
   ) {
     super();
-    this.orchestrator = orchestrator;
+    this.browserViewService = browserViewService;
     this.threadViewManager = threadViewManager;
   }
 
@@ -36,7 +36,7 @@ export class AuiThreadBridge extends BaseBridge {
     this.handle(
       "auiThread:created",
       async (_event: IpcMainInvokeEvent, threadId: string) => {
-        this.threadViewManager.onThreadCreated(threadId);
+        await this.threadViewManager.onThreadCreated(threadId);
         return { success: true };
       }
     );
@@ -44,7 +44,7 @@ export class AuiThreadBridge extends BaseBridge {
     this.handle(
       "auiThread:switched",
       async (_event: IpcMainInvokeEvent, threadId: string) => {
-        this.threadViewManager.onThreadSwitched(threadId);
+        await this.threadViewManager.onThreadSwitched(threadId);
         return { success: true };
       }
     );
@@ -52,7 +52,7 @@ export class AuiThreadBridge extends BaseBridge {
     this.handle(
       "auiThread:deleted",
       async (_event: IpcMainInvokeEvent, threadId: string) => {
-        this.threadViewManager.onThreadDeleted(threadId);
+        await this.threadViewManager.onThreadDeleted(threadId);
         return { success: true };
       }
     );
@@ -62,14 +62,14 @@ export class AuiThreadBridge extends BaseBridge {
       "auiView:create",
       async (_event: IpcMainInvokeEvent, command: CreateAuiViewCommand) => {
         try {
-          const viewId = await this.orchestrator.createViewForThread(
+          const viewId = await this.browserViewService.createViewForThread(
             command.threadId,
             command.target
           );
           
           // Navigate if URL provided
           if (command.url) {
-            await this.orchestrator.navigateView(viewId, command.url);
+            await this.browserViewService.navigateView(viewId, command.url);
           }
           
           return { success: true, data: viewId };
@@ -86,7 +86,7 @@ export class AuiThreadBridge extends BaseBridge {
       "auiView:navigate",
       async (_event: IpcMainInvokeEvent, command: NavigateAuiViewCommand) => {
         try {
-          await this.orchestrator.navigateView(command.viewId, command.url);
+          await this.browserViewService.navigateView(command.viewId, command.url);
           return { success: true };
         } catch (error) {
           return {
@@ -101,7 +101,7 @@ export class AuiThreadBridge extends BaseBridge {
       "auiView:execute",
       async (_event: IpcMainInvokeEvent, command: ExecuteAuiViewCommand) => {
         try {
-          const result = await this.orchestrator.executeViewAction(
+          const result = await this.browserViewService.executeAction(
             command.viewId,
             { type: "extractText" } as BrowserAction // Default action for script execution
           );
@@ -122,7 +122,7 @@ export class AuiThreadBridge extends BaseBridge {
         command: { viewId: string; action: BrowserAction }
       ) => {
         try {
-          return await this.orchestrator.executeViewAction(
+          return await this.browserViewService.executeAction(
             command.viewId,
             command.action
           );
@@ -138,7 +138,7 @@ export class AuiThreadBridge extends BaseBridge {
     this.handle(
       "auiView:close",
       async (_event: IpcMainInvokeEvent, viewId: string) => {
-        this.orchestrator.closeView(viewId);
+        await this.browserViewService.closeView(viewId);
         return { success: true };
       }
     );
@@ -147,7 +147,7 @@ export class AuiThreadBridge extends BaseBridge {
     this.handle(
       "auiView:setBounds",
       async (_event: IpcMainInvokeEvent, command: SetAuiViewBoundsCommand) => {
-        this.orchestrator.setViewBounds(command.viewId, command.bounds);
+        await this.browserViewService.setViewBounds(command.viewId, command.bounds);
         return { success: true };
       }
     );
@@ -155,7 +155,7 @@ export class AuiThreadBridge extends BaseBridge {
     this.handle(
       "auiView:setVisibility",
       async (_event: IpcMainInvokeEvent, command: SetAuiViewVisibilityCommand) => {
-        this.orchestrator.setViewVisibility(command.viewId, command.isVisible);
+        await this.browserViewService.setViewVisibility(command.viewId, command.isVisible);
         return { success: true };
       }
     );
@@ -163,7 +163,7 @@ export class AuiThreadBridge extends BaseBridge {
     this.handle(
       "auiView:setActive",
       async (_event: IpcMainInvokeEvent, viewId: string | null) => {
-        this.orchestrator.setActiveView(viewId);
+        await this.browserViewService.setActiveView(viewId);
         return { success: true };
       }
     );
@@ -172,7 +172,7 @@ export class AuiThreadBridge extends BaseBridge {
     this.handle(
       "auiThread:getViews",
       async (_event: IpcMainInvokeEvent, threadId: string) => {
-        const views = this.orchestrator.getAllViewsForThread(threadId);
+        const views = this.browserViewService.getAllViewsForThread(threadId);
         return { success: true, data: views };
       }
     );
@@ -180,7 +180,7 @@ export class AuiThreadBridge extends BaseBridge {
     this.handle(
       "auiThread:getActiveView",
       async (_event: IpcMainInvokeEvent, threadId: string) => {
-        const viewId = this.orchestrator.getActiveViewForThread(threadId);
+        const viewId = this.browserViewService.getActiveViewForThread(threadId);
         return { success: true, data: viewId };
       }
     );
@@ -196,7 +196,7 @@ export class AuiThreadBridge extends BaseBridge {
     this.handle(
       "auiView:getMetadata",
       async (_event: IpcMainInvokeEvent, viewId: string) => {
-        const metadata = this.orchestrator.getViewMetadata(viewId);
+        const metadata = this.browserViewService.getViewMetadata(viewId);
         return { success: true, data: metadata };
       }
     );

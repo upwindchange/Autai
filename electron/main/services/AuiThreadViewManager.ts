@@ -20,7 +20,7 @@ export class AuiThreadViewManager implements IAuiThreadViewManager {
   private eventEmitter = new EventEmitter();
 
   // Thread lifecycle
-  onThreadCreated(threadId: AuiThreadId): void {
+  async onThreadCreated(threadId: AuiThreadId): Promise<void> {
     if (this.threadViews.has(threadId)) {
       console.warn(`Thread ${threadId} already exists`);
       return;
@@ -45,7 +45,7 @@ export class AuiThreadViewManager implements IAuiThreadViewManager {
     });
   }
 
-  onThreadDeleted(threadId: AuiThreadId): void {
+  async onThreadDeleted(threadId: AuiThreadId): Promise<void> {
     const viewIds = this.threadViews.get(threadId);
     if (!viewIds) {
       console.warn(`Thread ${threadId} does not exist`);
@@ -76,7 +76,7 @@ export class AuiThreadViewManager implements IAuiThreadViewManager {
     });
   }
 
-  onThreadSwitched(threadId: AuiThreadId): void {
+  async onThreadSwitched(threadId: AuiThreadId): Promise<void> {
     if (!this.threadViews.has(threadId)) {
       console.warn(`Cannot switch to non-existent thread ${threadId}`);
       return;
@@ -90,7 +90,7 @@ export class AuiThreadViewManager implements IAuiThreadViewManager {
   }
 
   // View associations
-  registerView(threadId: AuiThreadId, viewId: AuiViewId): void {
+  async registerView(threadId: AuiThreadId, viewId: AuiViewId): Promise<void> {
     const viewSet = this.threadViews.get(threadId);
     if (!viewSet) {
       throw new Error(`Thread ${threadId} does not exist`);
@@ -111,7 +111,7 @@ export class AuiThreadViewManager implements IAuiThreadViewManager {
     }
   }
 
-  unregisterView(viewId: AuiViewId): void {
+  async unregisterView(viewId: AuiViewId): Promise<void> {
     const threadId = this.viewThreads.get(viewId);
     if (!threadId) {
       console.warn(`View ${viewId} is not registered`);
@@ -180,11 +180,13 @@ export class AuiThreadViewManager implements IAuiThreadViewManager {
   }
 
   // Cleanup
-  destroy(): void {
+  async destroy(): Promise<void> {
     // Clean up all threads
-    Array.from(this.threadViews.keys()).forEach((threadId) => {
-      this.onThreadDeleted(threadId);
-    });
+    await Promise.all(
+      Array.from(this.threadViews.keys()).map((threadId) =>
+        this.onThreadDeleted(threadId)
+      )
+    );
 
     this.threadViews.clear();
     this.viewThreads.clear();
