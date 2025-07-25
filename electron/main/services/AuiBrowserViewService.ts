@@ -11,8 +11,6 @@ import type {
   AuiViewId,
   AuiView,
   AuiViewMetadata,
-  BrowserAction,
-  AuiViewResult,
   ActionResult,
 } from "../../shared/types";
 import {
@@ -236,7 +234,7 @@ export class AuiBrowserViewService {
    */
   async closeView(viewId: AuiViewId): Promise<void> {
     const threadId = this.threadViewManager?.getThreadForView(viewId);
-    
+
     // Destroy the view
     await this.destroyView(viewId);
 
@@ -435,7 +433,7 @@ export class AuiBrowserViewService {
   async switchToThread(threadId: AuiThreadId): Promise<void> {
     // Get the active view for this thread
     const activeViewId = this.getActiveViewForThread(threadId);
-    
+
     if (activeViewId) {
       await this.switchToView(activeViewId);
     } else {
@@ -448,123 +446,6 @@ export class AuiBrowserViewService {
   // ===================
   // BROWSER ACTIONS
   // ===================
-
-  /**
-   * Executes a browser action on a view
-   */
-  async executeAction(
-    viewId: AuiViewId,
-    action: BrowserAction
-  ): Promise<AuiViewResult> {
-    try {
-      const webView = this.views.get(viewId);
-      if (!webView) {
-        throw new Error(`View ${viewId} not found`);
-      }
-
-      switch (action.type) {
-        case "navigate":
-          await this.navigateView(viewId, action.url);
-          return { success: true };
-
-        case "screenshot":
-          const buffer = await this.captureScreenshot(viewId);
-          return { success: true, data: buffer };
-
-        case "extractText": {
-          const selector = action.selector || "*";
-          const script = `
-            (function() {
-              const elements = document.querySelectorAll('${selector}');
-              return Array.from(elements).map(el => el.textContent).join('\\n');
-            })()
-          `;
-          const text = await this.executeScript(viewId, script);
-          return { success: true, data: text };
-        }
-
-        case "click": {
-          if (action.elementId) {
-            return await this.clickElement(viewId, action.elementId);
-          }
-          const script = `
-            (function() {
-              const element = document.querySelector('${action.selector}');
-              if (element) {
-                element.click();
-                return true;
-              }
-              return false;
-            })()
-          `;
-          const clicked = await this.executeScript(viewId, script);
-          return { success: clicked, data: clicked };
-        }
-
-        case "type": {
-          if (action.elementId) {
-            return await this.typeText(viewId, action.elementId, action.text);
-          }
-          const script = `
-            (function() {
-              const element = document.querySelector('${action.selector}');
-              if (element && (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA')) {
-                element.value = '${action.text.replace(/'/g, "\\'")}';
-                element.dispatchEvent(new Event('input', { bubbles: true }));
-                return true;
-              }
-              return false;
-            })()
-          `;
-          const typed = await this.executeScript(viewId, script);
-          return { success: typed, data: typed };
-        }
-
-        case "waitFor": {
-          const timeout = action.timeout || 5000;
-          const script = `
-            (function() {
-              return new Promise((resolve) => {
-                const startTime = Date.now();
-                const checkElement = () => {
-                  const element = document.querySelector('${action.selector}');
-                  if (element) {
-                    resolve(true);
-                  } else if (Date.now() - startTime > ${timeout}) {
-                    resolve(false);
-                  } else {
-                    setTimeout(checkElement, 100);
-                  }
-                };
-                checkElement();
-              });
-            })()
-          `;
-          const found = await this.executeScript(viewId, script);
-          return { success: found, data: found };
-        }
-
-        case "showHints":
-          await this.showHints(viewId);
-          return { success: true };
-
-        case "hideHints":
-          await this.hideHints(viewId);
-          return { success: true };
-
-        default:
-          return {
-            success: false,
-            error: `Unknown action type: ${(action as any).type}`,
-          };
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-      };
-    }
-  }
 
   /**
    * Captures a screenshot of a view
@@ -582,7 +463,7 @@ export class AuiBrowserViewService {
   /**
    * Executes JavaScript in a view
    */
-  async executeScript(viewId: AuiViewId, script: string): Promise<any> {
+  async executeScript(viewId: AuiViewId, script: string): Promise<unknown> {
     const webView = this.views.get(viewId);
     if (!webView) {
       throw new Error(`View ${viewId} not found`);
@@ -597,7 +478,7 @@ export class AuiBrowserViewService {
   async executeWindowFunction(
     viewId: AuiViewId,
     functionName: string,
-    ...args: any[]
+    ...args: unknown[]
   ): Promise<ActionResult> {
     try {
       const argsString = args.map((arg) => JSON.stringify(arg)).join(", ");
@@ -669,7 +550,9 @@ export class AuiBrowserViewService {
     );
 
     if (!initResult.success) {
-      console.warn("[AuiBrowserViewService] Failed to initialize hint detector");
+      console.warn(
+        "[AuiBrowserViewService] Failed to initialize hint detector"
+      );
     }
 
     await this.executeWindowFunction(viewId, "showHints");
@@ -696,7 +579,9 @@ export class AuiBrowserViewService {
     );
 
     if (!initResult.success) {
-      console.warn("[AuiBrowserViewService] Failed to initialize hint detector");
+      console.warn(
+        "[AuiBrowserViewService] Failed to initialize hint detector"
+      );
     }
 
     const viewportOnly = options?.viewportOnly ?? true;
@@ -828,37 +713,6 @@ export class AuiBrowserViewService {
   ): Promise<(() => void)[]> {
     const cleanupHandlers: (() => void)[] = [];
 
-    // Page title updates
-    const titleHandler = (_: any, title: string) => {
-      this.updateViewInfo(viewId, { title });
-    };
-    webView.webContents.on("page-title-updated", titleHandler);
-    cleanupHandlers.push(() =>
-      webView.webContents.off("page-title-updated", titleHandler)
-    );
-
-    // Favicon updates
-    const faviconHandler = (_: any, favicons: string[]) => {
-      if (favicons.length > 0) {
-        this.updateViewInfo(viewId, { favicon: favicons[0] });
-      }
-    };
-    webView.webContents.on("page-favicon-updated", faviconHandler);
-    cleanupHandlers.push(() =>
-      webView.webContents.off("page-favicon-updated", faviconHandler)
-    );
-
-    // URL updates
-    const urlHandler = (_: any, url: string) => {
-      this.updateViewInfo(viewId, { url });
-    };
-    webView.webContents.on("did-navigate", urlHandler);
-    webView.webContents.on("did-navigate-in-page", urlHandler);
-    cleanupHandlers.push(
-      () => webView.webContents.off("did-navigate", urlHandler),
-      () => webView.webContents.off("did-navigate-in-page", urlHandler)
-    );
-
     // Page load completion - inject scripts
     const loadHandler = async () => {
       try {
@@ -883,34 +737,6 @@ export class AuiBrowserViewService {
     webView.webContents.on("did-finish-load", loadHandler);
     cleanupHandlers.push(() =>
       webView.webContents.off("did-finish-load", loadHandler)
-    );
-
-    // Console message forwarding
-    const consoleHandler = (event: any) => {
-      const { level, message, sourceId } = event;
-      if (
-        message.includes("[HintDetector]") ||
-        sourceId.includes("hintDetector")
-      ) {
-        const logPrefix = `[View ${viewId}]`;
-        switch (level) {
-          case 0: // info
-            console.log(`${logPrefix} ${message}`);
-            break;
-          case 1: // warning
-            console.warn(`${logPrefix} ${message}`);
-            break;
-          case 2: // error
-            console.error(`${logPrefix} ${message}`);
-            break;
-          default:
-            console.log(`${logPrefix} ${message}`);
-        }
-      }
-    };
-    webView.webContents.on("console-message", consoleHandler);
-    cleanupHandlers.push(() =>
-      webView.webContents.off("console-message", consoleHandler)
     );
 
     // WebContents destroyed handler

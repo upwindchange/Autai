@@ -13,14 +13,11 @@ import type {
   // AuiThread types
   CreateAuiViewCommand,
   NavigateAuiViewCommand,
-  ExecuteAuiViewCommand,
   SetAuiViewBoundsCommand,
   SetAuiViewVisibilityCommand,
   AuiView,
   AuiViewMetadata,
   AuiThreadViewState,
-  AuiViewResult,
-  BrowserAction,
   AuiThreadEvent,
   AuiViewEvent,
 } from "../electron/shared/types";
@@ -96,14 +93,6 @@ declare global {
         channel: "auiView:navigate",
         command: NavigateAuiViewCommand
       ): Promise<IPCResult>;
-      invoke(
-        channel: "auiView:execute",
-        command: ExecuteAuiViewCommand
-      ): Promise<AuiViewResult>;
-      invoke(
-        channel: "auiView:executeAction",
-        command: { viewId: string; action: BrowserAction }
-      ): Promise<AuiViewResult>;
       invoke(channel: "auiView:close", viewId: string): Promise<IPCResult>;
       invoke(
         channel: "auiView:setBounds",

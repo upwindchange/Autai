@@ -56,7 +56,9 @@ export const NavigateAuiViewCommandSchema = z.object({
   url: z.string(),
 });
 
-export type NavigateAuiViewCommand = z.infer<typeof NavigateAuiViewCommandSchema>;
+export type NavigateAuiViewCommand = z.infer<
+  typeof NavigateAuiViewCommandSchema
+>;
 
 export const ExecuteAuiViewCommandSchema = z.object({
   viewId: z.string().min(1),
@@ -70,14 +72,18 @@ export const SetAuiViewBoundsCommandSchema = z.object({
   bounds: AuiViewMetadataSchema.shape.bounds,
 });
 
-export type SetAuiViewBoundsCommand = z.infer<typeof SetAuiViewBoundsCommandSchema>;
+export type SetAuiViewBoundsCommand = z.infer<
+  typeof SetAuiViewBoundsCommandSchema
+>;
 
 export const SetAuiViewVisibilityCommandSchema = z.object({
   viewId: z.string().min(1),
   isVisible: z.boolean(),
 });
 
-export type SetAuiViewVisibilityCommand = z.infer<typeof SetAuiViewVisibilityCommandSchema>;
+export type SetAuiViewVisibilityCommand = z.infer<
+  typeof SetAuiViewVisibilityCommandSchema
+>;
 
 // Events for thread lifecycle
 export const AuiThreadEventSchema = z.discriminatedUnion("type", [

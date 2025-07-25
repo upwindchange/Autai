@@ -2,18 +2,15 @@
  * Handles AuiThread-related IPC operations
  */
 
-import { IpcMainInvokeEvent } from "electron";
+import { IpcMainInvokeEvent, BrowserWindow } from "electron";
 import { BaseBridge } from "./BaseBridge";
 import type { AuiBrowserViewService } from "../services/AuiBrowserViewService";
 import type {
   IAuiThreadViewManager,
   CreateAuiViewCommand,
   NavigateAuiViewCommand,
-  ExecuteAuiViewCommand,
   SetAuiViewBoundsCommand,
   SetAuiViewVisibilityCommand,
-  BrowserAction,
-  AuiViewResult,
   AuiThreadEvent,
   AuiViewEvent,
 } from "../../shared/types";
@@ -97,43 +94,6 @@ export class AuiThreadBridge extends BaseBridge {
       }
     );
 
-    this.handle(
-      "auiView:execute",
-      async (_event: IpcMainInvokeEvent, command: ExecuteAuiViewCommand) => {
-        try {
-          const result = await this.browserViewService.executeAction(
-            command.viewId,
-            { type: "extractText" } as BrowserAction // Default action for script execution
-          );
-          return result;
-        } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : "Failed to execute script",
-          };
-        }
-      }
-    );
-
-    this.handle(
-      "auiView:executeAction",
-      async (
-        _event: IpcMainInvokeEvent,
-        command: { viewId: string; action: BrowserAction }
-      ) => {
-        try {
-          return await this.browserViewService.executeAction(
-            command.viewId,
-            command.action
-          );
-        } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : "Failed to execute action",
-          };
-        }
-      }
-    );
 
     this.handle(
       "auiView:close",
@@ -221,7 +181,6 @@ export class AuiThreadBridge extends BaseBridge {
    * Send event to all windows
    */
   private sendToAllWindows(channel: string, ...args: any[]): void {
-    const { BrowserWindow } = require("electron");
     BrowserWindow.getAllWindows().forEach((window) => {
       if (!window.isDestroyed()) {
         window.webContents.send(channel, ...args);

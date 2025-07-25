@@ -2,15 +2,8 @@
  * Central export point for all shared types
  */
 
-// Core types
-export * from "./core";
-
-// Event types
-export * from "./events";
-
 // Command types
 export * from "./commands";
-
 
 // Settings types
 export * from "./settings";
@@ -22,7 +15,7 @@ export * from "./browserActions";
 export * from "./dom";
 
 // Service interface types
-export * from "./services";
+export * from "./services/auiThreadInterfaces";
 
 // AuiThread types
 export * from "./auiThread";
