@@ -13,10 +13,7 @@ import type {
   ViewMetadata,
   ActionResult,
 } from "../../shared/types";
-import {
-  getHintDetectorScript,
-  getIndexScript,
-} from "../scripts/hintDetectorLoader";
+import { getIndexScript } from "../scripts/indexLoader";
 
 interface CreateViewConfig {
   viewId: ViewId;
@@ -720,10 +717,6 @@ export class BrowserViewService {
     // Page load completion - inject scripts
     const loadHandler = async () => {
       try {
-        // Inject hint detector script
-        const hintDetectorScript = getHintDetectorScript();
-        await webView.webContents.executeJavaScript(hintDetectorScript);
-
         // Inject index.js script wrapped in IIFE
         const indexScript = getIndexScript();
         const wrappedIndexScript = `

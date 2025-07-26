@@ -21,7 +21,8 @@
       "WebFetch(domain:www.assistant-ui.com)",
       "Bash(del \"C:\\Users\\HTPC\\Documents\\dev\\Autai\\electron\\main\\bridge\\AgentBridge.ts\")",
       "Bash(cd:*)",
-      "Bash(pnpm add:*)"
+      "Bash(pnpm add:*)",
+      "Bash(mv:*)"
     ],
     "deny": []
   }

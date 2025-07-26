@@ -4,24 +4,7 @@ import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-let hintDetectorScript: string | null = null;
 let indexScript: string | null = null;
-
-export function getHintDetectorScript(): string {
-  if (!hintDetectorScript) {
-    // The hintDetector.js now includes css-selector-generator bundled
-    const possiblePath = join(__dirname, "scripts/hintDetector.js");
-
-    if (!existsSync(possiblePath)) {
-      throw new Error(
-        `Could not find hintDetector.js in path: ${possiblePath}`
-      );
-    }
-
-    hintDetectorScript = readFileSync(possiblePath, "utf-8");
-  }
-  return hintDetectorScript;
-}
 
 export function getIndexScript(): string {
   if (!indexScript) {

@@ -1,7 +1,7 @@
-import express, { type Express } from "express";
+import express, { type Express, type Request, type Response } from "express";
 import cors from "cors";
 import { createOpenAI } from "@ai-sdk/openai";
-import { convertToCoreMessages, streamText } from "ai";
+import { convertToModelMessages, streamText } from "ai";
 import { settingsService } from "../SettingsService";
 import { type Server } from "http";
 
@@ -25,10 +25,10 @@ export class ApiServer {
   }
 
   private setupRoutes(): void {
-    // Chat endpoint
-    this.app.post("/chat", async (req, res) => {
+    // Chat endpoint - using the modern pattern from AI SDK examples
+    this.app.post("/chat", async (req: Request, res: Response) => {
       try {
-        const { messages, taskId } = req.body;
+        const { messages, taskId, system, tools } = req.body;
 
         // Get settings
         const settings = settingsService.getActiveSettings();
@@ -42,40 +42,28 @@ export class ApiServer {
           baseURL: settings.apiUrl || undefined,
         });
 
-        // Stream the response
+        // Stream the response using streamText
         const result = streamText({
           model: openai(settings.simpleModel || "gpt-4o-mini"),
-          messages: convertToCoreMessages(messages),
-          system: `You are a helpful AI assistant integrated into a web browser automation tool. 
+          messages: convertToModelMessages(messages),
+          system:
+            system ||
+            `You are a helpful AI assistant integrated into a web browser automation tool. 
                    You can help users navigate web pages, answer questions about the current page content, 
                    and provide assistance with browser automation tasks.
                    ${taskId ? `Current task ID: ${taskId}` : ""}`,
+          tools: tools || {},
+          toolCallStreaming: true,
         });
 
-        // Convert to data stream response
-        const response = await result.toDataStreamResponse();
-
-        // Set appropriate headers for streaming
-        res.setHeader(
-          "Content-Type",
-          response.headers.get("Content-Type") || "text/event-stream"
-        );
-        res.setHeader("Cache-Control", "no-cache");
-        res.setHeader("Connection", "keep-alive");
-
-        // Stream the response body
-        const reader = response.body?.getReader();
-        if (reader) {
-          const decoder = new TextDecoder();
-
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            res.write(decoder.decode(value, { stream: true }));
-          }
-        }
-
-        res.end();
+        // Use the recommended pipeUIMessageStreamToResponse pattern
+        result.pipeUIMessageStreamToResponse(res, {
+          onError: (error) => {
+            // Error messages are masked by default for security reasons.
+            // If you want to expose the error message to the client, you can do so here:
+            return error instanceof Error ? error.message : String(error);
+          },
+        });
       } catch (error) {
         console.error("Chat API error:", error);
         res.status(500).json({ error: "Internal server error" });

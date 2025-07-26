@@ -1,10 +1,7 @@
 import {
   rmSync,
-  readFileSync,
-  writeFileSync,
   mkdirSync,
   existsSync,
-  statSync,
   copyFileSync,
 } from "node:fs";
 import path from "node:path";
@@ -12,80 +9,20 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import electron from "vite-plugin-electron/simple";
-import typescript from "typescript";
 import pkg from "./package.json";
 
 // https://vitejs.dev/config/
-// Custom plugin to build hintDetector.js file directly to dist
-const buildHintDetectorPlugin = () => ({
-  name: "build-hint-detector",
+// Custom plugin to copy index.js file directly to dist
+const copyIndexScriptPlugin = () => ({
+  name: "copy-index-script",
   async buildStart() {
-    console.log("Building hintDetector.js...");
+    console.log("Copying index.js...");
 
     const scriptsDir = path.join(__dirname, "electron/main/scripts");
     const distDir = path.join(__dirname, "dist-electron/main/scripts");
     mkdirSync(distDir, { recursive: true });
 
-    // Check if we need to build
-    const sourcePath = path.join(scriptsDir, "hintDetector.ts");
-    const outputPath = path.join(distDir, "hintDetector.js");
-
-    const shouldBuild =
-      !existsSync(outputPath) ||
-      (existsSync(sourcePath) &&
-        existsSync(outputPath) &&
-        statSync(sourcePath).mtime > statSync(outputPath).mtime);
-
-    if (!shouldBuild) {
-      console.log("hintDetector.js is up to date, skipping build");
-      return;
-    }
-
     try {
-      // Read hintDetector.ts source
-      if (!existsSync(sourcePath)) {
-        throw new Error(`hintDetector.ts not found at: ${sourcePath}`);
-      }
-
-      const hintDetectorTsCode = readFileSync(sourcePath, "utf-8");
-
-      // Compile TypeScript to JavaScript
-      console.log("Compiling TypeScript to JavaScript...");
-      const compilerOptions: typescript.CompilerOptions = {
-        module: typescript.ModuleKind.None,
-        target: typescript.ScriptTarget.ES2020,
-        lib: ["es2020", "dom"],
-        strict: true,
-        skipLibCheck: true,
-        esModuleInterop: false,
-        allowSyntheticDefaultImports: true,
-        forceConsistentCasingInFileNames: true,
-        removeComments: false,
-        sourceMap: false,
-        declaration: false,
-      };
-
-      const result = typescript.transpileModule(hintDetectorTsCode, {
-        compilerOptions,
-        fileName: "hintDetector.ts",
-      });
-
-      if (result.diagnostics && result.diagnostics.length > 0) {
-        const diagnostics = result.diagnostics
-          .map((d) =>
-            typescript.flattenDiagnosticMessageText(d.messageText, "\n")
-          )
-          .join("\n");
-        throw new Error(`TypeScript compilation errors:\n${diagnostics}`);
-      }
-
-      console.log(`✓ Built hintDetector.js`);
-
-      // Write the compiled script
-      writeFileSync(outputPath, result.outputText);
-      console.log(`✓ Built hintDetector.js into electron-dist folder`);
-      console.log(`  Output: ${outputPath}`);
-      
       // Copy index.js file
       const indexSourcePath = path.join(scriptsDir, "index.js");
       const indexOutputPath = path.join(distDir, "index.js");
@@ -98,7 +35,7 @@ const buildHintDetectorPlugin = () => ({
         console.warn(`Warning: index.js not found at: ${indexSourcePath}`);
       }
     } catch (error) {
-      console.error("Error building hintDetector:", error);
+      console.error("Error copying index.js:", error);
       throw error;
     }
   },
@@ -141,7 +78,7 @@ export default defineConfig(({ command }) => {
                 external: Object.keys(
                   "dependencies" in pkg ? pkg.dependencies : {}
                 ),
-                plugins: [buildHintDetectorPlugin()],
+                plugins: [copyIndexScriptPlugin()],
               },
             },
           },
