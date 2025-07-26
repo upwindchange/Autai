@@ -16,12 +16,17 @@
     "tsc": "tsc --noEmit",
     "lint": "eslint ."
   },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron"
+    ]
+  },
   "dependencies": {
-    "electron-updater": "^6.6.2",
-    "mermaid": "^11.9.0",
-    "react-shiki": "^0.7.2"
+    "electron-updater": "^6.6.2"
   },
   "devDependencies": {
+    "mermaid": "^11.9.0",
+    "react-shiki": "^0.7.2",
     "@ai-sdk/openai": "2.0.0-canary.20",
     "@assistant-ui/react": "^0.10.29",
     "@assistant-ui/react-ai-sdk": "^0.10.16",
