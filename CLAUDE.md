@@ -29,9 +29,11 @@ pnpm build
 
 ### Core Services
 
+- **BrowserViewService**: Manages browser view instances and navigation
 - **DomService**: Analyzes and manipulates DOM elements in webviews
-- **StateService**: Synchronizes state between main and renderer processes using Zustand
-- **WebViewService**: Manages browser webview instances and navigation
+- **SettingsService**: Manages application settings and profiles
+- **ThreadViewManager**: Manages AI thread views and their lifecycle
+- **Agent API Server**: Express server for AI agent communication
 
 ### Directory Structure
 
@@ -40,14 +42,23 @@ electron/
 ├── main/          # Main process code
 │   ├── bridge/    # IPC bridges for typed communication
 │   └── services/  # Core application services
+│       ├── agent/ # AI agent server implementation
+│       └── dom/   # DOM manipulation services
 ├── preload/       # Preload scripts
+├── shared/
+│   └── types/     # TypeScript type definitions between main and renderer
 src/
 ├── components/    # React components
 │   ├── ai-chat/   # AI chat interface
-│   ├── ui/        # shadcn/ui components
-│   └── assistant-ui/ # assistant-ui components
-└── store/         # Zustand state management
-browser-use/       # Python browser automation library for reference only
+│   ├── ui/        # shadcn/ui components (Tailwind-based)
+│   ├── assistant-ui/ # assistant-ui components (do not modify, if need to modify, copy it out)
+│   ├── settings/  # Settings management UI
+│   └── side-bar/  # Sidebar navigation components
+├── stores/        # Zustand state management
+├── hooks/         # Custom React hooks
+├── lib/           # Utility functions
+└── vite-env.d.ts  # IPC type definitions: if there is a new IPC endpoint, add type definition here
+reference/         # several projects for reference
 ```
 
 ## Development Guidelines
@@ -56,25 +67,39 @@ browser-use/       # Python browser automation library for reference only
 
 - Strict mode enabled
 - Use `@/` path alias for imports from `src/`
-- All IPC channels must be typed in `shared/types.ts`
+- All IPC channels must be typed in `src/vite-env.d.ts`
 
 ### State Management
 
 - Zustand stores in `src/store/`
-- State syncs between processes via StateService
 - Use typed actions and selectors
 
-### Browser Automation
+### Reference projects
 
-- The `browser-use` directory contains a Python library (requires Python >= 3.11)
-- See `browser-use/CLAUDE.md` for specific guidelines when working with that code
-- DOM manipulation happens through injected scripts in `electron/main/scripts/`
+**IMPORTANT**: How to use Reference Projects
 
-### Testing
+1. If you have any questions or need to look up infomation on AI SDK, Assistant UI, Browser Use project,
+   the infomation are listed in this section below.
+2. If you cannot find information in the list below, you will NOT be able to find them online either.
+3. Preferred sequence of looking up: example -> docs -> api reference -> source code.
+4. Do not look for information from web unless you absolutely have to.
 
-- Vitest for unit tests
-- Playwright for E2E tests
-- Run specific test: `npm run test -- path/to/test`
+- `reference/ai`: AI SDK reference.
+  - Source code in `reference/ai/packages/ai/src`
+  - Documentation in `reference/ai/docs`
+  - Design pattern and examples in `reference/ai/content/cookbook` and `reference/ai/examples`
+    - for this project, `reference/ai/examples/express` will be valuable.
+  - Providers in `reference/ai/content/providers`
+    - for this project, we will only use `reference/ai/content/providers/04-adapters/01-langchain.mdx`
+- `reference/assitant-ui`: Assistant UI React Component Library.
+  - Source code in `reference/assitant-ui/packages`
+  - Documentation in `reference/assitant-ui/apps/docs/content/docs`
+  - Design pattern and examples in `reference/assitant-ui/examples`
+    - For this project, we will only use `reference/assitant-ui/examples/with-ai-sdk`
+- `reference/browser-use`: Browser-use project
+  - Source code in `reference/browser-use`
+  - Documentation in `reference/browser-use/docs`
+  - Examples in `reference/browser-use/examples`
 
 ## Important Technical Details
 

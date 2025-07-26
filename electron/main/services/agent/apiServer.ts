@@ -2,7 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import { createOpenAI } from "@ai-sdk/openai";
 import { convertToCoreMessages, streamText } from "ai";
-import { settingsService } from "../settingsService";
+import { settingsService } from "../SettingsService";
 import { type Server } from "http";
 
 export class ApiServer {
