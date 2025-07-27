@@ -1,7 +1,7 @@
-import express, { type Express, type Request, type Response } from "express";
+import express, { type Express } from "express";
 import cors from "cors";
 import { createOpenAI } from "@ai-sdk/openai";
-import { convertToModelMessages, streamText } from "ai";
+import { streamText, pipeDataStreamToResponse } from "ai";
 import { settingsService } from "../SettingsService";
 import { type Server } from "http";
 
@@ -25,10 +25,10 @@ export class ApiServer {
   }
 
   private setupRoutes(): void {
-    // Chat endpoint - using the modern pattern from AI SDK examples
-    this.app.post("/chat", async (req: Request, res: Response) => {
+    // Chat endpoint
+    this.app.post("/chat", async (req, res) => {
       try {
-        const { messages, taskId, system, tools } = req.body;
+        const { messages, taskId } = req.body;
 
         // Get settings
         const settings = settingsService.getActiveSettings();
@@ -42,25 +42,22 @@ export class ApiServer {
           baseURL: settings.apiUrl || undefined,
         });
 
-        // Stream the response using streamText
-        const result = streamText({
-          model: openai(settings.simpleModel || "gpt-4o-mini"),
-          messages: convertToModelMessages(messages),
-          system:
-            system ||
-            `You are a helpful AI assistant integrated into a web browser automation tool. 
-                   You can help users navigate web pages, answer questions about the current page content, 
-                   and provide assistance with browser automation tasks.
-                   ${taskId ? `Current task ID: ${taskId}` : ""}`,
-          tools: tools || {},
-          toolCallStreaming: true,
-        });
+        // Stream the response using pipeDataStreamToResponse
+        pipeDataStreamToResponse(res, {
+          execute: async (dataStreamWriter) => {
+            const result = streamText({
+              model: openai(settings.simpleModel || "gpt-4o-mini"),
+              messages,
+              system: `You are a helpful AI assistant integrated into a web browser automation tool. 
+                       You can help users navigate web pages, answer questions about the current page content, 
+                       and provide assistance with browser automation tasks.
+                       ${taskId ? `Current task ID: ${taskId}` : ""}`,
+            });
 
-        // Use the recommended pipeUIMessageStreamToResponse pattern
-        result.pipeUIMessageStreamToResponse(res, {
+            result.mergeIntoDataStream(dataStreamWriter);
+          },
           onError: (error) => {
-            // Error messages are masked by default for security reasons.
-            // If you want to expose the error message to the client, you can do so here:
+            console.error("Chat API error:", error);
             return error instanceof Error ? error.message : String(error);
           },
         });
