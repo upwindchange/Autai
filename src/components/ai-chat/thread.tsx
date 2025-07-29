@@ -20,7 +20,7 @@ import { Button } from "@/components/ui/button";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
-import { CalculatorTool, AnswerTool } from "@/components/assistant-ui/tool-components";
+import { CalculatorTool, AnswerTool, DisplayErrorTool } from "@/components/assistant-ui/tool-components";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -246,6 +246,7 @@ const AssistantMessage: FC = () => {
               by_name: {
                 calculate: CalculatorTool,
                 answer: AnswerTool,
+                displayError: DisplayErrorTool,
               },
               Fallback: ToolFallback,
             }

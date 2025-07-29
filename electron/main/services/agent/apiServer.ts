@@ -7,7 +7,6 @@ import {
   pipeDataStreamToResponse,
   tool,
   InvalidToolArgumentsError,
-  NoSuchToolError,
 } from "ai";
 import { z } from "zod";
 import * as mathjs from "mathjs";
@@ -82,6 +81,10 @@ export class ApiServer {
                          and provide assistance with browser automation tasks.
                          You have access to a calculator tool for evaluating mathematical expressions.
                          When solving math problems, reason step by step and use the calculator when necessary.
+                         
+                         IMPORTANT: If you encounter any errors or issues during processing, immediately use the displayError tool to inform the user.
+                         This includes calculation errors, processing errors, or if you're unable to complete a task.
+                         Always provide clear error messages to help the user understand what went wrong.
                          ${taskId ? `Current task ID: ${taskId}` : ""}`,
                 maxSteps: 10, // Enable multi-step tool calling
                 experimental_repairToolCall: async ({ toolCall, error }) => {
@@ -112,6 +115,7 @@ export class ApiServer {
 
                       // Return repaired tool call
                       const repairedCall = {
+                        toolCallType: "function" as const,
                         toolCallId: toolCall.toolCallId,
                         toolName: toolCall.toolName,
                         args: JSON.stringify(parsedArgs),
@@ -173,6 +177,32 @@ export class ApiServer {
                       answer: z.string(),
                     }),
                     // no execute function - invoking it will terminate the agent
+                  }),
+                  // error display tool: displays errors to the user
+                  displayError: tool({
+                    description: "Display an error message to the user when something goes wrong.",
+                    parameters: z.object({
+                      title: z.string().describe("Short error title"),
+                      message: z.string().describe("Detailed error message"),
+                      details: z.string().optional().describe("Technical details or error codes"),
+                    }),
+                    execute: async ({ title, message, details }) => {
+                      console.log("[TOOL:DISPLAY_ERROR] Displaying error:", {
+                        title,
+                        message,
+                        details,
+                      });
+                      // This will be shown in the UI
+                      const result = {
+                        type: "error" as const,
+                        title,
+                        message,
+                        timestamp: new Date().toISOString(),
+                        ...(details ? { details } : {}),
+                      };
+                      
+                      return result;
+                    },
                   }),
                 },
                 toolChoice: toolChoice || undefined, // Add toolChoice support
@@ -309,6 +339,10 @@ export class ApiServer {
                    and provide assistance with browser automation tasks.
                    You have access to a calculator tool for evaluating mathematical expressions.
                    When solving math problems, reason step by step and use the calculator when necessary.
+                   
+                   IMPORTANT: If you encounter any errors or issues during processing, immediately use the displayError tool to inform the user.
+                   This includes calculation errors, processing errors, or if you're unable to complete a task.
+                   Always provide clear error messages to help the user understand what went wrong.
                    ${taskId ? `Current task ID: ${taskId}` : ""}`,
           maxSteps: 10,
           experimental_repairToolCall: async ({ toolCall, error }) => {
@@ -339,6 +373,7 @@ export class ApiServer {
 
                 // Return repaired tool call
                 const repairedCall = {
+                  toolCallType: "function" as const,
                   toolCallId: toolCall.toolCallId,
                   toolName: toolCall.toolName,
                   args: JSON.stringify(parsedArgs),
@@ -398,6 +433,32 @@ export class ApiServer {
                 ),
                 answer: z.string(),
               }),
+            }),
+            // error display tool: displays errors to the user
+            displayError: tool({
+              description: "Display an error message to the user when something goes wrong.",
+              parameters: z.object({
+                title: z.string().describe("Short error title"),
+                message: z.string().describe("Detailed error message"),
+                details: z.string().optional().describe("Technical details or error codes"),
+              }),
+              execute: async ({ title, message, details }) => {
+                console.log("[TOOL:DISPLAY_ERROR:STEPS] Displaying error:", {
+                  title,
+                  message,
+                  details,
+                });
+                // This will be shown in the UI
+                const result = {
+                  type: "error" as const,
+                  title,
+                  message,
+                  timestamp: new Date().toISOString(),
+                  ...(details ? { details } : {}),
+                };
+                
+                return result;
+              },
             }),
           },
           toolChoice: toolChoice || undefined,
