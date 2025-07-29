@@ -19,6 +19,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
+import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
+import { CalculatorTool, AnswerTool } from "@/components/assistant-ui/tool-components";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -237,7 +239,18 @@ const AssistantMessage: FC = () => {
   return (
     <MessagePrimitive.Root className="mb-6 flex flex-col items-start">
       <div className="group relative max-w-[80%] rounded-lg border bg-card px-4 py-2">
-        <MessagePrimitive.Parts components={{ Text: MarkdownText }} />
+        <MessagePrimitive.Parts 
+          components={{ 
+            Text: MarkdownText,
+            tools: {
+              by_name: {
+                calculate: CalculatorTool,
+                answer: AnswerTool,
+              },
+              Fallback: ToolFallback,
+            }
+          }} 
+        />
         <AssistantActionBar />
       </div>
     </MessagePrimitive.Root>
