@@ -5,11 +5,13 @@ import path from "node:path";
 import os from "node:os";
 import { update } from "./update";
 import {
-  StateManager,
   settingsService,
-  WebViewService,
-} from "./services/index";
-import { StateBridge } from "./bridge/StateBridge";
+  apiServer,
+  ThreadViewManager,
+  BrowserViewService,
+} from "./services";
+import { AuiThreadBridge } from "./bridge/AuiThreadBridge";
+import { SettingsBridge } from "./bridge/SettingsBridge";
 
 const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -43,8 +45,8 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null;
-let stateManager: StateManager | null = null;
-let stateBridge: StateBridge | null = null;
+let auiThreadBridge: AuiThreadBridge | null = null;
+let settingsBridge: SettingsBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
 
@@ -72,13 +74,22 @@ async function createWindow() {
   /**
    * Initialize core services
    */
-  stateManager = new StateManager(win);
+  // Create AUI thread-related services
+  const auiThreadViewManager = new ThreadViewManager();
+  const browserViewService = new BrowserViewService(win);
 
-  // Create WebViewService and wire it up with StateManager
-  const webViewService = new WebViewService(stateManager, win);
-  stateManager.setWebViewService(webViewService);
+  // Initialize browserViewService with thread manager
+  await browserViewService.initialize(auiThreadViewManager);
 
-  stateBridge = new StateBridge(stateManager, webViewService, win);
+  // Initialize bridges
+  auiThreadBridge = new AuiThreadBridge(
+    browserViewService,
+    auiThreadViewManager
+  );
+  auiThreadBridge.setupHandlers();
+
+  settingsBridge = new SettingsBridge();
+  settingsBridge.setupHandlers();
 
   /**
    * Force external links to open in default browser
@@ -93,19 +104,23 @@ async function createWindow() {
 
 app.whenReady().then(async () => {
   await settingsService.initialize();
+  // Start API server
+  apiServer.start();
   createWindow();
 });
 
 app.on("window-all-closed", async () => {
-  // Clean up all state before quitting
-  if (stateBridge) {
-    stateBridge.destroy();
-    stateBridge = null;
+  // Clean up all bridges before quitting
+  if (auiThreadBridge) {
+    auiThreadBridge.destroy();
+    auiThreadBridge = null;
   }
-  if (stateManager) {
-    stateManager.destroy();
-    stateManager = null;
+  if (settingsBridge) {
+    settingsBridge.destroy();
+    settingsBridge = null;
   }
+  // Stop API server
+  apiServer.stop();
   win = null;
   if (process.platform !== "darwin") app.quit();
 });
@@ -133,15 +148,15 @@ app.on("activate", () => {
  * Clean up before app quits
  */
 app.on("before-quit", async (event) => {
-  if (stateManager || stateBridge) {
+  if (auiThreadBridge || settingsBridge) {
     event.preventDefault();
-    if (stateBridge) {
-      stateBridge.destroy();
-      stateBridge = null;
+    if (auiThreadBridge) {
+      auiThreadBridge.destroy();
+      auiThreadBridge = null;
     }
-    if (stateManager) {
-      stateManager.destroy();
-      stateManager = null;
+    if (settingsBridge) {
+      settingsBridge.destroy();
+      settingsBridge = null;
     }
     app.quit();
   }

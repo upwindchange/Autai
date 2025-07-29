@@ -1,9 +1,9 @@
 import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { Settings2 } from "lucide-react";
-import { useAppStore } from "@/store/appStore";
+import { useUiStore } from "@/stores/uiStore";
 
 export function SettingsButton() {
-  const { showSettings, setShowSettings } = useAppStore();
+  const { showSettings, setShowSettings } = useUiStore();
 
   return (
     <SidebarMenuButton 

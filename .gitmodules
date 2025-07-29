@@ -1,3 +1,9 @@
-[submodule "browser-use"]
-	path = browser-use
-	url = git@github.com:upwindchange/browser-use.git
+[submodule "reference/ai"]
+	path = reference/ai
+	url = git@github.com:vercel/ai.git
+[submodule "reference/assitant-ui"]
+	path = reference/assitant-ui
+	url = git@github.com:assistant-ui/assistant-ui.git
+[submodule "reference/browser-use"]
+	path = reference/browser-use
+	url = git@github.com:browser-use/browser-use.git

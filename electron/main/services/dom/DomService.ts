@@ -9,7 +9,6 @@ import type {
   JSNodeData,
   JSEvalResult,
   ViewportInfo,
-  DOMPerfMetrics,
   ActionResult
 } from '../../../shared/types';
 
@@ -87,7 +86,7 @@ export class DomService {
       if (testResult !== 2) {
         throw new Error('The page cannot evaluate javascript code properly');
       }
-    } catch (error) {
+    } catch (_error) {
       throw new Error('The page cannot evaluate javascript code properly');
     }
 
@@ -152,7 +151,7 @@ export class DomService {
 
     // First pass: create all nodes
     for (const [id, nodeData] of Object.entries(jsNodeMap)) {
-      const { node, childrenIds } = this._parseNode(nodeData);
+      const { node } = this._parseNode(nodeData);
       if (node === null) {
         continue;
       }

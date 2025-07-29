@@ -1,0 +1,8 @@
+# Only build native dependencies for electron
+onlyBuiltDependencies:
+  - electron
+
+# Selective hoisting for problematic packages only
+publicHoistPattern:
+  - "*electron*"
+  - "@jridgewell/*"

@@ -2,26 +2,25 @@
 
 // Import types from electron/shared
 import type {
-  CreateTaskCommand,
-  DeleteTaskCommand,
-  AddPageCommand,
-  DeletePageCommand,
-  SelectPageCommand,
   SetViewBoundsCommand,
   SetViewVisibilityCommand,
-  StreamMessageCommand,
-  ClearHistoryCommand,
-  NavigationControlCommand,
-  NavigateCommand,
-  NavigationResult,
   AppState,
   StateChangeEvent,
-  StreamChunk,
   SettingsState,
   AISettings,
   TestConnectionConfig,
   TestConnectionResult,
-} from "../electron/shared/types/index";
+  // AuiThread types
+  CreateViewCommand,
+  NavigateViewCommand,
+  SetViewBoundsCommand,
+  SetViewVisibilityCommand,
+  ViewInfo,
+  ViewMetadata,
+  ThreadViewState,
+  ThreadEvent,
+  ViewEvent,
+} from "../electron/shared/types";
 
 // Generic result type for IPC operations
 interface IPCResult {
@@ -33,38 +32,6 @@ interface IPCResult {
 declare global {
   interface Window {
     ipcRenderer: {
-      // Task operations
-      invoke(
-        channel: "app:createTask",
-        command: CreateTaskCommand
-      ): Promise<IPCResult>;
-      invoke(
-        channel: "app:deleteTask",
-        command: DeleteTaskCommand
-      ): Promise<IPCResult>;
-      invoke(
-        channel: "app:addPage",
-        command: AddPageCommand
-      ): Promise<IPCResult>;
-      invoke(
-        channel: "app:deletePage",
-        command: DeletePageCommand
-      ): Promise<IPCResult>;
-      invoke(
-        channel: "app:selectPage",
-        command: SelectPageCommand
-      ): Promise<IPCResult>;
-
-      // Navigation operations
-      invoke(
-        channel: "app:navigate",
-        command: NavigateCommand
-      ): Promise<NavigationResult>;
-      invoke(
-        channel: "app:navigationControl",
-        command: NavigationControlCommand
-      ): Promise<NavigationResult>;
-
       // View operations
       invoke(
         channel: "app:setViewBounds",
@@ -74,33 +41,6 @@ declare global {
         channel: "app:setViewVisibility",
         command: SetViewVisibilityCommand
       ): Promise<IPCResult>;
-      invoke(
-        channel: "app:getInteractableElements",
-        command: { viewId: string; viewportOnly?: boolean }
-      ): Promise<unknown[]>;
-      invoke(
-        channel: "app:clickElement",
-        command: { viewId: string; elementId: number; viewportOnly?: boolean }
-      ): Promise<boolean>;
-
-      // AI operations
-      invoke(
-        channel: "ai:streamMessage",
-        command: StreamMessageCommand
-      ): Promise<string>;
-      invoke(
-        channel: "ai:clearHistory",
-        command: ClearHistoryCommand
-      ): Promise<IPCResult>;
-      invoke(
-        channel: "ai:removeAgent",
-        command: { taskId: string }
-      ): Promise<IPCResult>;
-      invoke(
-        channel: "ai:getHistory",
-        command: { taskId: string }
-      ): Promise<Array<{ content: string; role: string; timestamp: number }>>;
-      invoke(channel: "ai:getActiveTasks"): Promise<string[]>;
 
       // Settings operations
       invoke(channel: "settings:load"): Promise<SettingsState>;
@@ -115,39 +55,61 @@ declare global {
       invoke(channel: "settings:getActive"): Promise<AISettings | null>;
       invoke(channel: "settings:isConfigured"): Promise<boolean>;
 
+      // AuiThread operations
+      invoke(
+        channel: "auiThread:created",
+        threadId: string
+      ): Promise<IPCResult>;
+      invoke(
+        channel: "auiThread:switched",
+        threadId: string
+      ): Promise<IPCResult>;
+      invoke(
+        channel: "auiThread:deleted",
+        threadId: string
+      ): Promise<IPCResult>;
+      invoke(
+        channel: "auiThread:getViews",
+        threadId: string
+      ): Promise<{ success: boolean; data?: ViewInfo[] }>;
+      invoke(
+        channel: "auiThread:getActiveView",
+        threadId: string
+      ): Promise<{ success: boolean; data?: string | null }>;
+      invoke(
+        channel: "auiThread:getState",
+        threadId: string
+      ): Promise<{ success: boolean; data?: ThreadViewState | null }>;
+
+      // AuiView operations
+      invoke(
+        channel: "auiView:create",
+        command: CreateViewCommand
+      ): Promise<{ success: boolean; data?: string; error?: string }>;
+      invoke(
+        channel: "auiView:navigate",
+        command: NavigateViewCommand
+      ): Promise<IPCResult>;
+      invoke(channel: "auiView:close", viewId: string): Promise<IPCResult>;
+      invoke(
+        channel: "auiView:setBounds",
+        command: SetViewBoundsCommand
+      ): Promise<IPCResult>;
+      invoke(
+        channel: "auiView:setVisibility",
+        command: SetViewVisibilityCommand
+      ): Promise<IPCResult>;
+      invoke(
+        channel: "auiView:setActive",
+        viewId: string | null
+      ): Promise<IPCResult>;
+      invoke(
+        channel: "auiView:getMetadata",
+        viewId: string
+      ): Promise<{ success: boolean; data?: ViewMetadata | null }>;
+
       // State operations
       invoke(channel: "app:getState"): Promise<AppState>;
-      invoke(
-        channel: "app:setExpandedTask",
-        taskId: string | null
-      ): Promise<void>;
-
-      // Chat transport operations
-      invoke(
-        channel: "chat:sendMessages",
-        data: {
-          id: string;
-          messages: Array<{
-            id: string;
-            role: 'user' | 'assistant' | 'system' | 'function' | 'data' | 'tool';
-            content: string;
-            [key: string]: any;
-          }>;
-          trigger: 'submit-user-message' | 'submit-tool-result' | 'regenerate-assistant-message';
-          messageId?: string;
-          metadata?: unknown;
-          body?: Record<string, any>;
-          streamId: string;
-        }
-      ): Promise<{ success: boolean; error?: string }>;
-      invoke(
-        channel: "chat:reconnectToStream",
-        data: {
-          id: string;
-          metadata?: unknown;
-          body?: Record<string, any>;
-        }
-      ): Promise<{ hasActiveStream: boolean; streamId?: string }>;
 
       // Generic invoke (fallback)
       invoke(channel: string, ...args: unknown[]): Promise<unknown>;
@@ -162,21 +124,12 @@ declare global {
         listener: (event: unknown, event: StateChangeEvent) => void
       ): void;
       on(
-        channel: "task:deleted",
-        listener: (event: unknown, taskId: string) => void
+        channel: "auiThread:event",
+        listener: (event: unknown, event: ThreadEvent) => void
       ): void;
       on(
-        channel: `ai:stream:${string}`,
-        listener: (event: unknown, chunk: StreamChunk) => void
-      ): void;
-      on(
-        channel: "chat:sendMessages:response" | "chat:reconnectToStream:response",
-        listener: (event: unknown, data: {
-          streamId: string;
-          type: 'chunk' | 'error' | 'done';
-          chunk?: any;
-          error?: string;
-        }) => void
+        channel: "auiView:event",
+        listener: (event: unknown, event: ViewEvent) => void
       ): void;
       on(
         channel: string,
@@ -184,33 +137,27 @@ declare global {
       ): void;
 
       once(
-        channel: `ai:stream:${string}:end`,
-        listener: (event: unknown) => void
-      ): void;
-      once(
         channel: string,
         listener: (event: unknown, ...args: unknown[]) => void
       ): void;
 
+      off(
+        channel: "state:sync",
+        listener: (event: unknown, state: AppState) => void
+      ): void;
+      off(
+        channel: "state:change",
+        listener: (event: unknown, event: StateChangeEvent) => void
+      ): void;
+      off(
+        channel: "auiThread:event",
+        listener: (event: unknown, event: ThreadEvent) => void
+      ): void;
+      off(
+        channel: "auiView:event",
+        listener: (event: unknown, event: ViewEvent) => void
+      ): void;
       off(channel: string, listener?: (...args: unknown[]) => void): void;
-      off(
-        channel: `ai:stream:${string}`,
-        listener: (event: unknown, chunk: StreamChunk) => void
-      ): void;
-      off(channel: `ai:stream:${string}:end`, listener: () => void): void;
-      off(
-        channel: "task:deleted",
-        listener: (event: unknown, taskId: string) => void
-      ): void;
-      off(
-        channel: "chat:sendMessages:response" | "chat:reconnectToStream:response",
-        listener: (event: unknown, data: {
-          streamId: string;
-          type: 'chunk' | 'error' | 'done';
-          chunk?: any;
-          error?: string;
-        }) => void
-      ): void;
 
       // Send operations (rarely used in renderer)
       send(channel: string, ...args: unknown[]): void;

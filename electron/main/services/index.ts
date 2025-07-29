@@ -1,7 +1,5 @@
-export { StateManager } from "./StateManager";
-export { settingsService } from "./settingsService";
-export { agentManagerService } from "./agentManagerService";
-export { BrowserActionService } from "./BrowserActionService";
-export { NavigationService } from "./NavigationService";
-export { WebViewService } from "./WebViewService";
-export { StreamingAgentService } from "./streamingAgentService";
+export { settingsService } from "./SettingsService";
+export { apiServer } from "./agent";
+export { DomService } from "./dom";
+export { ThreadViewManager } from "./ThreadViewManager";
+export { BrowserViewService } from "./BrowserViewService";

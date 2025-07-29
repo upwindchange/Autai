@@ -1,4 +1,4 @@
-import { ChatContainer } from "./chat-container";
+import { AssistantChatContainer } from "./assistant-chat-container";
 
-export { ChatContainer };
+export { AssistantChatContainer };
 export type { ChatContainerProps, Message } from "./types";
