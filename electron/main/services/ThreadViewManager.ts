@@ -10,7 +10,7 @@ import type {
   ThreadViewState,
   ThreadEvent,
   ViewEvent,
-} from "../../shared/types";
+} from "@shared/types";
 
 export class ThreadViewManager implements IAuiThreadViewManager {
   private threadViews = new Map<ThreadId, Set<ViewId>>();

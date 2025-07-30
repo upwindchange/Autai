@@ -10,7 +10,7 @@ import type {
   JSEvalResult,
   ViewportInfo,
   ActionResult
-} from '../../../shared/types';
+} from '@shared/types';
 
 export class DomService {
   private webContents: WebContents;

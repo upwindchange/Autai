@@ -23,7 +23,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useSettings } from "./settings-context";
-import type { AISettings } from "../../../electron/shared/types/settings";
+import type { AISettings } from "@shared/settings";
 
 export function ProfileSelector() {
   const {
@@ -60,10 +60,7 @@ export function ProfileSelector() {
           <label className="text-sm font-medium mb-2 block">
             Settings Profile
           </label>
-          <Select
-            value={activeProfile?.id}
-            onValueChange={setActiveProfile}
-          >
+          <Select value={activeProfile?.id} onValueChange={setActiveProfile}>
             <SelectTrigger>
               <SelectValue placeholder="Select a profile" />
             </SelectTrigger>

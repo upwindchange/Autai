@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { SettingsContextType } from "./types";
-import type { SettingsProfile, AISettings } from "../../../electron/shared/types/settings";
+import type { SettingsProfile, AISettings } from "@shared/settings";
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
 

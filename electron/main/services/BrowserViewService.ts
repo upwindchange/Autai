@@ -12,7 +12,7 @@ import type {
   ViewInfo,
   ViewMetadata,
   ActionResult,
-} from "../../shared/types";
+} from "@shared/types";
 import { getIndexScript } from "../scripts/indexLoader";
 
 interface CreateViewConfig {

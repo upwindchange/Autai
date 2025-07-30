@@ -20,7 +20,7 @@ import type {
   ThreadViewState,
   ThreadEvent,
   ViewEvent,
-} from "../electron/shared/types";
+} from "@shared";
 
 // Generic result type for IPC operations
 interface IPCResult {

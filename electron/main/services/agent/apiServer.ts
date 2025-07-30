@@ -8,10 +8,17 @@ import {
   tool,
   InvalidToolArgumentsError,
 } from "ai";
-import { z } from "zod";
 import * as mathjs from "mathjs";
 import { settingsService } from "../SettingsService";
 import { type Server } from "http";
+import {
+  calculateToolSchema,
+  answerToolSchema,
+  displayErrorToolSchema,
+  TOOL_NAMES,
+  type CalculateToolResult,
+  type DisplayErrorToolResult,
+} from "@shared/tools";
 
 export class ApiServer {
   private app: Express;
@@ -141,13 +148,15 @@ export class ApiServer {
                   return null;
                 },
                 tools: {
-                  calculate: tool({
+                  [TOOL_NAMES.CALCULATE]: tool({
                     description:
                       "A tool for evaluating mathematical expressions. " +
                       "Example expressions: " +
                       "'1.2 * (2 + 4.5)', '12.7 cm to inch', 'sin(45 deg) ^ 2'.",
-                    parameters: z.object({ expression: z.string() }),
-                    execute: async ({ expression }) => {
+                    parameters: calculateToolSchema,
+                    execute: async ({
+                      expression,
+                    }): Promise<CalculateToolResult> => {
                       try {
                         console.log(
                           "[TOOL:CALCULATE] Called with expression:",
@@ -165,42 +174,35 @@ export class ApiServer {
                     },
                   }),
                   // answer tool: the LLM will provide a structured answer
-                  answer: tool({
+                  [TOOL_NAMES.ANSWER]: tool({
                     description: "A tool for providing the final answer.",
-                    parameters: z.object({
-                      steps: z.array(
-                        z.object({
-                          calculation: z.string(),
-                          reasoning: z.string(),
-                        })
-                      ),
-                      answer: z.string(),
-                    }),
+                    parameters: answerToolSchema,
                     // no execute function - invoking it will terminate the agent
                   }),
                   // error display tool: displays errors to the user
-                  displayError: tool({
-                    description: "Display an error message to the user when something goes wrong.",
-                    parameters: z.object({
-                      title: z.string().describe("Short error title"),
-                      message: z.string().describe("Detailed error message"),
-                      details: z.string().optional().describe("Technical details or error codes"),
-                    }),
-                    execute: async ({ title, message, details }) => {
+                  [TOOL_NAMES.DISPLAY_ERROR]: tool({
+                    description:
+                      "Display an error message to the user when something goes wrong.",
+                    parameters: displayErrorToolSchema,
+                    execute: async ({
+                      title,
+                      message,
+                      details,
+                    }): Promise<DisplayErrorToolResult> => {
                       console.log("[TOOL:DISPLAY_ERROR] Displaying error:", {
                         title,
                         message,
                         details,
                       });
                       // This will be shown in the UI
-                      const result = {
-                        type: "error" as const,
+                      const result: DisplayErrorToolResult = {
+                        type: "error",
                         title,
                         message,
                         timestamp: new Date().toISOString(),
                         ...(details ? { details } : {}),
                       };
-                      
+
                       return result;
                     },
                   }),
@@ -239,17 +241,6 @@ export class ApiServer {
                       2
                     )
                   );
-                  // You can also write step information to the data stream if needed
-                  dataStreamWriter.writeData({
-                    type: "step-finished",
-                    step: {
-                      text,
-                      toolCalls,
-                      toolResults,
-                      finishReason,
-                      usage,
-                    },
-                  });
                 },
               });
 
@@ -399,13 +390,13 @@ export class ApiServer {
             return null;
           },
           tools: {
-            calculate: tool({
+            [TOOL_NAMES.CALCULATE]: tool({
               description:
                 "A tool for evaluating mathematical expressions. " +
                 "Example expressions: " +
                 "'1.2 * (2 + 4.5)', '12.7 cm to inch', 'sin(45 deg) ^ 2'.",
-              parameters: z.object({ expression: z.string() }),
-              execute: async ({ expression }) => {
+              parameters: calculateToolSchema,
+              execute: async ({ expression }): Promise<CalculateToolResult> => {
                 try {
                   console.log(
                     "[TOOL:CALCULATE:STEPS] Called with expression:",
@@ -422,41 +413,34 @@ export class ApiServer {
                 }
               },
             }),
-            answer: tool({
+            [TOOL_NAMES.ANSWER]: tool({
               description: "A tool for providing the final answer.",
-              parameters: z.object({
-                steps: z.array(
-                  z.object({
-                    calculation: z.string(),
-                    reasoning: z.string(),
-                  })
-                ),
-                answer: z.string(),
-              }),
+              parameters: answerToolSchema,
             }),
             // error display tool: displays errors to the user
-            displayError: tool({
-              description: "Display an error message to the user when something goes wrong.",
-              parameters: z.object({
-                title: z.string().describe("Short error title"),
-                message: z.string().describe("Detailed error message"),
-                details: z.string().optional().describe("Technical details or error codes"),
-              }),
-              execute: async ({ title, message, details }) => {
+            [TOOL_NAMES.DISPLAY_ERROR]: tool({
+              description:
+                "Display an error message to the user when something goes wrong.",
+              parameters: displayErrorToolSchema,
+              execute: async ({
+                title,
+                message,
+                details,
+              }): Promise<DisplayErrorToolResult> => {
                 console.log("[TOOL:DISPLAY_ERROR:STEPS] Displaying error:", {
                   title,
                   message,
                   details,
                 });
                 // This will be shown in the UI
-                const result = {
-                  type: "error" as const,
+                const result: DisplayErrorToolResult = {
+                  type: "error",
                   title,
                   message,
                   timestamp: new Date().toISOString(),
                   ...(details ? { details } : {}),
                 };
-                
+
                 return result;
               },
             }),

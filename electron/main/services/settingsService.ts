@@ -8,7 +8,7 @@ import type {
   SettingsState,
   TestConnectionConfig,
   TestConnectionResult,
-} from "../../shared/types";
+} from "@shared/types";
 
 class SettingsService {
   private settingsPath: string;

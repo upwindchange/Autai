@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { EyeIcon, EyeOffIcon, Save, TestTube, Loader2 } from "lucide-react";
 import { useSettings } from "./settings-context";
-import type { SettingsProfile } from "../../../electron/shared/types/settings";
+import type { SettingsProfile } from "@shared/settings";
 
 interface SettingsFormProps {
   profile: SettingsProfile;

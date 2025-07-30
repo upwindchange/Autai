@@ -22,7 +22,8 @@
       "Bash(del \"C:\\Users\\HTPC\\Documents\\dev\\Autai\\electron\\main\\bridge\\AgentBridge.ts\")",
       "Bash(cd:*)",
       "Bash(pnpm add:*)",
-      "Bash(mv:*)"
+      "Bash(mv:*)",
+      "Bash(cp:*)"
     ],
     "deny": []
   }

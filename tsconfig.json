@@ -19,9 +19,12 @@
     "paths": {
       "@/*": [
         "src/*"
+      ],
+      "@shared/*": [
+        "shared_types/*"
       ]
     },
   },
-  "include": ["src", "electron"],
+  "include": ["src", "electron", "shared_types"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

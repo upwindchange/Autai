@@ -1,4 +1,4 @@
-import type { SettingsProfile, AISettings } from '../../../electron/shared/types/settings';
+import type { SettingsProfile, AISettings } from '@shared/settings';
 
 /**
  * Settings context API exposed to components
