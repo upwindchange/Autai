@@ -10,7 +10,7 @@ import {
   ThreadViewManager,
   BrowserViewService,
 } from "./services";
-import { AuiThreadBridge } from "./bridge/AuiThreadBridge";
+import { ThreadBridge } from "./bridge/ThreadBridge";
 import { SettingsBridge } from "./bridge/SettingsBridge";
 
 const _require = createRequire(import.meta.url);
@@ -45,7 +45,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null;
-let auiThreadBridge: AuiThreadBridge | null = null;
+let threadBridge: ThreadBridge | null = null;
 let settingsBridge: SettingsBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
@@ -82,11 +82,8 @@ async function createWindow() {
   await browserViewService.initialize(auiThreadViewManager);
 
   // Initialize bridges
-  auiThreadBridge = new AuiThreadBridge(
-    browserViewService,
-    auiThreadViewManager
-  );
-  auiThreadBridge.setupHandlers();
+  threadBridge = new ThreadBridge(browserViewService, auiThreadViewManager);
+  threadBridge.setupHandlers();
 
   settingsBridge = new SettingsBridge();
   settingsBridge.setupHandlers();
@@ -111,9 +108,9 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", async () => {
   // Clean up all bridges before quitting
-  if (auiThreadBridge) {
-    auiThreadBridge.destroy();
-    auiThreadBridge = null;
+  if (threadBridge) {
+    threadBridge.destroy();
+    threadBridge = null;
   }
   if (settingsBridge) {
     settingsBridge.destroy();
@@ -148,11 +145,11 @@ app.on("activate", () => {
  * Clean up before app quits
  */
 app.on("before-quit", async (event) => {
-  if (auiThreadBridge || settingsBridge) {
+  if (threadBridge || settingsBridge) {
     event.preventDefault();
-    if (auiThreadBridge) {
-      auiThreadBridge.destroy();
-      auiThreadBridge = null;
+    if (threadBridge) {
+      threadBridge.destroy();
+      threadBridge = null;
     }
     if (settingsBridge) {
       settingsBridge.destroy();

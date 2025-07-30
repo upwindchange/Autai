@@ -8,7 +8,7 @@ import type {
   SettingsState,
   TestConnectionConfig,
   TestConnectionResult,
-} from "@shared/types";
+} from "@shared/index";
 
 class SettingsService {
   private settingsPath: string;
@@ -70,7 +70,7 @@ class SettingsService {
     if (!this.settings) return null;
     return (
       this.settings.profiles.find(
-        (p) => p.id === this.settings!.activeProfileId
+        (p: SettingsProfile) => p.id === this.settings!.activeProfileId
       ) || null
     );
   }

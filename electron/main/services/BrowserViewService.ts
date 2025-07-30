@@ -12,7 +12,8 @@ import type {
   ViewInfo,
   ViewMetadata,
   ActionResult,
-} from "@shared/types";
+  ThreadEvent,
+} from "@shared/index";
 import { getIndexScript } from "../scripts/indexLoader";
 
 interface CreateViewConfig {
@@ -43,7 +44,7 @@ export class BrowserViewService {
     this.threadViewManager = threadViewManager;
 
     // Subscribe to thread events
-    this.threadViewManager.subscribeToThreadEvents(async (event) => {
+    this.threadViewManager.subscribeToThreadEvents(async (event: ThreadEvent) => {
       switch (event.type) {
         case "THREAD_SWITCHED":
           await this.switchToThread(event.threadId);
@@ -625,7 +626,7 @@ export class BrowserViewService {
     const viewIds = this.threadViewManager.getViewsForThread(threadId);
     const views: ViewInfo[] = [];
 
-    viewIds.forEach((viewId) => {
+    viewIds.forEach((viewId: ViewId) => {
       const info = this.getViewInfo(viewId);
       if (info) {
         views.push(info);

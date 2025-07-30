@@ -13,9 +13,9 @@ import type {
   SetViewVisibilityCommand,
   ThreadEvent,
   ViewEvent,
-} from "@shared/types";
+} from "@shared/index";
 
-export class AuiThreadBridge extends BaseBridge {
+export class ThreadBridge extends BaseBridge {
   private browserViewService: BrowserViewService;
   private threadViewManager: IAuiThreadViewManager;
 

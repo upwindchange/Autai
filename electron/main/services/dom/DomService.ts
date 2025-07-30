@@ -10,7 +10,7 @@ import type {
   JSEvalResult,
   ViewportInfo,
   ActionResult
-} from '@shared/types';
+} from '@shared/index';
 
 export class DomService {
   private webContents: WebContents;
@@ -171,7 +171,7 @@ export class DomService {
         continue;
       }
 
-      const childrenIds = nodeData.children || [];
+      const childrenIds = (nodeData as JSNodeData).children || [];
       for (const childId of childrenIds) {
         const childNode = nodeMap.get(childId);
         if (!childNode) {
@@ -288,7 +288,7 @@ export class DomService {
     // Count interactive elements
     let interactiveCount = 0;
     for (const nodeData of Object.values(evalPage.map)) {
-      if (nodeData.isInteractive) {
+      if ((nodeData as JSNodeData).isInteractive) {
         interactiveCount++;
       }
     }
