@@ -13,9 +13,7 @@ export function useThreadLifecycle() {
     // Initial thread setup - use mainItem to get current thread ID
     const currentThreadId = runtime.threads.mainItem.getState().id;
     if (currentThreadId) {
-      // TODO: Implement when new BrowserViewService is ready
-      // window.ipcRenderer.invoke('thread:created', currentThreadId);
-      console.log('useThreadLifecycle placeholder - thread created:', currentThreadId);
+      window.ipcRenderer.invoke('thread:created', currentThreadId);
       previousThreadIdRef.current = currentThreadId;
     }
     
@@ -27,16 +25,12 @@ export function useThreadLifecycle() {
       if (currentThreadId !== previousThreadId) {
         if (currentThreadId) {
           // Thread switched
-          // TODO: Implement when new BrowserViewService is ready
-          // window.ipcRenderer.invoke('thread:switched', currentThreadId);
-          console.log('useThreadLifecycle placeholder - thread switched:', currentThreadId);
+          window.ipcRenderer.invoke('thread:switched', currentThreadId);
           
           // Check if this is a new thread creation
           const threadsState = runtime.threads.getState();
           if (threadsState.newThread === currentThreadId) {
-            // TODO: Implement when new BrowserViewService is ready
-            // window.ipcRenderer.invoke('thread:created', currentThreadId);
-            console.log('useThreadLifecycle placeholder - new thread created:', currentThreadId);
+            window.ipcRenderer.invoke('thread:created', currentThreadId);
           }
         }
         
@@ -48,9 +42,7 @@ export function useThreadLifecycle() {
       unsubscribe();
       // Cleanup: notify if thread is being destroyed
       if (previousThreadIdRef.current) {
-        // TODO: Implement when new BrowserViewService is ready
-        // window.ipcRenderer.invoke('thread:deleted', previousThreadIdRef.current);
-        console.log('useThreadLifecycle placeholder - thread deleted:', previousThreadIdRef.current);
+        window.ipcRenderer.invoke('thread:deleted', previousThreadIdRef.current);
       }
     };
   }, [runtime]);

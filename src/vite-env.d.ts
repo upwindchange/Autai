@@ -33,6 +33,16 @@ declare global {
       invoke(channel: "settings:getActive"): Promise<AISettings | null>;
       invoke(channel: "settings:isConfigured"): Promise<boolean>;
 
+      // Thread operations
+      invoke(channel: "thread:created", threadId: string): Promise<IPCResult>;
+      invoke(channel: "thread:switched", threadId: string): Promise<IPCResult>;
+      invoke(channel: "thread:deleted", threadId: string): Promise<IPCResult>;
+      invoke(channel: "thread:getActiveView", threadId: string): Promise<{ success: boolean; data?: string | null }>;
+
+      // View operations
+      invoke(channel: "view:setVisibility", args: { viewId: string; isVisible: boolean }): Promise<IPCResult>;
+      invoke(channel: "view:setBounds", args: { viewId: string; bounds: { x: number; y: number; width: number; height: number } }): Promise<IPCResult>;
+
       // Generic invoke (fallback)
       invoke(channel: string, ...args: unknown[]): Promise<unknown>;
 

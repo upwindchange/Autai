@@ -11,7 +11,7 @@ import type {
   JSNodeData,
   JSEvalResult,
   ViewportInfo,
-  ActionResult,
+  DOMExtractionResult,
   PageInfo,
   HashedDomElement,
   CoordinateSet
@@ -264,7 +264,7 @@ export class DomService {
   /**
    * Execute buildDomTree function in the page context
    */
-  async buildDomTree(args?: Partial<BuildDomTreeArgs>): Promise<ActionResult> {
+  async buildDomTree(args?: Partial<BuildDomTreeArgs>): Promise<DOMExtractionResult> {
     try {
       const defaultArgs: BuildDomTreeArgs = {
         doHighlightElements: false,

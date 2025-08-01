@@ -7,8 +7,10 @@ import { update } from "./update";
 import {
   settingsService,
   apiServer,
+  ThreadViewService,
 } from "./services";
 import { SettingsBridge } from "./bridge/SettingsBridge";
+import { ThreadViewBridge } from "./bridge/ThreadViewBridge";
 
 const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -43,6 +45,8 @@ if (!app.requestSingleInstanceLock()) {
 
 let win: BrowserWindow | null = null;
 let settingsBridge: SettingsBridge | null = null;
+let threadViewService: ThreadViewService | null = null;
+let threadViewBridge: ThreadViewBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
 
@@ -70,9 +74,15 @@ async function createWindow() {
   /**
    * Initialize core services
    */
+  // Initialize thread/view service
+  threadViewService = new ThreadViewService(win);
+  
   // Initialize bridges
   settingsBridge = new SettingsBridge();
   settingsBridge.setupHandlers();
+  
+  threadViewBridge = new ThreadViewBridge(threadViewService);
+  threadViewBridge.setupHandlers();
 
   /**
    * Force external links to open in default browser
@@ -93,7 +103,15 @@ app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", async () => {
-  // Clean up all bridges before quitting
+  // Clean up all services and bridges before quitting
+  if (threadViewService) {
+    await threadViewService.destroy();
+    threadViewService = null;
+  }
+  if (threadViewBridge) {
+    threadViewBridge.destroy();
+    threadViewBridge = null;
+  }
   if (settingsBridge) {
     settingsBridge.destroy();
     settingsBridge = null;
@@ -127,8 +145,16 @@ app.on("activate", () => {
  * Clean up before app quits
  */
 app.on("before-quit", async (event) => {
-  if (settingsBridge) {
+  if (settingsBridge || threadViewBridge || threadViewService) {
     event.preventDefault();
+    if (threadViewService) {
+      await threadViewService.destroy();
+      threadViewService = null;
+    }
+    if (threadViewBridge) {
+      threadViewBridge.destroy();
+      threadViewBridge = null;
+    }
     if (settingsBridge) {
       settingsBridge.destroy();
       settingsBridge = null;
