@@ -4,10 +4,33 @@
 
 import { z } from 'zod';
 
+// Coordinate schema
+export const CoordinatesSchema = z.object({
+  x: z.number(),
+  y: z.number(),
+});
+
+export type Coordinates = z.infer<typeof CoordinatesSchema>;
+
+// Coordinate Set schema
+export const CoordinateSetSchema = z.object({
+  topLeft: CoordinatesSchema,
+  topRight: CoordinatesSchema,
+  bottomLeft: CoordinatesSchema,
+  bottomRight: CoordinatesSchema,
+  center: CoordinatesSchema,
+  width: z.number(),
+  height: z.number(),
+});
+
+export type CoordinateSet = z.infer<typeof CoordinateSetSchema>;
+
 // Viewport Info schema
 export const ViewportInfoSchema = z.object({
   width: z.number().positive(),
   height: z.number().positive(),
+  scrollX: z.number().optional(),
+  scrollY: z.number().optional(),
 });
 
 export type ViewportInfo = z.infer<typeof ViewportInfoSchema>;
@@ -26,6 +49,10 @@ interface DOMElementNodeType extends z.infer<typeof DOMBaseNodeSchema> {
   shadowRoot: boolean;
   viewportInfo?: ViewportInfo | null;
   parent: DOMElementNodeType | null;
+  isNew?: boolean | null;
+  elementHash?: string | null;
+  viewportCoordinates?: CoordinateSet | null;
+  pageCoordinates?: CoordinateSet | null;
 }
 
 interface DOMTextNodeType extends z.infer<typeof DOMBaseNodeSchema> {
@@ -60,6 +87,10 @@ export const DOMElementNodeSchema: z.ZodType<DOMElementNodeType> = DOMBaseNodeSc
   shadowRoot: z.boolean(),
   viewportInfo: ViewportInfoSchema.nullable().optional(),
   parent: z.custom<DOMElementNodeType | null>(),
+  isNew: z.boolean().nullable().optional(),
+  elementHash: z.string().nullable().optional(),
+  viewportCoordinates: CoordinateSetSchema.nullable().optional(),
+  pageCoordinates: CoordinateSetSchema.nullable().optional(),
 });
 
 // Union type for DOM nodes
@@ -114,6 +145,26 @@ export const JSNodeDataSchema = z.object({
   viewport: z.object({
     width: z.number().positive(),
     height: z.number().positive(),
+    scrollX: z.number().optional(),
+    scrollY: z.number().optional(),
+  }).optional(),
+  viewportCoordinates: z.object({
+    topLeft: z.object({ x: z.number(), y: z.number() }),
+    topRight: z.object({ x: z.number(), y: z.number() }),
+    bottomLeft: z.object({ x: z.number(), y: z.number() }),
+    bottomRight: z.object({ x: z.number(), y: z.number() }),
+    center: z.object({ x: z.number(), y: z.number() }),
+    width: z.number(),
+    height: z.number(),
+  }).optional(),
+  pageCoordinates: z.object({
+    topLeft: z.object({ x: z.number(), y: z.number() }),
+    topRight: z.object({ x: z.number(), y: z.number() }),
+    bottomLeft: z.object({ x: z.number(), y: z.number() }),
+    bottomRight: z.object({ x: z.number(), y: z.number() }),
+    center: z.object({ x: z.number(), y: z.number() }),
+    width: z.number(),
+    height: z.number(),
   }).optional(),
 });
 
@@ -146,3 +197,51 @@ export const DOMPerfMetricsSchema = z.object({
 });
 
 export type DOMPerfMetrics = z.infer<typeof DOMPerfMetricsSchema>;
+
+/**
+ * Page information including scroll context
+ */
+export const PageInfoSchema = z.object({
+  // Current viewport dimensions
+  viewportWidth: z.number().int().positive(),
+  viewportHeight: z.number().int().positive(),
+  
+  // Total page dimensions
+  pageWidth: z.number().int().positive(),
+  pageHeight: z.number().int().positive(),
+  
+  // Current scroll position
+  scrollX: z.number().int().nonnegative(),
+  scrollY: z.number().int().nonnegative(),
+  
+  // Calculated scroll information
+  pixelsAbove: z.number().int().nonnegative(),
+  pixelsBelow: z.number().int().nonnegative(),
+  pixelsLeft: z.number().int().nonnegative(),
+  pixelsRight: z.number().int().nonnegative(),
+});
+
+export type PageInfo = z.infer<typeof PageInfoSchema>;
+
+/**
+ * Hashed DOM element for fingerprinting
+ */
+export const HashedDomElementSchema = z.object({
+  branchPathHash: z.string(),
+  attributesHash: z.string(),
+  xpathHash: z.string(),
+});
+
+export type HashedDomElement = z.infer<typeof HashedDomElementSchema>;
+
+/**
+ * DOM state difference result
+ */
+export const DOMStateDiffSchema = z.object({
+  addedElements: z.array(DOMElementNodeSchema),
+  removedElements: z.array(DOMElementNodeSchema),
+  modifiedElements: z.array(DOMElementNodeSchema),
+  unchangedElements: z.array(DOMElementNodeSchema),
+});
+
+export type DOMStateDiff = z.infer<typeof DOMStateDiffSchema>;

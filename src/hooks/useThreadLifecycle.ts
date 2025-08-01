@@ -13,7 +13,9 @@ export function useThreadLifecycle() {
     // Initial thread setup - use mainItem to get current thread ID
     const currentThreadId = runtime.threads.mainItem.getState().id;
     if (currentThreadId) {
-      window.ipcRenderer.invoke('auiThread:created', currentThreadId);
+      // TODO: Implement when new BrowserViewService is ready
+      // window.ipcRenderer.invoke('thread:created', currentThreadId);
+      console.log('useThreadLifecycle placeholder - thread created:', currentThreadId);
       previousThreadIdRef.current = currentThreadId;
     }
     
@@ -25,12 +27,16 @@ export function useThreadLifecycle() {
       if (currentThreadId !== previousThreadId) {
         if (currentThreadId) {
           // Thread switched
-          window.ipcRenderer.invoke('auiThread:switched', currentThreadId);
+          // TODO: Implement when new BrowserViewService is ready
+          // window.ipcRenderer.invoke('thread:switched', currentThreadId);
+          console.log('useThreadLifecycle placeholder - thread switched:', currentThreadId);
           
           // Check if this is a new thread creation
           const threadsState = runtime.threads.getState();
           if (threadsState.newThread === currentThreadId) {
-            window.ipcRenderer.invoke('auiThread:created', currentThreadId);
+            // TODO: Implement when new BrowserViewService is ready
+            // window.ipcRenderer.invoke('thread:created', currentThreadId);
+            console.log('useThreadLifecycle placeholder - new thread created:', currentThreadId);
           }
         }
         
@@ -42,7 +48,9 @@ export function useThreadLifecycle() {
       unsubscribe();
       // Cleanup: notify if thread is being destroyed
       if (previousThreadIdRef.current) {
-        window.ipcRenderer.invoke('auiThread:deleted', previousThreadIdRef.current);
+        // TODO: Implement when new BrowserViewService is ready
+        // window.ipcRenderer.invoke('thread:deleted', previousThreadIdRef.current);
+        console.log('useThreadLifecycle placeholder - thread deleted:', previousThreadIdRef.current);
       }
     };
   }, [runtime]);

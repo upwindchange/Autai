@@ -7,10 +7,7 @@ import { update } from "./update";
 import {
   settingsService,
   apiServer,
-  ThreadViewManager,
-  BrowserViewService,
 } from "./services";
-import { ThreadBridge } from "./bridge/ThreadBridge";
 import { SettingsBridge } from "./bridge/SettingsBridge";
 
 const _require = createRequire(import.meta.url);
@@ -45,7 +42,6 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null;
-let threadBridge: ThreadBridge | null = null;
 let settingsBridge: SettingsBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
@@ -74,17 +70,7 @@ async function createWindow() {
   /**
    * Initialize core services
    */
-  // Create AUI thread-related services
-  const auiThreadViewManager = new ThreadViewManager();
-  const browserViewService = new BrowserViewService(win);
-
-  // Initialize browserViewService with thread manager
-  await browserViewService.initialize(auiThreadViewManager);
-
   // Initialize bridges
-  threadBridge = new ThreadBridge(browserViewService, auiThreadViewManager);
-  threadBridge.setupHandlers();
-
   settingsBridge = new SettingsBridge();
   settingsBridge.setupHandlers();
 
@@ -108,10 +94,6 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", async () => {
   // Clean up all bridges before quitting
-  if (threadBridge) {
-    threadBridge.destroy();
-    threadBridge = null;
-  }
   if (settingsBridge) {
     settingsBridge.destroy();
     settingsBridge = null;
@@ -145,12 +127,8 @@ app.on("activate", () => {
  * Clean up before app quits
  */
 app.on("before-quit", async (event) => {
-  if (threadBridge || settingsBridge) {
+  if (settingsBridge) {
     event.preventDefault();
-    if (threadBridge) {
-      threadBridge.destroy();
-      threadBridge = null;
-    }
     if (settingsBridge) {
       settingsBridge.destroy();
       settingsBridge = null;
