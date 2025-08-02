@@ -2,15 +2,17 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import {
   streamText,
   tool,
-  InvalidToolArgumentsError,
-  type DataStreamWriter,
-  type CoreMessage,
+  type UIMessage,
+  type ModelMessage,
   type ToolChoice,
   type StepResult,
-  type ToolCallRepairFunction,
   type Tool,
+  convertToModelMessages,
+  stepCountIs,
+  hasToolCall,
 } from "ai";
 import * as mathjs from "mathjs";
+import { z } from "zod";
 import { settingsService } from "../SettingsService";
 import {
   calculateToolSchema,
@@ -24,16 +26,16 @@ import {
 } from "@shared/tools";
 
 type AgentTools = {
-  [TOOL_NAMES.CALCULATE]: Tool<typeof calculateToolSchema, CalculateToolResult>;
-  [TOOL_NAMES.ANSWER]: Tool<typeof answerToolSchema, void>;
+  [TOOL_NAMES.CALCULATE]: Tool<CalculateToolParams, CalculateToolResult>;
+  [TOOL_NAMES.ANSWER]: Tool<z.infer<typeof answerToolSchema>>;
   [TOOL_NAMES.DISPLAY_ERROR]: Tool<
-    typeof displayErrorToolSchema,
+    DisplayErrorToolParams,
     DisplayErrorToolResult
   >;
 };
 
 export interface ChatRequest {
-  messages: CoreMessage[];
+  messages: UIMessage[];
   taskId?: string;
   toolChoice?: ToolChoice<AgentTools>;
 }
@@ -50,9 +52,8 @@ export class AgentHandler {
                          Always provide clear error messages to help the user understand what went wrong.`;
 
   async handleChat(
-    request: ChatRequest,
-    dataStreamWriter: DataStreamWriter
-  ): Promise<void> {
+    request: ChatRequest
+  ): Promise<ReadableStream> {
     const { messages, taskId, toolChoice } = request;
     console.log("[AGENT] Request received:", {
       messagesCount: messages?.length,
@@ -89,20 +90,35 @@ export class AgentHandler {
 
       const result = streamText({
         model: provider(settings.simpleModel || "gpt-4o-mini"),
-        messages,
+        messages: convertToModelMessages(messages),
         system: `${this.systemPrompt}${
           taskId ? `\nCurrent task ID: ${taskId}` : ""
         }`,
-        maxSteps: 10,
-        experimental_repairToolCall: this.repairToolCall,
+        stopWhen: [
+          // Stop when answer tool is called (task complete)
+          hasToolCall(TOOL_NAMES.ANSWER),
+          // Stop when error is displayed
+          hasToolCall(TOOL_NAMES.DISPLAY_ERROR),
+          // Safety limit to prevent infinite loops
+          stepCountIs(20),
+          // Stop if the AI indicates completion in text
+          ({ steps }) => {
+            const lastStep = steps[steps.length - 1];
+            return Boolean(
+              lastStep?.text?.match(
+                /(?:task complete|finished|done|no further action needed)/i
+              )
+            );
+          },
+        ],
+        // experimental_repairToolCall is removed in v5
         tools: this.getTools(),
         toolChoice: toolChoice || undefined,
         onStepFinish: this.handleStepFinish,
       });
 
-      console.log("[AGENT] Merging result into data stream...");
-      result.mergeIntoDataStream(dataStreamWriter);
-      console.log("[AGENT] Stream merge completed");
+      console.log("[AGENT] Converting to UI message stream...");
+      return result.toUIMessageStream();
     } catch (error) {
       console.error("[AGENT:ERROR] Error in streamText:", error);
       console.error(
@@ -113,12 +129,7 @@ export class AgentHandler {
         "[AGENT:ERROR] Error details:",
         JSON.stringify(error, null, 2)
       );
-      // Write an error message to the data stream
-      dataStreamWriter.writeData({
-        type: "error",
-        error:
-          error instanceof Error ? error.message : "An unknown error occurred",
-      });
+      throw error;
     }
   }
 
@@ -129,18 +140,18 @@ export class AgentHandler {
           "A tool for evaluating mathematical expressions. " +
           "Example expressions: " +
           "'1.2 * (2 + 4.5)', '12.7 cm to inch', 'sin(45 deg) ^ 2'.",
-        parameters: calculateToolSchema,
+        inputSchema: calculateToolSchema,
         execute: this.executeCalculate,
       }),
       [TOOL_NAMES.ANSWER]: tool({
         description: "A tool for providing the final answer.",
-        parameters: answerToolSchema,
+        inputSchema: answerToolSchema,
         // no execute function - invoking it will terminate the agent
       }),
       [TOOL_NAMES.DISPLAY_ERROR]: tool({
         description:
           "Display an error message to the user when something goes wrong.",
-        parameters: displayErrorToolSchema,
+        inputSchema: displayErrorToolSchema,
         execute: this.executeDisplayError,
       }),
     };
@@ -182,9 +193,12 @@ export class AgentHandler {
     return result;
   }
 
-  private repairToolCall: ToolCallRepairFunction<AgentTools> = async ({
+  private repairToolCall = async ({
     toolCall,
     error,
+  }: {
+    toolCall: { toolName: string; toolCallId: string; args: string };
+    error: Error;
   }) => {
     console.log("[AGENT:REPAIR] Attempting to repair tool call:", {
       toolName: toolCall.toolName,
@@ -192,9 +206,9 @@ export class AgentHandler {
       originalArgs: toolCall.args,
     });
 
-    // Only repair InvalidToolArgumentsError for the answer tool
+    // Only repair tool argument errors for the answer tool
     if (
-      !InvalidToolArgumentsError.isInstance(error) ||
+      !error.message.includes("Invalid tool arguments") ||
       toolCall.toolName !== "answer"
     ) {
       return null;
@@ -243,7 +257,7 @@ export class AgentHandler {
       toolCallsCount: toolCalls?.length || 0,
       toolCalls: toolCalls?.map((tc) => ({
         name: tc.toolName,
-        args: tc.args,
+        input: tc.input,
         toolCallId: tc.toolCallId,
       })),
       toolResultsCount: toolResults?.length || 0,
@@ -253,7 +267,7 @@ export class AgentHandler {
           toolCallId: string;
           result: unknown;
           toolName?: string;
-          args?: unknown;
+          input?: unknown;
         } = {
           toolCallId: (tr as Record<string, unknown>).toolCallId as string || '',
           result: (tr as Record<string, unknown>).result || null,
@@ -263,8 +277,8 @@ export class AgentHandler {
         if ('toolName' in (tr as Record<string, unknown>)) {
           result.toolName = (tr as Record<string, unknown>).toolName as string;
         }
-        if ('args' in (tr as Record<string, unknown>)) {
-          result.args = (tr as Record<string, unknown>).args;
+        if ('input' in (tr as Record<string, unknown>)) {
+          result.input = (tr as Record<string, unknown>).input;
         }
         
         return result;

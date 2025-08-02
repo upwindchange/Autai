@@ -1,0 +1,213 @@
+[API] POST /chat
+[CHAT] Request received: { messagesCount: 1, taskId: undefined, toolChoice: undefined }
+[CHAT] Starting stream response...
+[AGENT] Request received: {
+  messagesCount: 1,
+  taskId: undefined,
+  toolChoice: undefined,
+  messages: '[\n' +
+    '  {\n' +
+    '    "role": "user",\n' +
+    '    "parts": [\n' +
+    '      {\n' +
+    '        "type": "text",\n' +
+    '        "text": "A taxi driver earns $9461 per 1-hour of work. If he works 12 hours a day and in 1 hour he uses 12 liters of petrol with a price of $134 for 1 liter. How much money does he earn in one day?"\n' +
+    '      }\n' +
+    '    ],\n' +
+    '    "id": "ZTJpygXOvCgMwU71"\n' +
+    '  }\n' +
+    ']'
+}
+[AGENT] API Settings: {
+  model: 'Qwen/Qwen3-Coder-480B-A35B-Instruct-Turbo',
+  hasApiKey: true,
+  baseURL: 'https://api.deepinfra.com/v1/openai',
+  provider: 'openai-compatible'
+}
+[AGENT] Creating streamText with model: Qwen/Qwen3-Coder-480B-A35B-Instruct-Turbo
+[AGENT] Converting to UI message stream...
+[TOOL:CALCULATE] Called with expression: 9461 * 12
+[TOOL:CALCULATE] Result: 113532
+[AGENT:STEP] Step finished: {
+  "stepText": "I'll calculate the taxi driver's daily earnings step by step.\n\nFirst, let me break down the problem:\n1. The driver earns $9461 per hour\n2. He works 12 hours a day\n3. He uses 12 liters of petrol per hour\n4. Petrol costs $134 per liter\n\nLet me calculate his total earnings and expenses:\n\n\n",
+  "stepTextLength": 287,
+  "toolCallsCount": 1,
+  "toolCalls": [
+    {
+      "name": "calculate",
+      "input": {
+        "expression": "9461 * 12"
+      },
+      "toolCallId": "call_6c7286ce771d5892"
+    }
+  ],
+  "toolResultsCount": 1,
+  "toolResults": [
+    {
+      "toolCallId": "call_6c7286ce771d5892",
+      "result": null,
+      "toolName": "calculate",
+      "input": {
+        "expression": "9461 * 12"
+      }
+    }
+  ],
+  "finishReason": "stop",
+  "usage": {
+    "inputTokens": 754,
+    "outputTokens": 110,
+    "totalTokens": 864
+  }
+}
+[TOOL:CALCULATE] Called with expression: 12 * 134 * 12
+[TOOL:CALCULATE] Result: 19296
+[AGENT:STEP] Step finished: {
+  "stepText": "Now let me calculate his petrol expenses:\n\n\n",
+  "stepTextLength": 44,
+  "toolCallsCount": 1,
+  "toolCalls": [
+    {
+      "name": "calculate",
+      "input": {
+        "expression": "12 * 134 * 12"
+      },
+      "toolCallId": "call_7ef633eee2a8fb86"
+    }
+  ],
+  "toolResultsCount": 1,
+  "toolResults": [
+    {
+      "toolCallId": "call_7ef633eee2a8fb86",
+      "result": null,
+      "toolName": "calculate",
+      "input": {
+        "expression": "12 * 134 * 12"
+      }
+    }
+  ],
+  "finishReason": "stop",
+  "usage": {
+    "inputTokens": 883,
+    "outputTokens": 41,
+    "totalTokens": 924
+  }
+}
+[TOOL:CALCULATE] Called with expression: 113532 - 19296
+[TOOL:CALCULATE] Result: 94236
+[AGENT:STEP] Step finished: {
+  "stepText": "Let me calculate his net earnings by subtracting the petrol expenses from his total earnings:\n\n\n",
+  "stepTextLength": 96,
+  "toolCallsCount": 1,
+  "toolCalls": [
+    {
+      "name": "calculate",
+      "input": {
+        "expression": "113532 - 19296"
+      },
+      "toolCallId": "call_7c50f2b110d42b74"
+    }
+  ],
+  "toolResultsCount": 1,
+  "toolResults": [
+    {
+      "toolCallId": "call_7c50f2b110d42b74",
+      "result": null,
+      "toolName": "calculate",
+      "input": {
+        "expression": "113532 - 19296"
+      }
+    }
+  ],
+  "finishReason": "stop",
+  "usage": {
+    "inputTokens": 942,
+    "outputTokens": 52,
+    "totalTokens": 994
+  }
+}
+A taxi driver earns $9461 per 1-hour of work. If he works 12 hours a day and in 1 hour he uses 12 liters of petrol with a price of $134 for 1 liter. How much money does he earn in one day?InvalidToolInputError [AI_InvalidToolInputError]: Invalid input for tool answer: Type validation failed: Value: {"steps":"[{\"calculation\": \"Total earnings = $9461 per hour ├ù 12 hours = $113,532\", \"reasoning\": \"First, I calculated the driver's gross earnings by multiplying his hourly wage by the number of hours worked in a day\"}, {\"calculation\": \"Petrol expenses = 12 liters per hour ├ù $134 per liter ├ù 12 hours = $19,296\", \"reasoning\": \"Next, I calculated his total petrol expenses by multiplying the petrol consumption per hour by the price per liter and the total hours worked\"}, {\"calculation\": \"Net earnings = $113,532 - $19,296 = $94,236\", \"reasoning\": \"Finally, I subtracted the petrol expenses from the total earnings to find his net earnings for the day\"}]","answer":"The taxi driver earns $94,236 in one day after deducting petrol expenses."}.
+Error message: [
+  {
+    "code": "invalid_type",
+    "expected": "array",
+    "received": "string",
+    "path": [
+      "steps"
+    ],
+    "message": "Expected array, received string"
+  }
+]
+    at doParseToolCall (file:///C:/Users/yudrew/Autai/dist-electron/main/index.js:15153:11)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+    at async parseToolCall (file:///C:/Users/yudrew/Autai/dist-electron/main/index.js:15108:12)
+    at async Object.transform (file:///C:/Users/yudrew/Autai/dist-electron/main/index.js:17269:30)
+    at async transformStreamDefaultControllerPerformTransform (node:internal/webstreams/transformstream:527:12) {
+  cause: _TypeValidationError2 [AI_TypeValidationError]: Type validation failed: Value: {"steps":"[{\"calculation\": \"Total earnings = $9461 per hour ├ù 12 hours = $113,532\", \"reasoning\": \"First, I calculated the driver's gross earnings by multiplying his hourly wage by the number of hours worked in a day\"}, {\"calculation\": \"Petrol expenses = 12 liters per hour ├ù $134 per liter ├ù 12 hours = $19,296\", \"reasoning\": \"Next, I calculated his total petrol expenses by multiplying the petrol consumption per hour by the price per liter and the total hours worked\"}, {\"calculation\": \"Net earnings = $113,532 - $19,296 = $94,236\", \"reasoning\": \"Finally, I subtracted the petrol expenses from the total earnings to find his net earnings for the day\"}]","answer":"The taxi driver earns $94,236 in one day after deducting petrol expenses."}.
+  Error message: [
+    {
+      "code": "invalid_type",
+      "expected": "array",
+      "received": "string",
+      "path": [
+        "steps"
+      ],
+      "message": "Expected array, received string"
+    }
+  ]
+      at _TypeValidationError2.wrap (file:///C:/Users/yudrew/Autai/dist-electron/main/index.js:335:87)
+      at safeValidateTypes (file:///C:/Users/yudrew/Autai/dist-electron/main/index.js:9717:34)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+      at async safeParseJSON (file:///C:/Users/yudrew/Autai/dist-electron/main/index.js:9754:12)
+      ... 3 lines matching cause stack trace ...
+      at async transformStreamDefaultControllerPerformTransform (node:internal/webstreams/transformstream:527:12) {
+    cause: ZodError: [
+      {
+        "code": "invalid_type",
+        "expected": "array",
+        "received": "string",
+        "path": [
+          "steps"
+        ],
+        "message": "Expected array, received string"
+      }
+    ]
+        at get error (file:///C:/Users/yudrew/Autai/dist-electron/main/index.js:5215:23)
+        at Object.validate (file:///C:/Users/yudrew/Autai/dist-electron/main/index.js:10008:105)
+        at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+        at async safeValidateTypes (file:///C:/Users/yudrew/Autai/dist-electron/main/index.js:9711:20)
+        at async safeParseJSON (file:///C:/Users/yudrew/Autai/dist-electron/main/index.js:9754:12)
+        at async doParseToolCall (file:///C:/Users/yudrew/Autai/dist-electron/main/index.js:15151:103)
+        at async parseToolCall (file:///C:/Users/yudrew/Autai/dist-electron/main/index.js:15108:12)
+        at async Object.transform (file:///C:/Users/yudrew/Autai/dist-electron/main/index.js:17269:30)
+        at async transformStreamDefaultControllerPerformTransform (node:internal/webstreams/transformstream:527:12) {
+      issues: [Array],
+      addIssue: [Function (anonymous)],
+      addIssues: [Function (anonymous)],
+      errors: [Array]
+    },
+    value: {
+      steps: `[{"calculation": "Total earnings = $9461 per hour ├ù 12 hours = $113,532", "reasoning": "First, I calculated the driver's gross earnings by multiplying his hourly wage by the number of hours worked in a day"}, {"calculation": "Petrol expenses = 12 liters per hour ├ù $134 per liter ├ù 12 hours = $19,296", "reasoning": "Next, I calculated his total petrol expenses by multiplying the petrol consumption per hour by the price per liter and the total hours worked"}, {"calculation": "Net earnings = $113,532 - $19,296 = $94,236", "reasoning": "Finally, I subtracted the petrol expenses from the total earnings to find his net earnings for the day"}]`,
+      answer: 'The taxi driver earns $94,236 in one day after deducting petrol expenses.'
+    },
+    [Symbol(vercel.ai.error)]: true,
+    [Symbol(vercel.ai.error.AI_TypeValidationError)]: true
+  },
+  toolInput: `{"steps": "[{\\"calculation\\": \\"Total earnings = $9461 per hour \\u00d7 12 hours = $113,532\\", \\"reasoning\\": \\"First, I calculated the driver's gross earnings by multiplying his hourly wage by the number of hours worked in a day\\"}, {\\"calculation\\": \\"Petrol expenses = 12 liters per hour \\u00d7 $134 per liter \\u00d7 12 hours = $19,296\\", \\"reasoning\\": \\"Next, I calculated his total petrol expenses by multiplying the petrol consumption per hour by the price per liter and the total hours worked\\"}, {\\"calculation\\": \\"Net earnings = $113,532 - $19,296 = $94,236\\", \\"reasoning\\": \\"Finally, I subtracted the petrol expenses from the total earnings to find his net earnings for the day\\"}]", "answer": "The taxi driver earns $94,236 in one day after deducting petrol expenses."}`,
+  toolName: 'answer',
+  [Symbol(vercel.ai.error)]: true,
+  [Symbol(vercel.ai.error.AI_InvalidToolInputError)]: true
+}
+[AGENT:STEP] Step finished: {
+  "stepText": "\n",
+  "stepTextLength": 1,
+  "toolCallsCount": 0,
+  "toolCalls": [],
+  "toolResultsCount": 0,
+  "toolResults": [],
+  "finishReason": "stop",
+  "usage": {
+    "inputTokens": 1012,
+    "outputTokens": 236,
+    "totalTokens": 1248
+  }
+}

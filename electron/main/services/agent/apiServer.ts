@@ -1,6 +1,6 @@
 import express, { type Express } from "express";
 import cors from "cors";
-import { pipeDataStreamToResponse } from "ai";
+import { createUIMessageStreamResponse } from "ai";
 import { type Server } from "http";
 import { agentHandler } from "./agentHandler";
 
@@ -24,6 +24,12 @@ export class ApiServer {
   }
 
   private setupRoutes(): void {
+    // Add request logging middleware for debugging
+    this.app.use((req, res, next) => {
+      console.log(`[API] ${req.method} ${req.url}`);
+      next();
+    });
+    
     // Chat endpoint
     this.app.post("/chat", async (req, res) => {
       try {
@@ -34,60 +40,55 @@ export class ApiServer {
           toolChoice,
         });
 
-        // Stream the response using pipeDataStreamToResponse
+        // Stream the response using createUIMessageStreamResponse
         console.log("[CHAT] Starting stream response...");
-        pipeDataStreamToResponse(res, {
-          execute: async (dataStreamWriter) => {
-            try {
-              await agentHandler.handleChat(
-                { messages, taskId, toolChoice },
-                dataStreamWriter
-              );
-            } catch (error) {
-              console.error("[CHAT:ERROR] Error handling chat:", error);
-              if (error instanceof Error && error.message === "API key not configured") {
-                // This error is already handled by throwing in agentHandler
-                throw error;
-              }
-              // Write an error message to the data stream for other errors
-              dataStreamWriter.writeData({
-                type: "error",
-                error:
-                  error instanceof Error
-                    ? error.message
-                    : "An unknown error occurred",
-              });
+        try {
+          const stream = await agentHandler.handleChat({
+            messages,
+            taskId,
+            toolChoice,
+          });
+          
+          const response = createUIMessageStreamResponse({ stream });
+          
+          // Set headers from the Response object
+          response.headers.forEach((value, key) => {
+            res.setHeader(key, value);
+          });
+          
+          // Pipe the stream to the Express response
+          const reader = response.body?.getReader();
+          if (!reader) {
+            throw new Error("No response body");
+          }
+          
+          const sendChunk = async () => {
+            const { done, value } = await reader.read();
+            if (done) {
+              res.end();
+              return;
             }
-          },
-          onError: (error) => {
-            console.error("[CHAT:STREAM:ERROR] Stream error:", error);
-            console.error(
-              "[CHAT:STREAM:ERROR] Error type:",
-              error?.constructor?.name
-            );
-            console.error(
-              "[CHAT:STREAM:ERROR] Error details:",
-              JSON.stringify(error, null, 2)
-            );
-            if (error instanceof Error) {
-              console.error("[CHAT:STREAM:ERROR] Stack:", error.stack);
+            res.write(value);
+            await sendChunk();
+          };
+          
+          await sendChunk();
+        } catch (error) {
+          console.error("[CHAT:ERROR] Error handling chat:", error);
+          if (!res.headersSent) {
+            if (error instanceof Error && error.message === "API key not configured") {
+              res.status(400).json({ error: "API key not configured" });
+            } else {
+              res.status(500).json({ error: "Internal server error" });
             }
-            return error instanceof Error ? error.message : String(error);
-          },
-        });
+          }
+        }
       } catch (error) {
         console.error("[CHAT:CATCH] Outer error:", error);
         console.error(
           "[CHAT:CATCH] Error stack:",
           error instanceof Error ? error.stack : "No stack"
         );
-        
-        // Check for specific errors
-        if (error instanceof Error && error.message === "API key not configured") {
-          res.status(400).json({ error: "API key not configured" });
-        } else {
-          res.status(500).json({ error: "Internal server error" });
-        }
       }
     });
 

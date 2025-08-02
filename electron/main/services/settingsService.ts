@@ -1,7 +1,8 @@
 import { app } from "electron";
 import * as fs from "fs/promises";
 import * as path from "path";
-import { ChatOpenAI } from "@langchain/openai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { generateText } from "ai";
 import type {
   AISettings,
   SettingsProfile,
@@ -84,23 +85,30 @@ class SettingsService {
     config: TestConnectionConfig
   ): Promise<TestConnectionResult> {
     try {
-      const testModel = new ChatOpenAI({
-        temperature: 0,
+      // Create OpenAI-compatible provider
+      const provider = createOpenAICompatible({
+        name: "openai",
         apiKey: config.apiKey,
-        modelName: config.model,
-        configuration: {
-          baseURL: config.apiUrl,
-        },
+        baseURL: config.apiUrl,
       });
 
       // Try a simple completion to test the connection
-      const response = await testModel.invoke("Hello, this is a test message.");
+      const response = await generateText({
+        model: provider(config.model),
+        prompt: "Hello, this is a test message.",
+        temperature: 0,
+        maxOutputTokens: 20,
+      });
 
-      if (response && response.content) {
+      if (response && response.text) {
         return {
           success: true,
           message: "Connection successful! API is working correctly.",
-          usage: response.response_metadata.tokenUsage,
+          usage: {
+            promptTokens: response.usage.inputTokens,
+            completionTokens: response.usage.outputTokens,
+            totalTokens: response.usage.totalTokens,
+          },
         };
       }
 

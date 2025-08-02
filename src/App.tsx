@@ -5,7 +5,9 @@ import { AssistantChatContainer } from "@/components/ai-chat";
 import { SettingsProvider, SettingsView } from "@/components/settings";
 import { useUiStore } from "@/stores/uiStore";
 import { AssistantRuntimeProvider } from "@assistant-ui/react";
-import { useChatRuntime } from "@assistant-ui/react-ai-sdk";
+import { useChat } from "@ai-sdk/react";
+import { useAISDKRuntime } from "@assistant-ui/react-ai-sdk";
+import { DefaultChatTransport } from "ai";
 import { AppHeader } from "@/components/app-header";
 import { useState } from "react";
 import { useThreadLifecycle } from "@/hooks/useThreadLifecycle";
@@ -56,10 +58,14 @@ function AppContent() {
  * Manages the sidebar, main content area, and AI chat interface.
  */
 function App() {
-  // Create runtime for the entire app
-  const runtime = useChatRuntime({
-    api: "http://localhost:3001/chat",
+  // Create runtime for the entire app using AI SDK v5
+  const chat = useChat({
+    transport: new DefaultChatTransport({
+      api: "http://localhost:3001/chat",
+    }),
   });
+  
+  const runtime = useAISDKRuntime(chat);
 
   return (
     <AssistantRuntimeProvider runtime={runtime}>
