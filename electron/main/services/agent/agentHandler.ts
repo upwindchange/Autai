@@ -3,10 +3,11 @@ import {
   streamText,
   tool,
   type UIMessage,
-  type ModelMessage,
   type ToolChoice,
   type StepResult,
   type Tool,
+  type InvalidToolInputError,
+  NoSuchToolError,
   convertToModelMessages,
   stepCountIs,
   hasToolCall,
@@ -45,11 +46,7 @@ export class AgentHandler {
                          You can help users navigate web pages, answer questions about the current page content, 
                          and provide assistance with browser automation tasks.
                          You have access to a calculator tool for evaluating mathematical expressions.
-                         When solving math problems, reason step by step and use the calculator when necessary.
-                         
-                         IMPORTANT: If you encounter any errors or issues during processing, immediately use the displayError tool to inform the user.
-                         This includes calculation errors, processing errors, or if you're unable to complete a task.
-                         Always provide clear error messages to help the user understand what went wrong.`;
+                         When solving math problems, reason step by step and use the calculator when necessary.`;
 
   async handleChat(
     request: ChatRequest
@@ -101,19 +98,10 @@ export class AgentHandler {
           hasToolCall(TOOL_NAMES.DISPLAY_ERROR),
           // Safety limit to prevent infinite loops
           stepCountIs(20),
-          // Stop if the AI indicates completion in text
-          ({ steps }) => {
-            const lastStep = steps[steps.length - 1];
-            return Boolean(
-              lastStep?.text?.match(
-                /(?:task complete|finished|done|no further action needed)/i
-              )
-            );
-          },
         ],
-        // experimental_repairToolCall is removed in v5
         tools: this.getTools(),
         toolChoice: toolChoice || undefined,
+        experimental_repairToolCall: this.repairToolCall,
         onStepFinish: this.handleStepFinish,
       });
 
@@ -195,28 +183,31 @@ export class AgentHandler {
 
   private repairToolCall = async ({
     toolCall,
-    error,
+    error
   }: {
-    toolCall: { toolName: string; toolCallId: string; args: string };
-    error: Error;
+    toolCall: { type: 'tool-call'; toolCallId: string; toolName: string; input: string };
+    error: NoSuchToolError | InvalidToolInputError;
   }) => {
     console.log("[AGENT:REPAIR] Attempting to repair tool call:", {
       toolName: toolCall.toolName,
       error: error.message,
-      originalArgs: toolCall.args,
+      originalArgs: toolCall.input,
     });
 
-    // Only repair tool argument errors for the answer tool
+    // do not attempt to fix invalid tool names
+    if (error instanceof NoSuchToolError) {
+      return null;
+    }
+    // Only repair InvalidToolInputError for the answer tool
     if (
-      !error.message.includes("Invalid tool arguments") ||
-      toolCall.toolName !== "answer"
+      !error.message.includes("Invalid input for tool")
     ) {
       return null;
     }
 
     try {
       // Parse the original arguments
-      const parsedArgs = JSON.parse(toolCall.args);
+      const parsedArgs = JSON.parse(toolCall.input);
 
       // Check if steps is a string that needs to be parsed
       if (typeof parsedArgs.steps === "string") {
@@ -225,17 +216,17 @@ export class AgentHandler {
         );
         parsedArgs.steps = JSON.parse(parsedArgs.steps);
 
-        // Return repaired tool call
+        // Return the repaired tool call with the correct structure for AI SDK v5
         const repairedCall = {
-          toolCallType: "function" as const,
+          type: toolCall.type,
           toolCallId: toolCall.toolCallId,
           toolName: toolCall.toolName,
-          args: JSON.stringify(parsedArgs),
+          input: JSON.stringify(parsedArgs),
         };
 
         console.log("[AGENT:REPAIR] Successfully repaired tool call:", {
           toolName: repairedCall.toolName,
-          repairedArgs: repairedCall.args,
+          repairedArgs: repairedCall.input,
         });
 
         return repairedCall;
