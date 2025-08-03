@@ -8,6 +8,8 @@ Autai is an "Automatic AI Agent Driven Browser" - a desktop application built wi
 
 ## Key Commands
 
+**IMPORTANT**: Do not run any command, ask the user to run it.
+
 ```bash
 # Development
 pnpm dev          # Start development server with hot reload
@@ -41,12 +43,12 @@ pnpm build
 electron/
 ├── main/          # Main process code
 │   ├── bridge/    # IPC bridges for typed communication
+│   ├── scripts/   # DOM tree building script the agent ai
 │   └── services/  # Core application services
 │       ├── agent/ # AI agent server implementation
 │       └── dom/   # DOM manipulation services
 ├── preload/       # Preload scripts
-├── shared/
-│   └── types/     # TypeScript type definitions between main and renderer
+shared_types/      # TypeScript type definitions between main and renderer
 src/
 ├── components/    # React components
 │   ├── ai-chat/   # AI chat interface
@@ -67,11 +69,12 @@ reference/         # several projects for reference
 
 - Strict mode enabled
 - Use `@/` path alias for imports from `src/`
+- Use `@shared/index` path alias for any type imports from `shared_types/`
 - All IPC channels must be typed in `src/vite-env.d.ts`
 
 ### State Management
 
-- Zustand stores in `src/store/`
+- Zustand stores in `src/stores/`
 - Use typed actions and selectors
 
 ### Reference projects
@@ -90,7 +93,6 @@ reference/         # several projects for reference
   - Design pattern and examples in `reference/ai/content/cookbook` and `reference/ai/examples`
     - for this project, `reference/ai/examples/express` will be valuable.
   - Providers in `reference/ai/content/providers`
-    - for this project, we will only use `reference/ai/content/providers/04-adapters/01-langchain.mdx`
 - `reference/assitant-ui`: Assistant UI React Component Library.
   - Source code in `reference/assitant-ui/packages`
   - Documentation in `reference/assitant-ui/apps/docs/content/docs`

@@ -1,7 +1,7 @@
 import { IpcMainInvokeEvent } from "electron";
 import { BaseBridge } from "./BaseBridge";
 import { settingsService } from "../services";
-import type { SettingsState, TestConnectionConfig } from "@shared/settings";
+import type { SettingsState, TestConnectionConfig } from "@shared/index";
 
 /**
  * Handles settings-related IPC operations

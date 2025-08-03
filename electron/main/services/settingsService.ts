@@ -105,9 +105,9 @@ class SettingsService {
           success: true,
           message: "Connection successful! API is working correctly.",
           usage: {
-            promptTokens: response.usage.inputTokens,
-            completionTokens: response.usage.outputTokens,
-            totalTokens: response.usage.totalTokens,
+            promptTokens: response.usage.inputTokens ?? 0,
+            completionTokens: response.usage.outputTokens ?? 0,
+            totalTokens: response.usage.totalTokens ?? 0,
           },
         };
       }

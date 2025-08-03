@@ -13,3 +13,6 @@ export * from "./thread";
 
 // IPC types
 export * from "./ipc";
+
+// Tools types
+export * from "./tools";

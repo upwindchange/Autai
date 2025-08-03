@@ -7,7 +7,7 @@ import type {
   AISettings,
   TestConnectionConfig,
   TestConnectionResult,
-} from "@shared";
+} from "@shared/index";
 
 // Generic result type for IPC operations
 interface IPCResult {

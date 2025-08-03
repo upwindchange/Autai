@@ -1,4 +1,4 @@
-import type { SettingsProfile, AISettings } from '@shared/settings';
+import type { SettingsProfile, AISettings } from '@shared/index';
 
 /**
  * Settings context API exposed to components

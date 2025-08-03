@@ -24,7 +24,7 @@ import {
   type DisplayErrorToolResult,
   type CalculateToolParams,
   type DisplayErrorToolParams,
-} from "@shared/tools";
+} from "@shared/index";
 
 type AgentTools = {
   [TOOL_NAMES.CALCULATE]: Tool<CalculateToolParams, CalculateToolResult>;

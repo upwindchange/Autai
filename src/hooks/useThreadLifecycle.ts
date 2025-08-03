@@ -56,13 +56,5 @@ export function useThreadLifecycle() {
       console.warn('[useThreadLifecycle] Error setting up thread lifecycle:', error);
       return;
     }
-    
-    return () => {
-      unsubscribe();
-      // Cleanup: notify if thread is being destroyed
-      if (previousThreadIdRef.current) {
-        window.ipcRenderer.invoke('thread:deleted', previousThreadIdRef.current);
-      }
-    };
   }, [runtime]);
 }

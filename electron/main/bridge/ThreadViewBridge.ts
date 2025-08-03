@@ -1,7 +1,6 @@
-import { IpcMainInvokeEvent } from "electron";
 import { BaseBridge } from "./BaseBridge";
 import { ThreadViewService } from "../services/ThreadViewService";
-import type { ThreadId, ViewId } from "@shared/types";
+import type { ThreadId, ViewId } from "@shared/index";
 
 export class ThreadViewBridge extends BaseBridge {
   constructor(private threadViewService: ThreadViewService) {

@@ -1,6 +1,6 @@
 import { WebContentsView, BrowserWindow, Rectangle } from "electron";
 import { EventEmitter } from "events";
-import type { ThreadId, ViewId, ThreadViewState } from "@shared/types";
+import type { ThreadId, ViewId, ThreadViewState } from "@shared/index";
 
 interface ViewMetadata {
   id: ViewId;

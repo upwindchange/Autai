@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { SettingsContextType } from "./types";
-import type { SettingsProfile, AISettings } from "@shared/settings";
+import type { SettingsProfile, AISettings } from "@shared/index";
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
 

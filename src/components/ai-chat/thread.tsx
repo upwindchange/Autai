@@ -21,7 +21,7 @@ import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { CalculatorTool, AnswerTool, DisplayErrorTool } from "@/components/assistant-ui/tool-components";
-import { TOOL_NAMES } from "@shared/tools";
+import { TOOL_NAMES } from "@shared/index";
 import {
   ResizablePanelGroup,
   ResizablePanel,

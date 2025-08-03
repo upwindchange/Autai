@@ -8,5 +8,5 @@
       "@shared/*": ["../shared_types/*"]
     }
   },
-  "include": ["main/**/*", "preload/**/*", "../shared_types/**/*"]
+  "include": [".", "../shared_types/**/*"]
 }
