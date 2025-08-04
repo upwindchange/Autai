@@ -33,11 +33,31 @@ const DEFAULT_INCLUDE_ATTRIBUTES = [
   'aria-checked',
 ];
 
+/**
+ * DomService provides comprehensive DOM analysis and manipulation capabilities for web automation.
+ * It enables extraction of interactive elements, page information, element hashing for tracking changes,
+ * and DOM state comparison.
+ * 
+ * The service orchestrates DOM analysis by:
+ * 1. Executing JavaScript in the page context to extract DOM structure
+ * 2. Constructing TypeScript representations of the DOM
+ * 3. Providing utilities for element hashing and change tracking
+ * 4. Converting DOM structures to LLM-optimized string representations
+ */
 export class DomService {
+  /** Electron WebContents object for the target web page */
   private webContents: WebContents;
+  
+  /** Logger instance for debugging and error tracking */
   private logger: Console = console;
-  private cachedElementHashes: Map<string, Set<string>> = new Map(); // URL -> Set of element hashes
+  
+  /** Cache of element hashes organized by URL for change tracking */
+  private cachedElementHashes: Map<string, Set<string>> = new Map();
 
+  /**
+   * Creates a new DomService instance
+   * @param webContents - Electron WebContents object for the target web page
+   */
   constructor(webContents: WebContents) {
     this.webContents = webContents;
   }
@@ -45,7 +65,19 @@ export class DomService {
   // ==================== Public API Methods ====================
 
   /**
-   * Get clickable elements from the page DOM
+   * Extracts clickable/interactive elements from the current page DOM and returns structured representation.
+   * This method orchestrates the complete DOM analysis process by executing JavaScript in the page context
+   * and constructing a TypeScript representation of the DOM tree.
+   * 
+   * @param highlightElements - Whether to visually highlight elements on the page (default: true)
+   * @param focusElement - Index of element to focus specifically (default: -1, no focus)
+   * @param viewportExpansion - Additional area around viewport to include (default: 0)
+   * @returns Promise resolving to DOMState containing elementTree and selectorMap
+   * 
+   * @example
+   * const domState = await domService.getClickableElements(true, 5, 100);
+   * console.log(domState.elementTree); // DOM hierarchy
+   * console.log(domState.selectorMap); // Index to element mapping
    */
   async getClickableElements(
     highlightElements: boolean = true,
@@ -61,7 +93,17 @@ export class DomService {
   }
 
   /**
-   * Convert clickable elements to string representation
+   * Converts structured DOM elements to a human-readable string representation optimized for LLM consumption.
+   * This method processes the DOM tree and creates a formatted text representation that includes element
+   * tags, attributes, and text content with proper indentation and highlighting indicators.
+   * 
+   * @param rootNode - DOMElementNode to convert to string representation
+   * @param includeAttributes - Array of attribute names to include. Uses DEFAULT_INCLUDE_ATTRIBUTES if null.
+   * @returns Formatted text representation of elements optimized for LLM consumption
+   * 
+   * @example
+   * const elementsString = domService.clickableElementsToString(domState.elementTree);
+   * console.log(elementsString); // Formatted text representation
    */
   clickableElementsToString(rootNode: DOMElementNode, includeAttributes: string[] | null = null): string {
     const formattedText: string[] = [];
@@ -184,7 +226,22 @@ export class DomService {
   }
 
   /**
-   * Get page information including scroll context
+   * Retrieves comprehensive information about the current page including dimensions and scroll position.
+   * This method executes JavaScript in the page context to extract viewport dimensions, page dimensions,
+   * and current scroll position, then calculates additional context like pixels above/below/left/right.
+   * 
+   * @returns Promise resolving to PageInfo object containing page dimensions and scroll information
+   * 
+   * @example
+   * const pageInfo = await domService.getPageInfo();
+   * console.log(pageInfo.viewportWidth, pageInfo.viewportHeight); // Viewport dimensions
+   * console.log(pageInfo.scrollY); // Current vertical scroll position
+   * 
+   * @example
+   * const pageInfo = await domService.getPageInfo();
+   * if (pageInfo.pixelsBelow > 0) {
+   *   console.log('Page has content below the viewport');
+   * }
    */
   async getPageInfo(): Promise<PageInfo> {
     try {
@@ -262,7 +319,21 @@ export class DomService {
   }
 
   /**
-   * Execute buildDomTree function in the page context
+   * Executes the DOM tree building function in the page context to extract the page structure.
+   * This method runs the buildDomTree JavaScript function (injected via index.js) with the specified
+   * arguments to analyze the page DOM and return the results.
+   * 
+   * @param args - Partial BuildDomTreeArgs with options for DOM extraction
+   * @returns Promise resolving to DOMExtractionResult with success/failure status and extracted data
+   * 
+   * @example
+   * const result = await domService.buildDomTree({
+   *   doHighlightElements: true,
+   *   focusHighlightIndex: 3
+   * });
+   * if (result.success) {
+   *   console.log(result.data); // Extracted DOM data
+   * }
    */
   async buildDomTree(args?: Partial<BuildDomTreeArgs>): Promise<DOMExtractionResult> {
     try {
@@ -300,7 +371,16 @@ export class DomService {
   // ==================== Element Hashing & Fingerprinting ====================
 
   /**
-   * Hash a DOM element for fingerprinting
+   * Creates a unique hash fingerprint for a DOM element based on its attributes, path, and xpath.
+   * This method generates a combined hash from the element's branch path, attributes, and xpath
+   * to create a unique fingerprint for change tracking and element identification.
+   * 
+   * @param element - DOMElementNode to hash
+   * @returns Combined hash of branch path, attributes, and xpath
+   * 
+   * @example
+   * const elementHash = domService.hashDomElement(element);
+   * console.log(elementHash); // Unique fingerprint for the element
    */
   hashDomElement(element: DOMElementNode): string {
     const hashedElement = this._hashDomElementToComponents(element);
@@ -308,7 +388,18 @@ export class DomService {
   }
 
   /**
-   * Get hashed components of a DOM element
+   * Breaks down a DOM element into components for hashing (internal use).
+   * This private method extracts the branch path, attributes, and xpath from an element
+   * and creates individual hashes for each component.
+   * 
+   * @param element - DOMElementNode to break down into hashable components
+   * @returns HashedDomElement containing individual hashes for each component
+   * 
+   * @example
+   * const hashedElement = domService._hashDomElementToComponents(element);
+   * console.log(hashedElement.branchPathHash); // Hash of element's path in DOM tree
+   * console.log(hashedElement.attributesHash); // Hash of element's attributes
+   * console.log(hashedElement.xpathHash); // Hash of element's xpath
    */
   private _hashDomElementToComponents(element: DOMElementNode): HashedDomElement {
     const parentBranchPath = this._getParentBranchPath(element);
@@ -328,7 +419,16 @@ export class DomService {
   }
 
   /**
-   * Get all clickable element hashes from DOM tree
+   * Extracts hash fingerprints for all clickable elements in a DOM tree.
+   * This method traverses the DOM tree and generates unique hashes for all elements
+   * that have a highlightIndex (i.e., clickable/interactive elements).
+   * 
+   * @param rootElement - DOMElementNode root to traverse
+   * @returns Set of unique hashes for all clickable elements
+   * 
+   * @example
+   * const hashes = domService.getClickableElementHashes(rootElement);
+   * console.log(hashes.size); // Number of clickable elements
    */
   getClickableElementHashes(rootElement: DOMElementNode): Set<string> {
     const hashes = new Set<string>();
@@ -351,7 +451,16 @@ export class DomService {
   }
 
   /**
-   * Update element cache and mark new elements
+   * Updates internal cache of element hashes and marks new elements as "isNew".
+   * This method compares the current elements on a page with previously cached elements
+   * to identify new elements and update the cache for future comparisons.
+   * 
+   * @param url - Page URL for cache identification
+   * @param rootElement - DOMElementNode root to analyze
+   * 
+   * @example
+   * domService.updateElementCache(window.location.href, rootElement);
+   * // rootElement and its children now have isNew and elementHash properties set
    */
   updateElementCache(url: string, rootElement: DOMElementNode): void {
     const currentHashes = this.getClickableElementHashes(rootElement);
@@ -380,7 +489,15 @@ export class DomService {
   }
 
   /**
-   * Clear element cache for a specific URL or all URLs
+   * Clears the element hash cache for a specific URL or all URLs.
+   * This method is useful for memory management and when navigating to entirely
+   * different pages where cached element hashes are no longer relevant.
+   * 
+   * @param url - Specific URL to clear, or clears all if undefined
+   * 
+   * @example
+   * domService.clearElementCache(); // Clear all cached hashes
+   * domService.clearElementCache('https://example.com'); // Clear specific URL
    */
   clearElementCache(url?: string): void {
     if (url) {
@@ -393,7 +510,28 @@ export class DomService {
   // ==================== DOM State Diffing ====================
 
   /**
-   * Compare two DOM states and return differences
+   * Compares two DOM states to identify added, removed, or modified elements.
+   * This method is essential for tracking changes in page state over time by
+   * comparing element hashes between two DOM states.
+   * 
+   * @param previous - Previous DOMState to compare
+   * @param current - Current DOMState to compare
+   * @returns DOMStateDiff containing lists of added, removed, modified, and unchanged elements
+   * 
+   * @example
+   * const diff = domService.compareDOMStates(previousState, currentState);
+   * console.log(`Added: ${diff.addedElements.length}`);
+   * console.log(`Removed: ${diff.removedElements.length}`);
+   * 
+   * @example
+   * const diff = domService.compareDOMStates(previousState, currentState);
+   * if (diff.addedElements.length > 0) {
+   *   console.log('New elements detected on page');
+   *   // Process newly added elements
+   *   diff.addedElements.forEach(element => {
+   *     console.log(`New element: ${element.tagName} with highlight index ${element.highlightIndex}`);
+   *   });
+   * }
    */
   compareDOMStates(previous: DOMState, current: DOMState): DOMStateDiff {
     const diff: DOMStateDiff = {
@@ -441,7 +579,12 @@ export class DomService {
   }
 
   /**
-   * Get all elements with highlightIndex from DOM tree
+   * Extracts all elements with highlightIndex from a DOM tree (internal use).
+   * This private helper method traverses a DOM tree and collects all elements
+   * that have a highlightIndex property, which indicates they are interactive/clickable.
+   * 
+   * @param root - DOMElementNode root to traverse
+   * @returns Array of DOMElementNode objects with highlightIndex
    */
   private _getAllHighlightedElements(root: DOMElementNode): DOMElementNode[] {
     const elements: DOMElementNode[] = [];
@@ -465,7 +608,14 @@ export class DomService {
   // ==================== Private Helper Methods ====================
 
   /**
-   * Build DOM tree by executing JavaScript analysis and constructing the tree
+   * Internal method that orchestrates the DOM analysis process by executing JavaScript 
+   * in the page context and constructing the TypeScript DOM tree.
+   * This method is the core implementation behind getClickableElements().
+   * 
+   * @param highlightElements - Whether to visually highlight elements on the page
+   * @param focusElement - Index of element to focus specifically
+   * @param viewportExpansion - Additional area around viewport to include
+   * @returns Promise resolving to object containing elementTree and selectorMap
    */
   private async _buildDomTree(
     highlightElements: boolean,
@@ -524,7 +674,12 @@ export class DomService {
   }
 
   /**
-   * Construct DOM tree from JavaScript evaluation result
+   * Transforms JavaScript evaluation results into TypeScript DOM structures.
+   * This method takes the raw JavaScript data from page execution and converts
+   * it into structured TypeScript objects representing the DOM.
+   * 
+   * @param evalPage - JSEvalResult from JavaScript execution
+   * @returns Promise resolving to object containing elementTree and selectorMap
    */
   private async _constructDomTree(
     evalPage: JSEvalResult
@@ -579,7 +734,12 @@ export class DomService {
   }
 
   /**
-   * Parse a single node from JavaScript data
+   * Parses individual nodes from JavaScript data structures into TypeScript representations.
+   * This method handles conversion of both element nodes and text nodes from their JavaScript
+   * representation to TypeScript objects with appropriate properties.
+   * 
+   * @param nodeData - JSNodeData from JavaScript execution
+   * @returns Object containing parsed node and child IDs
    */
   private _parseNode(
     nodeData: JSNodeData
@@ -663,7 +823,12 @@ export class DomService {
   }
 
   /**
-   * Get parent branch path for element (list of tag names from root)
+   * Calculates the hierarchical path from root to element as tag names (internal use).
+   * This method traverses up the DOM tree from an element to the root and collects
+   * the tag names to create a unique branch path identifier.
+   * 
+   * @param element - DOMElementNode to calculate path for
+   * @returns Array of tag names representing the path from root to element
    */
   private _getParentBranchPath(element: DOMElementNode): string[] {
     const parents: DOMElementNode[] = [];
@@ -679,7 +844,11 @@ export class DomService {
   }
 
   /**
-   * Hash a string using SHA256
+   * Hashes a string using SHA256 (internal use).
+   * This method provides a consistent hashing mechanism for creating element fingerprints.
+   * 
+   * @param input - String to hash
+   * @returns SHA256 hash digest as hexadecimal string
    */
   private _hashString(input: string): string {
     return createHash('sha256').update(input).digest('hex');
@@ -687,6 +856,9 @@ export class DomService {
 
   /**
    * Log performance metrics from DOM analysis
+   * 
+   * @param url - The URL of the page being analyzed
+   * @param evalPage - JSEvalResult containing performance metrics data
    */
   private logPerformanceMetrics(url: string, evalPage: JSEvalResult): void {
     const perf = evalPage.perfMetrics;
@@ -713,7 +885,24 @@ export class DomService {
   // ==================== Text Processing Methods ====================
 
   /**
+   * Cap text length with ellipsis
+   * 
+   * @param text - The text to potentially truncate
+   * @param maxLength - Maximum length before truncation
+   * @returns string that is at most maxLength characters with ellipsis if truncated
+   */
+  private capTextLength(text: string, maxLength: number): string {
+    if (text.length <= maxLength) {
+      return text;
+    }
+    return text.substring(0, maxLength - 3) + '...';
+  }
+
+  /**
    * Check if a node has a parent with highlight index
+   * 
+   * @param node - DOMNode to check for highlighted parent
+   * @returns boolean indicating whether node has a highlighted parent
    */
   private hasParentWithHighlightIndex(node: DOMNode): boolean {
     let current = node.parent;
@@ -729,6 +918,10 @@ export class DomService {
 
   /**
    * Get all text from a node until the next clickable element
+   * 
+   * @param node - DOMElementNode to extract text from
+   * @param maxDepth - Maximum depth to traverse (default: -1, no limit)
+   * @returns string containing extracted text
    */
   private getAllTextTillNextClickableElement(node: DOMElementNode, maxDepth: number = -1): string {
     const textParts: string[] = [];
@@ -754,15 +947,5 @@ export class DomService {
 
     collectText(node, 0);
     return textParts.join('\n').trim();
-  }
-
-  /**
-   * Cap text length with ellipsis
-   */
-  private capTextLength(text: string, maxLength: number): string {
-    if (text.length <= maxLength) {
-      return text;
-    }
-    return text.substring(0, maxLength - 3) + '...';
   }
 }
