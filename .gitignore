@@ -34,3 +34,5 @@ yarn.lock
 
 #project tools
 .roo/
+
+.crush/

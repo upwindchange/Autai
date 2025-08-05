@@ -1,6 +1,7 @@
 import { WebContentsView, BrowserWindow, Rectangle } from "electron";
 import { EventEmitter } from "events";
 import type { ThreadId, ViewId, ThreadViewState } from "@shared/index";
+import { getIndexScript } from "../scripts/indexLoader";
 
 interface ViewMetadata {
   id: ViewId;
@@ -131,6 +132,15 @@ export class ThreadViewService extends EventEmitter {
     if (url && url !== "about:blank") {
       await webView.webContents.loadURL(url);
     }
+
+    // Inject index.js script wrapped in IIFE
+    const indexScript = getIndexScript();
+    const wrappedIndexScript = `
+      (function() {
+        window.buildDomTree = ${indexScript};
+      })();
+    `;
+    await webView.webContents.executeJavaScript(wrappedIndexScript);
 
     this.emit("view:created", { viewId, threadId });
     return viewId;

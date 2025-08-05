@@ -16,6 +16,7 @@ import type {
   HashedDomElement,
   CoordinateSet
 } from '@shared/index';
+import { getIndexScript } from '../scripts/indexLoader';
 
 const DEFAULT_INCLUDE_ATTRIBUTES = [
   'title',
@@ -336,15 +337,15 @@ export class DomService {
    * }
    */
   async buildDomTree(args?: Partial<BuildDomTreeArgs>): Promise<DOMExtractionResult> {
+    const defaultArgs: BuildDomTreeArgs = {
+      doHighlightElements: false,
+      focusHighlightIndex: -1,
+      viewportExpansion: 0,
+      debugMode: true
+    };
+    
+    const finalArgs = { ...defaultArgs, ...args };
     try {
-      const defaultArgs: BuildDomTreeArgs = {
-        doHighlightElements: false,
-        focusHighlightIndex: -1,
-        viewportExpansion: 0,
-        debugMode: true
-      };
-      
-      const finalArgs = { ...defaultArgs, ...args };
       
       // Execute the buildDomTree function from the injected index.js
       const script = `
@@ -360,10 +361,42 @@ export class DomService {
       const result = await this.webContents.executeJavaScript(script);
       return { success: true, data: result };
     } catch (error) {
+      // If the function is not found, try to inject the script and retry
+      if (error instanceof Error && error.message.includes('buildDomTree function not found')) {
+        try {
+          // Inject the script as a fallback
+          const indexScript = getIndexScript();
+          const wrappedIndexScript = `
+            (function() {
+              window.buildDomTree = ${indexScript};
+            })();
+          `;
+          await this.webContents.executeJavaScript(wrappedIndexScript);
+          
+          // Retry the buildDomTree execution
+          const retryScript = `
+            (function() {
+              if (typeof buildDomTree === 'function') {
+                buildDomTree(${JSON.stringify(finalArgs)});
+              } else {
+                throw new Error('buildDomTree function still not found after injection.');
+              }
+            })()
+          `;
+          
+          const result = await this.webContents.executeJavaScript(retryScript);
+          return { success: true, data: result };
+        } catch (injectionError) {
+          return {
+            success: false,
+            error: injectionError instanceof Error ? injectionError.message : "Failed to build DOM tree even after script injection",
+          };
+        }
+      }
+      
       return {
         success: false,
-        error:
-          error instanceof Error ? error.message : "Failed to build DOM tree",
+        error: error instanceof Error ? error.message : "Failed to build DOM tree",
       };
     }
   }

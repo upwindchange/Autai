@@ -1,0 +1,31 @@
+{
+  "$schema": "https://charm.land/crush.json",
+  "providers": {
+    "QuantImpulse": {
+      "type": "openai",
+      "base_url": "https://llm.quantimpulse.com",
+      "api_key": "$ANTHROPIC_AUTH_TOKEN",
+      "models": [
+        {
+          "id": "Qwen-Coder-Turbo",
+          "name": "Qwen-Coder-Turbo",
+          "cost_per_1m_in": 0.3,
+          "cost_per_1m_out": 1.2,
+          "cost_per_1m_in_cached": 0.3,
+          "cost_per_1m_out_cached": 1.2,
+          "context_window": 262144,
+          "default_max_tokens": 262144,
+          "can_reason": false,
+          "has_reasoning_efforts": false,
+          "supports_attachments": false
+        }
+      ]
+    }
+  },
+  "lsp": {
+    "typescript": {
+      "command": "typescript-language-server",
+      "args": ["--stdio"]
+    }
+  }
+}

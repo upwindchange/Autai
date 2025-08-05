@@ -1,0 +1,23 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "QuantImpulse": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "QuantImpulse",
+      "options": {
+        "baseURL": "https://llm.quantimpulse.com",
+        "apiKey": "{env:ANTHROPIC_API_KEY}"
+      },
+      "models": {
+        "Qwen-Coder-Turbo": {
+          "name": "Qwen Coder"
+        },
+        "Qwen": {
+          "name": "Qwen"
+        }
+      }
+    }
+  },
+  "model": "Qwen-Coder-Turbo",
+  "small_model": "Qwen"
+}
