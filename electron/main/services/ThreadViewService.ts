@@ -253,6 +253,10 @@ export class ThreadViewService extends EventEmitter {
   // GETTERS
   // ===================
 
+  getView(viewId: ViewId): WebContentsView | null {
+    return this.views.get(viewId) || null;
+  }
+
   getActiveViewForThread(threadId: ThreadId): ViewId | null {
     const state = this.threadStates.get(threadId);
     return state?.activeViewId || null;

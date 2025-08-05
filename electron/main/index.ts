@@ -8,9 +8,11 @@ import {
   settingsService,
   apiServer,
   ThreadViewService,
+  ViewControlService,
 } from "./services";
 import { SettingsBridge } from "./bridge/SettingsBridge";
 import { ThreadViewBridge } from "./bridge/ThreadViewBridge";
+import { ViewControlBridge } from "./bridge/ViewControlBridge";
 
 const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -46,6 +48,8 @@ if (!app.requestSingleInstanceLock()) {
 let win: BrowserWindow | null = null;
 let settingsBridge: SettingsBridge | null = null;
 let threadViewService: ThreadViewService | null = null;
+let viewControlService: ViewControlService | null = null;
+let viewControlBridge: ViewControlBridge | null = null;
 let threadViewBridge: ThreadViewBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
@@ -76,6 +80,7 @@ async function createWindow() {
    */
   // Initialize thread/view service
   threadViewService = new ThreadViewService(win);
+  viewControlService = new ViewControlService(threadViewService);
   
   // Initialize bridges
   settingsBridge = new SettingsBridge();
@@ -83,6 +88,9 @@ async function createWindow() {
   
   threadViewBridge = new ThreadViewBridge(threadViewService);
   threadViewBridge.setupHandlers();
+  
+  viewControlBridge = new ViewControlBridge(viewControlService);
+  viewControlBridge.setupHandlers();
 
   /**
    * Force external links to open in default browser
@@ -112,10 +120,15 @@ app.on("window-all-closed", async () => {
     threadViewBridge.destroy();
     threadViewBridge = null;
   }
+  if (viewControlBridge) {
+    viewControlBridge.destroy();
+    viewControlBridge = null;
+  }
   if (settingsBridge) {
     settingsBridge.destroy();
     settingsBridge = null;
   }
+  viewControlService = null;
   // Stop API server
   apiServer.stop();
   win = null;
@@ -145,7 +158,7 @@ app.on("activate", () => {
  * Clean up before app quits
  */
 app.on("before-quit", async (event) => {
-  if (settingsBridge || threadViewBridge || threadViewService) {
+  if (settingsBridge || threadViewBridge || threadViewService || viewControlService || viewControlBridge) {
     event.preventDefault();
     if (threadViewService) {
       await threadViewService.destroy();
@@ -155,10 +168,15 @@ app.on("before-quit", async (event) => {
       threadViewBridge.destroy();
       threadViewBridge = null;
     }
+    if (viewControlBridge) {
+      viewControlBridge.destroy();
+      viewControlBridge = null;
+    }
     if (settingsBridge) {
       settingsBridge.destroy();
       settingsBridge = null;
     }
+    viewControlService = null;
     app.quit();
   }
 });
