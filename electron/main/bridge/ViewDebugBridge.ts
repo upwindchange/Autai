@@ -1,5 +1,5 @@
 import { BaseBridge } from "./BaseBridge";
-import { ViewControlService } from "../services/ViewControlService";
+import { ViewControlService, ThreadViewService } from "../services";
 import type { ViewId } from "@shared/index";
 
 interface NavigateCommand {
@@ -11,15 +11,27 @@ interface ViewCommand {
   viewId: ViewId;
 }
 
-export class ViewControlBridge extends BaseBridge {
-  constructor(private viewControlService: ViewControlService) {
+interface SetVisibilityCommand {
+  viewId: ViewId;
+  isVisible: boolean;
+}
+
+interface SetBoundsCommand {
+  viewId: ViewId;
+  bounds: { x: number; y: number; width: number; height: number };
+}
+
+export class ViewDebugBridge extends BaseBridge {
+  constructor(private viewControlService: ViewControlService,
+    private threadViewService: ThreadViewService
+  ) {
     super();
   }
 
   setupHandlers(): void {
     // Navigate to URL
     this.handle<NavigateCommand, { success: boolean; error?: string }>(
-      "view:navigateTo",
+      "debug:threadview:navigateTo",
       async (_, command) => {
         try {
           await this.viewControlService.navigateTo(command.viewId, command.url);
@@ -35,7 +47,7 @@ export class ViewControlBridge extends BaseBridge {
 
     // Refresh current page
     this.handle<ViewCommand, { success: boolean; error?: string }>(
-      "view:refresh",
+      "debug:threadview:refresh",
       async (_, command) => {
         try {
           await this.viewControlService.refresh(command.viewId);
@@ -51,7 +63,7 @@ export class ViewControlBridge extends BaseBridge {
 
     // Go back in navigation history
     this.handle<ViewCommand, { success: boolean; data?: boolean; error?: string }>(
-      "view:goBack",
+      "debug:threadview:goBack",
       async (_, command) => {
         try {
           const result = await this.viewControlService.goBack(command.viewId);
@@ -67,11 +79,43 @@ export class ViewControlBridge extends BaseBridge {
 
     // Go forward in navigation history
     this.handle<ViewCommand, { success: boolean; data?: boolean; error?: string }>(
-      "view:goForward",
+      "debug:threadview:goForward",
       async (_, command) => {
         try {
           const result = await this.viewControlService.goForward(command.viewId);
           return { success: true, data: result };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : "Unknown error",
+          };
+        }
+      }
+    );
+
+    // Set view visibility
+    this.handle<SetVisibilityCommand, { success: boolean; error?: string }>(
+      "debug:threadview:setVisibility",
+      async (_, command) => {
+        try {
+          await this.threadViewService.setFrontendVisibility(command.viewId, command.isVisible);
+          return { success: true };
+        } catch (error) {
+          return {
+            success: false,
+            error: error instanceof Error ? error.message : "Unknown error",
+          };
+        }
+      }
+    );
+
+    // Set view bounds
+    this.handle<SetBoundsCommand, { success: boolean; error?: string }>(
+      "debug:threadview:setBounds",
+      async (_, command) => {
+        try {
+          await this.threadViewService.setBounds(command.viewId, command.bounds);
+          return { success: true };
         } catch (error) {
           return {
             success: false,

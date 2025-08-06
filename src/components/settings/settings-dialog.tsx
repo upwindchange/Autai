@@ -12,10 +12,17 @@ import { Settings2 } from "lucide-react";
 import { SettingsForm } from "./settings-form";
 import { ProfileSelector } from "./profile-selector";
 import { useSettings } from "./settings-context";
+import { ViewDebugTools } from "@/components/debug/view-debug-tools";
 
 export function SettingsDialog() {
   const [open, setOpen] = useState(false);
   const { activeProfile } = useSettings();
+  
+  // Check if debug tools are enabled
+  const isDebugToolsEnabled = () => {
+    const saved = localStorage.getItem("debugToolsEnabled");
+    return saved ? JSON.parse(saved) : false;
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -40,6 +47,7 @@ export function SettingsDialog() {
               onClose={() => setOpen(false)}
             />
           )}
+          {isDebugToolsEnabled() && <ViewDebugTools />}
         </div>
       </DialogContent>
     </Dialog>

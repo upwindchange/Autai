@@ -12,7 +12,7 @@ import {
 } from "./services";
 import { SettingsBridge } from "./bridge/SettingsBridge";
 import { ThreadViewBridge } from "./bridge/ThreadViewBridge";
-import { ViewControlBridge } from "./bridge/ViewControlBridge";
+import { ViewDebugBridge } from "./bridge/ViewDebugBridge";
 
 const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -49,7 +49,7 @@ let win: BrowserWindow | null = null;
 let settingsBridge: SettingsBridge | null = null;
 let threadViewService: ThreadViewService | null = null;
 let viewControlService: ViewControlService | null = null;
-let viewControlBridge: ViewControlBridge | null = null;
+let viewControlBridge: ViewDebugBridge | null = null;
 let threadViewBridge: ThreadViewBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
@@ -89,7 +89,7 @@ async function createWindow() {
   threadViewBridge = new ThreadViewBridge(threadViewService);
   threadViewBridge.setupHandlers();
   
-  viewControlBridge = new ViewControlBridge(viewControlService);
+  viewControlBridge = new ViewDebugBridge(viewControlService, threadViewService);
   viewControlBridge.setupHandlers();
 
   /**

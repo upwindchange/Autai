@@ -10,7 +10,7 @@ export class ThreadViewBridge extends BaseBridge {
   setupHandlers(): void {
     // Thread lifecycle handlers
     this.handle<ThreadId, { success: boolean }>(
-      "thread:created",
+      "threadview:created",
       async (_, threadId) => {
         await this.threadViewService.createThread(threadId);
         return { success: true };
@@ -18,7 +18,7 @@ export class ThreadViewBridge extends BaseBridge {
     );
 
     this.handle<ThreadId, { success: boolean }>(
-      "thread:switched",
+      "threadview:switched",
       async (_, threadId) => {
         await this.threadViewService.switchThread(threadId);
         return { success: true };
@@ -26,7 +26,7 @@ export class ThreadViewBridge extends BaseBridge {
     );
 
     this.handle<ThreadId, { success: boolean }>(
-      "thread:deleted",
+      "threadview:deleted",
       async (_, threadId) => {
         await this.threadViewService.deleteThread(threadId);
         return { success: true };
@@ -35,7 +35,7 @@ export class ThreadViewBridge extends BaseBridge {
 
     // Thread query handlers
     this.handle<ThreadId, { success: boolean; data?: ViewId | null }>(
-      "thread:getActiveView",
+      "threadview:getActiveView",
       async (_, threadId) => {
         const viewId = this.threadViewService.getActiveViewForThread(threadId);
         return { success: true, data: viewId };
@@ -44,7 +44,7 @@ export class ThreadViewBridge extends BaseBridge {
 
     // View visibility handlers
     this.handle<{ viewId: ViewId; isVisible: boolean }, { success: boolean }>(
-      "view:setVisibility",
+      "threadview:setVisibility",
       async (_, { viewId, isVisible }) => {
         await this.threadViewService.setFrontendVisibility(viewId, isVisible);
         return { success: true };
@@ -53,7 +53,7 @@ export class ThreadViewBridge extends BaseBridge {
 
     // View bounds handlers
     this.handle<{ viewId: ViewId; bounds: { x: number; y: number; width: number; height: number } }, { success: boolean }>(
-      "view:setBounds",
+      "threadview:setBounds",
       async (_, { viewId, bounds }) => {
         await this.threadViewService.setBounds(viewId, bounds);
         return { success: true };

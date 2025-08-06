@@ -34,14 +34,22 @@ declare global {
       invoke(channel: "settings:isConfigured"): Promise<boolean>;
 
       // Thread operations
-      invoke(channel: "thread:created", threadId: string): Promise<IPCResult>;
-      invoke(channel: "thread:switched", threadId: string): Promise<IPCResult>;
-      invoke(channel: "thread:deleted", threadId: string): Promise<IPCResult>;
-      invoke(channel: "thread:getActiveView", threadId: string): Promise<{ success: boolean; data?: string | null }>;
+      invoke(channel: "threadview:created", threadId: string): Promise<IPCResult>;
+      invoke(channel: "threadview:switched", threadId: string): Promise<IPCResult>;
+      invoke(channel: "threadview:deleted", threadId: string): Promise<IPCResult>;
+      invoke(channel: "threadview:getActiveView", threadId: string): Promise<{ success: boolean; data?: string | null }>;
 
       // View operations
-      invoke(channel: "view:setVisibility", args: { viewId: string; isVisible: boolean }): Promise<IPCResult>;
-      invoke(channel: "view:setBounds", args: { viewId: string; bounds: { x: number; y: number; width: number; height: number } }): Promise<IPCResult>;
+      invoke(channel: "threadview:setVisibility", args: { viewId: string; isVisible: boolean }): Promise<IPCResult>;
+      invoke(channel: "threadview:setBounds", args: { viewId: string; bounds: { x: number; y: number; width: number; height: number } }): Promise<IPCResult>;
+      
+      // Debug operations
+      invoke(channel: "debug:threadview:navigateTo", args: { viewId: string; url: string }): Promise<IPCResult>;
+      invoke(channel: "debug:threadview:refresh", args: { viewId: string }): Promise<IPCResult>;
+      invoke(channel: "debug:threadview:goBack", args: { viewId: string }): Promise<{ success: boolean; data?: boolean; error?: string }>;
+      invoke(channel: "debug:threadview:goForward", args: { viewId: string }): Promise<{ success: boolean; data?: boolean; error?: string }>;
+      invoke(channel: "debug:threadview:setVisibility", args: { viewId: string; isVisible: boolean }): Promise<IPCResult>;
+      invoke(channel: "debug:threadview:setBounds", args: { viewId: string; bounds: { x: number; y: number; width: number; height: number } }): Promise<IPCResult>;
 
       // Generic invoke (fallback)
       invoke(channel: string, ...args: unknown[]): Promise<unknown>;

@@ -7,7 +7,7 @@ import { useUiStore } from '@/stores/uiStore';
  * When the container is mounted (split view active), the current thread's active view is made visible.
  * When unmounted, the view is hidden.
  * 
- * The backend handles view switching between threads via thread:switched events.
+ * The backend handles view switching between threads via threadview:switched events.
  */
 export function useViewVisibility() {
   const { containerRef } = useUiStore();
@@ -20,13 +20,13 @@ export function useViewVisibility() {
       if (!threadId) return;
       
       // Get the active view for current thread
-      const result = await window.ipcRenderer.invoke('thread:getActiveView', threadId);
+      const result = await window.ipcRenderer.invoke('threadview:getActiveView', threadId);
       
       if (result.success && result.data) {
         const activeViewId = result.data;
         
         // Set visibility
-        await window.ipcRenderer.invoke('view:setVisibility', {
+        await window.ipcRenderer.invoke('threadview:setVisibility', {
           viewId: activeViewId,
           isVisible
         });

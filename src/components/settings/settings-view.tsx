@@ -1,6 +1,7 @@
 import { SettingsForm } from "./settings-form";
 import { ProfileSelector } from "./profile-selector";
 import { useSettings } from "./settings-context";
+import { ViewDebugTools } from "@/components/debug/view-debug-tools";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -10,6 +11,12 @@ interface SettingsViewProps {
 
 export function SettingsView({ onClose }: SettingsViewProps) {
   const { activeProfile } = useSettings();
+  
+  // Check if debug tools are enabled
+  const isDebugToolsEnabled = () => {
+    const saved = localStorage.getItem("debugToolsEnabled");
+    return saved ? JSON.parse(saved) : false;
+  };
 
   return (
     <div className="absolute inset-0 flex flex-col bg-background">
@@ -38,6 +45,7 @@ export function SettingsView({ onClose }: SettingsViewProps) {
               onClose={onClose}
             />
           )}
+          {isDebugToolsEnabled() && <ViewDebugTools />}
         </div>
       </div>
     </div>

@@ -34,6 +34,19 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
     simpleModel: profile.settings.simpleModel,
   });
 
+  // Simple state for debug tools - independent of profiles
+  const [debugToolsEnabled, setDebugToolsEnabled] = useState(() => {
+    // Load from localStorage or default to false
+    const saved = localStorage.getItem("debugToolsEnabled");
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  const toggleDebugTools = () => {
+    const newValue = !debugToolsEnabled;
+    setDebugToolsEnabled(newValue);
+    localStorage.setItem("debugToolsEnabled", JSON.stringify(newValue));
+  };
+
   useEffect(() => {
     setFormData({
       name: profile.name,
@@ -205,6 +218,31 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
               }
               placeholder="gpt-3.5-turbo, claude-3-haiku, etc."
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Debug Tools</CardTitle>
+          <CardDescription>
+            Enable debugging tools for development and troubleshooting
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label htmlFor="enable-debug-tools">Enable Debug Tools</Label>
+              <p className="text-sm text-muted-foreground">
+                Toggle debugging features for development purposes
+              </p>
+            </div>
+            <Button 
+              variant={debugToolsEnabled ? "default" : "outline"}
+              onClick={toggleDebugTools}
+            >
+              {debugToolsEnabled ? "Enabled" : "Enable Debug Tools"}
+            </Button>
           </div>
         </CardContent>
       </Card>

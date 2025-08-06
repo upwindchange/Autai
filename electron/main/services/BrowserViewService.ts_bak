@@ -386,7 +386,7 @@ export class BrowserViewService {
   async switchToView(viewId: ViewId): Promise<void> {
     const webView = this.views.get(viewId);
     if (!webView) {
-      console.warn(`Cannot switch to non-existent view: ${viewId}`);
+      console.warn(`Cannot switch to non-existent threadview: ${viewId}`);
       return;
     }
 
@@ -642,7 +642,7 @@ export class BrowserViewService {
   // EVENT HANDLING
   // ===================
 
-  onViewCreated(callback: (view: ViewInfo) => void): () => void {
+  onViewCreated(callback: (threadview: ViewInfo) => void): () => void {
     this.eventEmitter.on("created", callback);
     return () => this.eventEmitter.off("created", callback);
   }

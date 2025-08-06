@@ -142,7 +142,7 @@ export class ThreadViewService extends EventEmitter {
     `;
     await webView.webContents.executeJavaScript(wrappedIndexScript);
 
-    this.emit("view:created", { viewId, threadId });
+    this.emit("threadview:created", { viewId, threadId });
     return viewId;
   }
 
@@ -183,7 +183,7 @@ export class ThreadViewService extends EventEmitter {
     this.views.delete(viewId);
     this.viewMetadata.delete(viewId);
 
-    this.emit("view:destroyed", viewId);
+    this.emit("threadview:destroyed", viewId);
   }
 
   // ===================
