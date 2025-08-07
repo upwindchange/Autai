@@ -1,4 +1,4 @@
-import { ipcMain, IpcMainInvokeEvent } from "electron";
+import { ipcMain, IpcMainInvokeEvent, IpcMainEvent } from "electron";
 
 /**
  * Base class for all IPC bridge implementations.
@@ -6,6 +6,7 @@ import { ipcMain, IpcMainInvokeEvent } from "electron";
  */
 export abstract class BaseBridge {
   protected handlers: Map<string, string> = new Map();
+  protected onHandlers: Map<string, string> = new Map();
 
   /**
    * Setup IPC handlers. Must be implemented by subclasses.
@@ -38,6 +39,27 @@ export abstract class BaseBridge {
   }
 
   /**
+   * Register an IPC handler for send operations (no return value)
+   */
+  protected on<TCommand = unknown>(
+    channel: string,
+    handler: (event: IpcMainEvent, command: TCommand) => Promise<void> | void
+  ): void {
+    this.onHandlers.set(channel, channel);
+
+    ipcMain.on(
+      channel,
+      async (event: IpcMainEvent, command: TCommand) => {
+        try {
+          await handler(event, command);
+        } catch (error) {
+          console.error(`Error in ${channel}:`, error);
+        }
+      }
+    );
+  }
+
+  /**
    * Clean up all registered handlers
    */
   destroy(): void {
@@ -45,5 +67,10 @@ export abstract class BaseBridge {
       ipcMain.removeHandler(channel);
     });
     this.handlers.clear();
+    
+    this.onHandlers.forEach((_, channel) => {
+      ipcMain.removeAllListeners(channel);
+    });
+    this.onHandlers.clear();
   }
 }

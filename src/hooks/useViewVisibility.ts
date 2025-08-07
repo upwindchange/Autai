@@ -25,8 +25,8 @@ export function useViewVisibility() {
       if (result.success && result.data) {
         const activeViewId = result.data;
         
-        // Set visibility
-        await window.ipcRenderer.invoke('threadview:setVisibility', {
+        // Set visibility (now using send since it's one-way)
+        window.ipcRenderer.send('threadview:setVisibility', {
           viewId: activeViewId,
           isVisible
         });

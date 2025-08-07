@@ -133,15 +133,32 @@ export class ThreadViewService extends EventEmitter {
       await webView.webContents.loadURL(url);
     }
 
-    // Inject index.js script wrapped in IIFE
+    // Inject index.js script when page is ready
     const indexScript = getIndexScript();
     const wrappedIndexScript = `
-      (function() {
-        window.buildDomTree = ${indexScript};
-      })();
+      window.buildDomTree = ${indexScript};
     `;
-    await webView.webContents.executeJavaScript(wrappedIndexScript);
+    
+    // Page load completion - inject scripts
+    const loadHandler = async () => {
+      try {
+        // Inject index.js script wrapped in IIFE
+        const indexScript = getIndexScript();
+        const wrappedIndexScript = `
+          (function() {
+            window.buildDomTree = ${indexScript};
+          })();
+        `;
+        await webView.webContents.executeJavaScript(wrappedIndexScript);
 
+        console.log(`Successfully injected scripts for view ${viewId}`);
+      } catch (error) {
+        console.error("Failed to inject scripts:", error);
+      }
+    };
+    webView.webContents.once("did-finish-load", loadHandler);
+
+    console.log("threadview:created", viewId, threadId);
     this.emit("threadview:created", { viewId, threadId });
     return viewId;
   }

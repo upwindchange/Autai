@@ -246,15 +246,3 @@ export const DOMStateDiffSchema = z.object({
 
 export type DOMStateDiff = z.infer<typeof DOMStateDiffSchema>;
 
-/**
- * Result of DOM extraction and manipulation operations
- */
-export const DOMExtractionResultSchema = z.object({
-  success: z.boolean(),
-  data: z.unknown().optional(),
-  error: z.string().optional(),
-  extractedContent: z.string().optional(),
-  screenshot: z.instanceof(Buffer).optional(),
-});
-
-export type DOMExtractionResult = z.infer<typeof DOMExtractionResultSchema>;

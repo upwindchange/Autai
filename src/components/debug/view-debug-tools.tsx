@@ -12,16 +12,14 @@ export function ViewDebugTools() {
 
   const handleNavigate = async () => {
     try {
-      const response: any = await window.ipcRenderer.invoke("debug:threadview:navigateTo", {
+      window.ipcRenderer.send("debug:threadview:navigateTo", {
         viewId,
         url,
       });
       
       setResult({
-        success: response.success,
-        message: response.success 
-          ? `Successfully navigated to ${url}` 
-          : `Navigation failed: ${response.error || "Unknown error"}`
+        success: true,
+        message: `Navigation command sent to ${url}`
       });
     } catch (error) {
       setResult({
@@ -33,15 +31,13 @@ export function ViewDebugTools() {
 
   const handleRefresh = async () => {
     try {
-      const response: any = await window.ipcRenderer.invoke("debug:threadview:refresh", {
+      window.ipcRenderer.send("debug:threadview:refresh", {
         viewId,
       });
       
       setResult({
-        success: response.success,
-        message: response.success 
-          ? "View refreshed successfully" 
-          : `Refresh failed: ${response.error || "Unknown error"}`
+        success: true,
+        message: "Refresh command sent"
       });
     } catch (error) {
       setResult({
@@ -53,15 +49,13 @@ export function ViewDebugTools() {
 
   const handleGoBack = async () => {
     try {
-      const response: any = await window.ipcRenderer.invoke("debug:threadview:goBack", {
+      window.ipcRenderer.send("debug:threadview:goBack", {
         viewId,
       });
       
       setResult({
-        success: response.success,
-        message: response.success 
-          ? "Navigated back successfully" 
-          : `Go back failed: ${response.error || "Unknown error"}`
+        success: true,
+        message: "Go back command sent"
       });
     } catch (error) {
       setResult({
@@ -73,15 +67,13 @@ export function ViewDebugTools() {
 
   const handleGoForward = async () => {
     try {
-      const response: any = await window.ipcRenderer.invoke("debug:threadview:goForward", {
+      window.ipcRenderer.send("debug:threadview:goForward", {
         viewId,
       });
       
       setResult({
-        success: response.success,
-        message: response.success 
-          ? "Navigated forward successfully" 
-          : `Go forward failed: ${response.error || "Unknown error"}`
+        success: true,
+        message: "Go forward command sent"
       });
     } catch (error) {
       setResult({
@@ -93,16 +85,14 @@ export function ViewDebugTools() {
 
   const handleSetVisibility = async (isVisible: boolean) => {
     try {
-      const response: any = await window.ipcRenderer.invoke("debug:threadview:setVisibility", {
+      window.ipcRenderer.send("debug:threadview:setVisibility", {
         viewId,
         isVisible,
       });
       
       setResult({
-        success: response.success,
-        message: response.success 
-          ? `View visibility set to ${isVisible}` 
-          : `Set visibility failed: ${response.error || "Unknown error"}`
+        success: true,
+        message: `View visibility command sent: ${isVisible}`
       });
     } catch (error) {
       setResult({
@@ -114,16 +104,14 @@ export function ViewDebugTools() {
 
   const handleSetBounds = async () => {
     try {
-      const response: any = await window.ipcRenderer.invoke("debug:threadview:setBounds", {
+      window.ipcRenderer.send("debug:threadview:setBounds", {
         viewId,
         bounds,
       });
       
       setResult({
-        success: response.success,
-        message: response.success 
-          ? "View bounds updated successfully" 
-          : `Set bounds failed: ${response.error || "Unknown error"}`
+        success: true,
+        message: "View bounds command sent"
       });
     } catch (error) {
       setResult({

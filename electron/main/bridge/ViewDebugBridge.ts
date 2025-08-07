@@ -29,98 +29,74 @@ export class ViewDebugBridge extends BaseBridge {
   }
 
   setupHandlers(): void {
-    // Navigate to URL
-    this.handle<NavigateCommand, { success: boolean; error?: string }>(
+    // Navigate to URL (one-way, no response needed)
+    this.on<NavigateCommand>(
       "debug:threadview:navigateTo",
       async (_, command) => {
         try {
           await this.viewControlService.navigateTo(command.viewId, command.url);
-          return { success: true };
         } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : "Unknown error",
-          };
+          console.error("Navigation failed:", error);
         }
       }
     );
 
-    // Refresh current page
-    this.handle<ViewCommand, { success: boolean; error?: string }>(
+    // Refresh current page (one-way, no response needed)
+    this.on<ViewCommand>(
       "debug:threadview:refresh",
       async (_, command) => {
         try {
           await this.viewControlService.refresh(command.viewId);
-          return { success: true };
         } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : "Unknown error",
-          };
+          console.error("Refresh failed:", error);
         }
       }
     );
 
-    // Go back in navigation history
-    this.handle<ViewCommand, { success: boolean; data?: boolean; error?: string }>(
+    // Go back in navigation history (one-way, no response needed)
+    this.on<ViewCommand>(
       "debug:threadview:goBack",
       async (_, command) => {
         try {
-          const result = await this.viewControlService.goBack(command.viewId);
-          return { success: true, data: result };
+          await this.viewControlService.goBack(command.viewId);
         } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : "Unknown error",
-          };
+          console.error("Go back failed:", error);
         }
       }
     );
 
-    // Go forward in navigation history
-    this.handle<ViewCommand, { success: boolean; data?: boolean; error?: string }>(
+    // Go forward in navigation history (one-way, no response needed)
+    this.on<ViewCommand>(
       "debug:threadview:goForward",
       async (_, command) => {
         try {
-          const result = await this.viewControlService.goForward(command.viewId);
-          return { success: true, data: result };
+          await this.viewControlService.goForward(command.viewId);
         } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : "Unknown error",
-          };
+          console.error("Go forward failed:", error);
         }
       }
     );
 
-    // Set view visibility
-    this.handle<SetVisibilityCommand, { success: boolean; error?: string }>(
+    // Set view visibility (one-way, no response needed)
+    this.on<SetVisibilityCommand>(
       "debug:threadview:setVisibility",
       async (_, command) => {
         try {
           await this.threadViewService.setFrontendVisibility(command.viewId, command.isVisible);
-          return { success: true };
         } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : "Unknown error",
-          };
+          console.error("Set visibility failed:", error);
         }
       }
     );
 
-    // Set view bounds
-    this.handle<SetBoundsCommand, { success: boolean; error?: string }>(
+    // Set view bounds (one-way, no response needed)
+    this.on<SetBoundsCommand>(
       "debug:threadview:setBounds",
       async (_, command) => {
         try {
           await this.threadViewService.setBounds(command.viewId, command.bounds);
-          return { success: true };
         } catch (error) {
-          return {
-            success: false,
-            error: error instanceof Error ? error.message : "Unknown error",
-          };
+          console.error("Set bounds failed:", error);
         }
       }
     );

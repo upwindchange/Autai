@@ -11,12 +11,20 @@ import type {
   JSNodeData,
   JSEvalResult,
   ViewportInfo,
-  DOMExtractionResult,
   PageInfo,
   HashedDomElement,
   CoordinateSet
 } from '@shared/index';
 import { getIndexScript } from '../scripts/indexLoader';
+
+// Result of DOM extraction and manipulation operations
+interface DOMExtractionResult {
+  success: boolean;
+  data?: unknown;
+  error?: string;
+  extractedContent?: string;
+  screenshot?: Buffer;
+}
 
 const DEFAULT_INCLUDE_ATTRIBUTES = [
   'title',

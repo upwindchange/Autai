@@ -10,6 +10,7 @@ export function useThreadLifecycle() {
   const previousThreadIdRef = useRef<string | null>(null);
   
   useEffect(() => {
+    console.log("useThreadLifecycle hook triggered")
     // Check if runtime has thread support
     if (!runtime.threads?.mainItem) {
       console.warn('[useThreadLifecycle] Runtime does not support thread management');
@@ -20,7 +21,7 @@ export function useThreadLifecycle() {
       // Initial thread setup - use mainItem to get current thread ID
       const currentThreadId = runtime.threads.mainItem.getState().id;
       if (currentThreadId) {
-        window.ipcRenderer.invoke('threadview:created', currentThreadId);
+        window.ipcRenderer.send('threadview:created', currentThreadId);
         previousThreadIdRef.current = currentThreadId;
       }
       
@@ -32,12 +33,12 @@ export function useThreadLifecycle() {
         if (currentThreadId !== previousThreadId) {
           if (currentThreadId) {
             // Thread switched
-            window.ipcRenderer.invoke('threadview:switched', currentThreadId);
+            window.ipcRenderer.send('threadview:switched', currentThreadId);
             
             // Check if this is a new thread creation
             const threadsState = runtime.threads.getState();
             if (threadsState.newThread === currentThreadId) {
-              window.ipcRenderer.invoke('threadview:created', currentThreadId);
+              window.ipcRenderer.send('threadview:created', currentThreadId);
             }
           }
           
@@ -49,7 +50,7 @@ export function useThreadLifecycle() {
         unsubscribe();
         // Cleanup: notify if thread is being destroyed
         if (previousThreadIdRef.current) {
-          window.ipcRenderer.invoke('threadview:deleted', previousThreadIdRef.current);
+          window.ipcRenderer.send('threadview:deleted', previousThreadIdRef.current);
         }
       };
     } catch (error) {
