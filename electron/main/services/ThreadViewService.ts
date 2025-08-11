@@ -36,6 +36,7 @@ export class ThreadViewService extends EventEmitter {
 
   async createThread(threadId: ThreadId): Promise<void> {
     if (this.threadStates.has(threadId)) {
+      this.activeThreadId = threadId;
       return;
     }
 
@@ -45,6 +46,7 @@ export class ThreadViewService extends EventEmitter {
       activeViewId: null,
     });
 
+    this.activeThreadId = threadId;
     // Create initial view for the thread
     const viewId = await this.createView({ threadId });
     
@@ -116,7 +118,7 @@ export class ThreadViewService extends EventEmitter {
 
     // Add to window but keep hidden initially
     this.win.contentView.addChildView(webView);
-    webView.setVisible(false);
+    this.updateViewVisibility(viewId);
     
     if (bounds) {
       webView.setBounds(bounds);
@@ -132,12 +134,6 @@ export class ThreadViewService extends EventEmitter {
     if (url && url !== "about:blank") {
       await webView.webContents.loadURL(url);
     }
-
-    // Inject index.js script when page is ready
-    const indexScript = getIndexScript();
-    const wrappedIndexScript = `
-      window.buildDomTree = ${indexScript};
-    `;
     
     // Page load completion - inject scripts
     const loadHandler = async () => {
@@ -233,6 +229,8 @@ export class ThreadViewService extends EventEmitter {
     const threadState = this.threadStates.get(metadata.threadId);
     const isActiveView = threadState?.activeViewId === viewId;
 
+    console.log(`${metadata.threadId}, ${this.activeThreadId}, ${threadState?.activeViewId}, ${viewId}, ${metadata.frontendVisibility}, ${metadata.backendVisibility}`);
+    
     // View is visible only if:
     // 1. It belongs to the active thread
     // 2. It's the active view of that thread
@@ -248,21 +246,25 @@ export class ThreadViewService extends EventEmitter {
       // Show this view
       webView.setBounds(metadata.bounds);
       webView.setVisible(true);
+      console.log(`view ${viewId} is set to be visible`);
+      
     } else {
       webView.setVisible(false);
+      console.log(`view ${viewId} is set to be invisible`);
     }
   }
-
+  
   async setBounds(viewId: ViewId, bounds: Rectangle): Promise<void> {
     const webView = this.views.get(viewId);
     const metadata = this.viewMetadata.get(viewId);
     if (!webView || !metadata) return;
-
+    
     metadata.bounds = bounds;
     
     // Apply bounds if view is visible
     if (webView.getVisible()) {
       webView.setBounds(bounds);
+      console.log(`view ${viewId} bounds is set to ${bounds}`);
     }
   }
 
@@ -295,11 +297,11 @@ export class ThreadViewService extends EventEmitter {
   private async hideAllViewsExcept(exceptViewId?: ViewId): Promise<void> {
     const hidePromises: Promise<void>[] = [];
 
-    this.views.forEach((view, id) => {
-      if (id !== exceptViewId && view.getVisible()) {
+    this.views.forEach((view, viewId) => {
+      if (viewId !== exceptViewId && view.getVisible()) {
         hidePromises.push(
           Promise.resolve().then(() => {
-            view.setVisible(false);
+            this.setBackendVisibility(viewId, false);
           })
         );
       }
@@ -315,7 +317,7 @@ export class ThreadViewService extends EventEmitter {
     for (const viewId of state.viewIds) {
       const webView = this.views.get(viewId);
       if (webView?.getVisible()) {
-        webView.setVisible(false);
+        this.setBackendVisibility(viewId, false);
       }
     }
   }

@@ -83,6 +83,7 @@ export class ViewDebugBridge extends BaseBridge {
       async (_, command) => {
         try {
           await this.threadViewService.setFrontendVisibility(command.viewId, command.isVisible);
+          await this.threadViewService.setBackendVisibility(command.viewId, command.isVisible);
         } catch (error) {
           console.error("Set visibility failed:", error);
         }
