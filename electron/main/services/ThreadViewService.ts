@@ -7,7 +7,6 @@ interface ViewMetadata {
   id: ViewId;
   threadId: ThreadId;
   url: string;
-  bounds: Rectangle;
   frontendVisibility: boolean;
   backendVisibility: boolean;
 }
@@ -21,8 +20,10 @@ interface CreateViewOptions {
 export class ThreadViewService extends EventEmitter {
   private views = new Map<ViewId, WebContentsView>();
   private viewMetadata = new Map<ViewId, ViewMetadata>();
+  private viewBounds: Rectangle = { x: 0, y: 0, width: 1920, height: 1080 };
   private threadStates = new Map<ThreadId, ThreadViewState>();
   private activeThreadId: ThreadId | null = null;
+  private activeView: WebContentsView | null = null;
   private win: BrowserWindow;
 
   constructor(win: BrowserWindow) {
@@ -40,6 +41,7 @@ export class ThreadViewService extends EventEmitter {
       return;
     }
 
+    // Initialize thread state
     this.threadStates.set(threadId, {
       threadId,
       viewIds: [],
@@ -47,12 +49,12 @@ export class ThreadViewService extends EventEmitter {
     });
 
     this.activeThreadId = threadId;
-    // Create initial view for the thread
+
+    // Create initial view and set as active view for the thread
     const viewId = await this.createView({ threadId });
-    
-    // Set as active view for the thread
     const state = this.threadStates.get(threadId)!;
     state.activeViewId = viewId;
+    this.activeView = this.views.get(viewId) || null;
   }
 
   async switchThread(threadId: ThreadId): Promise<void> {
@@ -64,9 +66,13 @@ export class ThreadViewService extends EventEmitter {
     this.activeThreadId = threadId;
 
     // Show active view of new thread (respecting visibility rules)
-    const state = this.threadStates.get(threadId);
-    if (state?.activeViewId) {
-      await this.updateViewVisibility(state.activeViewId);
+    const activeViewId = this.getActiveViewForThread(threadId);
+    if (activeViewId) {
+      this.activeView = this.views.get(activeViewId) || null;
+      await this.updateViewVisibility(activeViewId);
+    } else {
+      // No active view for this thread, clear the active view reference
+      this.activeView = null;
     }
   }
 
@@ -83,7 +89,14 @@ export class ThreadViewService extends EventEmitter {
 
     // Clear active thread if it was deleted
     if (this.activeThreadId === threadId) {
-      this.activeThreadId = null;
+      // Get the first available thread as the new active thread
+      const firstState = this.threadStates.values().next().value;
+      this.activeThreadId = firstState?.threadId || null;
+      if (firstState?.activeViewId) {
+        this.activeView = this.views.get(firstState.activeViewId) || null;
+      } else {
+        this.activeView = null;
+      }
     }
   }
 
@@ -93,7 +106,9 @@ export class ThreadViewService extends EventEmitter {
 
   async createView(options: CreateViewOptions): Promise<ViewId> {
     const { threadId, url = "about:blank", bounds } = options;
-    const viewId = `view-${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+    const viewId = `view-${Date.now()}-${Math.random()
+      .toString(36)
+      .substring(2, 11)}`;
 
     // Create WebContentsView
     const webView = new WebContentsView({
@@ -111,18 +126,14 @@ export class ThreadViewService extends EventEmitter {
       id: viewId,
       threadId,
       url,
-      bounds: bounds || { x: 0, y: 0, width: 1920, height: 1080 },
       frontendVisibility: false, // Default to not visible from frontend
-      backendVisibility: true,   // Default to visible from backend
+      backendVisibility: true, // Default to visible from backend
     });
+    this.viewBounds = bounds || { x: 0, y: 0, width: 1920, height: 1080 };
 
     // Add to window but keep hidden initially
     this.win.contentView.addChildView(webView);
     this.updateViewVisibility(viewId);
-    
-    if (bounds) {
-      webView.setBounds(bounds);
-    }
 
     // Update thread state
     const threadState = this.threadStates.get(threadId);
@@ -134,9 +145,9 @@ export class ThreadViewService extends EventEmitter {
     if (url && url !== "about:blank") {
       await webView.webContents.loadURL(url);
     }
-    
+
     // Page load completion - inject scripts
-    const loadHandler = async () => {
+    webView.webContents.once("did-finish-load", async () => {
       try {
         // Inject index.js script wrapped in IIFE
         const indexScript = getIndexScript();
@@ -146,13 +157,11 @@ export class ThreadViewService extends EventEmitter {
           })();
         `;
         await webView.webContents.executeJavaScript(wrappedIndexScript);
-
         console.log(`Successfully injected scripts for view ${viewId}`);
       } catch (error) {
         console.error("Failed to inject scripts:", error);
       }
-    };
-    webView.webContents.once("did-finish-load", loadHandler);
+    });
 
     console.log("threadview:created", viewId, threadId);
     this.emit("threadview:created", { viewId, threadId });
@@ -172,7 +181,10 @@ export class ThreadViewService extends EventEmitter {
         webView.webContents.close({ waitForBeforeUnload: false });
         webView.webContents.forcefullyCrashRenderer();
       } catch (error) {
-        console.error(`Error cleaning up WebContents for view ${viewId}:`, error);
+        console.error(
+          `Error cleaning up WebContents for view ${viewId}:`,
+          error
+        );
       }
     }
 
@@ -184,11 +196,22 @@ export class ThreadViewService extends EventEmitter {
     }
 
     // Update thread state
-    const threadState = this.threadStates.get(metadata.threadId);
-    if (threadState) {
-      threadState.viewIds = threadState.viewIds.filter(id => id !== viewId);
-      if (threadState.activeViewId === viewId) {
-        threadState.activeViewId = threadState.viewIds[0] || null;
+    const state = this.threadStates.get(metadata.threadId);
+    if (state) {
+      // Remove viewId from thread's viewIds array
+      const viewIndex = state.viewIds.indexOf(viewId);
+      if (viewIndex > -1) {
+        state.viewIds.splice(viewIndex, 1);
+      }
+      
+      // If this was the active view, select a new active view
+      if (state.activeViewId === viewId) {
+        state.activeViewId = state.viewIds.length > 0 ? state.viewIds[0] : null;
+        if (this.activeThreadId === metadata.threadId) {
+          this.activeView = state.activeViewId 
+            ? this.views.get(state.activeViewId) || null 
+            : null;
+        }
       }
     }
 
@@ -203,7 +226,10 @@ export class ThreadViewService extends EventEmitter {
   // VISIBILITY MANAGEMENT
   // ===================
 
-  async setFrontendVisibility(viewId: ViewId, isVisible: boolean): Promise<void> {
+  async setFrontendVisibility(
+    viewId: ViewId,
+    isVisible: boolean
+  ): Promise<void> {
     const metadata = this.viewMetadata.get(viewId);
     if (!metadata) return;
 
@@ -211,7 +237,10 @@ export class ThreadViewService extends EventEmitter {
     await this.updateViewVisibility(viewId);
   }
 
-  async setBackendVisibility(viewId: ViewId, isVisible: boolean): Promise<void> {
+  async setBackendVisibility(
+    viewId: ViewId,
+    isVisible: boolean
+  ): Promise<void> {
     const metadata = this.viewMetadata.get(viewId);
     if (!metadata) return;
 
@@ -229,42 +258,35 @@ export class ThreadViewService extends EventEmitter {
     const threadState = this.threadStates.get(metadata.threadId);
     const isActiveView = threadState?.activeViewId === viewId;
 
-    console.log(`${metadata.threadId}, ${this.activeThreadId}, ${threadState?.activeViewId}, ${viewId}, ${metadata.frontendVisibility}, ${metadata.backendVisibility}`);
-    
     // View is visible only if:
     // 1. It belongs to the active thread
     // 2. It's the active view of that thread
     // 3. Both frontend and backend visibility are true
-    const shouldBeVisible = isActiveThread && isActiveView && 
-                          metadata.frontendVisibility && 
-                          metadata.backendVisibility;
+    const shouldBeVisible =
+      isActiveThread &&
+      isActiveView &&
+      metadata.frontendVisibility &&
+      metadata.backendVisibility;
 
     if (shouldBeVisible) {
       // Hide all other views first
       await this.hideAllViewsExcept(viewId);
-      
+
       // Show this view
-      webView.setBounds(metadata.bounds);
+      webView.setBounds(this.viewBounds);
       webView.setVisible(true);
       console.log(`view ${viewId} is set to be visible`);
-      
     } else {
       webView.setVisible(false);
       console.log(`view ${viewId} is set to be invisible`);
     }
   }
-  
-  async setBounds(viewId: ViewId, bounds: Rectangle): Promise<void> {
-    const webView = this.views.get(viewId);
-    const metadata = this.viewMetadata.get(viewId);
-    if (!webView || !metadata) return;
-    
-    metadata.bounds = bounds;
-    
-    // Apply bounds if view is visible
-    if (webView.getVisible()) {
-      webView.setBounds(bounds);
-      console.log(`view ${viewId} bounds is set to ${bounds}`);
+
+  async setBounds(bounds: Rectangle): Promise<void> {
+    this.viewBounds = bounds;
+    // Update bounds for the active view if it exists and is visible
+    if (this.activeView?.getVisible()) {
+      this.activeView.setBounds(bounds);
     }
   }
 
@@ -299,11 +321,8 @@ export class ThreadViewService extends EventEmitter {
 
     this.views.forEach((view, viewId) => {
       if (viewId !== exceptViewId && view.getVisible()) {
-        hidePromises.push(
-          Promise.resolve().then(() => {
-            this.setBackendVisibility(viewId, false);
-          })
-        );
+        // Use setBackendVisibility to properly track the reason for hiding
+        hidePromises.push(this.setBackendVisibility(viewId, false));
       }
     });
 
@@ -314,12 +333,16 @@ export class ThreadViewService extends EventEmitter {
     const state = this.threadStates.get(threadId);
     if (!state) return;
 
+    // Hide all views for this thread by setting backend visibility to false
+    const hidePromises: Promise<void>[] = [];
     for (const viewId of state.viewIds) {
       const webView = this.views.get(viewId);
       if (webView?.getVisible()) {
-        this.setBackendVisibility(viewId, false);
+        hidePromises.push(this.setBackendVisibility(viewId, false));
       }
     }
+    
+    await Promise.all(hidePromises);
   }
 
   // ===================
@@ -327,16 +350,18 @@ export class ThreadViewService extends EventEmitter {
   // ===================
 
   async destroy(): Promise<void> {
-    // Destroy all views
-    const destroyPromises = Array.from(this.views.keys()).map(viewId => 
-      this.destroyView(viewId)
+    // Delete all threads (which will destroy their views)
+    const deletePromises = Array.from(this.threadStates.keys()).map(threadId => 
+      this.deleteThread(threadId)
     );
-    await Promise.all(destroyPromises);
+    await Promise.all(deletePromises);
 
+    // Clean up any remaining views and metadata
     this.views.clear();
     this.viewMetadata.clear();
     this.threadStates.clear();
     this.removeAllListeners();
     this.activeThreadId = null;
+    this.activeView = null;
   }
 }

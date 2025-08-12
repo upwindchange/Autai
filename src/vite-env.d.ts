@@ -8,6 +8,7 @@ import type {
   TestConnectionConfig,
   TestConnectionResult,
 } from "@shared/index";
+import { Rectangle } from "electron";
 
 // Generic result type for IPC operations
 interface IPCResult {
@@ -62,7 +63,7 @@ declare global {
       
       // View operations
       send(channel: "threadview:setVisibility", args: { viewId: string; isVisible: boolean }): void;
-      send(channel: "threadview:setBounds", args: { viewId: string; bounds: { x: number; y: number; width: number; height: number } }): void;
+      send(channel: "threadview:setBounds", args: { viewId: string; bounds: Rectangle }): void;
       
       // Debug operations
       send(channel: "debug:threadview:navigateTo", args: { viewId: string; url: string }): void;
@@ -70,7 +71,7 @@ declare global {
       send(channel: "debug:threadview:goBack", args: { viewId: string }): void;
       send(channel: "debug:threadview:goForward", args: { viewId: string }): void;
       send(channel: "debug:threadview:setVisibility", args: { viewId: string; isVisible: boolean }): void;
-      send(channel: "debug:threadview:setBounds", args: { viewId: string; bounds: { x: number; y: number; width: number; height: number } }): void;
+      send(channel: "debug:threadview:setBounds", args: { bounds: Rectangle }): void;
     };
   }
 }

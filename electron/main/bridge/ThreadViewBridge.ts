@@ -1,6 +1,7 @@
 import { BaseBridge } from "./BaseBridge";
 import { ThreadViewService } from "../services/ThreadViewService";
 import type { ThreadId, ViewId } from "@shared/index";
+import { Rectangle } from "electron";
 
 export class ThreadViewBridge extends BaseBridge {
   constructor(private threadViewService: ThreadViewService) {
@@ -48,10 +49,10 @@ export class ThreadViewBridge extends BaseBridge {
     );
 
     // View bounds handlers (one-way, no response needed)
-    this.on<{ viewId: ViewId; bounds: { x: number; y: number; width: number; height: number } }>(
+    this.on<{ bounds: Rectangle }>(
       "threadview:setBounds",
-      async (_, { viewId, bounds }) => {
-        await this.threadViewService.setBounds(viewId, bounds);
+      async (_, { bounds }) => {
+        await this.threadViewService.setBounds(bounds);
       }
     );
   }

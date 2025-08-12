@@ -20,7 +20,11 @@ import { Button } from "@/components/ui/button";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
-import { CalculatorTool, AnswerTool, DisplayErrorTool } from "@/components/assistant-ui/tool-components";
+import {
+  CalculatorTool,
+  AnswerTool,
+  DisplayErrorTool,
+} from "@/components/assistant-ui/tool-components";
 import { TOOL_NAMES } from "@shared/index";
 import {
   ResizablePanelGroup,
@@ -37,26 +41,27 @@ interface ThreadProps {
 export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
   const workspaceRef = useRef<HTMLDivElement>(null);
   const { setContainerRef, setContainerBounds } = useUiStore();
-  
+
   // Sync view visibility with container state
   useViewVisibility();
 
   useEffect(() => {
     if (showSplitView && workspaceRef.current) {
       setContainerRef(workspaceRef.current);
-      
+
       // Set initial bounds
-      const rect = workspaceRef.current.getBoundingClientRect();
-      setContainerBounds({ width: rect.width, height: rect.height });
+      const { width, height, x, y } =
+        workspaceRef.current.getBoundingClientRect();
+      setContainerBounds({ width, height, x, y });
 
       // Set up resize observer
       const resizeObserver = new ResizeObserver((entries) => {
         for (const entry of entries) {
-          const { width, height } = entry.contentRect;
-          setContainerBounds({ width, height });
+          const { width, height, x, y } = entry.contentRect;
+          setContainerBounds({ width, height, x, y });
         }
       });
-      
+
       resizeObserver.observe(workspaceRef.current);
 
       return () => {
@@ -92,7 +97,10 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
           </ResizablePanel>
           <ResizableHandle withHandle />
           <ResizablePanel defaultSize={50} minSize={30}>
-            <div ref={workspaceRef} className="h-full bg-muted/30 flex items-center justify-center text-muted-foreground border-r">
+            <div
+              ref={workspaceRef}
+              className="h-full bg-muted/30 flex items-center justify-center text-muted-foreground border-r"
+            >
               <p>Workspace Area</p>
             </div>
           </ResizablePanel>
@@ -240,8 +248,8 @@ const AssistantMessage: FC = () => {
   return (
     <MessagePrimitive.Root className="mb-6 flex flex-col items-start">
       <div className="group relative max-w-[80%] rounded-lg border bg-card px-4 py-2">
-        <MessagePrimitive.Parts 
-          components={{ 
+        <MessagePrimitive.Parts
+          components={{
             Text: MarkdownText,
             tools: {
               by_name: {
@@ -250,8 +258,8 @@ const AssistantMessage: FC = () => {
                 [TOOL_NAMES.DISPLAY_ERROR]: DisplayErrorTool,
               },
               Fallback: ToolFallback,
-            }
-          }} 
+            },
+          }}
         />
         <AssistantActionBar />
       </div>
