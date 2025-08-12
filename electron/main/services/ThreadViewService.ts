@@ -203,13 +203,13 @@ export class ThreadViewService extends EventEmitter {
       if (viewIndex > -1) {
         state.viewIds.splice(viewIndex, 1);
       }
-      
+
       // If this was the active view, select a new active view
       if (state.activeViewId === viewId) {
         state.activeViewId = state.viewIds.length > 0 ? state.viewIds[0] : null;
         if (this.activeThreadId === metadata.threadId) {
-          this.activeView = state.activeViewId 
-            ? this.views.get(state.activeViewId) || null 
+          this.activeView = state.activeViewId
+            ? this.views.get(state.activeViewId) || null
             : null;
         }
       }
@@ -226,15 +226,17 @@ export class ThreadViewService extends EventEmitter {
   // VISIBILITY MANAGEMENT
   // ===================
 
-  async setFrontendVisibility(
-    viewId: ViewId,
-    isVisible: boolean
-  ): Promise<void> {
-    const metadata = this.viewMetadata.get(viewId);
-    if (!metadata) return;
+  async setFrontendVisibility(isVisible: boolean): Promise<void> {
+    if (this.activeThreadId) {
+      const viewId = this.threadStates.get(this.activeThreadId)?.activeViewId;
+      if (viewId) {
+        const metadata = this.viewMetadata.get(viewId);
+        if (!metadata) return;
 
-    metadata.frontendVisibility = isVisible;
-    await this.updateViewVisibility(viewId);
+        metadata.frontendVisibility = isVisible;
+        await this.updateViewVisibility(viewId);
+      }
+    }
   }
 
   async setBackendVisibility(
@@ -341,7 +343,7 @@ export class ThreadViewService extends EventEmitter {
         hidePromises.push(this.setBackendVisibility(viewId, false));
       }
     }
-    
+
     await Promise.all(hidePromises);
   }
 
@@ -351,8 +353,8 @@ export class ThreadViewService extends EventEmitter {
 
   async destroy(): Promise<void> {
     // Delete all threads (which will destroy their views)
-    const deletePromises = Array.from(this.threadStates.keys()).map(threadId => 
-      this.deleteThread(threadId)
+    const deletePromises = Array.from(this.threadStates.keys()).map(
+      (threadId) => this.deleteThread(threadId)
     );
     await Promise.all(deletePromises);
 

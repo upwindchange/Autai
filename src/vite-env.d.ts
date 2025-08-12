@@ -20,7 +20,6 @@ interface IPCResult {
 declare global {
   interface Window {
     ipcRenderer: {
-
       // Settings operations
       invoke(channel: "settings:load"): Promise<SettingsState>;
       invoke(
@@ -35,24 +34,27 @@ declare global {
       invoke(channel: "settings:isConfigured"): Promise<boolean>;
 
       // Thread operations
-      invoke(channel: "threadview:getActiveView", threadId: string): Promise<{ success: boolean; data?: string | null }>;
-      
+      invoke(
+        channel: "threadview:getActiveView",
+        threadId: string
+      ): Promise<{ success: boolean; data?: string | null }>;
+
       // Generic invoke (fallback)
       invoke(channel: string, ...args: unknown[]): Promise<unknown>;
-      
+
       // Event listeners
       on(
         channel: string,
         listener: (event: IpcRendererEvent, ...args: unknown[]) => void
       ): void;
-      
+
       once(
         channel: string,
         listener: (event: IpcRendererEvent, ...args: unknown[]) => void
       ): void;
-      
+
       off(channel: string, listener?: (...args: unknown[]) => void): void;
-      
+
       // Send operations (rarely used in renderer)
       send(channel: string, ...args: unknown[]): void;
 
@@ -60,18 +62,33 @@ declare global {
       send(channel: "threadview:created", threadId: string): void;
       send(channel: "threadview:switched", threadId: string): void;
       send(channel: "threadview:deleted", threadId: string): void;
-      
+
       // View operations
-      send(channel: "threadview:setVisibility", args: { viewId: string; isVisible: boolean }): void;
-      send(channel: "threadview:setBounds", args: { viewId: string; bounds: Rectangle }): void;
-      
+      send(
+        channel: "threadview:setVisibility",
+        args: { isVisible: boolean }
+      ): void;
+      send(channel: "threadview:setBounds", args: { bounds: Rectangle }): void;
+
       // Debug operations
-      send(channel: "debug:threadview:navigateTo", args: { viewId: string; url: string }): void;
+      send(
+        channel: "debug:threadview:navigateTo",
+        args: { viewId: string; url: string }
+      ): void;
       send(channel: "debug:threadview:refresh", args: { viewId: string }): void;
       send(channel: "debug:threadview:goBack", args: { viewId: string }): void;
-      send(channel: "debug:threadview:goForward", args: { viewId: string }): void;
-      send(channel: "debug:threadview:setVisibility", args: { viewId: string; isVisible: boolean }): void;
-      send(channel: "debug:threadview:setBounds", args: { bounds: Rectangle }): void;
+      send(
+        channel: "debug:threadview:goForward",
+        args: { viewId: string }
+      ): void;
+      send(
+        channel: "debug:threadview:setVisibility",
+        args: { viewId: string; isVisible: boolean }
+      ): void;
+      send(
+        channel: "debug:threadview:setBounds",
+        args: { bounds: Rectangle }
+      ): void;
     };
   }
 }

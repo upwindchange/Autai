@@ -10,26 +10,17 @@ export class ThreadViewBridge extends BaseBridge {
 
   setupHandlers(): void {
     // Thread lifecycle handlers (one-way, no response needed)
-    this.on<ThreadId>(
-      "threadview:created",
-      async (_, threadId) => {
-        await this.threadViewService.createThread(threadId);
-      }
-    );
+    this.on<ThreadId>("threadview:created", async (_, threadId) => {
+      await this.threadViewService.createThread(threadId);
+    });
 
-    this.on<ThreadId>(
-      "threadview:switched",
-      async (_, threadId) => {
-        await this.threadViewService.switchThread(threadId);
-      }
-    );
+    this.on<ThreadId>("threadview:switched", async (_, threadId) => {
+      await this.threadViewService.switchThread(threadId);
+    });
 
-    this.on<ThreadId>(
-      "threadview:deleted",
-      async (_, threadId) => {
-        await this.threadViewService.deleteThread(threadId);
-      }
-    );
+    this.on<ThreadId>("threadview:deleted", async (_, threadId) => {
+      await this.threadViewService.deleteThread(threadId);
+    });
 
     // Thread query handlers (need response)
     this.handle<ThreadId, { success: boolean; data?: ViewId | null }>(
@@ -43,8 +34,8 @@ export class ThreadViewBridge extends BaseBridge {
     // View visibility handlers (one-way, no response needed)
     this.on<{ viewId: ViewId; isVisible: boolean }>(
       "threadview:setVisibility",
-      async (_, { viewId, isVisible }) => {
-        await this.threadViewService.setFrontendVisibility(viewId, isVisible);
+      async (_, { isVisible }) => {
+        await this.threadViewService.setFrontendVisibility(isVisible);
       }
     );
 

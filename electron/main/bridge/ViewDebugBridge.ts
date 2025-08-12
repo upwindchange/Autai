@@ -74,10 +74,7 @@ export class ViewDebugBridge extends BaseBridge {
       "debug:threadview:setVisibility",
       async (_, command) => {
         try {
-          await this.threadViewService.setFrontendVisibility(
-            command.viewId,
-            command.isVisible
-          );
+          await this.threadViewService.setFrontendVisibility(command.isVisible);
           await this.threadViewService.setBackendVisibility(
             command.viewId,
             command.isVisible
