@@ -55,9 +55,10 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
       setContainerBounds({ width, height, x, y });
 
       // Set up resize observer
-      const resizeObserver = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          const { width, height, x, y } = entry.contentRect;
+      const resizeObserver = new ResizeObserver(() => {
+        if (workspaceRef.current) {
+          const { width, height, x, y } =
+            workspaceRef.current.getBoundingClientRect();
           setContainerBounds({ width, height, x, y });
         }
       });

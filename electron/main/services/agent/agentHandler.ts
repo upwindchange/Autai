@@ -14,7 +14,7 @@ import {
 } from "ai";
 import * as mathjs from "mathjs";
 import { z } from "zod";
-import { settingsService } from "../SettingsService";
+import { settingsService } from "..";
 import {
   calculateToolSchema,
   answerToolSchema,
@@ -48,9 +48,7 @@ export class AgentHandler {
                          You have access to a calculator tool for evaluating mathematical expressions.
                          When solving math problems, reason step by step and use the calculator when necessary.`;
 
-  async handleChat(
-    request: ChatRequest
-  ): Promise<ReadableStream> {
+  async handleChat(request: ChatRequest): Promise<ReadableStream> {
     const { messages, taskId, toolChoice } = request;
     console.log("[AGENT] Request received:", {
       messagesCount: messages?.length,
@@ -183,9 +181,14 @@ export class AgentHandler {
 
   private repairToolCall = async ({
     toolCall,
-    error
+    error,
   }: {
-    toolCall: { type: 'tool-call'; toolCallId: string; toolName: string; input: string };
+    toolCall: {
+      type: "tool-call";
+      toolCallId: string;
+      toolName: string;
+      input: string;
+    };
     error: NoSuchToolError | InvalidToolInputError;
   }) => {
     console.log("[AGENT:REPAIR] Attempting to repair tool call:", {
@@ -199,9 +202,7 @@ export class AgentHandler {
       return null;
     }
     // Only repair InvalidToolInputError for the answer tool
-    if (
-      !error.message.includes("Invalid input for tool")
-    ) {
+    if (!error.message.includes("Invalid input for tool")) {
       return null;
     }
 
@@ -240,7 +241,7 @@ export class AgentHandler {
 
   private handleStepFinish(stepResult: StepResult<AgentTools>) {
     const { text, toolCalls, toolResults, finishReason, usage } = stepResult;
-    
+
     // Create a simplified log object without problematic type assertions
     const logData = {
       stepText: text,
@@ -260,30 +261,28 @@ export class AgentHandler {
           toolName?: string;
           input?: unknown;
         } = {
-          toolCallId: (tr as Record<string, unknown>).toolCallId as string || '',
+          toolCallId:
+            ((tr as Record<string, unknown>).toolCallId as string) || "",
           result: (tr as Record<string, unknown>).result || null,
         };
-        
+
         // Add optional properties if they exist
-        if ('toolName' in (tr as Record<string, unknown>)) {
+        if ("toolName" in (tr as Record<string, unknown>)) {
           result.toolName = (tr as Record<string, unknown>).toolName as string;
         }
-        if ('input' in (tr as Record<string, unknown>)) {
+        if ("input" in (tr as Record<string, unknown>)) {
           result.input = (tr as Record<string, unknown>).input;
         }
-        
+
         return result;
       }),
       finishReason,
       usage,
     };
-    
+
     console.log(
       "[AGENT:STEP] Step finished:",
-      JSON.stringify(logData,
-        null,
-        2
-      )
+      JSON.stringify(logData, null, 2)
     );
   }
 }

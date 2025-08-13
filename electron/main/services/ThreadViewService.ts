@@ -105,7 +105,7 @@ export class ThreadViewService extends EventEmitter {
   // ===================
 
   async createView(options: CreateViewOptions): Promise<ViewId> {
-    const { threadId, url = "about:blank", bounds } = options;
+    const { threadId, url = "https://www.x.com", bounds } = options;
     const viewId = `view-${Date.now()}-${Math.random()
       .toString(36)
       .substring(2, 11)}`;
@@ -142,8 +142,10 @@ export class ThreadViewService extends EventEmitter {
     }
 
     // Load URL if provided
-    if (url && url !== "about:blank") {
+    if (url) {
+      console.log("twitter loading");
       await webView.webContents.loadURL(url);
+      console.log("twitter loaded");
     }
 
     // Page load completion - inject scripts
