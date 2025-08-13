@@ -29,15 +29,15 @@ export class ApiServer {
       console.log(`[API] ${req.method} ${req.url}`);
       next();
     });
-    
+
     // Chat endpoint
     this.app.post("/chat", async (req, res) => {
       try {
-        const { messages, taskId, toolChoice } = req.body;
+        const { messages, system, tools } = req.body;
         console.log("[CHAT] Request received:", {
           messagesCount: messages?.length,
-          taskId,
-          toolChoice,
+          system,
+          tools,
         });
 
         // Stream the response using createUIMessageStreamResponse
@@ -45,23 +45,23 @@ export class ApiServer {
         try {
           const stream = await agentHandler.handleChat({
             messages,
-            taskId,
-            toolChoice,
+            system,
+            tools,
           });
-          
+
           const response = createUIMessageStreamResponse({ stream });
-          
+
           // Set headers from the Response object
           response.headers.forEach((value, key) => {
             res.setHeader(key, value);
           });
-          
+
           // Pipe the stream to the Express response
           const reader = response.body?.getReader();
           if (!reader) {
             throw new Error("No response body");
           }
-          
+
           const sendChunk = async () => {
             const { done, value } = await reader.read();
             if (done) {
@@ -71,12 +71,15 @@ export class ApiServer {
             res.write(value);
             await sendChunk();
           };
-          
+
           await sendChunk();
         } catch (error) {
           console.error("[CHAT:ERROR] Error handling chat:", error);
           if (!res.headersSent) {
-            if (error instanceof Error && error.message === "API key not configured") {
+            if (
+              error instanceof Error &&
+              error.message === "API key not configured"
+            ) {
               res.status(400).json({ error: "API key not configured" });
             } else {
               res.status(500).json({ error: "Internal server error" });

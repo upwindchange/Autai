@@ -3,7 +3,6 @@ import {
   streamText,
   tool,
   type UIMessage,
-  type ToolChoice,
   type StepResult,
   type Tool,
   type InvalidToolInputError,
@@ -37,8 +36,8 @@ type AgentTools = {
 
 export interface ChatRequest {
   messages: UIMessage[];
-  taskId?: string;
-  toolChoice?: ToolChoice<AgentTools>;
+  system?: string;
+  tools?: unknown;
 }
 
 export class AgentHandler {
@@ -49,11 +48,11 @@ export class AgentHandler {
                          When solving math problems, reason step by step and use the calculator when necessary.`;
 
   async handleChat(request: ChatRequest): Promise<ReadableStream> {
-    const { messages, taskId, toolChoice } = request;
+    const { messages, system, tools } = request;
     console.log("[AGENT] Request received:", {
       messagesCount: messages?.length,
-      taskId,
-      toolChoice,
+      system,
+      tools,
       messages: JSON.stringify(messages, null, 2),
     });
 
@@ -86,9 +85,7 @@ export class AgentHandler {
       const result = streamText({
         model: provider(settings.simpleModel || "gpt-4o-mini"),
         messages: convertToModelMessages(messages),
-        system: `${this.systemPrompt}${
-          taskId ? `\nCurrent task ID: ${taskId}` : ""
-        }`,
+        system: `${this.systemPrompt} ${system || ""}`,
         stopWhen: [
           // Stop when answer tool is called (task complete)
           hasToolCall(TOOL_NAMES.ANSWER),
@@ -98,7 +95,6 @@ export class AgentHandler {
           stepCountIs(20),
         ],
         tools: this.getTools(),
-        toolChoice: toolChoice || undefined,
         experimental_repairToolCall: this.repairToolCall,
         onStepFinish: this.handleStepFinish,
       });
