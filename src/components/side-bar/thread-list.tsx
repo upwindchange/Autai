@@ -44,29 +44,32 @@ const ThreadListNew: FC = () => {
 const ThreadListItems: FC = () => {
   return (
     <div className="flex-1 overflow-y-auto px-3 pb-3">
-      <ThreadListPrimitive.Items components={{ ThreadListItem }} />
+      <div className="flex flex-col gap-1">
+        <ThreadListPrimitive.Items components={{ ThreadListItem }} />
+      </div>
     </div>
   );
 };
 
 const ThreadListItem: FC = () => {
   return (
-    <ThreadListItemPrimitive.Root
-      className={cn(
-        "group relative flex items-center gap-3 rounded-lg px-3 py-2.5",
-        "hover:bg-accent/50 transition-colors duration-150",
-        "data-[active]:bg-accent data-[active]:shadow-sm",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1"
-      )}
-    >
-      <MessageSquareIcon className="size-4 text-muted-foreground shrink-0" />
-
-      <ThreadListItemPrimitive.Trigger className="flex-1 min-w-0">
-        <ThreadListItemTitle />
-      </ThreadListItemPrimitive.Trigger>
-
-      <ThreadListItemActions />
-    </ThreadListItemPrimitive.Root>
+    <ThreadListItemPrimitive.Trigger asChild>
+      <ThreadListItemPrimitive.Root
+        className={cn(
+          "group relative flex items-center gap-3 rounded-lg px-3 py-2.5",
+          "hover:bg-accent/50 transition-colors duration-150",
+          "data-[active]:bg-accent data-[active]:shadow-sm",
+          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-1",
+          "w-full cursor-pointer" // Ensure full width and pointer cursor
+        )}
+      >
+        <div className="flex-grow text-start flex items-center gap-3">
+          <MessageSquareIcon className="size-4 text-muted-foreground shrink-0" />
+          <ThreadListItemTitle />
+        </div>
+        <ThreadListItemActions />
+      </ThreadListItemPrimitive.Root>
+    </ThreadListItemPrimitive.Trigger>
   );
 };
 

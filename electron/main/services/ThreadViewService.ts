@@ -7,7 +7,6 @@ interface ViewMetadata {
   id: ViewId;
   threadId: ThreadId;
   url: string;
-  frontendVisibility: boolean;
   backendVisibility: boolean;
 }
 
@@ -24,6 +23,7 @@ export class ThreadViewService extends EventEmitter {
   private threadStates = new Map<ThreadId, ThreadViewState>();
   private activeThreadId: ThreadId | null = null;
   private activeView: WebContentsView | null = null;
+  private frontendVisibility: boolean = false;
   private win: BrowserWindow;
 
   constructor(win: BrowserWindow) {
@@ -105,7 +105,7 @@ export class ThreadViewService extends EventEmitter {
   // ===================
 
   async createView(options: CreateViewOptions): Promise<ViewId> {
-    const { threadId, url = "https://www.x.com", bounds } = options;
+    const { threadId, url = "https://find.quantimpulse.com", bounds } = options;
     const viewId = `view-${Date.now()}-${Math.random()
       .toString(36)
       .substring(2, 11)}`;
@@ -126,7 +126,6 @@ export class ThreadViewService extends EventEmitter {
       id: viewId,
       threadId,
       url,
-      frontendVisibility: false, // Default to not visible from frontend
       backendVisibility: true, // Default to visible from backend
     });
     this.viewBounds = bounds || { x: 0, y: 0, width: 1920, height: 1080 };
@@ -143,9 +142,9 @@ export class ThreadViewService extends EventEmitter {
 
     // Load URL if provided
     if (url) {
-      console.log("twitter loading");
+      console.log("init site loading");
       await webView.webContents.loadURL(url);
-      console.log("twitter loaded");
+      console.log("init site loaded");
     }
 
     // Page load completion - inject scripts
@@ -232,10 +231,7 @@ export class ThreadViewService extends EventEmitter {
     if (this.activeThreadId) {
       const viewId = this.threadStates.get(this.activeThreadId)?.activeViewId;
       if (viewId) {
-        const metadata = this.viewMetadata.get(viewId);
-        if (!metadata) return;
-
-        metadata.frontendVisibility = isVisible;
+        this.frontendVisibility = isVisible;
         await this.updateViewVisibility(viewId);
       }
     }
@@ -269,7 +265,7 @@ export class ThreadViewService extends EventEmitter {
     const shouldBeVisible =
       isActiveThread &&
       isActiveView &&
-      metadata.frontendVisibility &&
+      this.frontendVisibility &&
       metadata.backendVisibility;
 
     if (shouldBeVisible) {
