@@ -138,6 +138,14 @@ export class ThreadViewService extends EventEmitter {
     const threadState = this.threadStates.get(threadId);
     if (threadState) {
       threadState.viewIds.push(viewId);
+      // If this is the first view for the thread, set it as active
+      if (threadState.viewIds.length === 1) {
+        threadState.activeViewId = viewId;
+        // If this thread is the active thread, update activeView reference
+        if (this.activeThreadId === threadId) {
+          this.activeView = webView;
+        }
+      }
     }
 
     // Load URL if provided
@@ -284,8 +292,8 @@ export class ThreadViewService extends EventEmitter {
 
   async setBounds(bounds: Rectangle): Promise<void> {
     this.viewBounds = bounds;
-    // Update bounds for the active view if it exists and is visible
-    if (this.activeView?.getVisible()) {
+    // Update bounds for the active view if it exists
+    if (this.activeView) {
       this.activeView.setBounds(bounds);
     }
   }
