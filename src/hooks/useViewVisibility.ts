@@ -15,13 +15,21 @@ export function useViewVisibility() {
 
   useEffect(() => {
     const updateVisibility = async (isVisible: boolean) => {
-      if (containerBounds) {
-        // Set visibility (now using send since it's one-way)
-        window.ipcRenderer.send("threadview:setBounds", {
-          bounds: containerBounds,
-        });
-      }
+      console.log(
+        `useViewVisibility: updateVisibility called with isVisible=${isVisible}, hasContainerBounds=${!!containerBounds}`
+      );
 
+      // if (containerBounds) {
+      //   console.log('useViewVisibility: Sending setBounds IPC with:', containerBounds);
+      //   // Set visibility (now using send since it's one-way)
+      //   window.ipcRenderer.send("threadview:setBounds", {
+      //     bounds: containerBounds,
+      //   });
+      // }
+
+      console.log(
+        `useViewVisibility: Sending setVisibility IPC with isVisible=${isVisible}`
+      );
       // Set visibility (now using send since it's one-way)
       window.ipcRenderer.send("threadview:setVisibility", {
         isVisible,
@@ -29,10 +37,14 @@ export function useViewVisibility() {
     };
 
     // Set visibility based on current container state
+    console.log(
+      `useViewVisibility: Initializing visibility, containerRef exists=${!!containerRef}`
+    );
     updateVisibility(!!containerRef);
 
     // Cleanup function - hide view when hook unmounts
     return () => {
+      console.log("useViewVisibility: Cleaning up, hiding view");
       updateVisibility(false);
     };
   }, [containerRef, runtime.threads.mainItem]);

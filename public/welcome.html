@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autai - Welcome</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            color: #333;
+        }
+        .container {
+            text-align: center;
+            padding: 2rem;
+            border-radius: 12px;
+            background-color: white;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            max-width: 500px;
+            animation: fadeIn 0.8s ease-out;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .logo {
+            width: 80px;
+            height: 80px;
+            margin-bottom: 1.5rem;
+        }
+        h1 {
+            color: #0078d4;
+            margin-bottom: 1rem;
+            font-size: 2.5rem;
+            background: linear-gradient(45deg, #0078d4, #00b7ff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        p {
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+            color: #555;
+        }
+        .hint {
+            font-size: 0.9rem;
+            color: #777;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="32" cy="32" r="30" fill="#0078d4" opacity="0.1"/>
+                <path d="M32 18c-7.732 0-14 5.686-14 12.5S24.268 43 32 43s14-5.686 14-12.5S39.732 18 32 18zm0 16c-2.206 0-4-1.794-4-4s1.794-4 4-4 4 1.794 4 4-1.794 4-4 4z" fill="#0078d4"/>
+                <path d="M32 12C18.767 12 8 22.767 8 36c0 13.233 10.767 24 24 24s24-10.767 24-24C56 22.767 45.233 12 32 12zm0 40c-11.046 0-20-8.954-20-20S20.954 12 32 12s20 8.954 20 20-8.954 20-20 20z" fill="#0078d4" opacity="0.2"/>
+            </svg>
+        </div>
+        <h1>Autai</h1>
+        <p>Welcome to your AI-powered browser assistant. I'm here to help you automate tasks, navigate the web, and get things done faster.</p>
+        <p class="hint">Your browsing session will start when you initiate a task</p>
+    </div>
+</body>
+</html>

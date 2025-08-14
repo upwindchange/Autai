@@ -46,12 +46,16 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
   useViewVisibility();
 
   useEffect(() => {
+    console.log(`Thread component: showSplitView=${showSplitView}, workspaceRef exists=${!!workspaceRef.current}`);
+    
     if (showSplitView && workspaceRef.current) {
+      console.log('Thread: Enabling split view, setting container ref');
       setContainerRef(workspaceRef.current);
 
       // Set initial bounds
       const { width, height, x, y } =
         workspaceRef.current.getBoundingClientRect();
+      console.log('Thread: Initial bounds:', { width, height, x, y });
       setContainerBounds({ width, height, x, y });
 
       // Set up resize observer
@@ -59,6 +63,7 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
         if (workspaceRef.current) {
           const { width, height, x, y } =
             workspaceRef.current.getBoundingClientRect();
+          console.log('Thread: Bounds updated:', { width, height, x, y });
           setContainerBounds({ width, height, x, y });
         }
       });
@@ -66,12 +71,14 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
       resizeObserver.observe(workspaceRef.current);
 
       return () => {
+        console.log('Thread: Cleaning up - disconnecting resize observer and clearing refs');
         resizeObserver.disconnect();
         setContainerRef(null);
         setContainerBounds(null);
       };
     } else {
       // Clean up when not in split view
+      console.log('Thread: Disabling split view, clearing refs');
       setContainerRef(null);
       setContainerBounds(null);
     }

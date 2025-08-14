@@ -37,6 +37,7 @@ export class ThreadViewService extends EventEmitter {
 
   async createThread(threadId: ThreadId): Promise<void> {
     if (this.threadStates.has(threadId)) {
+      console.log(`Thread ${threadId} already exists, switching to it`);
       this.activeThreadId = threadId;
       return;
     }
@@ -49,30 +50,37 @@ export class ThreadViewService extends EventEmitter {
     });
 
     this.activeThreadId = threadId;
+    console.log(`Thread ${threadId} created`);
 
     // Create initial view and set as active view for the thread
     const viewId = await this.createView({ threadId });
     const state = this.threadStates.get(threadId)!;
     state.activeViewId = viewId;
     this.activeView = this.views.get(viewId) || null;
+    console.log(`Initial view ${viewId} created for thread ${threadId}`);
   }
 
   async switchThread(threadId: ThreadId): Promise<void> {
+    console.log(`Switching from thread ${this.activeThreadId} to ${threadId}`);
+
     // Hide all views from current thread
     if (this.activeThreadId) {
       await this.hideThreadViews(this.activeThreadId);
     }
 
     this.activeThreadId = threadId;
+    console.log(`Active thread set to ${threadId}`);
 
     // Show active view of new thread (respecting visibility rules)
     const activeViewId = this.getActiveViewForThread(threadId);
     if (activeViewId) {
       this.activeView = this.views.get(activeViewId) || null;
-      await this.updateViewVisibility(activeViewId);
+      console.log(`Active view for thread ${threadId} is ${activeViewId}`);
+      await this.setBackendVisibility(activeViewId, true);
     } else {
       // No active view for this thread, clear the active view reference
       this.activeView = null;
+      console.log(`No active view found for thread ${threadId}`);
     }
   }
 
@@ -128,7 +136,10 @@ export class ThreadViewService extends EventEmitter {
       url,
       backendVisibility: true, // Default to visible from backend
     });
-    this.viewBounds = bounds || { x: 0, y: 0, width: 1920, height: 1080 };
+
+    if (bounds) {
+      this.viewBounds = bounds;
+    }
 
     // Add to window but keep hidden initially
     this.win.contentView.addChildView(webView);
@@ -148,12 +159,10 @@ export class ThreadViewService extends EventEmitter {
       }
     }
 
-    // Load URL if provided
-    if (url) {
-      console.log("init site loading");
-      await webView.webContents.loadURL(url);
-      console.log("init site loaded");
-    }
+    // Load welcome page
+    console.log("init welcome page loading");
+    await webView.webContents.loadFile("public/welcome.html");
+    console.log("welcome page loaded");
 
     // Page load completion - inject scripts
     webView.webContents.once("did-finish-load", async () => {
@@ -172,7 +181,7 @@ export class ThreadViewService extends EventEmitter {
       }
     });
 
-    console.log("threadview:created", viewId, threadId);
+    console.log("createView", viewId, threadId);
     this.emit("threadview:created", { viewId, threadId });
     return viewId;
   }
@@ -259,7 +268,12 @@ export class ThreadViewService extends EventEmitter {
   private async updateViewVisibility(viewId: ViewId): Promise<void> {
     const webView = this.views.get(viewId);
     const metadata = this.viewMetadata.get(viewId);
-    if (!webView || !metadata) return;
+    if (!webView || !metadata) {
+      console.log(
+        `Cannot update visibility for view ${viewId}: view or metadata not found`
+      );
+      return;
+    }
 
     // Check if this view belongs to the active thread
     const isActiveThread = metadata.threadId === this.activeThreadId;
@@ -276,6 +290,14 @@ export class ThreadViewService extends EventEmitter {
       this.frontendVisibility &&
       metadata.backendVisibility;
 
+    console.log(`Updating visibility for view ${viewId}:`, {
+      isActiveThread,
+      isActiveView,
+      frontendVisibility: this.frontendVisibility,
+      backendVisibility: metadata.backendVisibility,
+      shouldBeVisible,
+    });
+
     if (shouldBeVisible) {
       // Hide all other views first
       await this.hideAllViewsExcept(viewId);
@@ -291,10 +313,14 @@ export class ThreadViewService extends EventEmitter {
   }
 
   async setBounds(bounds: Rectangle): Promise<void> {
+    console.log(`Setting bounds to:`, bounds);
     this.viewBounds = bounds;
     // Update bounds for the active view if it exists
     if (this.activeView) {
       this.activeView.setBounds(bounds);
+      console.log(`Bounds updated for active view`);
+    } else {
+      console.log(`No active view to update bounds`);
     }
   }
 
