@@ -4,7 +4,7 @@
     "QuantImpulse": {
       "type": "openai",
       "base_url": "https://llm.quantimpulse.com",
-      "api_key": "$ANTHROPIC_AUTH_TOKEN",
+      "api_key": "$LLM_TOKEN",
       "models": [
         {
           "id": "Qwen-Coder-Turbo",
