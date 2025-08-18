@@ -1,5 +1,5 @@
 import type { ViewId } from "@shared/index";
-import { ThreadViewService } from ".";
+import { ThreadViewService } from "@/services";
 
 export class ViewControlService {
   private threadViewService: ThreadViewService; // We'll inject this dependency
@@ -16,7 +16,7 @@ export class ViewControlService {
     if (!view) {
       throw new Error(`View ${viewId} not found`);
     }
-    
+
     await view.webContents.loadURL(url);
   }
 
@@ -28,7 +28,7 @@ export class ViewControlService {
     if (!view) {
       throw new Error(`View ${viewId} not found`);
     }
-    
+
     view.webContents.reload();
   }
 
@@ -40,12 +40,12 @@ export class ViewControlService {
     if (!view) {
       return false;
     }
-    
+
     if (view.webContents.navigationHistory.canGoBack()) {
       view.webContents.navigationHistory.goBack();
       return true;
     }
-    
+
     return false;
   }
 
@@ -57,12 +57,12 @@ export class ViewControlService {
     if (!view) {
       return false;
     }
-    
+
     if (view.webContents.navigationHistory.canGoForward()) {
       view.webContents.navigationHistory.goForward();
       return true;
     }
-    
+
     return false;
   }
 }

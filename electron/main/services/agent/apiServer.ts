@@ -2,7 +2,7 @@ import express, { type Express } from "express";
 import cors from "cors";
 import { createUIMessageStreamResponse } from "ai";
 import { type Server } from "http";
-import { agentHandler } from "./agentHandler";
+import { agentHandler } from "@agent";
 
 export class ApiServer {
   private app: Express;

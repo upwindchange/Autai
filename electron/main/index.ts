@@ -9,10 +9,10 @@ import {
   apiServer,
   ThreadViewService,
   ViewControlService,
-} from "./services";
-import { SettingsBridge } from "./bridge/SettingsBridge";
-import { ThreadViewBridge } from "./bridge/ThreadViewBridge";
-import { ViewDebugBridge } from "./bridge/ViewDebugBridge";
+} from "@/services";
+import { SettingsBridge } from "@/bridge/SettingsBridge";
+import { ThreadViewBridge } from "@/bridge/ThreadViewBridge";
+import { ViewDebugBridge } from "@/bridge/ViewDebugBridge";
 
 const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -81,15 +81,18 @@ async function createWindow() {
   // Initialize thread/view service
   threadViewService = new ThreadViewService(win);
   viewControlService = new ViewControlService(threadViewService);
-  
+
   // Initialize bridges
   settingsBridge = new SettingsBridge();
   settingsBridge.setupHandlers();
-  
+
   threadViewBridge = new ThreadViewBridge(threadViewService);
   threadViewBridge.setupHandlers();
-  
-  viewControlBridge = new ViewDebugBridge(viewControlService, threadViewService);
+
+  viewControlBridge = new ViewDebugBridge(
+    viewControlService,
+    threadViewService
+  );
   viewControlBridge.setupHandlers();
 
   /**
@@ -158,7 +161,13 @@ app.on("activate", () => {
  * Clean up before app quits
  */
 app.on("before-quit", async (event) => {
-  if (settingsBridge || threadViewBridge || threadViewService || viewControlService || viewControlBridge) {
+  if (
+    settingsBridge ||
+    threadViewBridge ||
+    threadViewService ||
+    viewControlService ||
+    viewControlBridge
+  ) {
     event.preventDefault();
     if (threadViewService) {
       await threadViewService.destroy();
