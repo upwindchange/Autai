@@ -20,6 +20,15 @@
       "@/*": [
         "src/*"
       ],
+      "@backend/*": [
+        "electron/main/*"
+      ],
+      "@agents": [
+        "electron/main/agents/index"
+      ],
+      "@agents/*": [
+        "electron/main/agents/*"
+      ],
       "@shared/*": [
         "shared_types/*"
       ]

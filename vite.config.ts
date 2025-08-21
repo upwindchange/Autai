@@ -1,9 +1,4 @@
-import {
-  rmSync,
-  mkdirSync,
-  existsSync,
-  copyFileSync,
-} from "node:fs";
+import { rmSync, mkdirSync, existsSync, copyFileSync } from "node:fs";
 import path from "node:path";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
@@ -26,7 +21,7 @@ const copyIndexScriptPlugin = () => ({
       // Copy index.js file
       const indexSourcePath = path.join(scriptsDir, "index.js");
       const indexOutputPath = path.join(distDir, "index.js");
-      
+
       if (existsSync(indexSourcePath)) {
         copyFileSync(indexSourcePath, indexOutputPath);
         console.log(`✓ Copied index.js to electron-dist folder`);
@@ -73,6 +68,8 @@ export default defineConfig(({ command }) => {
           vite: {
             resolve: {
               alias: {
+                "@backend": path.join(__dirname, "electron/main"),
+                "@agents": path.join(__dirname, "electron/main/agents"),
                 "@shared": path.join(__dirname, "shared_types"),
               },
             },

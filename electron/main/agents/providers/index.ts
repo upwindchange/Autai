@@ -1,5 +1,5 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { settingsService } from "@/services";
+import { settingsService } from "@backend/services";
 import type { AISettings } from "@shared/index";
 import type { LanguageModel } from "ai";
 

@@ -5,9 +5,9 @@
     "noEmit": false,
     "baseUrl": "./",
     "paths": {
-      "@/*": ["./main/*"],
-      "@agent": ["./main/services/agent/index"],
-      "@agent/*": ["./main/services/agent/*"],
+      "@backend/*": ["./main/*"],
+      "@agents": ["./main/agents/index"],
+      "@agents/*": ["./main/agents/*"],
       "@shared/*": ["../shared_types/*"]
     }
   },

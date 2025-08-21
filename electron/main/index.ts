@@ -6,13 +6,13 @@ import os from "node:os";
 import { update } from "./update";
 import {
   settingsService,
-  apiServer,
   ThreadViewService,
   ViewControlService,
-} from "@/services";
-import { SettingsBridge } from "@/bridge/SettingsBridge";
-import { ThreadViewBridge } from "@/bridge/ThreadViewBridge";
-import { ViewDebugBridge } from "@/bridge/ViewDebugBridge";
+} from "@backend/services";
+import { apiServer } from "@agents";
+import { SettingsBridge } from "@backend/bridges/SettingsBridge";
+import { ThreadViewBridge } from "@backend/bridges/ThreadViewBridge";
+import { ViewDebugBridge } from "@backend/bridges/ViewDebugBridge";
 
 const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

@@ -1,7 +1,7 @@
 import { WebContentsView, BrowserWindow, Rectangle } from "electron";
 import { EventEmitter } from "events";
 import type { ThreadId, ViewId, ThreadViewState } from "@shared/index";
-import { getIndexScript } from "@/scripts/indexLoader";
+import { getIndexScript } from "@backend/scripts/indexLoader";
 
 interface ViewMetadata {
   id: ViewId;

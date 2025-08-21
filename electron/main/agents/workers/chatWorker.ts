@@ -10,8 +10,8 @@ import {
 } from "ai";
 import * as mathjs from "mathjs";
 import { z } from "zod";
-import { createAIProvider } from "@agent/provider";
-import { repairToolCall } from "@agent/utils";
+import { createAIProvider } from "@backend/agents/providers";
+import { repairToolCall } from "@agents/utils";
 import {
   calculateToolSchema,
   answerToolSchema,

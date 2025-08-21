@@ -1,7 +1,7 @@
 import { type UIMessage, generateObject } from "ai";
 import { z } from "zod";
-import { createAIProvider } from "@agent/provider";
-import { ChatWorker, BrowserUseWorker } from "@agent/workers";
+import { createAIProvider } from "@agents/providers";
+import { ChatWorker, BrowserUseWorker } from "@agents/workers";
 
 export interface ChatRequest {
   messages: UIMessage[];

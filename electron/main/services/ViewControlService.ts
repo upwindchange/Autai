@@ -1,5 +1,5 @@
 import type { ViewId } from "@shared/index";
-import { ThreadViewService } from "@/services";
+import { ThreadViewService } from "@backend/services";
 
 export class ViewControlService {
   private threadViewService: ThreadViewService; // We'll inject this dependency

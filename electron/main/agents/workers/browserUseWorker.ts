@@ -1,6 +1,6 @@
 import { streamText, convertToModelMessages, type UIMessage } from "ai";
-import { createAIProvider } from "@agent/provider";
-import { repairToolCall } from "@agent/utils";
+import { createAIProvider } from "@backend/agents/providers";
+import { repairToolCall } from "@agents/utils";
 
 export interface ChatRequest {
   messages: UIMessage[];

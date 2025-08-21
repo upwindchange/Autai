@@ -15,7 +15,7 @@ import type {
   HashedDomElement,
   CoordinateSet,
 } from "@shared/index";
-import { getIndexScript } from "@/scripts/indexLoader";
+import { getIndexScript } from "@backend/scripts/indexLoader";
 
 // Result of DOM extraction and manipulation operations
 interface DOMExtractionResult {
