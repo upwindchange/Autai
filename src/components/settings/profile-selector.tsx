@@ -40,6 +40,7 @@ export function ProfileSelector() {
     if (!newProfileName.trim()) return;
 
     const defaultSettings: AISettings = {
+      provider: "openai-compatible",
       apiUrl: "https://api.openai.com/v1",
       apiKey: "",
       complexModel: "gpt-4",

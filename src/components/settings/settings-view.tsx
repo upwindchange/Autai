@@ -4,6 +4,7 @@ import { useSettings } from "./settings-context";
 import { ViewDebugTools } from "@/components/debug/view-debug-tools";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import type { ProviderType } from "@shared/index";
 
 interface SettingsViewProps {
   onClose: () => void;

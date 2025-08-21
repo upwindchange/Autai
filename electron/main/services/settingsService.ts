@@ -25,6 +25,7 @@ class SettingsService {
           id: "default",
           name: "Default",
           settings: {
+            provider: "openai-compatible",
             apiUrl: "https://api.openai.com/v1",
             apiKey: "",
             complexModel: "gpt-4",
@@ -85,16 +86,31 @@ class SettingsService {
     config: TestConnectionConfig
   ): Promise<TestConnectionResult> {
     try {
-      // Create OpenAI-compatible provider
-      const provider = createOpenAICompatible({
-        name: "openai",
-        apiKey: config.apiKey,
-        baseURL: config.apiUrl,
-      });
+      let provider;
+      let model;
+
+      if (config.provider === 'openai-compatible') {
+        // Create OpenAI-compatible provider
+        provider = createOpenAICompatible({
+          name: "openai",
+          apiKey: (config as any).apiKey,
+          baseURL: (config as any).apiUrl,
+        });
+        model = config.model;
+      } else if (config.provider === 'anthropic') {
+        // Create Anthropic provider
+        const { createAnthropic } = await import('@ai-sdk/anthropic');
+        provider = createAnthropic({
+          apiKey: (config as any).anthropicApiKey,
+        });
+        model = config.model;
+      } else {
+        throw new Error("Unsupported provider: " + (config as any).provider);
+      }
 
       // Try a simple completion to test the connection
       const response = await generateText({
-        model: provider(config.model),
+        model: provider(model),
         prompt: "Hello, this is a test message.",
         temperature: 0,
         maxOutputTokens: 20,
@@ -130,7 +146,16 @@ class SettingsService {
   // Utility method to check if settings are configured
   isConfigured(): boolean {
     const settings = this.getActiveSettings();
-    return !!(settings && settings.apiKey && settings.apiUrl);
+    if (!settings) return false;
+    
+    // Check based on provider type
+    if (settings.provider === 'openai-compatible') {
+      return !!((settings as any).apiKey && (settings as any).apiUrl);
+    } else if (settings.provider === 'anthropic') {
+      return !!(settings as any).anthropicApiKey;
+    }
+    
+    return false;
   }
 }
 

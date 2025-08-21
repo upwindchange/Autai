@@ -26,10 +26,22 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
     };
   } | null>(null);
 
-  const [formData, setFormData] = useState({
+  type FormData = {
+    name: string;
+    provider: 'openai-compatible' | 'anthropic';
+    apiUrl: string;
+    apiKey: string;
+    anthropicApiKey: string;
+    complexModel: string;
+    simpleModel: string;
+  };
+
+  const [formData, setFormData] = useState<FormData>({
     name: profile.name,
-    apiUrl: profile.settings.apiUrl,
-    apiKey: profile.settings.apiKey,
+    provider: profile.settings.provider,
+    apiUrl: profile.settings.provider === 'openai-compatible' ? profile.settings.apiUrl : '',
+    apiKey: profile.settings.provider === 'openai-compatible' ? profile.settings.apiKey : '',
+    anthropicApiKey: profile.settings.provider === 'anthropic' ? profile.settings.anthropicApiKey || '' : '',
     complexModel: profile.settings.complexModel,
     simpleModel: profile.settings.simpleModel,
   });
@@ -50,8 +62,10 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
   useEffect(() => {
     setFormData({
       name: profile.name,
-      apiUrl: profile.settings.apiUrl,
-      apiKey: profile.settings.apiKey,
+      provider: profile.settings.provider,
+      apiUrl: profile.settings.provider === 'openai-compatible' ? profile.settings.apiUrl : '',
+      apiKey: profile.settings.provider === 'openai-compatible' ? profile.settings.apiKey : '',
+      anthropicApiKey: profile.settings.provider === 'anthropic' ? profile.settings.anthropicApiKey || '' : '',
       complexModel: profile.settings.complexModel,
       simpleModel: profile.settings.simpleModel,
     });
@@ -61,14 +75,30 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
   const handleSave = async () => {
     setIsLoading(true);
     try {
-      await updateProfile(profile.id, {
-        name: formData.name,
-        settings: {
+      let settings;
+      
+      if (formData.provider === 'openai-compatible') {
+        settings = {
+          provider: 'openai-compatible' as const,
           apiUrl: formData.apiUrl,
           apiKey: formData.apiKey,
           complexModel: formData.complexModel,
           simpleModel: formData.simpleModel,
-        },
+        };
+      } else if (formData.provider === 'anthropic') {
+        settings = {
+          provider: 'anthropic' as const,
+          anthropicApiKey: formData.anthropicApiKey,
+          complexModel: formData.complexModel,
+          simpleModel: formData.simpleModel,
+        };
+      } else {
+        throw new Error(`Unsupported provider: ${formData.provider}`);
+      }
+
+      await updateProfile(profile.id, {
+        name: formData.name,
+        settings,
         updatedAt: new Date(),
       });
       onClose?.();
@@ -84,16 +114,33 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
     setTestResult(null);
     
     try {
-      // Test both models
-      const [simpleResult, complexResult] = await Promise.all([
-        window.ipcRenderer.invoke("settings:test", {
+      let testConfig;
+      
+      if (formData.provider === 'openai-compatible') {
+        testConfig = {
+          provider: 'openai-compatible' as const,
           apiUrl: formData.apiUrl,
           apiKey: formData.apiKey,
           model: formData.simpleModel,
+        };
+      } else if (formData.provider === 'anthropic') {
+        testConfig = {
+          provider: 'anthropic' as const,
+          anthropicApiKey: formData.anthropicApiKey,
+          model: formData.simpleModel,
+        };
+      } else {
+        throw new Error(`Unsupported provider: ${formData.provider}`);
+      }
+
+      // Test both models
+      const [simpleResult, complexResult] = await Promise.all([
+        window.ipcRenderer.invoke("settings:test", {
+          ...testConfig,
+          model: formData.simpleModel,
         }),
         window.ipcRenderer.invoke("settings:test", {
-          apiUrl: formData.apiUrl,
-          apiKey: formData.apiKey,
+          ...testConfig,
           model: formData.complexModel,
         })
       ]);
@@ -135,52 +182,129 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>API Configuration</CardTitle>
+          <CardTitle>Provider Selection</CardTitle>
           <CardDescription>
-            Configure your OpenAI-compatible API endpoint and authentication
+            Choose your AI provider
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="api-url">API URL</Label>
-            <Input
-              id="api-url"
-              value={formData.apiUrl}
-              onChange={(e) =>
-                setFormData({ ...formData, apiUrl: e.target.value })
-              }
-              placeholder="https://api.openai.com/v1"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="api-key">API Key</Label>
-            <div className="relative">
-              <Input
-                id="api-key"
-                type={showApiKey ? "text" : "password"}
-                value={formData.apiKey}
-                onChange={(e) =>
-                  setFormData({ ...formData, apiKey: e.target.value })
-                }
-                placeholder="sk-..."
-                className="pr-10"
-              />
+            <Label htmlFor="provider">AI Provider</Label>
+            <div className="grid grid-cols-2 gap-4">
               <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute right-0 top-0 h-full px-3"
-                onClick={() => setShowApiKey(!showApiKey)}
+                variant={formData.provider === 'openai-compatible' ? 'default' : 'outline'}
+                onClick={() => setFormData({ 
+                  ...formData, 
+                  provider: 'openai-compatible',
+                  apiUrl: 'https://api.openai.com/v1',
+                  apiKey: formData.apiKey || '',
+                  anthropicApiKey: ''
+                })}
+                className="h-12"
               >
-                {showApiKey ? (
-                  <EyeOffIcon className="h-4 w-4" />
-                ) : (
-                  <EyeIcon className="h-4 w-4" />
-                )}
+                OpenAI Compatible
+              </Button>
+              <Button
+                variant={formData.provider === 'anthropic' ? 'default' : 'outline'}
+                onClick={() => setFormData({ 
+                  ...formData, 
+                  provider: 'anthropic',
+                  apiUrl: '',
+                  apiKey: '',
+                  anthropicApiKey: formData.anthropicApiKey || ''
+                })}
+                className="h-12"
+              >
+                Anthropic
               </Button>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>API Configuration</CardTitle>
+          <CardDescription>
+            {formData.provider === 'openai-compatible' 
+              ? "Configure your OpenAI-compatible API endpoint and authentication"
+              : "Configure your Anthropic API authentication"}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {formData.provider === 'openai-compatible' ? (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="api-url">API URL</Label>
+                <Input
+                  id="api-url"
+                  value={formData.apiUrl}
+                  onChange={(e) =>
+                    setFormData({ ...formData, apiUrl: e.target.value })
+                  }
+                  placeholder="https://api.openai.com/v1"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="api-key">API Key</Label>
+                <div className="relative">
+                  <Input
+                    id="api-key"
+                    type={showApiKey ? "text" : "password"}
+                    value={formData.apiKey}
+                    onChange={(e) =>
+                      setFormData({ ...formData, apiKey: e.target.value })
+                    }
+                    placeholder="sk-..."
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full px-3"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                  >
+                    {showApiKey ? (
+                      <EyeOffIcon className="h-4 w-4" />
+                    ) : (
+                      <EyeIcon className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="anthropic-api-key">Anthropic API Key</Label>
+              <div className="relative">
+                <Input
+                  id="anthropic-api-key"
+                  type={showApiKey ? "text" : "password"}
+                  value={formData.anthropicApiKey}
+                  onChange={(e) =>
+                    setFormData({ ...formData, anthropicApiKey: e.target.value })
+                  }
+                  placeholder="sk-ant-..."
+                  className="pr-10"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-0 top-0 h-full px-3"
+                  onClick={() => setShowApiKey(!showApiKey)}
+                >
+                  {showApiKey ? (
+                    <EyeOffIcon className="h-4 w-4" />
+                  ) : (
+                    <EyeIcon className="h-4 w-4" />
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -202,7 +326,9 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
               onChange={(e) =>
                 setFormData({ ...formData, complexModel: e.target.value })
               }
-              placeholder="gpt-4, claude-3-opus, etc."
+              placeholder={formData.provider === 'anthropic' 
+                ? "claude-3-sonnet-20240229, claude-3-opus-20240229, etc." 
+                : "gpt-4, gpt-4-turbo, claude-3-sonnet-20240229, etc."}
             />
           </div>
 
@@ -216,7 +342,9 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
               onChange={(e) =>
                 setFormData({ ...formData, simpleModel: e.target.value })
               }
-              placeholder="gpt-3.5-turbo, claude-3-haiku, etc."
+              placeholder={formData.provider === 'anthropic' 
+                ? "claude-3-haiku-20240307, etc." 
+                : "gpt-3.5-turbo, gpt-4o-mini, claude-3-haiku-20240307, etc."}
             />
           </div>
         </CardContent>
@@ -277,7 +405,9 @@ export function SettingsForm({ profile, onClose }: SettingsFormProps) {
         <Button
           variant="outline"
           onClick={handleTest}
-          disabled={isLoading || isTesting || !formData.apiKey || !formData.apiUrl}
+          disabled={isLoading || isTesting || 
+            (formData.provider === 'openai-compatible' && (!formData.apiKey || !formData.apiUrl)) ||
+            (formData.provider === 'anthropic' && !formData.anthropicApiKey)}
         >
           {isTesting ? (
             <>

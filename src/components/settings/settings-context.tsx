@@ -40,6 +40,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
         id: "default",
         name: "Default",
         settings: {
+          provider: "openai-compatible",
           apiUrl: "https://api.openai.com/v1",
           apiKey: "",
           complexModel: "gpt-4",

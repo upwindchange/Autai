@@ -58,7 +58,7 @@ export class ChatWorker {
       console.log("[CHAT WORKER] Creating streamText with simple model");
 
       const result = streamText({
-        model: createAIProvider("simple"),
+        model: await createAIProvider("simple"),
         messages: convertToModelMessages(messages),
         system: `${systemPrompt} ${system || ""}`,
         stopWhen: [

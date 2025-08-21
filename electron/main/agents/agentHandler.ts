@@ -54,7 +54,7 @@ export class AgentHandler {
   ): Promise<"chat" | "browser-use"> {
     try {
       const { object } = await generateObject({
-        model: createAIProvider("simple"),
+        model: await createAIProvider("simple"),
         schema: WorkerDecisionSchema,
         system: `You are an expert at determining whether a user's request requires browser automation capabilities or can be handled with a standard chat response.
         
@@ -75,7 +75,7 @@ export class AgentHandler {
         - Anything that can be answered without browsing the web`,
         prompt: `Based on this conversation, determine whether to use the browser automation worker or the standard chat worker:
         
-        ${JSON.stringify(messages, null, 2)}`,
+${JSON.stringify(messages, null, 2)}`,
       });
 
       console.log("[AGENT ORCHESTRATOR] Worker decision:", object);
