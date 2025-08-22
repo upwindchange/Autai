@@ -1,14 +1,14 @@
-import type { SettingsProfile, AISettings } from '@shared/index';
+import type { SettingsState } from '@shared/index';
 
 /**
  * Settings context API exposed to components
  */
 export interface SettingsContextType {
-  profiles: SettingsProfile[];
-  activeProfile: SettingsProfile | null;
-  createProfile: (name: string, settings: AISettings) => Promise<void>;
-  updateProfile: (id: string, updates: Partial<SettingsProfile>) => Promise<void>;
-  deleteProfile: (id: string) => Promise<void>;
-  setActiveProfile: (id: string) => Promise<void>;
+  settings: SettingsState;
+  updateSettings: (settings: SettingsState) => Promise<void>;
+  addProvider: (provider: any) => Promise<void>;
+  updateProvider: (id: string, updates: Partial<any>) => Promise<void>;
+  removeProvider: (id: string) => Promise<void>;
+  updateModelConfiguration: (modelType: "simple" | "complex", config: { providerId: string; modelName: string }) => Promise<void>;
   isLoading: boolean;
 }

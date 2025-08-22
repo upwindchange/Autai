@@ -30,7 +30,7 @@ declare global {
         channel: "settings:test",
         config: TestConnectionConfig
       ): Promise<TestConnectionResult>;
-      invoke(channel: "settings:getActive"): Promise<AISettings | null>;
+      invoke(channel: "settings:get"): Promise<SettingsState>;
       invoke(channel: "settings:isConfigured"): Promise<boolean>;
 
       // Thread operations

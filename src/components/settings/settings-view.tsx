@@ -1,17 +1,16 @@
 import { SettingsForm } from "./settings-form";
-import { ProfileSelector } from "./profile-selector";
 import { useSettings } from "./settings-context";
 import { ViewDebugTools } from "@/components/debug/view-debug-tools";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { ProviderType } from "@shared/index";
+import type { ProviderConfig } from "@shared/index";
 
 interface SettingsViewProps {
   onClose: () => void;
 }
 
 export function SettingsView({ onClose }: SettingsViewProps) {
-  const { activeProfile } = useSettings();
+  const { settings } = useSettings();
   
   // Check if debug tools are enabled
   const isDebugToolsEnabled = () => {
@@ -33,19 +32,16 @@ export function SettingsView({ onClose }: SettingsViewProps) {
         <div>
           <h2 className="text-lg font-semibold">AI Settings</h2>
           <p className="text-sm text-muted-foreground">
-            Configure your AI model settings and API endpoints.
+            Configure your AI providers and model settings.
           </p>
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl mx-auto space-y-6">
-          <ProfileSelector />
-          {activeProfile && (
-            <SettingsForm
-              profile={activeProfile}
-              onClose={onClose}
-            />
-          )}
+          <SettingsForm
+            settings={settings}
+            onClose={onClose}
+          />
           {isDebugToolsEnabled() && <ViewDebugTools />}
         </div>
       </div>

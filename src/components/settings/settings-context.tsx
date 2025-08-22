@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { SettingsContextType } from "./types";
-import type { SettingsProfile, AISettings } from "@shared/index";
+import type { SettingsState, ProviderConfig } from "@shared/index";
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
 
@@ -17,11 +17,14 @@ interface SettingsProviderProps {
 }
 
 export function SettingsProvider({ children }: SettingsProviderProps) {
-  const [profiles, setProfiles] = useState<SettingsProfile[]>([]);
-  const [activeProfileId, setActiveProfileId] = useState<string>("");
+  const [settings, setSettings] = useState<SettingsState>({
+    providers: [],
+    modelConfigurations: {
+      simple: { providerId: "", modelName: "" },
+      complex: { providerId: "", modelName: "" }
+    }
+  });
   const [isLoading, setIsLoading] = useState(true);
-
-  const activeProfile = profiles.find((p) => p.id === activeProfileId) || null;
 
   // Load settings on mount
   useEffect(() => {
@@ -30,99 +33,104 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
 
   const loadSettings = async () => {
     try {
-      const settings = await window.ipcRenderer.invoke("settings:load");
-      setProfiles(settings.profiles);
-      setActiveProfileId(settings.activeProfileId);
+      const loadedSettings = await window.ipcRenderer.invoke("settings:load");
+      setSettings(loadedSettings);
     } catch (error) {
       console.error("Failed to load settings:", error);
-      // Create default profile if none exists
-      const defaultProfile: SettingsProfile = {
-        id: "default",
-        name: "Default",
-        settings: {
-          provider: "openai-compatible",
-          apiUrl: "https://api.openai.com/v1",
-          apiKey: "",
-          complexModel: "gpt-4",
-          simpleModel: "gpt-3.5-turbo",
+      // Create default settings if none exists
+      const defaultSettings: SettingsState = {
+        providers: [
+          {
+            id: "default-openai",
+            name: "Default OpenAI",
+            provider: "openai-compatible",
+            apiUrl: "https://api.openai.com/v1",
+            apiKey: "",
+          },
+        ],
+        modelConfigurations: {
+          simple: {
+            providerId: "default-openai",
+            modelName: "gpt-3.5-turbo",
+          },
+          complex: {
+            providerId: "default-openai",
+            modelName: "gpt-4",
+          },
         },
-        createdAt: new Date(),
-        updatedAt: new Date(),
       };
-      setProfiles([defaultProfile]);
-      setActiveProfileId(defaultProfile.id);
+      setSettings(defaultSettings);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const createProfile = async (name: string, settings: AISettings) => {
-    const newProfile: SettingsProfile = {
-      id: `profile-${Date.now()}`,
-      name,
-      settings,
-      createdAt: new Date(),
-      updatedAt: new Date(),
+  const updateSettings = async (newSettings: SettingsState) => {
+    setSettings(newSettings);
+    await window.ipcRenderer.invoke("settings:save", newSettings);
+  };
+
+  const addProvider = async (provider: ProviderConfig) => {
+    const newSettings = {
+      ...settings,
+      providers: [...settings.providers, provider]
     };
-
-    const updatedProfiles = [...profiles, newProfile];
-    setProfiles(updatedProfiles);
-    setActiveProfileId(newProfile.id);
-
-    await window.ipcRenderer.invoke("settings:save", {
-      profiles: updatedProfiles,
-      activeProfileId: newProfile.id,
-    });
+    await updateSettings(newSettings);
   };
 
-  const updateProfile = async (id: string, updates: Partial<SettingsProfile>) => {
-    const updatedProfiles = profiles.map((p) =>
-      p.id === id ? { ...p, ...updates } : p
-    );
-    setProfiles(updatedProfiles);
-
-    await window.ipcRenderer.invoke("settings:save", {
-      profiles: updatedProfiles,
-      activeProfileId,
-    });
+  const updateProvider = async (id: string, updates: Partial<ProviderConfig>) => {
+    const newSettings = {
+      ...settings,
+      providers: settings.providers.map(p =>
+        p.id === id ? { ...p, ...updates } : p
+      )
+    };
+    await updateSettings(newSettings);
   };
 
-  const deleteProfile = async (id: string) => {
-    if (profiles.length <= 1) return;
+  const removeProvider = async (id: string) => {
+    // Prevent removing all providers
+    if (settings.providers.length <= 1) return;
 
-    const updatedProfiles = profiles.filter((p) => p.id !== id);
-    setProfiles(updatedProfiles);
-
-    // If deleting active profile, switch to first available
-    let newActiveId = activeProfileId;
-    if (activeProfileId === id) {
-      newActiveId = updatedProfiles[0].id;
-      setActiveProfileId(newActiveId);
+    const newSettings = {
+      ...settings,
+      providers: settings.providers.filter(p => p.id !== id)
+    };
+    
+    // If we're removing a provider that's used in model configurations, reset those configurations
+    let updatedModelConfigurations = { ...settings.modelConfigurations };
+    if (settings.modelConfigurations.simple.providerId === id) {
+      updatedModelConfigurations.simple = { providerId: "", modelName: "" };
     }
-
-    await window.ipcRenderer.invoke("settings:save", {
-      profiles: updatedProfiles,
-      activeProfileId: newActiveId,
-    });
+    if (settings.modelConfigurations.complex.providerId === id) {
+      updatedModelConfigurations.complex = { providerId: "", modelName: "" };
+    }
+    
+    newSettings.modelConfigurations = updatedModelConfigurations;
+    
+    await updateSettings(newSettings);
   };
 
-  const setActiveProfile = async (id: string) => {
-    setActiveProfileId(id);
-    await window.ipcRenderer.invoke("settings:save", {
-      profiles,
-      activeProfileId: id,
-    });
+  const updateModelConfiguration = async (modelType: "simple" | "complex", config: { providerId: string; modelName: string }) => {
+    const newSettings = {
+      ...settings,
+      modelConfigurations: {
+        ...settings.modelConfigurations,
+        [modelType]: config
+      }
+    };
+    await updateSettings(newSettings);
   };
 
   return (
     <SettingsContext.Provider
       value={{
-        profiles,
-        activeProfile,
-        createProfile,
-        updateProfile,
-        deleteProfile,
-        setActiveProfile,
+        settings,
+        updateSettings,
+        addProvider,
+        updateProvider,
+        removeProvider,
+        updateModelConfiguration,
         isLoading,
       }}
     >

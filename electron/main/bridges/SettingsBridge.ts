@@ -30,9 +30,9 @@ export class SettingsBridge extends BaseBridge {
       }
     );
 
-    // Get active settings
-    this.handle("settings:getActive", async () => {
-      return settingsService.getActiveSettings();
+    // Get settings
+    this.handle("settings:get", async () => {
+      return settingsService.getSettings();
     });
 
     // Check if configured

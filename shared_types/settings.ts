@@ -4,76 +4,68 @@
 
 import { z } from 'zod';
 
-// Profile ID schema
-export const ProfileIdSchema = z.string().min(1);
+// Provider ID schema
+export const ProviderIdSchema = z.string().min(1);
 
 // Provider type enum
 export const ProviderTypeSchema = z.enum(['openai-compatible', 'anthropic']);
 export type ProviderType = z.infer<typeof ProviderTypeSchema>;
 
-// Base AI Settings schema
-const BaseAISettingsSchema = z.object({
-  complexModel: z.string().min(1).default('gpt-4'),
-  simpleModel: z.string().min(1).default('gpt-3.5-turbo'),
+// Base Provider Config schema
+const BaseProviderConfigSchema = z.object({
+  id: ProviderIdSchema,
+  name: z.string().min(1), // User-friendly name for the provider
+  provider: ProviderTypeSchema,
 });
 
-// OpenAI Compatible Settings schema
-const OpenAICompatibleSettingsSchema = BaseAISettingsSchema.extend({
+// OpenAI Compatible Provider Config schema
+const OpenAICompatibleProviderConfigSchema = BaseProviderConfigSchema.extend({
   provider: z.literal('openai-compatible'),
   apiUrl: z.string().url().default('https://api.openai.com/v1'),
   apiKey: z.string().min(1),
 });
 
-// Anthropic Settings schema
-const AnthropicSettingsSchema = BaseAISettingsSchema.extend({
+// Anthropic Provider Config schema
+const AnthropicProviderConfigSchema = BaseProviderConfigSchema.extend({
   provider: z.literal('anthropic'),
   anthropicApiKey: z.string().min(1),
 });
 
-// Union of all provider settings
-export const AISettingsSchema = z.discriminatedUnion('provider', [
-  OpenAICompatibleSettingsSchema,
-  AnthropicSettingsSchema,
+// Union of all provider configurations
+export const ProviderConfigSchema = z.discriminatedUnion('provider', [
+  OpenAICompatibleProviderConfigSchema,
+  AnthropicProviderConfigSchema,
 ]);
 
-export type AISettings = z.infer<typeof AISettingsSchema>;
+export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 
-// Settings Profile schema
-export const SettingsProfileSchema = z.object({
-  id: ProfileIdSchema,
-  name: z.string().min(1),
-  settings: AISettingsSchema,
-  createdAt: z.date(),
-  updatedAt: z.date(),
+// Model configuration schema
+export const ModelConfigSchema = z.object({
+  providerId: ProviderIdSchema,
+  modelName: z.string().min(1),
 });
 
-export type SettingsProfile = z.infer<typeof SettingsProfileSchema>;
+export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 
-// Settings State schema
+// Settings State schema - single profile with multiple providers and model configurations
 export const SettingsStateSchema = z.object({
-  profiles: z.array(SettingsProfileSchema),
-  activeProfileId: ProfileIdSchema,
+  providers: z.array(ProviderConfigSchema),
+  modelConfigurations: z.object({
+    simple: ModelConfigSchema,
+    complex: ModelConfigSchema,
+  }),
 });
 
 export type SettingsState = z.infer<typeof SettingsStateSchema>;
 
-// Test Connection Config schemas
-const OpenAICompatibleTestConfigSchema = z.object({
-  provider: z.literal('openai-compatible'),
-  apiUrl: z.string().url(),
-  apiKey: z.string().min(1),
-  model: z.string().min(1),
-});
-
-const AnthropicTestConfigSchema = z.object({
-  provider: z.literal('anthropic'),
-  anthropicApiKey: z.string().min(1),
-  model: z.string().min(1),
-});
-
+// Test Connection Config schema - using the same structure as provider config
 export const TestConnectionConfigSchema = z.discriminatedUnion('provider', [
-  OpenAICompatibleTestConfigSchema,
-  AnthropicTestConfigSchema,
+  OpenAICompatibleProviderConfigSchema.extend({
+    model: z.string().min(1), // For testing, we might want to specify a different model
+  }),
+  AnthropicProviderConfigSchema.extend({
+    model: z.string().min(1), // For testing, we might want to specify a different model
+  }),
 ]);
 
 export type TestConnectionConfig = z.infer<typeof TestConnectionConfigSchema>;
@@ -95,5 +87,5 @@ export const TestConnectionResultSchema = z.object({
 
 export type TestConnectionResult = z.infer<typeof TestConnectionResultSchema>;
 
-// Type alias for ProfileId - inferred from schema
-export type ProfileId = z.infer<typeof ProfileIdSchema>;
+// Type alias for ProviderId - inferred from schema
+export type ProviderId = z.infer<typeof ProviderIdSchema>;

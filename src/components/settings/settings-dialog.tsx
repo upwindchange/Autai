@@ -10,13 +10,12 @@ import {
 import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { Settings2 } from "lucide-react";
 import { SettingsForm } from "./settings-form";
-import { ProfileSelector } from "./profile-selector";
 import { useSettings } from "./settings-context";
 import { ViewDebugTools } from "@/components/debug/view-debug-tools";
 
 export function SettingsDialog() {
   const [open, setOpen] = useState(false);
-  const { activeProfile } = useSettings();
+  const { settings } = useSettings();
   
   // Check if debug tools are enabled
   const isDebugToolsEnabled = () => {
@@ -36,17 +35,14 @@ export function SettingsDialog() {
         <DialogHeader className="flex-shrink-0">
           <DialogTitle>AI Settings</DialogTitle>
           <DialogDescription>
-            Configure your AI model settings and API endpoints.
+            Configure your AI providers and model settings.
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-6 py-4 overflow-y-auto flex-1">
-          <ProfileSelector />
-          {activeProfile && (
-            <SettingsForm
-              profile={activeProfile}
-              onClose={() => setOpen(false)}
-            />
-          )}
+          <SettingsForm
+            settings={settings}
+            onClose={() => setOpen(false)}
+          />
           {isDebugToolsEnabled() && <ViewDebugTools />}
         </div>
       </DialogContent>

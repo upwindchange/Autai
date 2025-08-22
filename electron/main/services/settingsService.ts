@@ -4,8 +4,7 @@ import * as path from "path";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText } from "ai";
 import type {
-  AISettings,
-  SettingsProfile,
+  ProviderConfig,
   SettingsState,
   TestConnectionConfig,
   TestConnectionResult,
@@ -20,22 +19,25 @@ class SettingsService {
     this.settingsPath = path.join(userDataPath, "settings.json");
     // Initialize with default settings
     this.settings = {
-      profiles: [
+      providers: [
         {
-          id: "default",
-          name: "Default",
-          settings: {
-            provider: "openai-compatible",
-            apiUrl: "https://api.openai.com/v1",
-            apiKey: "",
-            complexModel: "gpt-4",
-            simpleModel: "gpt-3.5-turbo",
-          },
-          createdAt: new Date(),
-          updatedAt: new Date(),
+          id: "default-openai",
+          name: "Default OpenAI",
+          provider: "openai-compatible",
+          apiUrl: "https://api.openai.com/v1",
+          apiKey: "",
         },
       ],
-      activeProfileId: "default",
+      modelConfigurations: {
+        simple: {
+          providerId: "default-openai",
+          modelName: "gpt-3.5-turbo",
+        },
+        complex: {
+          providerId: "default-openai",
+          modelName: "gpt-4",
+        },
+      },
     };
   }
 
@@ -68,18 +70,8 @@ class SettingsService {
     );
   }
 
-  getActiveProfile(): SettingsProfile | null {
-    if (!this.settings) return null;
-    return (
-      this.settings.profiles.find(
-        (p: SettingsProfile) => p.id === this.settings!.activeProfileId
-      ) || null
-    );
-  }
-
-  getActiveSettings(): AISettings | null {
-    const profile = this.getActiveProfile();
-    return profile ? profile.settings : null;
+  getSettings(): SettingsState {
+    return this.settings;
   }
 
   async testConnection(
@@ -92,18 +84,18 @@ class SettingsService {
       if (config.provider === 'openai-compatible') {
         // Create OpenAI-compatible provider
         provider = createOpenAICompatible({
-          name: "openai",
+          name: (config as any).name || "openai",
           apiKey: (config as any).apiKey,
           baseURL: (config as any).apiUrl,
         });
-        model = config.model;
+        model = (config as any).model;
       } else if (config.provider === 'anthropic') {
         // Create Anthropic provider
         const { createAnthropic } = await import('@ai-sdk/anthropic');
         provider = createAnthropic({
           apiKey: (config as any).anthropicApiKey,
         });
-        model = config.model;
+        model = (config as any).model;
       } else {
         throw new Error("Unsupported provider: " + (config as any).provider);
       }
@@ -145,14 +137,25 @@ class SettingsService {
 
   // Utility method to check if settings are configured
   isConfigured(): boolean {
-    const settings = this.getActiveSettings();
-    if (!settings) return false;
+    if (!this.settings || !this.settings.providers) return false;
     
-    // Check based on provider type
-    if (settings.provider === 'openai-compatible') {
-      return !!((settings as any).apiKey && (settings as any).apiUrl);
-    } else if (settings.provider === 'anthropic') {
-      return !!(settings as any).anthropicApiKey;
+    // Check if we have model configurations
+    if (!this.settings.modelConfigurations) return false;
+    
+    // Check if the configured providers exist and are properly configured
+    const simpleConfig = this.settings.modelConfigurations.simple;
+    const complexConfig = this.settings.modelConfigurations.complex;
+    
+    const simpleProvider = this.settings.providers.find(p => p.id === simpleConfig.providerId);
+    const complexProvider = this.settings.providers.find(p => p.id === complexConfig.providerId);
+    
+    if (!simpleProvider || !complexProvider) return false;
+    
+    // Check based on provider type for simple provider
+    if (simpleProvider.provider === 'openai-compatible') {
+      return !!((simpleProvider as any).apiKey && (simpleProvider as any).apiUrl);
+    } else if (simpleProvider.provider === 'anthropic') {
+      return !!((simpleProvider as any).anthropicApiKey);
     }
     
     return false;

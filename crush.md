@@ -33,7 +33,7 @@ pnpm build
 
 - **BrowserViewService**: Manages browser view instances and navigation
 - **DomService**: Analyzes and manipulates DOM elements in webviews
-- **SettingsService**: Manages application settings and profiles
+- **SettingsService**: Manages application settings and providers
 - **ThreadViewManager**: Manages AI thread views and their lifecycle
 - **Agent API Server**: Express server for AI agent communication
 

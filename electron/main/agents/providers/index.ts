@@ -1,10 +1,10 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { settingsService } from "@backend/services";
-import type { AISettings } from "@shared/index";
+import type { ProviderConfig, SettingsState, ModelConfig } from "@shared/index";
 import type { LanguageModel } from "ai";
 
 /**
- * Creates a provider based on the active settings
+ * Creates a provider based on the active settings for the specified model type
  * @param modelType - The type of model to use ('simple' or 'complex')
  * @returns LanguageModel provider function
  */
@@ -12,62 +12,69 @@ export async function createAIProvider(
   modelType: "simple" | "complex" = "simple"
 ): Promise<LanguageModel> {
   // Get settings
-  const settings = settingsService.getActiveSettings();
-  if (!settings) {
-    throw new Error("No settings configured");
+  const settings = settingsService.getSettings();
+  if (!settings || !settings.providers || settings.providers.length === 0) {
+    throw new Error("No providers configured");
+  }
+
+  // Get the model configuration for this model type
+  const modelConfig = settings.modelConfigurations?.[modelType];
+  if (!modelConfig) {
+    throw new Error(`No model configuration found for ${modelType} model`);
+  }
+
+  // Find the provider configuration
+  const providerConfig = settings.providers.find(p => p.id === modelConfig.providerId);
+  if (!providerConfig) {
+    throw new Error(`Provider with ID ${modelConfig.providerId} not found`);
   }
 
   // Return provider based on the selected provider type
-  if (settings.provider === "openai-compatible") {
-    return createOpenAICompatibleProvider(settings as any, modelType);
-  } else if (settings.provider === "anthropic") {
-    return createAnthropicProvider(settings as any, modelType);
+  if (providerConfig.provider === "openai-compatible") {
+    return createOpenAICompatibleProvider(providerConfig as any, modelConfig.modelName);
+  } else if (providerConfig.provider === "anthropic") {
+    return createAnthropicProvider(providerConfig as any, modelConfig.modelName);
   } else {
-    throw new Error("Unsupported provider: " + (settings as any).provider);
+    throw new Error("Unsupported provider: " + (providerConfig as any).provider);
   }
 }
 
 /**
- * Creates an OpenAI-compatible provider using the active settings
- * @param settings - The AI settings
- * @param modelType - The type of model to use ('simple' or 'complex')
+ * Creates an OpenAI-compatible provider using the provider configuration
+ * @param providerConfig - The provider configuration
+ * @param modelName - The name of the model to use
  * @returns OpenAI-compatible provider function
  */
 function createOpenAICompatibleProvider(
-  settings: any,
-  modelType: "simple" | "complex" = "simple"
+  providerConfig: any,
+  modelName: string
 ): LanguageModel {
-  if (!settings.apiKey) {
+  if (!providerConfig.apiKey) {
     throw new Error("API key not configured");
   }
 
   // Create OpenAI-compatible provider
   const provider = createOpenAICompatible({
-    name: "openai",
-    apiKey: settings.apiKey,
-    baseURL: settings.apiUrl || "https://api.openai.com/v1",
+    name: providerConfig.name,
+    apiKey: providerConfig.apiKey,
+    baseURL: providerConfig.apiUrl || "https://api.openai.com/v1",
   });
 
-  // Return provider with the appropriate model
-  const model =
-    modelType === "complex"
-      ? settings.complexModel || "gpt-4"
-      : settings.simpleModel || "gpt-4o-mini";
-
-  return provider(model);
+  // Return provider with the specified model
+  return provider(modelName);
 }
 
 /**
- * Creates an Anthropic provider using the active settings
- * @param settings - The AI settings
- * @param modelType - The type of model to use ('simple' or 'complex')
+ * Creates an Anthropic provider using the provider configuration
+ * @param providerConfig - The provider configuration
+ * @param modelName - The name of the model to use
  * @returns Anthropic provider function
  */
 async function createAnthropicProvider(
-  settings: any,
-  modelType: "simple" | "complex" = "simple"
+  providerConfig: any,
+  modelName: string
 ): Promise<LanguageModel> {
-  if (!settings.anthropicApiKey) {
+  if (!providerConfig.anthropicApiKey) {
     throw new Error("Anthropic API key not configured");
   }
 
@@ -76,23 +83,38 @@ async function createAnthropicProvider(
   
   // Create Anthropic provider
   const provider = createAnthropic({
-    apiKey: settings.anthropicApiKey,
+    apiKey: providerConfig.anthropicApiKey,
   });
 
-  // Return provider with the appropriate model
-  // Note: Anthropic models are prefixed with "claude-"
-  const model =
-    modelType === "complex"
-      ? settings.complexModel || "claude-3-sonnet-20240229"
-      : settings.simpleModel || "claude-3-haiku-20240307";
-
-  return provider(model);
+  // Return provider with the specified model
+  return provider(modelName);
 }
 
 /**
- * Gets the active AI settings
- * @returns AISettings object or null if not configured
+ * Gets all provider configurations
+ * @returns Array of ProviderConfig objects
  */
-export function getAISettings(): AISettings | null {
-  return settingsService.getActiveSettings();
+export function getProviderConfigs(): ProviderConfig[] {
+  const settings = settingsService.getSettings();
+  return settings?.providers || [];
+}
+
+/**
+ * Gets a specific provider configuration by ID
+ * @param providerId - The ID of the provider to retrieve
+ * @returns ProviderConfig object or null if not found
+ */
+export function getProviderConfig(providerId: string): ProviderConfig | null {
+  const providers = getProviderConfigs();
+  return providers.find(p => p.id === providerId) || null;
+}
+
+/**
+ * Gets the model configuration for the specified model type
+ * @param modelType - The type of model ('simple' or 'complex')
+ * @returns ModelConfig object
+ */
+export function getModelConfig(modelType: "simple" | "complex"): ModelConfig | null {
+  const settings = settingsService.getSettings();
+  return settings?.modelConfigurations?.[modelType] || null;
 }
