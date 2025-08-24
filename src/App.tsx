@@ -4,7 +4,12 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AssistantChatContainer } from "@/components/ai-chat";
 import { SettingsProvider, SettingsView } from "@/components/settings";
 import { useUiStore } from "@/stores/uiStore";
-import { AssistantRuntimeProvider } from "@assistant-ui/react";
+import {
+  AssistantRuntimeProvider,
+  CompositeAttachmentAdapter,
+  SimpleImageAttachmentAdapter,
+  SimpleTextAttachmentAdapter,
+} from "@assistant-ui/react";
 import {
   useChatRuntime,
   AssistantChatTransport,
@@ -64,6 +69,12 @@ function App() {
     transport: new AssistantChatTransport({
       api: "http://localhost:3001/chat", // Custom API URL with forwarding
     }),
+    adapters: {
+      attachments: new CompositeAttachmentAdapter([
+        new SimpleImageAttachmentAdapter(),
+        new SimpleTextAttachmentAdapter(),
+      ]),
+    },
   });
 
   return (

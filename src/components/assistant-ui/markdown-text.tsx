@@ -14,6 +14,8 @@ import { CheckIcon, CopyIcon } from "lucide-react";
 
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
+import { SyntaxHighlighter } from "./shiki-highlighter";
+import { MermaidDiagram } from "./mermaid-diagram";
 
 const MarkdownTextImpl = () => {
   return (
@@ -21,6 +23,11 @@ const MarkdownTextImpl = () => {
       remarkPlugins={[remarkGfm]}
       className="aui-md"
       components={defaultComponents}
+      componentsByLanguage={{
+        mermaid: {
+          SyntaxHighlighter: MermaidDiagram,
+        },
+      }}
     />
   );
 };
@@ -35,7 +42,7 @@ const CodeHeader: FC<CodeHeaderProps> = ({ language, code }) => {
   };
 
   return (
-    <div className="flex items-center justify-between gap-4 mt-4 rounded-t-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white">
+    <div className="mt-4 flex items-center justify-between gap-4 rounded-t-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white">
       <span className="lowercase [&>span]:text-xs">{language}</span>
       <TooltipIconButton tooltip="Copy" onClick={onCopy}>
         {!isCopied && <CopyIcon />}
@@ -65,6 +72,7 @@ const useCopyToClipboard = ({
 };
 
 const defaultComponents = memoizeMarkdownComponents({
+  SyntaxHighlighter: SyntaxHighlighter,
   h1: ({ className, ...props }) => (
     <h1
       className={cn(
@@ -197,7 +205,7 @@ const defaultComponents = memoizeMarkdownComponents({
   pre: ({ className, ...props }) => (
     <pre
       className={cn(
-        "overflow-x-auto rounded-b-lg !rounded-t-none bg-black p-4 text-white",
+        "overflow-x-auto !rounded-t-none rounded-b-lg bg-black p-4 text-white",
         className
       )}
       {...props}

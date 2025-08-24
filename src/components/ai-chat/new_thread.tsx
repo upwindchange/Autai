@@ -7,10 +7,10 @@ import {
   ErrorPrimitive,
 } from "@assistant-ui/react";
 import type { FC } from "react";
+import { useRef, useEffect } from "react";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
-  PlusIcon,
   CopyIcon,
   CheckIcon,
   PencilIcon,
@@ -19,44 +19,158 @@ import {
   ChevronRightIcon,
   Square,
 } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
 
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { MarkdownText } from "./markdown-text";
-import { ToolFallback } from "./tool-fallback";
+import { MarkdownText } from "@/components/assistant-ui/markdown-text";
+import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
+import {
+  CalculatorTool,
+  AnswerTool,
+  DisplayErrorTool,
+} from "@/components/assistant-ui/tool-components";
+import {
+  ComposerAttachments,
+  ComposerAddAttachment,
+  UserMessageAttachments,
+} from "@/components/assistant-ui/attachment";
+import { TOOL_NAMES } from "@shared/index";
+import { useUiStore } from "@/stores/uiStore";
+import { useViewVisibility } from "@/hooks/useViewVisibility";
 
-export const Thread: FC = () => {
+interface ThreadProps {
+  showSplitView?: boolean;
+}
+
+export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
+  const workspaceRef = useRef<HTMLDivElement>(null);
+  const { setContainerRef, setContainerBounds } = useUiStore();
+
+  // Sync view visibility with container state
+  useViewVisibility();
+
+  useEffect(() => {
+    console.log(
+      `Thread component: showSplitView=${showSplitView}, workspaceRef exists=${!!workspaceRef.current}`
+    );
+
+    if (showSplitView && workspaceRef.current) {
+      console.log("Thread: Enabling split view, setting container ref");
+      setContainerRef(workspaceRef.current);
+
+      // Set initial bounds
+      const { width, height, x, y } =
+        workspaceRef.current.getBoundingClientRect();
+      console.log("Thread: Initial bounds:", { width, height, x, y });
+      setContainerBounds({ width, height, x, y });
+
+      // Set up resize observer
+      const resizeObserver = new ResizeObserver(() => {
+        if (workspaceRef.current) {
+          const { width, height, x, y } =
+            workspaceRef.current.getBoundingClientRect();
+          console.log("Thread: Bounds updated:", { width, height, x, y });
+          setContainerBounds({ width, height, x, y });
+        }
+      });
+
+      resizeObserver.observe(workspaceRef.current);
+
+      return () => {
+        console.log(
+          "Thread: Cleaning up - disconnecting resize observer and clearing refs"
+        );
+        resizeObserver.disconnect();
+        setContainerRef(null);
+        setContainerBounds(null);
+      };
+    } else {
+      // Clean up when not in split view
+      console.log("Thread: Disabling split view, clearing refs");
+      setContainerRef(null);
+      setContainerBounds(null);
+    }
+  }, [showSplitView, setContainerRef, setContainerBounds]);
+
   return (
     <ThreadPrimitive.Root
-      className="bg-background flex h-full flex-col"
+      className="bg-background flex h-full min-h-0 flex-col"
       style={{
         ["--thread-max-width" as string]: "48rem",
         ["--thread-padding-x" as string]: "1rem",
       }}
     >
-      <ThreadPrimitive.Viewport className="relative flex min-w-0 flex-1 flex-col gap-6 overflow-y-scroll">
-        <ThreadWelcome />
+      {showSplitView ? (
+        <ResizablePanelGroup direction="horizontal" className="flex-1">
+          <ResizablePanel defaultSize={50} minSize={30}>
+            <ScrollArea className="h-full">
+              <ThreadPrimitive.Viewport className="relative flex min-w-0 flex-1 flex-col gap-6">
+                <ThreadWelcome />
 
-        <ThreadPrimitive.Messages
-          components={{
-            UserMessage,
-            EditComposer,
-            AssistantMessage,
-          }}
-        />
+                <ThreadPrimitive.Messages
+                  components={{
+                    UserMessage,
+                    EditComposer,
+                    AssistantMessage,
+                  }}
+                />
 
-        <ThreadPrimitive.If empty={false}>
-          <motion.div className="min-h-6 min-w-6 shrink-0" />
-        </ThreadPrimitive.If>
-      </ThreadPrimitive.Viewport>
+                <ThreadPrimitive.If empty={false}>
+                  <motion.div className="min-h-6 min-w-6 shrink-0" />
+                </ThreadPrimitive.If>
+                <ThreadScrollToBottom />
+                <ThreadPrimitive.Empty>
+                  <ThreadWelcomeSuggestions />
+                </ThreadPrimitive.Empty>
+              </ThreadPrimitive.Viewport>
+            </ScrollArea>
+          </ResizablePanel>
+          <ResizableHandle withHandle />
+          <ResizablePanel defaultSize={50} minSize={30}>
+            <div
+              ref={workspaceRef}
+              className="h-full bg-muted/30 flex items-center justify-center text-muted-foreground border-r"
+            >
+              <p>Workspace Area</p>
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      ) : (
+        <ScrollArea className="flex-1 min-h-0">
+          <ThreadPrimitive.Viewport className="relative flex min-w-0 flex-1 flex-col gap-6">
+            <ThreadWelcome />
+
+            <ThreadPrimitive.Messages
+              components={{
+                UserMessage,
+                EditComposer,
+                AssistantMessage,
+              }}
+            />
+
+            <ThreadPrimitive.If empty={false}>
+              <motion.div className="min-h-6 min-w-6 shrink-0" />
+            </ThreadPrimitive.If>
+            <ThreadScrollToBottom />
+            <ThreadPrimitive.Empty>
+              <ThreadWelcomeSuggestions />
+            </ThreadPrimitive.Empty>
+          </ThreadPrimitive.Viewport>
+        </ScrollArea>
+      )}
 
       <Composer />
     </ThreadPrimitive.Root>
   );
 };
-
 const ThreadScrollToBottom: FC = () => {
   return (
     <ThreadPrimitive.ScrollToBottom asChild>
@@ -158,11 +272,7 @@ const ThreadWelcomeSuggestions: FC = () => {
 
 const Composer: FC = () => {
   return (
-    <div className="bg-background relative mx-auto flex w-full max-w-[var(--thread-max-width)] flex-col gap-4 px-[var(--thread-padding-x)] pb-4 md:pb-6">
-      <ThreadScrollToBottom />
-      <ThreadPrimitive.Empty>
-        <ThreadWelcomeSuggestions />
-      </ThreadPrimitive.Empty>
+    <div className="bg-background relative mx-auto flex w-full max-w-[var(--thread-max-width)] shrink-0 flex-col gap-4 px-[var(--thread-padding-x)] pb-4 md:pb-6">
       <ComposerPrimitive.Root className="relative flex w-full flex-col rounded-2xl focus-within:ring-2 focus-within:ring-black focus-within:ring-offset-2 dark:focus-within:ring-white">
         <ComposerPrimitive.Input
           placeholder="Send a message..."
@@ -180,16 +290,8 @@ const Composer: FC = () => {
 const ComposerAction: FC = () => {
   return (
     <div className="bg-muted border-border dark:border-muted-foreground/15 relative flex items-center justify-between rounded-b-2xl border-x border-b p-2">
-      <TooltipIconButton
-        tooltip="Attach file"
-        variant="ghost"
-        className="hover:bg-foreground/15 dark:hover:bg-background/50 scale-115 p-3.5"
-        onClick={() => {
-          console.log("Attachment clicked - not implemented");
-        }}
-      >
-        <PlusIcon />
-      </TooltipIconButton>
+      <ComposerAddAttachment />
+      <ComposerAttachments />
 
       <ThreadPrimitive.If running={false}>
         <ComposerPrimitive.Send asChild>
@@ -244,10 +346,17 @@ const AssistantMessage: FC = () => {
         </div>
 
         <div className="text-foreground col-span-2 col-start-2 row-start-1 ml-4 break-words leading-7">
-          <MessagePrimitive.Content
+          <MessagePrimitive.Parts
             components={{
               Text: MarkdownText,
-              tools: { Fallback: ToolFallback },
+              tools: {
+                by_name: {
+                  [TOOL_NAMES.CALCULATE]: CalculatorTool,
+                  [TOOL_NAMES.ANSWER]: AnswerTool,
+                  [TOOL_NAMES.DISPLAY_ERROR]: DisplayErrorTool,
+                },
+                Fallback: ToolFallback,
+              },
             }}
           />
           <MessageError />
@@ -297,10 +406,11 @@ const UserMessage: FC = () => {
         animate={{ y: 0, opacity: 1 }}
         data-role="user"
       >
+        <UserMessageAttachments />
         <UserActionBar />
 
         <div className="bg-muted text-foreground col-start-2 break-words rounded-3xl px-5 py-2.5">
-          <MessagePrimitive.Content components={{ Text: MarkdownText }} />
+          <MessagePrimitive.Parts components={{ Text: MarkdownText }} />
         </div>
 
         <BranchPicker className="col-span-full col-start-1 row-start-3 -mr-1 justify-end" />
