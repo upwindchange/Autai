@@ -109,8 +109,30 @@ export class ApiServer {
 
   stop(): void {
     if (this.server) {
-      this.server.close();
-      this.server = null;
+      try {
+        console.log("Closing API server...");
+        this.server.close((err) => {
+          if (err) {
+            console.error("Error closing API server:", err);
+          } else {
+            console.log("API server closed successfully");
+          }
+        });
+        
+        // Force close after 1 second if it hasn't closed gracefully
+        setTimeout(() => {
+          if (this.server) {
+            this.server.close(() => {});
+            this.server = null;
+            console.log("API server force closed");
+          }
+        }, 1000);
+      } catch (error) {
+        console.error("Error stopping API server:", error);
+        this.server = null; // Ensure we clear the reference even if there's an error
+      }
+    } else {
+      console.log("API server already stopped or not initialized");
     }
   }
 

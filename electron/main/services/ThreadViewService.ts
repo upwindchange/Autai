@@ -187,30 +187,49 @@ export class ThreadViewService extends EventEmitter {
   }
 
   async destroyView(viewId: ViewId): Promise<void> {
+    console.log(`Destroying view ${viewId}`);
+
     const webView = this.views.get(viewId);
     const metadata = this.viewMetadata.get(viewId);
-    if (!webView || !metadata) return;
-
-    // Stop and cleanup WebContents
-    if (webView.webContents && !webView.webContents.isDestroyed()) {
-      try {
-        webView.webContents.stop();
-        webView.webContents.removeAllListeners();
-        webView.webContents.close({ waitForBeforeUnload: false });
-        webView.webContents.forcefullyCrashRenderer();
-      } catch (error) {
-        console.error(
-          `Error cleaning up WebContents for view ${viewId}:`,
-          error
-        );
-      }
+    if (!webView || !metadata) {
+      // Even if we don't have the view, still try to clean up from storage
+      this.views.delete(viewId);
+      this.viewMetadata.delete(viewId);
+      return;
     }
 
-    // Remove from window
     try {
-      this.win.contentView.removeChildView(webView);
+      // Stop and cleanup WebContents
+      if (webView.webContents && !webView.webContents.isDestroyed()) {
+        try {
+          console.log(`Stopping webContents for view ${viewId}`);
+          webView.webContents.stop();
+          webView.webContents.removeAllListeners();
+          webView.webContents.close({ waitForBeforeUnload: false });
+          webView.webContents.forcefullyCrashRenderer();
+          console.log(`WebContents for view ${viewId} stopped`);
+        } catch (error) {
+          console.error(
+            `Error cleaning up WebContents for view ${viewId}:`,
+            error
+          );
+        }
+      }
     } catch (error) {
-      console.error(`Error removing view from window:`, error);
+      console.error(`Error in webContents cleanup for view ${viewId}:`, error);
+    }
+
+    try {
+      // Remove from window only if window still exists and isn't destroyed
+      if (this.win && !this.win.isDestroyed()) {
+        console.log(`Removing view ${viewId} from window`);
+        this.win.contentView.removeChildView(webView);
+        console.log(`View ${viewId} removed from window`);
+      } else {
+        console.log(`Window is destroyed, skipping view removal for ${viewId}`);
+      }
+    } catch (error) {
+      console.error(`Error removing view ${viewId} from window:`, error);
     }
 
     // Update thread state
@@ -238,6 +257,7 @@ export class ThreadViewService extends EventEmitter {
     this.viewMetadata.delete(viewId);
 
     this.emit("threadview:destroyed", viewId);
+    console.log(`View ${viewId} destroyed successfully`);
   }
 
   // ===================
@@ -382,20 +402,33 @@ export class ThreadViewService extends EventEmitter {
   // ===================
   // CLEANUP
   // ===================
-
   async destroy(): Promise<void> {
-    // Delete all threads (which will destroy their views)
-    const deletePromises = Array.from(this.threadStates.keys()).map(
-      (threadId) => this.deleteThread(threadId)
-    );
-    await Promise.all(deletePromises);
+    try {
+      // Delete all threads (which will destroy their views)
+      const deletePromises = Array.from(this.threadStates.keys()).map(
+        (threadId) => this.deleteThread(threadId)
+      );
+      await Promise.all(deletePromises);
 
-    // Clean up any remaining views and metadata
-    this.views.clear();
-    this.viewMetadata.clear();
-    this.threadStates.clear();
-    this.removeAllListeners();
-    this.activeThreadId = null;
-    this.activeView = null;
+      // Force cleanup of any remaining views
+      for (const [viewId, _] of this.views) {
+        try {
+          console.log(`Force cleanup of view ${viewId}`);
+          this.destroyView(viewId);
+        } catch (error) {
+          console.error(`Error destroying view ${viewId}:`, error);
+        }
+      }
+    } catch (error) {
+      console.error("Error during ThreadViewService.destroy():", error);
+    } finally {
+      // Still clean up what we can
+      this.views.clear();
+      this.viewMetadata.clear();
+      this.threadStates.clear();
+      this.removeAllListeners();
+      this.activeThreadId = null;
+      this.activeView = null;
+    }
   }
 }

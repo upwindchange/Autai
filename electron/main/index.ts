@@ -113,29 +113,12 @@ app.whenReady().then(async () => {
   createWindow();
 });
 
-app.on("window-all-closed", async () => {
-  // Clean up all services and bridges before quitting
-  if (threadViewService) {
-    await threadViewService.destroy();
-    threadViewService = null;
+app.on("window-all-closed", () => {
+  if (process.platform !== "darwin") {
+    console.log("window-all-closed event triggered");
+    console.log("Quitting app...");
+    app.quit();
   }
-  if (threadViewBridge) {
-    threadViewBridge.destroy();
-    threadViewBridge = null;
-  }
-  if (viewControlBridge) {
-    viewControlBridge.destroy();
-    viewControlBridge = null;
-  }
-  if (settingsBridge) {
-    settingsBridge.destroy();
-    settingsBridge = null;
-  }
-  viewControlService = null;
-  // Stop API server
-  apiServer.stop();
-  win = null;
-  if (process.platform !== "darwin") app.quit();
 });
 
 /**
@@ -160,33 +143,78 @@ app.on("activate", () => {
 /**
  * Clean up before app quits
  */
+let isCleaningUp = false;
 app.on("before-quit", async (event) => {
-  if (
-    settingsBridge ||
-    threadViewBridge ||
-    threadViewService ||
-    viewControlService ||
-    viewControlBridge
-  ) {
-    event.preventDefault();
+  // Prevent default quit behavior to ensure proper cleanup
+  if (isCleaningUp) {
+    return; // Already cleaning up, prevent multiple executions
+  }
+  
+  isCleaningUp = true;
+  event.preventDefault();
+  console.log("Starting app cleanup...");
+
+  try {
+    // Clean up all services and bridges
     if (threadViewService) {
+      console.log("Destroying threadViewService...");
       await threadViewService.destroy();
       threadViewService = null;
+      console.log("threadViewService destroyed");
     }
+    
     if (threadViewBridge) {
+      console.log("Destroying threadViewBridge...");
       threadViewBridge.destroy();
       threadViewBridge = null;
+      console.log("threadViewBridge destroyed");
     }
+    
     if (viewControlBridge) {
+      console.log("Destroying viewControlBridge...");
       viewControlBridge.destroy();
       viewControlBridge = null;
+      console.log("viewControlBridge destroyed");
     }
+    
     if (settingsBridge) {
+      console.log("Destroying settingsBridge...");
       settingsBridge.destroy();
       settingsBridge = null;
+      console.log("settingsBridge destroyed");
     }
+    
     viewControlService = null;
-    app.quit();
+
+    // Stop API server
+    console.log("Stopping API server...");
+    apiServer.stop();
+    console.log("API server stopped");
+
+    // Force cleanup of any remaining web contents
+    console.log("Cleaning up remaining windows...");
+    const allWindows = BrowserWindow.getAllWindows();
+    for (const window of allWindows) {
+      try {
+        if (!window.isDestroyed()) {
+          console.log("Destroying window...");
+          window.destroy();
+          console.log("Window destroyed");
+        }
+      } catch (error) {
+        console.warn("Error cleaning up window:", error);
+      }
+    }
+    
+    console.log("App cleanup completed");
+  } catch (error) {
+    console.error("Error during cleanup:", error);
+  } finally {
+    // Ensure the app quits even if there are errors
+    console.log("Ensuring app quit...");
+    setTimeout(() => {
+      app.exit(0); // Use app.exit instead of app.quit to bypass Electron's quit handling
+    }, 50);
   }
 });
 
