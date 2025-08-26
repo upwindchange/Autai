@@ -17,6 +17,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   EyeIcon,
   EyeOffIcon,
   Save,
@@ -24,6 +30,7 @@ import {
   Loader2,
   Plus,
   Trash2,
+  HelpCircle,
 } from "lucide-react";
 import { useSettings } from "./settings-context";
 import type {
@@ -31,6 +38,7 @@ import type {
   TestConnectionConfig,
   OpenAICompatibleProviderConfig,
   AnthropicProviderConfig,
+  TestConnectionResult,
 } from "@shared/index";
 
 interface SettingsFormProps {
@@ -71,7 +79,8 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
     | (OpenAICompatibleProviderConfig & { isNew?: boolean })
     | (AnthropicProviderConfig & { isNew?: boolean });
 
-  const [editingProvider, setEditingProvider] = useState<EditingProvider | null>(null);
+  const [editingProvider, setEditingProvider] =
+    useState<EditingProvider | null>(null);
   const [isAddingNewProvider, setIsAddingNewProvider] = useState(false);
 
   // State for model configurations
@@ -102,19 +111,6 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
     }
   }, [settings]);
 
-  // Simple state for debug tools - independent of providers
-  const [debugToolsEnabled, setDebugToolsEnabled] = useState(() => {
-    // Load from localStorage or default to false
-    const saved = localStorage.getItem("debugToolsEnabled");
-    return saved ? JSON.parse(saved) : false;
-  });
-
-  const toggleDebugTools = () => {
-    const newValue = !debugToolsEnabled;
-    setDebugToolsEnabled(newValue);
-    localStorage.setItem("debugToolsEnabled", JSON.stringify(newValue));
-  };
-
   const handleAddProvider = () => {
     setIsAddingNewProvider(true);
     setEditingProvider({
@@ -129,7 +125,7 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
 
   const handleSaveProvider = async () => {
     if (!editingProvider) return;
-    
+
     setIsLoading(true);
     try {
       if (isAddingNewProvider) {
@@ -151,42 +147,59 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
     setTestResult(null);
 
     try {
-      const results: { simple?: any; complex?: any } = {};
-      
+      const results: {
+        simple?: TestConnectionResult;
+        complex?: TestConnectionResult;
+      } = {};
+
       // Test simple model
       if (simpleModelConfig.providerId && simpleModelConfig.modelName) {
-        const simpleProvider = settings.providers.find((p) => p.id === simpleModelConfig.providerId);
+        const simpleProvider = settings.providers.find(
+          (p) => p.id === simpleModelConfig.providerId
+        );
         if (simpleProvider) {
           const testConfig: TestConnectionConfig = {
             ...simpleProvider,
             model: simpleModelConfig.modelName,
           };
-          results.simple = await window.ipcRenderer.invoke("settings:test", testConfig);
+          results.simple = await window.ipcRenderer.invoke(
+            "settings:test",
+            testConfig
+          );
         }
       }
 
       // Test complex model
       if (complexModelConfig.providerId && complexModelConfig.modelName) {
-        const complexProvider = settings.providers.find((p) => p.id === complexModelConfig.providerId);
+        const complexProvider = settings.providers.find(
+          (p) => p.id === complexModelConfig.providerId
+        );
         if (complexProvider) {
           const testConfig: TestConnectionConfig = {
             ...complexProvider,
             model: complexModelConfig.modelName,
           };
-          results.complex = await window.ipcRenderer.invoke("settings:test", testConfig);
+          results.complex = await window.ipcRenderer.invoke(
+            "settings:test",
+            testConfig
+          );
         }
       }
 
-      const allSuccess = Object.values(results).every(result => result?.success);
-      const anySuccess = Object.values(results).some(result => result?.success);
-      
+      const allSuccess = Object.values(results).every(
+        (result) => result?.success
+      );
+      const anySuccess = Object.values(results).some(
+        (result) => result?.success
+      );
+
       setTestResult({
         success: allSuccess,
-        message: allSuccess 
-          ? "All models tested successfully!" 
-          : anySuccess 
-            ? "Some models failed testing" 
-            : "All models failed testing",
+        message: allSuccess
+          ? "All models tested successfully!"
+          : anySuccess
+          ? "Some models failed testing"
+          : "All models failed testing",
         details: results,
       });
     } catch (error) {
@@ -224,71 +237,77 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
     return (
       <div className="space-y-6">
         {editingProvider && (
-        <div className="space-y-2">
-          <Label htmlFor="provider-name">Provider Name</Label>
-          <Input
-            id="provider-name"
-            value={editingProvider.name}
-            onChange={(e) => {
-              // Create a new object with the updated name, preserving the provider type
-              if (isOpenAIProvider(editingProvider)) {
-                setEditingProvider({
-                  ...editingProvider,
-                  name: e.target.value,
-                });
-              } else if (isAnthropicProvider(editingProvider)) {
-                setEditingProvider({
-                  ...editingProvider,
-                  name: e.target.value,
-                });
-              }
-            }}
-            placeholder="e.g., OpenAI Production, Anthropic Dev"
-          />
-        </div>
+          <div className="space-y-2">
+            <Label htmlFor="provider-name">Provider Name</Label>
+            <Input
+              id="provider-name"
+              value={editingProvider.name}
+              onChange={(e) => {
+                // Create a new object with the updated name, preserving the provider type
+                if (isOpenAIProvider(editingProvider)) {
+                  setEditingProvider({
+                    ...editingProvider,
+                    name: e.target.value,
+                  });
+                } else if (isAnthropicProvider(editingProvider)) {
+                  setEditingProvider({
+                    ...editingProvider,
+                    name: e.target.value,
+                  });
+                }
+              }}
+              placeholder="e.g., OpenAI Production, Anthropic Dev"
+            />
+          </div>
         )}
 
         {editingProvider && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Provider Selection</CardTitle>
-            <CardDescription>Choose your AI provider</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="provider-type">AI Provider</Label>
-              <Select
-                value={editingProvider.provider}
-                onValueChange={(value: "openai-compatible" | "anthropic") => {
-                  if (value === "openai-compatible") {
-                    setEditingProvider({
-                      id: editingProvider.id,
-                      name: editingProvider.name,
-                      provider: "openai-compatible",
-                      apiUrl: "https://api.openai.com/v1",
-                      apiKey: isOpenAIProvider(editingProvider) ? editingProvider.apiKey || "" : "",
-                    });
-                  } else if (value === "anthropic") {
-                    setEditingProvider({
-                      id: editingProvider.id,
-                      name: editingProvider.name,
-                      provider: "anthropic",
-                      anthropicApiKey: isAnthropicProvider(editingProvider) ? editingProvider.anthropicApiKey || "" : "",
-                    });
-                  }
-                }}
-              >
-                <SelectTrigger id="provider-type">
-                  <SelectValue placeholder="Select a provider type" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="openai-compatible">OpenAI Compatible</SelectItem>
-                  <SelectItem value="anthropic">Anthropic</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Provider Selection</CardTitle>
+              <CardDescription>Choose your AI provider</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="provider-type">AI Provider</Label>
+                <Select
+                  value={editingProvider.provider}
+                  onValueChange={(value: "openai-compatible" | "anthropic") => {
+                    if (value === "openai-compatible") {
+                      setEditingProvider({
+                        id: editingProvider.id,
+                        name: editingProvider.name,
+                        provider: "openai-compatible",
+                        apiUrl: "https://api.openai.com/v1",
+                        apiKey: isOpenAIProvider(editingProvider)
+                          ? editingProvider.apiKey || ""
+                          : "",
+                      });
+                    } else if (value === "anthropic") {
+                      setEditingProvider({
+                        id: editingProvider.id,
+                        name: editingProvider.name,
+                        provider: "anthropic",
+                        anthropicApiKey: isAnthropicProvider(editingProvider)
+                          ? editingProvider.anthropicApiKey || ""
+                          : "",
+                      });
+                    }
+                  }}
+                >
+                  <SelectTrigger id="provider-type">
+                    <SelectValue placeholder="Select a provider type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="openai-compatible">
+                      OpenAI Compatible
+                    </SelectItem>
+                    <SelectItem value="anthropic">Anthropic</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         <Card>
@@ -309,7 +328,10 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                     id="api-url"
                     value={editingProvider.apiUrl}
                     onChange={(e) => {
-                      const updated = { ...editingProvider, apiUrl: e.target.value };
+                      const updated = {
+                        ...editingProvider,
+                        apiUrl: e.target.value,
+                      };
                       // Type guard to ensure we're working with the correct type
                       if (updated.provider === "openai-compatible") {
                         setEditingProvider(updated);
@@ -327,7 +349,10 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                       type={showApiKey ? "text" : "password"}
                       value={editingProvider.apiKey}
                       onChange={(e) => {
-                        const updated = { ...editingProvider, apiKey: e.target.value };
+                        const updated = {
+                          ...editingProvider,
+                          apiKey: e.target.value,
+                        };
                         // Type guard to ensure we're working with the correct type
                         if (updated.provider === "openai-compatible") {
                           setEditingProvider(updated);
@@ -362,7 +387,10 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                     type={showApiKey ? "text" : "password"}
                     value={editingProvider.anthropicApiKey}
                     onChange={(e) => {
-                      const updated = { ...editingProvider, anthropicApiKey: e.target.value };
+                      const updated = {
+                        ...editingProvider,
+                        anthropicApiKey: e.target.value,
+                      };
                       // Type guard to ensure we're working with the correct type
                       if (updated.provider === "anthropic") {
                         setEditingProvider(updated);
@@ -391,10 +419,7 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
         </Card>
 
         <div className="flex justify-end gap-2">
-          <Button
-            onClick={handleSaveProvider}
-            disabled={isLoading}
-          >
+          <Button onClick={handleSaveProvider} disabled={isLoading}>
             {isLoading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -440,11 +465,8 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                 <div>
                   <div className="font-medium">{provider.name}</div>
                   <div className="text-sm text-muted-foreground">
-                    {provider.provider} - {
-                      "apiUrl" in provider 
-                        ? provider.apiUrl 
-                        : "Anthropic"
-                    }
+                    {provider.provider} -{" "}
+                    {"apiUrl" in provider ? provider.apiUrl : "Anthropic"}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -483,11 +505,28 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Label className="text-base">Simple Model</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <HelpCircle className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs">
+                      This model will be used for simple tasks like text generation,
+                      basic analysis, and straightforward queries that don't require
+                      complex reasoning or multi-step processing.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <div className="flex flex-col sm:flex-row sm:items-end gap-4">
               <div className="w-[200px] min-w-[200px] max-w-[300px]">
-                <Label htmlFor="simple-model-provider">
-                  Simple Model Provider
-                </Label>
+                <Label htmlFor="simple-model-provider">Provider</Label>
                 <Select
                   value={simpleModelConfig.providerId}
                   onValueChange={(value) =>
@@ -511,7 +550,7 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
               </div>
 
               <div className="flex-1 min-w-0 max-w-[400px]">
-                <Label htmlFor="simple-model-name">Simple Model Name</Label>
+                <Label htmlFor="simple-model-name">Model Name</Label>
                 <Input
                   id="simple-model-name"
                   value={simpleModelConfig.modelName}
@@ -528,11 +567,28 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
           </div>
 
           <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Label className="text-base">Complex Model</Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-6 w-6">
+                      <HelpCircle className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p className="max-w-xs">
+                      This model will be used for complex tasks requiring advanced reasoning,
+                      multi-step problem solving, creative writing, and sophisticated analysis
+                      that benefits from more powerful AI capabilities.
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <div className="flex flex-col sm:flex-row sm:items-end gap-4">
               <div className="w-[200px] min-w-[200px] max-w-[300px]">
-                <Label htmlFor="complex-model-provider">
-                  Complex Model Provider
-                </Label>
+                <Label htmlFor="complex-model-provider">Provider</Label>
                 <Select
                   value={complexModelConfig.providerId}
                   onValueChange={(value) =>
@@ -556,7 +612,7 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
               </div>
 
               <div className="flex-1 min-w-0 max-w-[400px]">
-                <Label htmlFor="complex-model-name">Complex Model Name</Label>
+                <Label htmlFor="complex-model-name">Model Name</Label>
                 <Input
                   id="complex-model-name"
                   value={complexModelConfig.modelName}
@@ -576,7 +632,11 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
             <Button
               variant="outline"
               onClick={handleTestAllModels}
-              disabled={isTesting || (!simpleModelConfig.providerId && !complexModelConfig.providerId)}
+              disabled={
+                isTesting ||
+                (!simpleModelConfig.providerId &&
+                  !complexModelConfig.providerId)
+              }
             >
               {isTesting ? (
                 <>
@@ -600,7 +660,7 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                   : "border-red-500 bg-red-50 dark:bg-red-950/20"
               }`}
             >
-              <CardContent className="pt-6 space-y-3">
+              <CardContent className="space-y-3">
                 <p
                   className={`text-sm font-medium ${
                     testResult.success
@@ -613,46 +673,25 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                 </p>
                 {testResult.details?.simple && (
                   <p className="text-sm text-muted-foreground">
-                    Simple Model: {testResult.details.simple.success ? "✓ " : "✗ "}
+                    Simple Model:{" "}
+                    {testResult.details.simple.success ? "✓ " : "✗ "}
                     {testResult.details.simple.message}
-                    {testResult.details.simple.error && ` (${testResult.details.simple.error})`}
+                    {testResult.details.simple.error &&
+                      ` (${testResult.details.simple.error})`}
                   </p>
                 )}
                 {testResult.details?.complex && (
                   <p className="text-sm text-muted-foreground">
-                    Complex Model: {testResult.details.complex.success ? "✓ " : "✗ "}
+                    Complex Model:{" "}
+                    {testResult.details.complex.success ? "✓ " : "✗ "}
                     {testResult.details.complex.message}
-                    {testResult.details.complex.error && ` (${testResult.details.complex.error})`}
+                    {testResult.details.complex.error &&
+                      ` (${testResult.details.complex.error})`}
                   </p>
                 )}
               </CardContent>
             </Card>
           )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>Debug Tools</CardTitle>
-          <CardDescription>
-            Enable debugging tools for development and troubleshooting
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label htmlFor="enable-debug-tools">Enable Debug Tools</Label>
-              <p className="text-sm text-muted-foreground">
-                Toggle debugging features for development purposes
-              </p>
-            </div>
-            <Button
-              variant={debugToolsEnabled ? "default" : "outline"}
-              onClick={toggleDebugTools}
-            >
-              {debugToolsEnabled ? "Enabled" : "Enable Debug Tools"}
-            </Button>
-          </div>
         </CardContent>
       </Card>
 

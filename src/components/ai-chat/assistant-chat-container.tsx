@@ -1,4 +1,4 @@
-import { Thread } from "./new_thread";
+import { Thread } from "./thread";
 import type { FC } from "react";
 
 interface AssistantChatContainerProps {
