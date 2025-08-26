@@ -1,5 +1,5 @@
 import { streamText, convertToModelMessages, type UIMessage } from "ai";
-import { createAIProvider } from "@backend/agents/providers";
+import { complexModel } from "@backend/agents/providers";
 import { repairToolCall } from "@agents/utils";
 
 export interface ChatRequest {
@@ -28,7 +28,7 @@ export class BrowserUseWorker {
 
       // Simple chat implementation without tools for now
       const result = streamText({
-        model: await createAIProvider("simple"),
+        model: await complexModel,
         messages: convertToModelMessages(messages),
         system: `${systemPrompt} ${system || ""}`,
         experimental_repairToolCall: repairToolCall,
