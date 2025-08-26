@@ -4,7 +4,6 @@
 import type {
   IpcRendererEvent,
   SettingsState,
-  AISettings,
   TestConnectionConfig,
   TestConnectionResult,
 } from "@shared/index";

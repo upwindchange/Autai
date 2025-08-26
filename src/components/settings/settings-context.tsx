@@ -1,4 +1,10 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+} from "react";
 import { SettingsContextType } from "./types";
 import type { SettingsState, ProviderConfig } from "@shared/index";
 
@@ -21,8 +27,8 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     providers: [],
     modelConfigurations: {
       simple: { providerId: "", modelName: "" },
-      complex: { providerId: "", modelName: "" }
-    }
+      complex: { providerId: "", modelName: "" },
+    },
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -73,17 +79,40 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
   const addProvider = async (provider: ProviderConfig) => {
     const newSettings = {
       ...settings,
-      providers: [...settings.providers, provider]
+      providers: [...settings.providers, provider],
     };
     await updateSettings(newSettings);
   };
 
-  const updateProvider = async (id: string, updates: Partial<ProviderConfig>) => {
+  const updateProvider = async (
+    id: string,
+    updates: Partial<ProviderConfig>
+  ) => {
     const newSettings = {
       ...settings,
-      providers: settings.providers.map(p =>
-        p.id === id ? { ...p, ...updates } : p
-      )
+      providers: settings.providers.map((p) => {
+        if (p.id !== id) return p;
+
+        // Type-safe provider updates based on provider type
+        if (p.provider === "openai-compatible") {
+          return {
+            ...p,
+            ...(updates as Partial<
+              Extract<ProviderConfig, { provider: "openai-compatible" }>
+            >),
+          };
+        } else if (p.provider === "anthropic") {
+          return {
+            ...p,
+            ...(updates as Partial<
+              Extract<ProviderConfig, { provider: "anthropic" }>
+            >),
+          };
+        }
+
+        // This should never happen with proper typing, but we need to satisfy TS
+        return p;
+      }),
     };
     await updateSettings(newSettings);
   };
@@ -94,30 +123,33 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
 
     const newSettings = {
       ...settings,
-      providers: settings.providers.filter(p => p.id !== id)
+      providers: settings.providers.filter((p) => p.id !== id),
     };
-    
+
     // If we're removing a provider that's used in model configurations, reset those configurations
-    let updatedModelConfigurations = { ...settings.modelConfigurations };
+    const updatedModelConfigurations = { ...settings.modelConfigurations };
     if (settings.modelConfigurations.simple.providerId === id) {
       updatedModelConfigurations.simple = { providerId: "", modelName: "" };
     }
     if (settings.modelConfigurations.complex.providerId === id) {
       updatedModelConfigurations.complex = { providerId: "", modelName: "" };
     }
-    
+
     newSettings.modelConfigurations = updatedModelConfigurations;
-    
+
     await updateSettings(newSettings);
   };
 
-  const updateModelConfiguration = async (modelType: "simple" | "complex", config: { providerId: string; modelName: string }) => {
+  const updateModelConfiguration = async (
+    modelType: "simple" | "complex",
+    config: { providerId: string; modelName: string }
+  ) => {
     const newSettings = {
       ...settings,
       modelConfigurations: {
         ...settings.modelConfigurations,
-        [modelType]: config
-      }
+        [modelType]: config,
+      },
     };
     await updateSettings(newSettings);
   };

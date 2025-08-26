@@ -4,7 +4,6 @@ import * as path from "path";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText } from "ai";
 import type {
-  ProviderConfig,
   SettingsState,
   TestConnectionConfig,
   TestConnectionResult,
@@ -81,23 +80,23 @@ class SettingsService {
       let provider;
       let model;
 
-      if (config.provider === 'openai-compatible') {
+      if (config.provider === "openai-compatible") {
         // Create OpenAI-compatible provider
         provider = createOpenAICompatible({
-          name: (config as any).name || "openai",
-          apiKey: (config as any).apiKey,
-          baseURL: (config as any).apiUrl,
+          name: config.name || "openai",
+          apiKey: config.apiKey,
+          baseURL: config.apiUrl,
         });
-        model = (config as any).model;
-      } else if (config.provider === 'anthropic') {
+        model = config.model;
+      } else if (config.provider === "anthropic") {
         // Create Anthropic provider
-        const { createAnthropic } = await import('@ai-sdk/anthropic');
+        const { createAnthropic } = await import("@ai-sdk/anthropic");
         provider = createAnthropic({
-          apiKey: (config as any).anthropicApiKey,
+          apiKey: config.anthropicApiKey,
         });
-        model = (config as any).model;
+        model = config.model;
       } else {
-        throw new Error("Unsupported provider: " + (config as any).provider);
+        throw new Error("Unsupported provider: " + config);
       }
 
       // Try a simple completion to test the connection
@@ -138,26 +137,30 @@ class SettingsService {
   // Utility method to check if settings are configured
   isConfigured(): boolean {
     if (!this.settings || !this.settings.providers) return false;
-    
+
     // Check if we have model configurations
     if (!this.settings.modelConfigurations) return false;
-    
+
     // Check if the configured providers exist and are properly configured
     const simpleConfig = this.settings.modelConfigurations.simple;
     const complexConfig = this.settings.modelConfigurations.complex;
-    
-    const simpleProvider = this.settings.providers.find(p => p.id === simpleConfig.providerId);
-    const complexProvider = this.settings.providers.find(p => p.id === complexConfig.providerId);
-    
+
+    const simpleProvider = this.settings.providers.find(
+      (p) => p.id === simpleConfig.providerId
+    );
+    const complexProvider = this.settings.providers.find(
+      (p) => p.id === complexConfig.providerId
+    );
+
     if (!simpleProvider || !complexProvider) return false;
-    
+
     // Check based on provider type for simple provider
-    if (simpleProvider.provider === 'openai-compatible') {
-      return !!((simpleProvider as any).apiKey && (simpleProvider as any).apiUrl);
-    } else if (simpleProvider.provider === 'anthropic') {
-      return !!((simpleProvider as any).anthropicApiKey);
+    if (simpleProvider.provider === "openai-compatible") {
+      return !!(simpleProvider.apiKey && simpleProvider.apiUrl);
+    } else if (simpleProvider.provider === "anthropic") {
+      return !!simpleProvider.anthropicApiKey;
     }
-    
+
     return false;
   }
 }

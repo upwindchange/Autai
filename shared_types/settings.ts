@@ -1,14 +1,14 @@
-/** 
+/**
  * Settings-related types shared between main and renderer processes
  */
 
-import { z } from 'zod';
+import { z } from "zod";
 
 // Provider ID schema
 export const ProviderIdSchema = z.string().min(1);
 
 // Provider type enum
-export const ProviderTypeSchema = z.enum(['openai-compatible', 'anthropic']);
+export const ProviderTypeSchema = z.enum(["openai-compatible", "anthropic"]);
 export type ProviderType = z.infer<typeof ProviderTypeSchema>;
 
 // Base Provider Config schema
@@ -20,19 +20,27 @@ const BaseProviderConfigSchema = z.object({
 
 // OpenAI Compatible Provider Config schema
 const OpenAICompatibleProviderConfigSchema = BaseProviderConfigSchema.extend({
-  provider: z.literal('openai-compatible'),
-  apiUrl: z.string().url().default('https://api.openai.com/v1'),
+  provider: z.literal("openai-compatible"),
+  apiUrl: z.string().url().default("https://api.openai.com/v1"),
   apiKey: z.string().min(1),
 });
 
+export type OpenAICompatibleProviderConfig = z.infer<
+  typeof OpenAICompatibleProviderConfigSchema
+>;
+
 // Anthropic Provider Config schema
 const AnthropicProviderConfigSchema = BaseProviderConfigSchema.extend({
-  provider: z.literal('anthropic'),
+  provider: z.literal("anthropic"),
   anthropicApiKey: z.string().min(1),
 });
 
+export type AnthropicProviderConfig = z.infer<
+  typeof AnthropicProviderConfigSchema
+>;
+
 // Union of all provider configurations
-export const ProviderConfigSchema = z.discriminatedUnion('provider', [
+export const ProviderConfigSchema = z.discriminatedUnion("provider", [
   OpenAICompatibleProviderConfigSchema,
   AnthropicProviderConfigSchema,
 ]);
@@ -59,7 +67,7 @@ export const SettingsStateSchema = z.object({
 export type SettingsState = z.infer<typeof SettingsStateSchema>;
 
 // Test Connection Config schema - using the same structure as provider config
-export const TestConnectionConfigSchema = z.discriminatedUnion('provider', [
+export const TestConnectionConfigSchema = z.discriminatedUnion("provider", [
   OpenAICompatibleProviderConfigSchema.extend({
     model: z.string().min(1), // For testing, we might want to specify a different model
   }),

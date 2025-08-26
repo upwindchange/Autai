@@ -1,6 +1,11 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { settingsService } from "@backend/services";
-import type { ProviderConfig, SettingsState, ModelConfig } from "@shared/index";
+import type {
+  ProviderConfig,
+  ModelConfig,
+  AnthropicProviderConfig,
+  OpenAICompatibleProviderConfig,
+} from "@shared/index";
 import type { LanguageModel } from "ai";
 
 /**
@@ -24,18 +29,23 @@ export async function createAIProvider(
   }
 
   // Find the provider configuration
-  const providerConfig = settings.providers.find(p => p.id === modelConfig.providerId);
+  const providerConfig = settings.providers.find(
+    (p) => p.id === modelConfig.providerId
+  );
   if (!providerConfig) {
     throw new Error(`Provider with ID ${modelConfig.providerId} not found`);
   }
 
   // Return provider based on the selected provider type
   if (providerConfig.provider === "openai-compatible") {
-    return createOpenAICompatibleProvider(providerConfig as any, modelConfig.modelName);
+    return createOpenAICompatibleProvider(
+      providerConfig,
+      modelConfig.modelName
+    );
   } else if (providerConfig.provider === "anthropic") {
-    return createAnthropicProvider(providerConfig as any, modelConfig.modelName);
+    return createAnthropicProvider(providerConfig, modelConfig.modelName);
   } else {
-    throw new Error("Unsupported provider: " + (providerConfig as any).provider);
+    throw new Error("Unsupported provider: " + providerConfig);
   }
 }
 
@@ -46,7 +56,7 @@ export async function createAIProvider(
  * @returns OpenAI-compatible provider function
  */
 function createOpenAICompatibleProvider(
-  providerConfig: any,
+  providerConfig: OpenAICompatibleProviderConfig,
   modelName: string
 ): LanguageModel {
   if (!providerConfig.apiKey) {
@@ -71,7 +81,7 @@ function createOpenAICompatibleProvider(
  * @returns Anthropic provider function
  */
 async function createAnthropicProvider(
-  providerConfig: any,
+  providerConfig: AnthropicProviderConfig,
   modelName: string
 ): Promise<LanguageModel> {
   if (!providerConfig.anthropicApiKey) {
@@ -79,8 +89,8 @@ async function createAnthropicProvider(
   }
 
   // Dynamically import Anthropic provider
-  const { createAnthropic } = await import('@ai-sdk/anthropic');
-  
+  const { createAnthropic } = await import("@ai-sdk/anthropic");
+
   // Create Anthropic provider
   const provider = createAnthropic({
     apiKey: providerConfig.anthropicApiKey,
@@ -106,7 +116,7 @@ export function getProviderConfigs(): ProviderConfig[] {
  */
 export function getProviderConfig(providerId: string): ProviderConfig | null {
   const providers = getProviderConfigs();
-  return providers.find(p => p.id === providerId) || null;
+  return providers.find((p) => p.id === providerId) || null;
 }
 
 /**
@@ -114,7 +124,9 @@ export function getProviderConfig(providerId: string): ProviderConfig | null {
  * @param modelType - The type of model ('simple' or 'complex')
  * @returns ModelConfig object
  */
-export function getModelConfig(modelType: "simple" | "complex"): ModelConfig | null {
+export function getModelConfig(
+  modelType: "simple" | "complex"
+): ModelConfig | null {
   const settings = settingsService.getSettings();
   return settings?.modelConfigurations?.[modelType] || null;
 }

@@ -3,7 +3,6 @@ import { useSettings } from "./settings-context";
 import { ViewDebugTools } from "@/components/debug/view-debug-tools";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { ProviderConfig } from "@shared/index";
 
 interface SettingsViewProps {
   onClose: () => void;
@@ -11,7 +10,7 @@ interface SettingsViewProps {
 
 export function SettingsView({ onClose }: SettingsViewProps) {
   const { settings } = useSettings();
-  
+
   // Check if debug tools are enabled
   const isDebugToolsEnabled = () => {
     const saved = localStorage.getItem("debugToolsEnabled");
@@ -38,10 +37,7 @@ export function SettingsView({ onClose }: SettingsViewProps) {
       </div>
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-2xl mx-auto space-y-6">
-          <SettingsForm
-            settings={settings}
-            onClose={onClose}
-          />
+          <SettingsForm settings={settings} onClose={onClose} />
           {isDebugToolsEnabled() && <ViewDebugTools />}
         </div>
       </div>

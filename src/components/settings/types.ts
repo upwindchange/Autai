@@ -1,4 +1,4 @@
-import type { SettingsState } from '@shared/index';
+import type { ProviderConfig, SettingsState } from "@shared/index";
 
 /**
  * Settings context API exposed to components
@@ -6,9 +6,15 @@ import type { SettingsState } from '@shared/index';
 export interface SettingsContextType {
   settings: SettingsState;
   updateSettings: (settings: SettingsState) => Promise<void>;
-  addProvider: (provider: any) => Promise<void>;
-  updateProvider: (id: string, updates: Partial<any>) => Promise<void>;
+  addProvider: (provider: ProviderConfig) => Promise<void>;
+  updateProvider: (
+    id: string,
+    updates: Partial<ProviderConfig>
+  ) => Promise<void>;
   removeProvider: (id: string) => Promise<void>;
-  updateModelConfiguration: (modelType: "simple" | "complex", config: { providerId: string; modelName: string }) => Promise<void>;
+  updateModelConfiguration: (
+    modelType: "simple" | "complex",
+    config: { providerId: string; modelName: string }
+  ) => Promise<void>;
   isLoading: boolean;
 }

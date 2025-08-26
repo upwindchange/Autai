@@ -2,11 +2,36 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { EyeIcon, EyeOffIcon, Save, TestTube, Loader2, Plus, Trash2 } from "lucide-react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  EyeIcon,
+  EyeOffIcon,
+  Save,
+  TestTube,
+  Loader2,
+  Plus,
+  Trash2,
+} from "lucide-react";
 import { useSettings } from "./settings-context";
-import type { SettingsState } from "@shared/index";
+import type {
+  SettingsState,
+  TestConnectionConfig,
+  OpenAICompatibleProviderConfig,
+  AnthropicProviderConfig,
+} from "@shared/index";
 
 interface SettingsFormProps {
   settings: SettingsState;
@@ -14,7 +39,8 @@ interface SettingsFormProps {
 }
 
 export function SettingsForm({ settings, onClose }: SettingsFormProps) {
-  const { updateSettings, addProvider, updateProvider, removeProvider, updateModelConfiguration } = useSettings();
+  const { updateSettings, addProvider, updateProvider, removeProvider } =
+    useSettings();
   const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -27,19 +53,36 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
     };
   } | null>(null);
 
+  // Type guards for provider types
+  const isOpenAIProvider = (
+    provider: EditingProvider | null
+  ): provider is OpenAICompatibleProviderConfig & { isNew?: boolean } => {
+    return provider !== null && provider.provider === "openai-compatible";
+  };
+
+  const isAnthropicProvider = (
+    provider: EditingProvider | null
+  ): provider is AnthropicProviderConfig & { isNew?: boolean } => {
+    return provider !== null && provider.provider === "anthropic";
+  };
+
   // State for the form data of the provider being edited
-  const [editingProvider, setEditingProvider] = useState<any>(null);
+  type EditingProvider =
+    | (OpenAICompatibleProviderConfig & { isNew?: boolean })
+    | (AnthropicProviderConfig & { isNew?: boolean });
+
+  const [editingProvider, setEditingProvider] = useState<EditingProvider | null>(null);
   const [isAddingNewProvider, setIsAddingNewProvider] = useState(false);
-  
+
   // State for model configurations
   const [simpleModelConfig, setSimpleModelConfig] = useState({
     providerId: "",
-    modelName: ""
+    modelName: "",
   });
-  
+
   const [complexModelConfig, setComplexModelConfig] = useState({
     providerId: "",
-    modelName: ""
+    modelName: "",
   });
 
   // Update state when settings change
@@ -47,14 +90,14 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
     if (settings?.modelConfigurations?.simple) {
       setSimpleModelConfig({
         providerId: settings.modelConfigurations.simple.providerId || "",
-        modelName: settings.modelConfigurations.simple.modelName || ""
+        modelName: settings.modelConfigurations.simple.modelName || "",
       });
     }
-    
+
     if (settings?.modelConfigurations?.complex) {
       setComplexModelConfig({
         providerId: settings.modelConfigurations.complex.providerId || "",
-        modelName: settings.modelConfigurations.complex.modelName || ""
+        modelName: settings.modelConfigurations.complex.modelName || "",
       });
     }
   }, [settings]);
@@ -80,11 +123,13 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
       provider: "openai-compatible",
       apiUrl: "https://api.openai.com/v1",
       apiKey: "",
-      anthropicApiKey: "",
-    });
+      isNew: true,
+    } as EditingProvider);
   };
 
   const handleSaveProvider = async () => {
+    if (!editingProvider) return;
+    
     setIsLoading(true);
     try {
       if (isAddingNewProvider) {
@@ -102,46 +147,31 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
   };
 
   const handleTest = async (providerId: string, modelName: string) => {
-    const provider = settings.providers.find(p => p.id === providerId);
+    const provider = settings.providers.find((p) => p.id === providerId);
     if (!provider) return;
-    
+
     setIsTesting(true);
     setTestResult(null);
-    
-    try {
-      let testConfig: any;
-      
-      if (provider.provider === 'openai-compatible') {
-        testConfig = {
-          id: provider.id,
-          name: provider.name,
-          provider: 'openai-compatible',
-          apiUrl: (provider as any).apiUrl,
-          apiKey: (provider as any).apiKey,
-          model: modelName,
-        };
-      } else if (provider.provider === 'anthropic') {
-        testConfig = {
-          id: provider.id,
-          name: provider.name,
-          provider: 'anthropic',
-          anthropicApiKey: (provider as any).anthropicApiKey,
-          model: modelName,
-        };
-      } else {
-        throw new Error(`Unsupported provider: ${(provider as any).provider}`);
-      }
 
-      const result: any = await window.ipcRenderer.invoke("settings:test", testConfig);
-      
+    try {
+      const testConfig: TestConnectionConfig = {
+        ...provider,
+        model: modelName,
+      };
+
+      const result = await window.ipcRenderer.invoke(
+        "settings:test",
+        testConfig
+      );
+
       setTestResult({
         success: result?.success || false,
-        message: result?.success 
-          ? "Model tested successfully!" 
+        message: result?.success
+          ? "Model tested successfully!"
           : "Model test failed",
         details: {
-          simple: result
-        }
+          simple: result,
+        },
       });
     } catch (error) {
       console.error("Test connection error:", error);
@@ -162,8 +192,8 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
         ...settings,
         modelConfigurations: {
           simple: simpleModelConfig,
-          complex: complexModelConfig
-        }
+          complex: complexModelConfig,
+        },
       };
       await updateSettings(newSettings);
       onClose?.();
@@ -174,52 +204,77 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
     }
   };
 
-  if (editingProvider || isAddingNewProvider) {
+  if ((editingProvider || isAddingNewProvider) && editingProvider) {
     return (
       <div className="space-y-6">
+        {editingProvider && (
         <div className="space-y-2">
           <Label htmlFor="provider-name">Provider Name</Label>
           <Input
             id="provider-name"
             value={editingProvider.name}
-            onChange={(e) => setEditingProvider({ ...editingProvider, name: e.target.value })}
+            onChange={(e) => {
+              // Create a new object with the updated name, preserving the provider type
+              if (isOpenAIProvider(editingProvider)) {
+                setEditingProvider({
+                  ...editingProvider,
+                  name: e.target.value,
+                });
+              } else if (isAnthropicProvider(editingProvider)) {
+                setEditingProvider({
+                  ...editingProvider,
+                  name: e.target.value,
+                });
+              }
+            }}
             placeholder="e.g., OpenAI Production, Anthropic Dev"
           />
         </div>
+        )}
 
+        {editingProvider && (
         <Card>
           <CardHeader>
             <CardTitle>Provider Selection</CardTitle>
-            <CardDescription>
-              Choose your AI provider
-            </CardDescription>
+            <CardDescription>Choose your AI provider</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="provider">AI Provider</Label>
               <div className="grid grid-cols-2 gap-4">
                 <Button
-                  variant={editingProvider.provider === 'openai-compatible' ? 'default' : 'outline'}
-                  onClick={() => setEditingProvider({ 
-                    ...editingProvider, 
-                    provider: 'openai-compatible',
-                    apiUrl: 'https://api.openai.com/v1',
-                    apiKey: editingProvider.apiKey || '',
-                    anthropicApiKey: ''
-                  })}
+                  variant={
+                    isOpenAIProvider(editingProvider)
+                      ? "default"
+                      : "outline"
+                  }
+                  onClick={() =>
+                    setEditingProvider({
+                      id: editingProvider.id,
+                      name: editingProvider.name,
+                      provider: "openai-compatible",
+                      apiUrl: "https://api.openai.com/v1",
+                      apiKey: isOpenAIProvider(editingProvider) ? editingProvider.apiKey || "" : "",
+                    })
+                  }
                   className="h-12"
                 >
                   OpenAI Compatible
                 </Button>
                 <Button
-                  variant={editingProvider.provider === 'anthropic' ? 'default' : 'outline'}
-                  onClick={() => setEditingProvider({ 
-                    ...editingProvider, 
-                    provider: 'anthropic',
-                    apiUrl: '',
-                    apiKey: '',
-                    anthropicApiKey: editingProvider.anthropicApiKey || ''
-                  })}
+                  variant={
+                    isAnthropicProvider(editingProvider)
+                      ? "default"
+                      : "outline"
+                  }
+                  onClick={() =>
+                    setEditingProvider({
+                      id: editingProvider.id,
+                      name: editingProvider.name,
+                      provider: "anthropic",
+                      anthropicApiKey: isAnthropicProvider(editingProvider) ? editingProvider.anthropicApiKey || "" : "",
+                    })
+                  }
                   className="h-12"
                 >
                   Anthropic
@@ -228,27 +283,32 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
             </div>
           </CardContent>
         </Card>
+        )}
 
         <Card>
           <CardHeader>
             <CardTitle>API Configuration</CardTitle>
             <CardDescription>
-              {editingProvider.provider === 'openai-compatible' 
+              {isOpenAIProvider(editingProvider)
                 ? "Configure your OpenAI-compatible API endpoint and authentication"
                 : "Configure your Anthropic API authentication"}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            {editingProvider.provider === 'openai-compatible' ? (
+            {isOpenAIProvider(editingProvider) && (
               <>
                 <div className="space-y-2">
                   <Label htmlFor="api-url">API URL</Label>
                   <Input
                     id="api-url"
                     value={editingProvider.apiUrl}
-                    onChange={(e) =>
-                      setEditingProvider({ ...editingProvider, apiUrl: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const updated = { ...editingProvider, apiUrl: e.target.value };
+                      // Type guard to ensure we're working with the correct type
+                      if (updated.provider === "openai-compatible") {
+                        setEditingProvider(updated);
+                      }
+                    }}
                     placeholder="https://api.openai.com/v1"
                   />
                 </div>
@@ -260,9 +320,13 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                       id="api-key"
                       type={showApiKey ? "text" : "password"}
                       value={editingProvider.apiKey}
-                      onChange={(e) =>
-                        setEditingProvider({ ...editingProvider, apiKey: e.target.value })
-                      }
+                      onChange={(e) => {
+                        const updated = { ...editingProvider, apiKey: e.target.value };
+                        // Type guard to ensure we're working with the correct type
+                        if (updated.provider === "openai-compatible") {
+                          setEditingProvider(updated);
+                        }
+                      }}
                       placeholder="sk-..."
                       className="pr-10"
                     />
@@ -282,7 +346,8 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                   </div>
                 </div>
               </>
-            ) : (
+            )}
+            {isAnthropicProvider(editingProvider) && (
               <div className="space-y-2">
                 <Label htmlFor="anthropic-api-key">Anthropic API Key</Label>
                 <div className="relative">
@@ -290,9 +355,13 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                     id="anthropic-api-key"
                     type={showApiKey ? "text" : "password"}
                     value={editingProvider.anthropicApiKey}
-                    onChange={(e) =>
-                      setEditingProvider({ ...editingProvider, anthropicApiKey: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const updated = { ...editingProvider, anthropicApiKey: e.target.value };
+                      // Type guard to ensure we're working with the correct type
+                      if (updated.provider === "anthropic") {
+                        setEditingProvider(updated);
+                      }
+                    }}
                     placeholder="sk-ant-..."
                     className="pr-10"
                   />
@@ -316,10 +385,23 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
         </Card>
 
         {testResult && (
-          <Card className={`border-2 ${testResult.success ? "border-green-500 bg-green-50 dark:bg-green-950/20" : "border-red-500 bg-red-50 dark:bg-red-950/20"}`}>
+          <Card
+            className={`border-2 ${
+              testResult.success
+                ? "border-green-500 bg-green-50 dark:bg-green-950/20"
+                : "border-red-500 bg-red-50 dark:bg-red-950/20"
+            }`}
+          >
             <CardContent className="pt-6 space-y-3">
-              <p className={`text-sm font-medium ${testResult.success ? "text-green-700 dark:text-green-400" : "text-red-700 dark:text-red-400"}`}>
-                {testResult.success ? "✓ " : "✗ "}{testResult.message}
+              <p
+                className={`text-sm font-medium ${
+                  testResult.success
+                    ? "text-green-700 dark:text-green-400"
+                    : "text-red-700 dark:text-red-400"
+                }`}
+              >
+                {testResult.success ? "✓ " : "✗ "}
+                {testResult.message}
               </p>
             </CardContent>
           </Card>
@@ -329,9 +411,14 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
           <Button
             variant="outline"
             onClick={() => handleTest(editingProvider.id, "test-model")}
-            disabled={isLoading || isTesting || 
-              (editingProvider.provider === 'openai-compatible' && (!editingProvider.apiKey || !editingProvider.apiUrl)) ||
-              (editingProvider.provider === 'anthropic' && !editingProvider.anthropicApiKey)}
+            disabled={
+              isLoading ||
+              isTesting ||
+              (isOpenAIProvider(editingProvider) &&
+                (!editingProvider.apiKey || !editingProvider.apiUrl)) ||
+              (isAnthropicProvider(editingProvider) &&
+                !editingProvider.anthropicApiKey)
+            }
           >
             {isTesting ? (
               <>
@@ -345,7 +432,10 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
               </>
             )}
           </Button>
-          <Button onClick={handleSaveProvider} disabled={isLoading || isTesting}>
+          <Button
+            onClick={handleSaveProvider}
+            disabled={isLoading || isTesting}
+          >
             {isLoading ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -371,9 +461,7 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
       <Card>
         <CardHeader>
           <CardTitle>AI Providers</CardTitle>
-          <CardDescription>
-            Manage your AI providers
-          </CardDescription>
+          <CardDescription>Manage your AI providers</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
@@ -384,21 +472,25 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                 Add Provider
               </Button>
             </div>
-            
-            {(settings?.providers || []).map((provider: any) => (
-              <div 
-                key={provider.id} 
+
+            {(settings?.providers || []).map((provider) => (
+              <div
+                key={provider.id}
                 className="flex items-center justify-between p-3 border rounded-lg hover:bg-accent"
               >
                 <div>
                   <div className="font-medium">{provider.name}</div>
                   <div className="text-sm text-muted-foreground">
-                    {provider.provider} - {(provider as any).apiUrl || "Anthropic"}
+                    {provider.provider} - {
+                      "apiUrl" in provider 
+                        ? provider.apiUrl 
+                        : "Anthropic"
+                    }
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <Button 
-                    variant="ghost" 
+                  <Button
+                    variant="ghost"
                     size="sm"
                     onClick={() => {
                       setEditingProvider(provider);
@@ -408,8 +500,8 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                     Edit
                   </Button>
                   {(settings?.providers?.length || 0) > 1 && (
-                    <Button 
-                      variant="ghost" 
+                    <Button
+                      variant="ghost"
                       size="sm"
                       onClick={() => removeProvider(provider.id)}
                     >
@@ -433,16 +525,23 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
         <CardContent className="space-y-6">
           <div className="space-y-4">
             <div>
-              <Label htmlFor="simple-model-provider">Simple Model Provider</Label>
-              <Select 
-                value={simpleModelConfig.providerId} 
-                onValueChange={(value) => setSimpleModelConfig({...simpleModelConfig, providerId: value})}
+              <Label htmlFor="simple-model-provider">
+                Simple Model Provider
+              </Label>
+              <Select
+                value={simpleModelConfig.providerId}
+                onValueChange={(value) =>
+                  setSimpleModelConfig({
+                    ...simpleModelConfig,
+                    providerId: value,
+                  })
+                }
               >
                 <SelectTrigger id="simple-model-provider">
                   <SelectValue placeholder="Select a provider" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(settings?.providers || []).map(provider => (
+                  {(settings?.providers || []).map((provider) => (
                     <SelectItem key={provider.id} value={provider.id}>
                       {provider.name}
                     </SelectItem>
@@ -450,30 +549,42 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div>
               <Label htmlFor="simple-model-name">Simple Model Name</Label>
               <Input
                 id="simple-model-name"
                 value={simpleModelConfig.modelName}
-                onChange={(e) => setSimpleModelConfig({...simpleModelConfig, modelName: e.target.value})}
+                onChange={(e) =>
+                  setSimpleModelConfig({
+                    ...simpleModelConfig,
+                    modelName: e.target.value,
+                  })
+                }
                 placeholder="e.g., gpt-3.5-turbo, claude-3-haiku-20240307"
               />
             </div>
           </div>
-          
+
           <div className="space-y-4">
             <div>
-              <Label htmlFor="complex-model-provider">Complex Model Provider</Label>
-              <Select 
-                value={complexModelConfig.providerId} 
-                onValueChange={(value) => setComplexModelConfig({...complexModelConfig, providerId: value})}
+              <Label htmlFor="complex-model-provider">
+                Complex Model Provider
+              </Label>
+              <Select
+                value={complexModelConfig.providerId}
+                onValueChange={(value) =>
+                  setComplexModelConfig({
+                    ...complexModelConfig,
+                    providerId: value,
+                  })
+                }
               >
                 <SelectTrigger id="complex-model-provider">
                   <SelectValue placeholder="Select a provider" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(settings?.providers || []).map(provider => (
+                  {(settings?.providers || []).map((provider) => (
                     <SelectItem key={provider.id} value={provider.id}>
                       {provider.name}
                     </SelectItem>
@@ -481,15 +592,20 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                 </SelectContent>
               </Select>
             </div>
-            
+
             <div>
               <Label htmlFor="complex-model-name">Complex Model Name</Label>
-                <Input
-                  id="complex-model-name"
-                  value={complexModelConfig.modelName}
-                  onChange={(e) => setComplexModelConfig({...complexModelConfig, modelName: e.target.value})}
-                  placeholder="e.g., gpt-4, claude-3-sonnet-20240229"
-                />
+              <Input
+                id="complex-model-name"
+                value={complexModelConfig.modelName}
+                onChange={(e) =>
+                  setComplexModelConfig({
+                    ...complexModelConfig,
+                    modelName: e.target.value,
+                  })
+                }
+                placeholder="e.g., gpt-4, claude-3-sonnet-20240229"
+              />
             </div>
           </div>
         </CardContent>
@@ -510,7 +626,7 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                 Toggle debugging features for development purposes
               </p>
             </div>
-            <Button 
+            <Button
               variant={debugToolsEnabled ? "default" : "outline"}
               onClick={toggleDebugTools}
             >
