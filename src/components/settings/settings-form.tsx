@@ -146,32 +146,48 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
     }
   };
 
-  const handleTest = async (providerId: string, modelName: string) => {
-    const provider = settings.providers.find((p) => p.id === providerId);
-    if (!provider) return;
-
+  const handleTestAllModels = async () => {
     setIsTesting(true);
     setTestResult(null);
 
     try {
-      const testConfig: TestConnectionConfig = {
-        ...provider,
-        model: modelName,
-      };
+      const results: { simple?: any; complex?: any } = {};
+      
+      // Test simple model
+      if (simpleModelConfig.providerId && simpleModelConfig.modelName) {
+        const simpleProvider = settings.providers.find((p) => p.id === simpleModelConfig.providerId);
+        if (simpleProvider) {
+          const testConfig: TestConnectionConfig = {
+            ...simpleProvider,
+            model: simpleModelConfig.modelName,
+          };
+          results.simple = await window.ipcRenderer.invoke("settings:test", testConfig);
+        }
+      }
 
-      const result = await window.ipcRenderer.invoke(
-        "settings:test",
-        testConfig
-      );
+      // Test complex model
+      if (complexModelConfig.providerId && complexModelConfig.modelName) {
+        const complexProvider = settings.providers.find((p) => p.id === complexModelConfig.providerId);
+        if (complexProvider) {
+          const testConfig: TestConnectionConfig = {
+            ...complexProvider,
+            model: complexModelConfig.modelName,
+          };
+          results.complex = await window.ipcRenderer.invoke("settings:test", testConfig);
+        }
+      }
 
+      const allSuccess = Object.values(results).every(result => result?.success);
+      const anySuccess = Object.values(results).some(result => result?.success);
+      
       setTestResult({
-        success: result?.success || false,
-        message: result?.success
-          ? "Model tested successfully!"
-          : "Model test failed",
-        details: {
-          simple: result,
-        },
+        success: allSuccess,
+        message: allSuccess 
+          ? "All models tested successfully!" 
+          : anySuccess 
+            ? "Some models failed testing" 
+            : "All models failed testing",
+        details: results,
       });
     } catch (error) {
       console.error("Test connection error:", error);
@@ -240,46 +256,36 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="provider">AI Provider</Label>
-              <div className="grid grid-cols-2 gap-4">
-                <Button
-                  variant={
-                    isOpenAIProvider(editingProvider)
-                      ? "default"
-                      : "outline"
-                  }
-                  onClick={() =>
+              <Label htmlFor="provider-type">AI Provider</Label>
+              <Select
+                value={editingProvider.provider}
+                onValueChange={(value: "openai-compatible" | "anthropic") => {
+                  if (value === "openai-compatible") {
                     setEditingProvider({
                       id: editingProvider.id,
                       name: editingProvider.name,
                       provider: "openai-compatible",
                       apiUrl: "https://api.openai.com/v1",
                       apiKey: isOpenAIProvider(editingProvider) ? editingProvider.apiKey || "" : "",
-                    })
-                  }
-                  className="h-12"
-                >
-                  OpenAI Compatible
-                </Button>
-                <Button
-                  variant={
-                    isAnthropicProvider(editingProvider)
-                      ? "default"
-                      : "outline"
-                  }
-                  onClick={() =>
+                    });
+                  } else if (value === "anthropic") {
                     setEditingProvider({
                       id: editingProvider.id,
                       name: editingProvider.name,
                       provider: "anthropic",
                       anthropicApiKey: isAnthropicProvider(editingProvider) ? editingProvider.anthropicApiKey || "" : "",
-                    })
+                    });
                   }
-                  className="h-12"
-                >
-                  Anthropic
-                </Button>
-              </div>
+                }}
+              >
+                <SelectTrigger id="provider-type">
+                  <SelectValue placeholder="Select a provider type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="openai-compatible">OpenAI Compatible</SelectItem>
+                  <SelectItem value="anthropic">Anthropic</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>
@@ -384,57 +390,10 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
           </CardContent>
         </Card>
 
-        {testResult && (
-          <Card
-            className={`border-2 ${
-              testResult.success
-                ? "border-green-500 bg-green-50 dark:bg-green-950/20"
-                : "border-red-500 bg-red-50 dark:bg-red-950/20"
-            }`}
-          >
-            <CardContent className="pt-6 space-y-3">
-              <p
-                className={`text-sm font-medium ${
-                  testResult.success
-                    ? "text-green-700 dark:text-green-400"
-                    : "text-red-700 dark:text-red-400"
-                }`}
-              >
-                {testResult.success ? "✓ " : "✗ "}
-                {testResult.message}
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
         <div className="flex justify-end gap-2">
           <Button
-            variant="outline"
-            onClick={() => handleTest(editingProvider.id, "test-model")}
-            disabled={
-              isLoading ||
-              isTesting ||
-              (isOpenAIProvider(editingProvider) &&
-                (!editingProvider.apiKey || !editingProvider.apiUrl)) ||
-              (isAnthropicProvider(editingProvider) &&
-                !editingProvider.anthropicApiKey)
-            }
-          >
-            {isTesting ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Testing...
-              </>
-            ) : (
-              <>
-                <TestTube className="h-4 w-4 mr-2" />
-                Test Connection
-              </>
-            )}
-          </Button>
-          <Button
             onClick={handleSaveProvider}
-            disabled={isLoading || isTesting}
+            disabled={isLoading}
           >
             {isLoading ? (
               <>
@@ -524,90 +483,151 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="simple-model-provider">
-                Simple Model Provider
-              </Label>
-              <Select
-                value={simpleModelConfig.providerId}
-                onValueChange={(value) =>
-                  setSimpleModelConfig({
-                    ...simpleModelConfig,
-                    providerId: value,
-                  })
-                }
-              >
-                <SelectTrigger id="simple-model-provider">
-                  <SelectValue placeholder="Select a provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(settings?.providers || []).map((provider) => (
-                    <SelectItem key={provider.id} value={provider.id}>
-                      {provider.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+              <div className="w-[200px] min-w-[200px] max-w-[300px]">
+                <Label htmlFor="simple-model-provider">
+                  Simple Model Provider
+                </Label>
+                <Select
+                  value={simpleModelConfig.providerId}
+                  onValueChange={(value) =>
+                    setSimpleModelConfig({
+                      ...simpleModelConfig,
+                      providerId: value,
+                    })
+                  }
+                >
+                  <SelectTrigger id="simple-model-provider">
+                    <SelectValue placeholder="Select a provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(settings?.providers || []).map((provider) => (
+                      <SelectItem key={provider.id} value={provider.id}>
+                        {provider.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div>
-              <Label htmlFor="simple-model-name">Simple Model Name</Label>
-              <Input
-                id="simple-model-name"
-                value={simpleModelConfig.modelName}
-                onChange={(e) =>
-                  setSimpleModelConfig({
-                    ...simpleModelConfig,
-                    modelName: e.target.value,
-                  })
-                }
-                placeholder="e.g., gpt-3.5-turbo, claude-3-haiku-20240307"
-              />
+              <div className="flex-1 min-w-0 max-w-[400px]">
+                <Label htmlFor="simple-model-name">Simple Model Name</Label>
+                <Input
+                  id="simple-model-name"
+                  value={simpleModelConfig.modelName}
+                  onChange={(e) =>
+                    setSimpleModelConfig({
+                      ...simpleModelConfig,
+                      modelName: e.target.value,
+                    })
+                  }
+                  placeholder="e.g., gpt-3.5-turbo, claude-3-haiku-20240307"
+                />
+              </div>
             </div>
           </div>
 
           <div className="space-y-4">
-            <div>
-              <Label htmlFor="complex-model-provider">
-                Complex Model Provider
-              </Label>
-              <Select
-                value={complexModelConfig.providerId}
-                onValueChange={(value) =>
-                  setComplexModelConfig({
-                    ...complexModelConfig,
-                    providerId: value,
-                  })
-                }
-              >
-                <SelectTrigger id="complex-model-provider">
-                  <SelectValue placeholder="Select a provider" />
-                </SelectTrigger>
-                <SelectContent>
-                  {(settings?.providers || []).map((provider) => (
-                    <SelectItem key={provider.id} value={provider.id}>
-                      {provider.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+              <div className="w-[200px] min-w-[200px] max-w-[300px]">
+                <Label htmlFor="complex-model-provider">
+                  Complex Model Provider
+                </Label>
+                <Select
+                  value={complexModelConfig.providerId}
+                  onValueChange={(value) =>
+                    setComplexModelConfig({
+                      ...complexModelConfig,
+                      providerId: value,
+                    })
+                  }
+                >
+                  <SelectTrigger id="complex-model-provider">
+                    <SelectValue placeholder="Select a provider" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {(settings?.providers || []).map((provider) => (
+                      <SelectItem key={provider.id} value={provider.id}>
+                        {provider.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
 
-            <div>
-              <Label htmlFor="complex-model-name">Complex Model Name</Label>
-              <Input
-                id="complex-model-name"
-                value={complexModelConfig.modelName}
-                onChange={(e) =>
-                  setComplexModelConfig({
-                    ...complexModelConfig,
-                    modelName: e.target.value,
-                  })
-                }
-                placeholder="e.g., gpt-4, claude-3-sonnet-20240229"
-              />
+              <div className="flex-1 min-w-0 max-w-[400px]">
+                <Label htmlFor="complex-model-name">Complex Model Name</Label>
+                <Input
+                  id="complex-model-name"
+                  value={complexModelConfig.modelName}
+                  onChange={(e) =>
+                    setComplexModelConfig({
+                      ...complexModelConfig,
+                      modelName: e.target.value,
+                    })
+                  }
+                  placeholder="e.g., gpt-4, claude-3-sonnet-20240229"
+                />
+              </div>
             </div>
           </div>
+
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              onClick={handleTestAllModels}
+              disabled={isTesting || (!simpleModelConfig.providerId && !complexModelConfig.providerId)}
+            >
+              {isTesting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Testing All Models...
+                </>
+              ) : (
+                <>
+                  <TestTube className="h-4 w-4 mr-2" />
+                  Test All Models
+                </>
+              )}
+            </Button>
+          </div>
+
+          {testResult && (
+            <Card
+              className={`border-2 ${
+                testResult.success
+                  ? "border-green-500 bg-green-50 dark:bg-green-950/20"
+                  : "border-red-500 bg-red-50 dark:bg-red-950/20"
+              }`}
+            >
+              <CardContent className="pt-6 space-y-3">
+                <p
+                  className={`text-sm font-medium ${
+                    testResult.success
+                      ? "text-green-700 dark:text-green-400"
+                      : "text-red-700 dark:text-red-400"
+                  }`}
+                >
+                  {testResult.success ? "✓ " : "✗ "}
+                  {testResult.message}
+                </p>
+                {testResult.details?.simple && (
+                  <p className="text-sm text-muted-foreground">
+                    Simple Model: {testResult.details.simple.success ? "✓ " : "✗ "}
+                    {testResult.details.simple.message}
+                    {testResult.details.simple.error && ` (${testResult.details.simple.error})`}
+                  </p>
+                )}
+                {testResult.details?.complex && (
+                  <p className="text-sm text-muted-foreground">
+                    Complex Model: {testResult.details.complex.success ? "✓ " : "✗ "}
+                    {testResult.details.complex.message}
+                    {testResult.details.complex.error && ` (${testResult.details.complex.error})`}
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </CardContent>
       </Card>
 
