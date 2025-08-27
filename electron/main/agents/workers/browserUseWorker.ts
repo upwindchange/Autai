@@ -28,7 +28,7 @@ export class BrowserUseWorker {
 
       // Simple chat implementation without tools for now
       const result = streamText({
-        model: await complexModel,
+        model: await complexModel(),
         messages: convertToModelMessages(messages),
         system: `${systemPrompt} ${system || ""}`,
         experimental_repairToolCall: repairToolCall,

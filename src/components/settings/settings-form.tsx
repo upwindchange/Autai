@@ -22,6 +22,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   EyeIcon,
   EyeOffIcon,
@@ -56,6 +57,7 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
     success: boolean;
     message: string;
     details?: {
+      chat?: { success: boolean; message: string; error?: string };
       complex?: { success: boolean; message: string; error?: string };
       simple?: { success: boolean; message: string; error?: string };
     };
@@ -84,6 +86,11 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
   const [isAddingNewProvider, setIsAddingNewProvider] = useState(false);
 
   // State for model configurations
+  const [chatModelConfig, setChatModelConfig] = useState({
+    providerId: "",
+    modelName: "",
+  });
+
   const [simpleModelConfig, setSimpleModelConfig] = useState({
     providerId: "",
     modelName: "",
@@ -94,8 +101,17 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
     modelName: "",
   });
 
+  const [useSameModelForAgents, setUseSameModelForAgents] = useState(false);
+
   // Update state when settings change
   useEffect(() => {
+    if (settings?.modelConfigurations?.chat) {
+      setChatModelConfig({
+        providerId: settings.modelConfigurations.chat.providerId || "",
+        modelName: settings.modelConfigurations.chat.modelName || "",
+      });
+    }
+
     if (settings?.modelConfigurations?.simple) {
       setSimpleModelConfig({
         providerId: settings.modelConfigurations.simple.providerId || "",
@@ -108,6 +124,10 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
         providerId: settings.modelConfigurations.complex.providerId || "",
         modelName: settings.modelConfigurations.complex.modelName || "",
       });
+    }
+
+    if (settings?.useSameModelForAgents !== undefined) {
+      setUseSameModelForAgents(settings.useSameModelForAgents);
     }
   }, [settings]);
 
@@ -148,41 +168,62 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
 
     try {
       const results: {
+        chat?: TestConnectionResult;
         simple?: TestConnectionResult;
         complex?: TestConnectionResult;
       } = {};
 
-      // Test simple model
-      if (simpleModelConfig.providerId && simpleModelConfig.modelName) {
-        const simpleProvider = settings.providers.find(
-          (p) => p.id === simpleModelConfig.providerId
+      // Test chat model
+      if (chatModelConfig.providerId && chatModelConfig.modelName) {
+        const chatProvider = settings.providers.find(
+          (p) => p.id === chatModelConfig.providerId
         );
-        if (simpleProvider) {
+        if (chatProvider) {
           const testConfig: TestConnectionConfig = {
-            ...simpleProvider,
-            model: simpleModelConfig.modelName,
+            ...chatProvider,
+            model: chatModelConfig.modelName,
           };
-          results.simple = await window.ipcRenderer.invoke(
+          results.chat = await window.ipcRenderer.invoke(
             "settings:test",
             testConfig
           );
         }
       }
 
-      // Test complex model
-      if (complexModelConfig.providerId && complexModelConfig.modelName) {
-        const complexProvider = settings.providers.find(
-          (p) => p.id === complexModelConfig.providerId
-        );
-        if (complexProvider) {
-          const testConfig: TestConnectionConfig = {
-            ...complexProvider,
-            model: complexModelConfig.modelName,
-          };
-          results.complex = await window.ipcRenderer.invoke(
-            "settings:test",
-            testConfig
+      // Test agent models only if not using same model for agents
+      if (!useSameModelForAgents) {
+        // Test simple model
+        if (simpleModelConfig.providerId && simpleModelConfig.modelName) {
+          const simpleProvider = settings.providers.find(
+            (p) => p.id === simpleModelConfig.providerId
           );
+          if (simpleProvider) {
+            const testConfig: TestConnectionConfig = {
+              ...simpleProvider,
+              model: simpleModelConfig.modelName,
+            };
+            results.simple = await window.ipcRenderer.invoke(
+              "settings:test",
+              testConfig
+            );
+          }
+        }
+
+        // Test complex model
+        if (complexModelConfig.providerId && complexModelConfig.modelName) {
+          const complexProvider = settings.providers.find(
+            (p) => p.id === complexModelConfig.providerId
+          );
+          if (complexProvider) {
+            const testConfig: TestConnectionConfig = {
+              ...complexProvider,
+              model: complexModelConfig.modelName,
+            };
+            results.complex = await window.ipcRenderer.invoke(
+              "settings:test",
+              testConfig
+            );
+          }
         }
       }
 
@@ -216,13 +257,14 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
   const handleSaveModelConfigurations = async () => {
     setIsLoading(true);
     try {
-      // Update both configurations at once to avoid race conditions
       const newSettings = {
         ...settings,
         modelConfigurations: {
+          chat: chatModelConfig,
           simple: simpleModelConfig,
           complex: complexModelConfig,
         },
+        useSameModelForAgents,
       };
       await updateSettings(newSettings);
       onClose?.();
@@ -498,45 +540,26 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Model Configuration</CardTitle>
+          <CardTitle>Default Chat Model</CardTitle>
           <CardDescription>
-            Configure which provider and model to use for different tasks
+            Configure the primary model used for general conversation
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Label className="text-base">Simple Model</Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                      <HelpCircle className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="max-w-xs">
-                      This model will be used for simple tasks like text generation,
-                      basic analysis, and straightforward queries that don't require
-                      complex reasoning or multi-step processing.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
             <div className="flex flex-col sm:flex-row sm:items-end gap-4">
               <div className="w-[200px] min-w-[200px] max-w-[300px]">
-                <Label htmlFor="simple-model-provider">Provider</Label>
+                <Label htmlFor="chat-model-provider">Provider</Label>
                 <Select
-                  value={simpleModelConfig.providerId}
+                  value={chatModelConfig.providerId}
                   onValueChange={(value) =>
-                    setSimpleModelConfig({
-                      ...simpleModelConfig,
+                    setChatModelConfig({
+                      ...chatModelConfig,
                       providerId: value,
                     })
                   }
                 >
-                  <SelectTrigger id="simple-model-provider">
+                  <SelectTrigger id="chat-model-provider">
                     <SelectValue placeholder="Select a provider" />
                   </SelectTrigger>
                   <SelectContent>
@@ -550,75 +573,13 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
               </div>
 
               <div className="flex-1 min-w-0 max-w-[400px]">
-                <Label htmlFor="simple-model-name">Model Name</Label>
+                <Label htmlFor="chat-model-name">Model Name</Label>
                 <Input
-                  id="simple-model-name"
-                  value={simpleModelConfig.modelName}
+                  id="chat-model-name"
+                  value={chatModelConfig.modelName}
                   onChange={(e) =>
-                    setSimpleModelConfig({
-                      ...simpleModelConfig,
-                      modelName: e.target.value,
-                    })
-                  }
-                  placeholder="e.g., gpt-3.5-turbo, claude-3-haiku-20240307"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Label className="text-base">Complex Model</Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button variant="ghost" size="icon" className="h-6 w-6">
-                      <HelpCircle className="h-4 w-4" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>
-                    <p className="max-w-xs">
-                      This model will be used for complex tasks requiring advanced reasoning,
-                      multi-step problem solving, creative writing, and sophisticated analysis
-                      that benefits from more powerful AI capabilities.
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-              <div className="w-[200px] min-w-[200px] max-w-[300px]">
-                <Label htmlFor="complex-model-provider">Provider</Label>
-                <Select
-                  value={complexModelConfig.providerId}
-                  onValueChange={(value) =>
-                    setComplexModelConfig({
-                      ...complexModelConfig,
-                      providerId: value,
-                    })
-                  }
-                >
-                  <SelectTrigger id="complex-model-provider">
-                    <SelectValue placeholder="Select a provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(settings?.providers || []).map((provider) => (
-                      <SelectItem key={provider.id} value={provider.id}>
-                        {provider.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex-1 min-w-0 max-w-[400px]">
-                <Label htmlFor="complex-model-name">Model Name</Label>
-                <Input
-                  id="complex-model-name"
-                  value={complexModelConfig.modelName}
-                  onChange={(e) =>
-                    setComplexModelConfig({
-                      ...complexModelConfig,
+                    setChatModelConfig({
+                      ...chatModelConfig,
                       modelName: e.target.value,
                     })
                   }
@@ -628,25 +589,215 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
             </div>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="use-same-model"
+              checked={useSameModelForAgents}
+              onCheckedChange={(checked) =>
+                setUseSameModelForAgents(checked === true)
+              }
+            />
+            <Label htmlFor="use-same-model" className="text-sm font-medium">
+              Use the same model for agents
+            </Label>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-6 w-6">
+                    <HelpCircle className="h-4 w-4" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="max-w-xs">
+                    When enabled, agents will use the chat model instead of
+                    separate agent models. This simplifies configuration but may
+                    not be optimal for specialized agent tasks.
+                  </p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </CardContent>
+      </Card>
+
+      {!useSameModelForAgents && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Agent Models</CardTitle>
+            <CardDescription>
+              Configure specialized models for different agent tasks
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Label className="text-base">Simple Agent Model</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-6 w-6">
+                        <HelpCircle className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">
+                        This model will be used for simple agent tasks like text
+                        generation, basic analysis, and straightforward queries
+                        that don't require complex reasoning or multi-step
+                        processing.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+                <div className="w-[200px] min-w-[200px] max-w-[300px]">
+                  <Label htmlFor="simple-model-provider">Provider</Label>
+                  <Select
+                    value={simpleModelConfig.providerId}
+                    onValueChange={(value) =>
+                      setSimpleModelConfig({
+                        ...simpleModelConfig,
+                        providerId: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger id="simple-model-provider">
+                      <SelectValue placeholder="Select a provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(settings?.providers || []).map((provider) => (
+                        <SelectItem key={provider.id} value={provider.id}>
+                          {provider.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex-1 min-w-0 max-w-[400px]">
+                  <Label htmlFor="simple-model-name">Model Name</Label>
+                  <Input
+                    id="simple-model-name"
+                    value={simpleModelConfig.modelName}
+                    onChange={(e) =>
+                      setSimpleModelConfig({
+                        ...simpleModelConfig,
+                        modelName: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., gpt-3.5-turbo, claude-3-haiku-20240307"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Label className="text-base">Complex Agent Model</Label>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-6 w-6">
+                        <HelpCircle className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p className="max-w-xs">
+                        This model will be used for complex agent tasks
+                        requiring advanced reasoning, multi-step problem
+                        solving, creative writing, and sophisticated analysis
+                        that benefits from more powerful AI capabilities.
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+                <div className="w-[200px] min-w-[200px] max-w-[300px]">
+                  <Label htmlFor="complex-model-provider">Provider</Label>
+                  <Select
+                    value={complexModelConfig.providerId}
+                    onValueChange={(value) =>
+                      setComplexModelConfig({
+                        ...complexModelConfig,
+                        providerId: value,
+                      })
+                    }
+                  >
+                    <SelectTrigger id="complex-model-provider">
+                      <SelectValue placeholder="Select a provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(settings?.providers || []).map((provider) => (
+                        <SelectItem key={provider.id} value={provider.id}>
+                          {provider.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex-1 min-w-0 max-w-[400px]">
+                  <Label htmlFor="complex-model-name">Model Name</Label>
+                  <Input
+                    id="complex-model-name"
+                    value={complexModelConfig.modelName}
+                    onChange={(e) =>
+                      setComplexModelConfig({
+                        ...complexModelConfig,
+                        modelName: e.target.value,
+                      })
+                    }
+                    placeholder="e.g., gpt-4, claude-3-sonnet-20240229"
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex justify-between items-center">
             <Button
               variant="outline"
               onClick={handleTestAllModels}
               disabled={
                 isTesting ||
-                (!simpleModelConfig.providerId &&
+                !chatModelConfig.providerId ||
+                (!useSameModelForAgents &&
+                  !simpleModelConfig.providerId &&
                   !complexModelConfig.providerId)
               }
             >
               {isTesting ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Testing All Models...
+                  Testing Models...
                 </>
               ) : (
                 <>
                   <TestTube className="h-4 w-4 mr-2" />
-                  Test All Models
+                  Test Models
+                </>
+              )}
+            </Button>
+
+            <Button
+              onClick={handleSaveModelConfigurations}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Configurations
                 </>
               )}
             </Button>
@@ -654,7 +805,7 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
 
           {testResult && (
             <Card
-              className={`border-2 ${
+              className={`mt-4 border-2 ${
                 testResult.success
                   ? "border-green-500 bg-green-50 dark:bg-green-950/20"
                   : "border-red-500 bg-red-50 dark:bg-red-950/20"
@@ -671,9 +822,17 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                   {testResult.success ? "✓ " : "✗ "}
                   {testResult.message}
                 </p>
+                {testResult.details?.chat && (
+                  <p className="text-sm text-muted-foreground">
+                    Chat Model: {testResult.details.chat.success ? "✓ " : "✗ "}
+                    {testResult.details.chat.message}
+                    {testResult.details.chat.error &&
+                      ` (${testResult.details.chat.error})`}
+                  </p>
+                )}
                 {testResult.details?.simple && (
                   <p className="text-sm text-muted-foreground">
-                    Simple Model:{" "}
+                    Simple Agent Model:{" "}
                     {testResult.details.simple.success ? "✓ " : "✗ "}
                     {testResult.details.simple.message}
                     {testResult.details.simple.error &&
@@ -682,7 +841,7 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                 )}
                 {testResult.details?.complex && (
                   <p className="text-sm text-muted-foreground">
-                    Complex Model:{" "}
+                    Complex Agent Model:{" "}
                     {testResult.details.complex.success ? "✓ " : "✗ "}
                     {testResult.details.complex.message}
                     {testResult.details.complex.error &&
@@ -694,22 +853,6 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
           )}
         </CardContent>
       </Card>
-
-      <div className="flex justify-end">
-        <Button onClick={handleSaveModelConfigurations} disabled={isLoading}>
-          {isLoading ? (
-            <>
-              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              Saving...
-            </>
-          ) : (
-            <>
-              <Save className="h-4 w-4 mr-2" />
-              Save Model Configurations
-            </>
-          )}
-        </Button>
-      </div>
     </div>
   );
 }

@@ -59,9 +59,11 @@ export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 export const SettingsStateSchema = z.object({
   providers: z.array(ProviderConfigSchema),
   modelConfigurations: z.object({
+    chat: ModelConfigSchema,
     simple: ModelConfigSchema,
     complex: ModelConfigSchema,
   }),
+  useSameModelForAgents: z.boolean().default(false),
 });
 
 export type SettingsState = z.infer<typeof SettingsStateSchema>;

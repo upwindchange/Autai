@@ -26,9 +26,11 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
   const [settings, setSettings] = useState<SettingsState>({
     providers: [],
     modelConfigurations: {
+      chat: { providerId: "", modelName: "" },
       simple: { providerId: "", modelName: "" },
       complex: { providerId: "", modelName: "" },
     },
+    useSameModelForAgents: true,
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -55,6 +57,10 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
           },
         ],
         modelConfigurations: {
+          chat: {
+            providerId: "default-openai",
+            modelName: "gpt-3.5-turbo",
+          },
           simple: {
             providerId: "default-openai",
             modelName: "gpt-3.5-turbo",
@@ -64,6 +70,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
             modelName: "gpt-4",
           },
         },
+        useSameModelForAgents: true,
       };
       setSettings(defaultSettings);
     } finally {

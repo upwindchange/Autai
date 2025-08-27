@@ -9,11 +9,11 @@ import type { LanguageModel } from "ai";
 
 /**
  * Creates a provider based on the active settings for the specified model type
- * @param modelType - The type of model to use ('simple' or 'complex')
+ * @param modelType - The type of model to use ('chat', 'simple' or 'complex')
  * @returns LanguageModel provider function
  */
 async function createModel(
-  modelType: "simple" | "complex" = "simple"
+  modelType: "chat" | "simple" | "complex" = "simple"
 ): Promise<LanguageModel> {
   // Get settings
   const settings = settingsService.getSettings();
@@ -93,6 +93,7 @@ async function createAnthropicModel(
   return provider(modelName);
 }
 
-// Export only simple model and complex model
-export const simpleModel = createModel("simple");
-export const complexModel = createModel("complex");
+// Export chat model, simple model and complex model as lazy-loaded functions
+export const chatModel = () => createModel("chat");
+export const simpleModel = () => createModel("simple");
+export const complexModel = () => createModel("complex");

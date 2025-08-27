@@ -12,7 +12,6 @@ import {
 import { apiServer } from "@agents";
 import { SettingsBridge } from "@backend/bridges/SettingsBridge";
 import { ThreadViewBridge } from "@backend/bridges/ThreadViewBridge";
-import { ViewDebugBridge } from "@backend/bridges/ViewDebugBridge";
 
 const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -49,7 +48,6 @@ let win: BrowserWindow | null = null;
 let settingsBridge: SettingsBridge | null = null;
 let threadViewService: ThreadViewService | null = null;
 let viewControlService: ViewControlService | null = null;
-let viewControlBridge: ViewDebugBridge | null = null;
 let threadViewBridge: ThreadViewBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
@@ -88,12 +86,6 @@ async function createWindow() {
 
   threadViewBridge = new ThreadViewBridge(threadViewService);
   threadViewBridge.setupHandlers();
-
-  viewControlBridge = new ViewDebugBridge(
-    viewControlService,
-    threadViewService
-  );
-  viewControlBridge.setupHandlers();
 
   /**
    * Force external links to open in default browser
@@ -149,7 +141,7 @@ app.on("before-quit", async (event) => {
   if (isCleaningUp) {
     return; // Already cleaning up, prevent multiple executions
   }
-  
+
   isCleaningUp = true;
   event.preventDefault();
   console.log("Starting app cleanup...");
@@ -162,28 +154,21 @@ app.on("before-quit", async (event) => {
       threadViewService = null;
       console.log("threadViewService destroyed");
     }
-    
+
     if (threadViewBridge) {
       console.log("Destroying threadViewBridge...");
       threadViewBridge.destroy();
       threadViewBridge = null;
       console.log("threadViewBridge destroyed");
     }
-    
-    if (viewControlBridge) {
-      console.log("Destroying viewControlBridge...");
-      viewControlBridge.destroy();
-      viewControlBridge = null;
-      console.log("viewControlBridge destroyed");
-    }
-    
+
     if (settingsBridge) {
       console.log("Destroying settingsBridge...");
       settingsBridge.destroy();
       settingsBridge = null;
       console.log("settingsBridge destroyed");
     }
-    
+
     viewControlService = null;
 
     // Stop API server
@@ -205,7 +190,7 @@ app.on("before-quit", async (event) => {
         console.warn("Error cleaning up window:", error);
       }
     }
-    
+
     console.log("App cleanup completed");
   } catch (error) {
     console.error("Error during cleanup:", error);

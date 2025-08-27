@@ -10,7 +10,7 @@ import {
 } from "ai";
 import * as mathjs from "mathjs";
 import { z } from "zod";
-import { complexModel } from "@backend/agents/providers";
+import { chatModel } from "@backend/agents/providers";
 import { repairToolCall } from "@agents/utils";
 import {
   calculateToolSchema,
@@ -55,10 +55,10 @@ export class ChatWorker {
     });
 
     try {
-      console.log("[CHAT WORKER] Creating streamText with simple model");
+      console.log("[CHAT WORKER] Creating streamText with chat model");
 
       const result = streamText({
-        model: await complexModel,
+        model: await chatModel(),
         messages: convertToModelMessages(messages),
         system: `${systemPrompt} ${system || ""}`,
         stopWhen: [

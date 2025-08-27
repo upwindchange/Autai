@@ -1,6 +1,6 @@
 import { type UIMessage, generateObject } from "ai";
 import { z } from "zod";
-import { createAIProvider } from "@agents/providers";
+import { simpleModel } from "@agents/providers";
 import { ChatWorker, BrowserUseWorker } from "@agents/workers";
 
 export interface ChatRequest {
@@ -54,7 +54,7 @@ export class AgentHandler {
   ): Promise<"chat" | "browser-use"> {
     try {
       const { object } = await generateObject({
-        model: await createAIProvider("simple"),
+        model: await simpleModel(),
         schema: WorkerDecisionSchema,
         system: `You are an expert at determining whether a user's request requires browser automation capabilities or can be handled with a standard chat response.
         

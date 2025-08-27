@@ -2,6 +2,7 @@ import { app } from "electron";
 import * as fs from "fs/promises";
 import * as path from "path";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
 import type {
   SettingsState,
@@ -28,6 +29,10 @@ class SettingsService {
         },
       ],
       modelConfigurations: {
+        chat: {
+          providerId: "default-openai",
+          modelName: "gpt-3.5-turbo",
+        },
         simple: {
           providerId: "default-openai",
           modelName: "gpt-3.5-turbo",
@@ -37,6 +42,7 @@ class SettingsService {
           modelName: "gpt-4",
         },
       },
+      useSameModelForAgents: true,
     };
   }
 
@@ -89,8 +95,6 @@ class SettingsService {
         });
         model = config.model;
       } else if (config.provider === "anthropic") {
-        // Create Anthropic provider
-        const { createAnthropic } = await import("@ai-sdk/anthropic");
         provider = createAnthropic({
           apiKey: config.anthropicApiKey,
         });
