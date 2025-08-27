@@ -6,4 +6,4 @@
 	url = git@github.com:assistant-ui/assistant-ui.git
 [submodule "reference/browser-use"]
 	path = reference/browser-use
-	url = git@github.com:browser-use/browser-use.git
+	url = git@github.com:upwindchange/browser-use.git

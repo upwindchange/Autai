@@ -1,6 +1,6 @@
 import { streamText, convertToModelMessages, type UIMessage } from "ai";
 import { complexModel } from "@backend/agents/providers";
-import { repairToolCall } from "@agents/utils";
+import { isDevMode, repairToolCall } from "@agents/utils";
 
 export interface ChatRequest {
   messages: UIMessage[];
@@ -32,6 +32,7 @@ export class BrowserUseWorker {
         messages: convertToModelMessages(messages),
         system: `${systemPrompt} ${system || ""}`,
         experimental_repairToolCall: repairToolCall,
+        experimental_telemetry: { isEnabled: isDevMode() },
       });
 
       console.log("[BROWSER USE WORKER] Converting to UI message stream...");
