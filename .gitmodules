@@ -7,3 +7,6 @@
 [submodule "reference/browser-use"]
 	path = reference/browser-use
 	url = git@github.com:upwindchange/browser-use.git
+[submodule "reference/p-queue"]
+	path = reference/p-queue
+	url = https://github.com/sindresorhus/p-queue.git

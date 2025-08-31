@@ -102,6 +102,9 @@ reference/         # several projects for reference
   - Source code in `reference/browser-use`
   - Documentation in `reference/browser-use/docs`
   - Examples in `reference/browser-use/examples`
+- `reference\p-queue`: p-queue library reference, used for queue main process operations
+  - api docs is `reference\p-queue\readme.md`
+  - source code is `reference\p-queue\source`
 
 ## Important Technical Details
 
