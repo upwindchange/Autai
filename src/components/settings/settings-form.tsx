@@ -34,6 +34,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { useSettings } from "./settings-context";
+import { ModelConfigCard } from "./model-config-card";
 import type {
   SettingsState,
   TestConnectionConfig,
@@ -41,13 +42,21 @@ import type {
   AnthropicProviderConfig,
   TestConnectionResult,
 } from "@shared/index";
+import type { EditingProvider } from "./types";
 
 interface SettingsFormProps {
   settings: SettingsState;
   onClose?: () => void;
+  editingProvider: EditingProvider | null;
+  setEditingProvider: (provider: EditingProvider | null) => void;
 }
 
-export function SettingsForm({ settings, onClose }: SettingsFormProps) {
+export function SettingsForm({
+  settings,
+  onClose,
+  editingProvider,
+  setEditingProvider,
+}: SettingsFormProps) {
   const { updateSettings, addProvider, updateProvider, removeProvider } =
     useSettings();
   const [showApiKey, setShowApiKey] = useState(false);
@@ -75,15 +84,6 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
   ): provider is AnthropicProviderConfig & { isNew?: boolean } => {
     return provider !== null && provider.provider === "anthropic";
   };
-
-  // State for the form data of the provider being edited
-  type EditingProvider =
-    | (OpenAICompatibleProviderConfig & { isNew?: boolean })
-    | (AnthropicProviderConfig & { isNew?: boolean });
-
-  const [editingProvider, setEditingProvider] =
-    useState<EditingProvider | null>(null);
-  const [isAddingNewProvider, setIsAddingNewProvider] = useState(false);
 
   // State for model configurations
   const [chatModelConfig, setChatModelConfig] = useState({
@@ -132,7 +132,6 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
   }, [settings]);
 
   const handleAddProvider = () => {
-    setIsAddingNewProvider(true);
     setEditingProvider({
       id: `provider-${Date.now()}`,
       name: "New Provider",
@@ -148,9 +147,8 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
 
     setIsLoading(true);
     try {
-      if (isAddingNewProvider) {
+      if (editingProvider.isNew) {
         await addProvider(editingProvider);
-        setIsAddingNewProvider(false);
       } else {
         await updateProvider(editingProvider.id, editingProvider);
       }
@@ -275,7 +273,7 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
     }
   };
 
-  if ((editingProvider || isAddingNewProvider) && editingProvider) {
+  if (editingProvider) {
     return (
       <div className="space-y-6">
         {editingProvider && (
@@ -515,10 +513,7 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => {
-                      setEditingProvider(provider);
-                      setIsAddingNewProvider(false);
-                    }}
+                    onClick={() => setEditingProvider(provider)}
                   >
                     Edit
                   </Button>
@@ -546,48 +541,27 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-              <div className="w-[200px] min-w-[200px] max-w-[300px]">
-                <Label htmlFor="chat-model-provider">Provider</Label>
-                <Select
-                  value={chatModelConfig.providerId}
-                  onValueChange={(value) =>
-                    setChatModelConfig({
-                      ...chatModelConfig,
-                      providerId: value,
-                    })
-                  }
-                >
-                  <SelectTrigger id="chat-model-provider">
-                    <SelectValue placeholder="Select a provider" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(settings?.providers || []).map((provider) => (
-                      <SelectItem key={provider.id} value={provider.id}>
-                        {provider.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex-1 min-w-0 max-w-[400px]">
-                <Label htmlFor="chat-model-name">Model Name</Label>
-                <Input
-                  id="chat-model-name"
-                  value={chatModelConfig.modelName}
-                  onChange={(e) =>
-                    setChatModelConfig({
-                      ...chatModelConfig,
-                      modelName: e.target.value,
-                    })
-                  }
-                  placeholder="e.g., gpt-4, claude-3-sonnet-20240229"
-                />
-              </div>
-            </div>
-          </div>
+          <ModelConfigCard
+            title="Default Chat Model"
+            description="Configure the primary model used for general conversation"
+            tooltip="This model will be used for general conversation and user interactions"
+            providerId={chatModelConfig.providerId}
+            modelName={chatModelConfig.modelName}
+            onProviderChange={(value) =>
+              setChatModelConfig({
+                ...chatModelConfig,
+                providerId: value,
+              })
+            }
+            onModelNameChange={(value) =>
+              setChatModelConfig({
+                ...chatModelConfig,
+                modelName: value,
+              })
+            }
+            providers={settings?.providers || []}
+            showTooltip={false}
+          />
 
           <div className="flex items-center space-x-2">
             <Checkbox
@@ -629,131 +603,47 @@ export function SettingsForm({ settings, onClose }: SettingsFormProps) {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Label className="text-base">Simple Agent Model</Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-6 w-6">
-                        <HelpCircle className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="max-w-xs">
-                        This model will be used for simple agent tasks like text
-                        generation, basic analysis, and straightforward queries
-                        that don't require complex reasoning or multi-step
-                        processing.
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-                <div className="w-[200px] min-w-[200px] max-w-[300px]">
-                  <Label htmlFor="simple-model-provider">Provider</Label>
-                  <Select
-                    value={simpleModelConfig.providerId}
-                    onValueChange={(value) =>
-                      setSimpleModelConfig({
-                        ...simpleModelConfig,
-                        providerId: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger id="simple-model-provider">
-                      <SelectValue placeholder="Select a provider" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(settings?.providers || []).map((provider) => (
-                        <SelectItem key={provider.id} value={provider.id}>
-                          {provider.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+            <ModelConfigCard
+              title="Simple Agent Model"
+              description="Configure specialized models for different agent tasks"
+              tooltip="This model will be used for simple agent tasks like text generation, basic analysis, and straightforward queries that don't require complex reasoning or multi-step processing."
+              providerId={simpleModelConfig.providerId}
+              modelName={simpleModelConfig.modelName}
+              onProviderChange={(value) =>
+                setSimpleModelConfig({
+                  ...simpleModelConfig,
+                  providerId: value,
+                })
+              }
+              onModelNameChange={(value) =>
+                setSimpleModelConfig({
+                  ...simpleModelConfig,
+                  modelName: value,
+                })
+              }
+              providers={settings?.providers || []}
+            />
 
-                <div className="flex-1 min-w-0 max-w-[400px]">
-                  <Label htmlFor="simple-model-name">Model Name</Label>
-                  <Input
-                    id="simple-model-name"
-                    value={simpleModelConfig.modelName}
-                    onChange={(e) =>
-                      setSimpleModelConfig({
-                        ...simpleModelConfig,
-                        modelName: e.target.value,
-                      })
-                    }
-                    placeholder="e.g., gpt-3.5-turbo, claude-3-haiku-20240307"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Label className="text-base">Complex Agent Model</Label>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-6 w-6">
-                        <HelpCircle className="h-4 w-4" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>
-                      <p className="max-w-xs">
-                        This model will be used for complex agent tasks
-                        requiring advanced reasoning, multi-step problem
-                        solving, creative writing, and sophisticated analysis
-                        that benefits from more powerful AI capabilities.
-                      </p>
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-                <div className="w-[200px] min-w-[200px] max-w-[300px]">
-                  <Label htmlFor="complex-model-provider">Provider</Label>
-                  <Select
-                    value={complexModelConfig.providerId}
-                    onValueChange={(value) =>
-                      setComplexModelConfig({
-                        ...complexModelConfig,
-                        providerId: value,
-                      })
-                    }
-                  >
-                    <SelectTrigger id="complex-model-provider">
-                      <SelectValue placeholder="Select a provider" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(settings?.providers || []).map((provider) => (
-                        <SelectItem key={provider.id} value={provider.id}>
-                          {provider.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="flex-1 min-w-0 max-w-[400px]">
-                  <Label htmlFor="complex-model-name">Model Name</Label>
-                  <Input
-                    id="complex-model-name"
-                    value={complexModelConfig.modelName}
-                    onChange={(e) =>
-                      setComplexModelConfig({
-                        ...complexModelConfig,
-                        modelName: e.target.value,
-                      })
-                    }
-                    placeholder="e.g., gpt-4, claude-3-sonnet-20240229"
-                  />
-                </div>
-              </div>
-            </div>
+            <ModelConfigCard
+              title="Complex Agent Model"
+              description="Configure specialized models for different agent tasks"
+              tooltip="This model will be used for complex agent tasks requiring advanced reasoning, multi-step problem solving, creative writing, and sophisticated analysis that benefits from more powerful AI capabilities."
+              providerId={complexModelConfig.providerId}
+              modelName={complexModelConfig.modelName}
+              onProviderChange={(value) =>
+                setComplexModelConfig({
+                  ...complexModelConfig,
+                  providerId: value,
+                })
+              }
+              onModelNameChange={(value) =>
+                setComplexModelConfig({
+                  ...complexModelConfig,
+                  modelName: value,
+                })
+              }
+              providers={settings?.providers || []}
+            />
           </CardContent>
         </Card>
       )}

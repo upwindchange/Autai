@@ -1,4 +1,4 @@
-import type { ProviderConfig, SettingsState } from "@shared/index";
+import type { ProviderConfig, SettingsState, OpenAICompatibleProviderConfig, AnthropicProviderConfig } from "@shared/index";
 
 /**
  * Settings context API exposed to components
@@ -18,3 +18,7 @@ export interface SettingsContextType {
   ) => Promise<void>;
   isLoading: boolean;
 }
+
+export type EditingProvider =
+  | (OpenAICompatibleProviderConfig & { isNew?: boolean })
+  | (AnthropicProviderConfig & { isNew?: boolean });
