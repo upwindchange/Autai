@@ -6,6 +6,7 @@ import type {
   SettingsState,
   TestConnectionConfig,
   TestConnectionResult,
+  MainProcessError,
 } from "@shared/index";
 import { Rectangle } from "electron";
 
@@ -53,6 +54,7 @@ declare global {
       ): void;
 
       off(channel: string, listener?: (...args: unknown[]) => void): void;
+      off(channel: "main:error", listener: (event: IpcRendererEvent, error: MainProcessError) => void): void;
 
       // Send operations (rarely used in renderer)
       send(channel: string, ...args: unknown[]): void;
@@ -68,8 +70,15 @@ declare global {
         args: { isVisible: boolean }
       ): void;
       send(channel: "threadview:setBounds", args: { bounds: Rectangle }): void;
+
+      // Error handling events
+      on(
+        channel: "main:error",
+        listener: (event: IpcRendererEvent, error: MainProcessError) => void
+      ): void;
     };
   }
+
 }
 
 export {};

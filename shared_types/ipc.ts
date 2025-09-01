@@ -11,3 +11,13 @@ export interface IpcRendererEvent {
   };
   senderId: number;
 }
+
+/**
+ * Main process error type for IPC communication
+ */
+export interface MainProcessError {
+  type: "uncaughtException" | "unhandledRejection";
+  message: string;
+  stack?: string;
+  timestamp: string;
+}

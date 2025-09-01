@@ -1,19 +1,42 @@
 import { type ToolCallContentPartComponent } from "@assistant-ui/react";
 import { CalculatorIcon, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type {
   CalculateToolParams,
   CalculateToolResult,
   AnswerToolParams,
   DisplayErrorToolParams,
   DisplayErrorToolResult,
-} from "@shared/tools";
+} from "@shared/index";
+import {
+  repairZodInput,
+  answerToolSchema,
+  calculateToolSchema,
+  displayErrorToolSchema,
+} from "@shared/index";
 
 export const CalculatorTool: ToolCallContentPartComponent<
   CalculateToolParams,
   CalculateToolResult
 > = ({ args, result, status }) => {
-  const expression = args.expression;
+  // Use the generic Zod repair utility and safeParse to validate input
+  const repairedArgs = repairZodInput(args, calculateToolSchema);
+  const validation = calculateToolSchema.safeParse(repairedArgs);
+
+  if (!validation.success) {
+    return (
+      <Alert variant="destructive" className="my-2">
+        <AlertTitle>Tool Input Error</AlertTitle>
+        <AlertDescription>
+          The AI assistant provided invalid input for the calculator tool.
+          Please try asking your question again.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  const expression = validation.data.expression;
 
   return (
     <div
@@ -49,7 +72,23 @@ export const AnswerTool: ToolCallContentPartComponent<
   AnswerToolParams,
   void
 > = ({ args, status }) => {
-  const { steps, answer } = args;
+  // Use the generic Zod repair utility and safeParse to validate input
+  const repairedArgs = repairZodInput(args, answerToolSchema);
+  const validation = answerToolSchema.safeParse(repairedArgs);
+
+  if (!validation.success) {
+    return (
+      <Alert variant="destructive" className="my-2">
+        <AlertTitle>Tool Input Error</AlertTitle>
+        <AlertDescription>
+          The AI assistant provided invalid input for the answer tool. Please
+          try asking your question again.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  const { steps, answer } = validation.data;
 
   if (!steps || !answer) return null;
 
@@ -86,9 +125,27 @@ export const DisplayErrorTool: ToolCallContentPartComponent<
 > = ({ args, result, status }) => {
   // Use result if available (after execution), otherwise use args
   const errorData = result || args;
-  const displayTitle = errorData.title;
-  const displayMessage = errorData.message;
-  const displayDetails = errorData.details;
+
+  // Use the generic Zod repair utility and safeParse to validate input
+  const repairedArgs = repairZodInput(errorData, displayErrorToolSchema);
+  const validation = displayErrorToolSchema.safeParse(repairedArgs);
+
+  if (!validation.success) {
+    return (
+      <Alert variant="destructive" className="my-2">
+        <AlertTitle>Tool Input Error</AlertTitle>
+        <AlertDescription>
+          The AI assistant provided invalid input for the error display tool.
+          Please try asking your question again.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  const { title, message, details } = validation.data;
+  const displayTitle = title || "Error";
+  const displayMessage = message || "An error occurred";
+  const displayDetails = details;
 
   return (
     <div
@@ -100,12 +157,8 @@ export const DisplayErrorTool: ToolCallContentPartComponent<
       <div className="flex items-start gap-3">
         <AlertCircle className="h-5 w-5 text-destructive mt-0.5 flex-shrink-0" />
         <div className="space-y-2 flex-1">
-          <h4 className="font-semibold text-destructive">
-            {displayTitle || "Error"}
-          </h4>
-          <p className="text-sm text-foreground/90">
-            {displayMessage || "An error occurred"}
-          </p>
+          <h4 className="font-semibold text-destructive">{displayTitle}</h4>
+          <p className="text-sm text-foreground/90">{displayMessage}</p>
           {displayDetails && (
             <details className="mt-2">
               <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">

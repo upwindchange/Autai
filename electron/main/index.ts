@@ -12,6 +12,7 @@ import {
 import { apiServer } from "@agents";
 import { SettingsBridge } from "@backend/bridges/SettingsBridge";
 import { ThreadViewBridge } from "@backend/bridges/ThreadViewBridge";
+import type { MainProcessError } from "@shared/index";
 
 const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -51,6 +52,39 @@ let viewControlService: ViewControlService | null = null;
 let threadViewBridge: ThreadViewBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
+
+/**
+ * Global error handler for main process
+ */
+function setupGlobalErrorHandling() {
+  // Handle uncaught exceptions
+  process.on("uncaughtException", (error) => {
+    console.error("Uncaught Exception:", error);
+    if (win && !win.isDestroyed()) {
+      const errorData: MainProcessError = {
+        type: "uncaughtException",
+        message: error.message,
+        stack: error.stack,
+        timestamp: new Date().toISOString(),
+      };
+      win.webContents.send("main:error", errorData);
+    }
+  });
+
+  // Handle unhandled promise rejections
+  process.on("unhandledRejection", (reason, promise) => {
+    console.error("Unhandled Rejection at:", promise, "reason:", reason);
+    if (win && !win.isDestroyed()) {
+      const errorData: MainProcessError = {
+        type: "unhandledRejection",
+        message: reason instanceof Error ? reason.message : String(reason),
+        stack: reason instanceof Error ? reason.stack : undefined,
+        timestamp: new Date().toISOString(),
+      };
+      win.webContents.send("main:error", errorData);
+    }
+  });
+}
 
 /**
  * Creates the main application window with security-focused settings
@@ -99,6 +133,9 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // Setup global error handling first
+  setupGlobalErrorHandling();
+  
   await settingsService.initialize();
   // Start API server
   apiServer.start();
