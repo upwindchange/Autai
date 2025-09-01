@@ -322,6 +322,7 @@ export function SettingsForm({
                         apiKey: isOpenAIProvider(editingProvider)
                           ? editingProvider.apiKey || ""
                           : "",
+                        isNew: editingProvider.isNew,
                       });
                     } else if (value === "anthropic") {
                       setEditingProvider({
@@ -331,6 +332,7 @@ export function SettingsForm({
                         anthropicApiKey: isAnthropicProvider(editingProvider)
                           ? editingProvider.anthropicApiKey || ""
                           : "",
+                        isNew: editingProvider.isNew,
                       });
                     }
                   }}
@@ -513,7 +515,7 @@ export function SettingsForm({
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setEditingProvider(provider)}
+                    onClick={() => setEditingProvider({ ...provider, isNew: false })}
                   >
                     Edit
                   </Button>
