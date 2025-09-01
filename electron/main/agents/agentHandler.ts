@@ -52,11 +52,11 @@ export class AgentHandler {
   private async decideWorkerType(
     messages: UIMessage[]
   ): Promise<"chat" | "browser-use"> {
-    try {
-      const { object } = await generateObject({
-        model: await simpleModel(),
-        schema: WorkerDecisionSchema,
-        system: `You are an expert at determining whether a user's request requires browser automation capabilities or can be handled with a standard chat response.
+    // try {
+    const { object } = await generateObject({
+      model: await simpleModel(),
+      schema: WorkerDecisionSchema,
+      system: `You are an expert at determining whether a user's request requires browser automation capabilities or can be handled with a standard chat response.
         
         Choose "browser-use" when the user wants to:
         - Navigate websites or web pages
@@ -73,21 +73,21 @@ export class AgentHandler {
         - Get explanations or creative content
         - Discuss topics or concepts
         - Anything that can be answered without browsing the web`,
-        prompt: `Based on this conversation, determine whether to use the browser automation worker or the standard chat worker:
+      prompt: `Based on this conversation, determine whether to use the browser automation worker or the standard chat worker:
         
 ${JSON.stringify(messages, null, 2)}`,
-      });
+    });
 
-      console.log("[AGENT ORCHESTRATOR] Worker decision:", object);
-      return object.workerType;
-    } catch (error) {
-      console.error(
-        "[AGENT ORCHESTRATOR:ERROR] Error deciding worker type:",
-        error
-      );
-      // Default to chat worker if decision fails
-      return "chat";
-    }
+    console.log("[AGENT ORCHESTRATOR] Worker decision:", object);
+    return object.workerType;
+    // } catch (error) {
+    //   console.error(
+    //     "[AGENT ORCHESTRATOR:ERROR] Error deciding worker type:",
+    //     error
+    //   );
+    //   // Default to chat worker if decision fails
+    //   return "chat";
+    // }
   }
 }
 

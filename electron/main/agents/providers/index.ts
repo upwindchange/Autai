@@ -21,10 +21,19 @@ async function createModel(
     throw new Error("No providers configured");
   }
 
-  // Get the model configuration for this model type
-  const modelConfig = settings.modelConfigurations?.[modelType];
+  // If useSameModelForAgents is enabled and requesting simple/complex model,
+  // use the chat model configuration instead
+  let effectiveModelType = modelType;
+  if (settings.useSameModelForAgents) {
+    effectiveModelType = "chat";
+  }
+
+  // Get the model configuration for the effective model type
+  const modelConfig = settings.modelConfigurations?.[effectiveModelType];
   if (!modelConfig) {
-    throw new Error(`No model configuration found for ${modelType} model`);
+    throw new Error(
+      `No model configuration found for ${effectiveModelType} model`
+    );
   }
 
   // Find the provider configuration

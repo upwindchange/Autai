@@ -145,7 +145,30 @@ class SettingsService {
     // Check if we have model configurations
     if (!this.settings.modelConfigurations) return false;
 
-    // Check if the configured providers exist and are properly configured
+    // Check if the chat model is configured
+    const chatConfig = this.settings.modelConfigurations.chat;
+    const chatProvider = this.settings.providers.find(
+      (p) => p.id === chatConfig.providerId
+    );
+
+    if (!chatProvider) return false;
+
+    // Check chat provider configuration
+    let chatConfigured = false;
+    if (chatProvider.provider === "openai-compatible") {
+      chatConfigured = !!(chatProvider.apiKey && chatProvider.apiUrl);
+    } else if (chatProvider.provider === "anthropic") {
+      chatConfigured = !!chatProvider.anthropicApiKey;
+    }
+
+    if (!chatConfigured) return false;
+
+    // If useSameModelForAgents is enabled, only chat model needs to be configured
+    if (this.settings.useSameModelForAgents) {
+      return true;
+    }
+
+    // Otherwise, check both simple and complex models
     const simpleConfig = this.settings.modelConfigurations.simple;
     const complexConfig = this.settings.modelConfigurations.complex;
 
@@ -158,14 +181,15 @@ class SettingsService {
 
     if (!simpleProvider || !complexProvider) return false;
 
-    // Check based on provider type for simple provider
+    // Check simple provider configuration
+    let simpleConfigured = false;
     if (simpleProvider.provider === "openai-compatible") {
-      return !!(simpleProvider.apiKey && simpleProvider.apiUrl);
+      simpleConfigured = !!(simpleProvider.apiKey && simpleProvider.apiUrl);
     } else if (simpleProvider.provider === "anthropic") {
-      return !!simpleProvider.anthropicApiKey;
+      simpleConfigured = !!simpleProvider.anthropicApiKey;
     }
 
-    return false;
+    return simpleConfigured;
   }
 }
 
