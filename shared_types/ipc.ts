@@ -13,11 +13,15 @@ export interface IpcRendererEvent {
 }
 
 /**
- * Main process error type for IPC communication
+ * Message types for toast notifications
  */
-export interface MainProcessError {
-  type: "uncaughtException" | "unhandledRejection";
-  message: string;
-  stack?: string;
-  timestamp: string;
+export type MessageType = 'info' | 'alert' | 'success';
+
+/**
+ * Main process message type for IPC communication
+ */
+export interface AppMessage {
+  type: MessageType;
+  title: string;
+  description: string;
 }

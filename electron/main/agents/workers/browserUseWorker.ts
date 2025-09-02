@@ -1,5 +1,5 @@
 import { streamText, convertToModelMessages, type UIMessage } from "ai";
-import { complexModel } from "@backend/agents/providers";
+import { complexModel } from "@agents/providers";
 import { isDevMode, repairToolCall } from "@agents/utils";
 
 export interface ChatRequest {

@@ -6,7 +6,7 @@ import type {
   SettingsState,
   TestConnectionConfig,
   TestConnectionResult,
-  MainProcessError,
+  AppMessage,
 } from "@shared/index";
 import { Rectangle } from "electron";
 
@@ -54,7 +54,7 @@ declare global {
       ): void;
 
       off(channel: string, listener?: (...args: unknown[]) => void): void;
-      off(channel: "main:error", listener: (event: IpcRendererEvent, error: MainProcessError) => void): void;
+      off(channel: "app:message", listener: (event: IpcRendererEvent, message: AppMessage) => void): void;
 
       // Send operations (rarely used in renderer)
       send(channel: string, ...args: unknown[]): void;
@@ -73,8 +73,8 @@ declare global {
 
       // Error handling events
       on(
-        channel: "main:error",
-        listener: (event: IpcRendererEvent, error: MainProcessError) => void
+        channel: "app:message",
+        listener: (event: IpcRendererEvent, message: AppMessage) => void
       ): void;
     };
   }

@@ -1,18 +1,13 @@
 import { type UIMessage, generateObject } from "ai";
-import { z } from "zod";
 import { simpleModel } from "@agents/providers";
 import { ChatWorker, BrowserUseWorker } from "@agents/workers";
+import { sendAlert } from "@backend/utils";
 
 export interface ChatRequest {
   messages: UIMessage[];
   system?: string;
   tools?: unknown;
 }
-
-const WorkerDecisionSchema = z.object({
-  reasoning: z.string(),
-  workerType: z.enum(["chat", "browser-use"]),
-});
 
 export class AgentHandler {
   private chatWorker: ChatWorker;
@@ -22,6 +17,7 @@ export class AgentHandler {
     this.chatWorker = new ChatWorker();
     this.browserUseWorker = new BrowserUseWorker();
   }
+
 
   async handleChat(request: ChatRequest): Promise<ReadableStream> {
     const { messages } = request;
@@ -52,42 +48,47 @@ export class AgentHandler {
   private async decideWorkerType(
     messages: UIMessage[]
   ): Promise<"chat" | "browser-use"> {
-    // try {
-    const { object } = await generateObject({
-      model: await simpleModel(),
-      schema: WorkerDecisionSchema,
-      system: `You are an expert at determining whether a user's request requires browser automation capabilities or can be handled with a standard chat response.
-        
-        Choose "browser-use" when the user wants to:
-        - Navigate websites or web pages
-        - Find information on specific websites
-        - Interact with web page elements
-        - Perform actions on websites (login, fill forms, click buttons, etc.)
-        - Compare information across multiple websites
-        - Extract specific data from web pages
-        
-        Choose "chat" when the user wants to:
-        - Have a general conversation
-        - Ask questions that don't require web browsing
-        - Perform calculations or solve math problems
-        - Get explanations or creative content
-        - Discuss topics or concepts
-        - Anything that can be answered without browsing the web`,
-      prompt: `Based on this conversation, determine whether to use the browser automation worker or the standard chat worker:
-        
+    try {
+      const { object } = await generateObject({
+        model: await simpleModel(),
+        output: "enum",
+        enum: ["chat", "browser-use"],
+        system: `You are an expert at determining whether a user's request requires browser automation capabilities or can be handled with a standard chat response.
+          
+          Choose "browser-use" when the user wants to:
+          - Navigate websites or web pages
+          - Find information on specific websites
+          - Interact with web page elements
+          - Perform actions on websites (login, fill forms, click buttons, etc.)
+          - Compare information across multiple websites
+          - Extract specific data from web pages
+          
+          Choose "chat" when the user wants to:
+          - Have a general conversation
+          - Ask questions that don't require web browsing
+          - Perform calculations or solve math problems
+          - Get explanations or creative content
+          - Discuss topics or concepts
+          - Anything that can be answered without browsing the web`,
+        prompt: `Based on this conversation, determine whether to use the browser automation worker or the standard chat worker:
+          
 ${JSON.stringify(messages, null, 2)}`,
-    });
+      });
 
-    console.log("[AGENT ORCHESTRATOR] Worker decision:", object);
-    return object.workerType;
-    // } catch (error) {
-    //   console.error(
-    //     "[AGENT ORCHESTRATOR:ERROR] Error deciding worker type:",
-    //     error
-    //   );
-    //   // Default to chat worker if decision fails
-    //   return "chat";
-    // }
+      console.log("[AGENT ORCHESTRATOR] Worker decision:", object);
+      return object;
+    } catch (error) {
+      console.error(
+        "[AGENT ORCHESTRATOR:ERROR] Error deciding worker type:",
+        error
+      );
+      sendAlert(
+        "Model capability issue",
+        "The current AI model is unable to process advanced requests. Browser automation and AI agent features will be disabled. Tool usage may fail. Please configure a model that supports advanced capabilities for optimal experience."
+      );
+      // Default to chat worker if decision fails
+      return "chat";
+    }
   }
 }
 

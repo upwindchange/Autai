@@ -18,7 +18,9 @@ import { AppHeader } from "@/components/app-header";
 import { useState, useEffect } from "react";
 import { useThreadLifecycle } from "@/hooks/useThreadLifecycle";
 import { toast } from "sonner";
-import { MainProcessError } from "@shared/index";
+import { AppMessage } from "@shared/index";
+import { AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 /**
  * Inner app component that uses thread lifecycle hook.
@@ -31,45 +33,67 @@ function AppContent() {
   // Initialize thread lifecycle management
   useThreadLifecycle();
 
-  // Setup main process error listener
+  // Setup main process message listener
   useEffect(() => {
-    const handleMainError = (event: unknown, error: MainProcessError) => {
-      toast.custom(
-        (t) => (
-          <div className="w-full">
-            <div className="bg-destructive text-destructive-foreground rounded-lg border border-destructive/50 p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <h4 className="font-medium mb-1">
-                    {error.type === "uncaughtException"
-                      ? "Uncaught Exception"
-                      : "Unhandled Rejection"}
-                  </h4>
-                  <p className="text-sm opacity-90">{error.message}</p>
-                  <p className="text-xs opacity-70 mt-1">
-                    {new Date(error.timestamp).toLocaleTimeString()}
-                  </p>
-                </div>
-                <button
-                  onClick={() => toast.dismiss(t)}
-                  className="ml-4 text-destructive-foreground/70 hover:text-destructive-foreground"
-                >
-                  ×
-                </button>
+    const handleAppMessage = (event: unknown, message: AppMessage) => {
+      console.log(message);
+      switch (message.type) {
+        case "alert":
+          // Persistent alert with dismiss button
+          toast.custom(
+            (t) => (
+              <div className="w-full">
+                <Alert variant="destructive" className="relative">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>{message.title}</AlertTitle>
+                  <AlertDescription>{message.description}</AlertDescription>
+                  <button
+                    onClick={() => toast.dismiss(t)}
+                    className="absolute right-3 top-3 text-destructive-foreground/70 hover:text-destructive-foreground"
+                  >
+                    ×
+                  </button>
+                </Alert>
               </div>
-            </div>
-          </div>
-        ),
-        {
-          duration: 10000,
-        }
-      );
+            ),
+            {
+              duration: Infinity, // Never auto-dismiss
+            }
+          );
+          break;
+        case "info":
+          toast.custom(
+            (t) => (
+              <div className="w-full">
+                <Alert className="relative">
+                  <Info className="h-4 w-4" />
+                  <AlertTitle>{message.title}</AlertTitle>
+                  <AlertDescription>{message.description}</AlertDescription>
+                </Alert>
+              </div>
+            )
+          );
+          break;
+        case "success":
+          toast.custom(
+            (t) => (
+              <div className="w-full">
+                <Alert className="relative">
+                  <CheckCircle2 className="h-4 w-4" />
+                  <AlertTitle>{message.title}</AlertTitle>
+                  <AlertDescription>{message.description}</AlertDescription>
+                </Alert>
+              </div>
+            )
+          );
+          break;
+      }
     };
 
-    window.ipcRenderer.on("main:error", handleMainError);
+    window.ipcRenderer.on("app:message", handleAppMessage);
 
     return () => {
-      window.ipcRenderer.off("main:error", handleMainError);
+      window.ipcRenderer.off("app:message", handleAppMessage);
     };
   }, []);
 

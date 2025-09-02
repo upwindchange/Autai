@@ -10,7 +10,7 @@ import {
 } from "ai";
 import * as mathjs from "mathjs";
 import { z } from "zod";
-import { chatModel } from "@backend/agents/providers";
+import { chatModel } from "@agents/providers";
 import { repairToolCall } from "@agents/utils";
 import {
   calculateToolSchema,
