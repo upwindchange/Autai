@@ -32,7 +32,7 @@ export class SettingsBridge extends BaseBridge {
 
     // Get settings
     this.handle("settings:get", async () => {
-      return settingsService.getSettings();
+      return settingsService.settings;
     });
 
     // Check if configured

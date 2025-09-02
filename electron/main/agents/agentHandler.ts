@@ -2,6 +2,7 @@ import { type UIMessage, generateObject } from "ai";
 import { simpleModel } from "@agents/providers";
 import { ChatWorker, BrowserUseWorker } from "@agents/workers";
 import { sendAlert } from "@backend/utils";
+import { settingsService } from "@backend/services";
 
 export interface ChatRequest {
   messages: UIMessage[];
@@ -17,7 +18,6 @@ export class AgentHandler {
     this.chatWorker = new ChatWorker();
     this.browserUseWorker = new BrowserUseWorker();
   }
-
 
   async handleChat(request: ChatRequest): Promise<ReadableStream> {
     const { messages } = request;
@@ -48,6 +48,17 @@ export class AgentHandler {
   private async decideWorkerType(
     messages: UIMessage[]
   ): Promise<"chat" | "browser-use"> {
+    const settings = settingsService.settings;
+    const simpleConfig = settings.modelConfigurations.simple;
+
+    // Check if the model supports advanced usage
+    if (!simpleConfig.supportsAdvancedUsage) {
+      console.log(
+        "[AGENT ORCHESTRATOR] Model does not support advanced usage, defaulting to chat"
+      );
+      return "chat";
+    }
+
     try {
       const { object } = await generateObject({
         model: await simpleModel(),
@@ -82,10 +93,19 @@ ${JSON.stringify(messages, null, 2)}`,
         "[AGENT ORCHESTRATOR:ERROR] Error deciding worker type:",
         error
       );
+
+      // Get provider and model info for better error message
+      const providerName = simpleConfig.providerName || simpleConfig.providerId;
+      const modelName = simpleConfig.modelName;
+
+      // Update capability setting and persist to storage
+      await settingsService.updateModelAdvancedCapability("simple", false);
+
       sendAlert(
-        "Model capability issue",
-        "The current AI model is unable to process advanced requests. Browser automation and AI agent features will be disabled. Tool usage may fail. Please configure a model that supports advanced capabilities for optimal experience."
+        "Model capability alert",
+        `AI model "${modelName}" from provider "${providerName}" is unable to process advanced requests. Browser automation and AI agent features will be disabled. Tool usage may fail. Please configure a model that supports advanced capabilities for optimal experience.`
       );
+
       // Default to chat worker if decision fails
       return "chat";
     }

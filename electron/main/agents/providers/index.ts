@@ -16,7 +16,7 @@ async function createModel(
   modelType: "chat" | "simple" | "complex" = "simple"
 ): Promise<LanguageModel> {
   // Get settings
-  const settings = settingsService.getSettings();
+  const settings = settingsService.settings;
   if (!settings || !settings.providers || settings.providers.length === 0) {
     throw new Error("No providers configured");
   }

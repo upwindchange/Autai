@@ -50,7 +50,9 @@ export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
 // Model configuration schema
 export const ModelConfigSchema = z.object({
   providerId: ProviderIdSchema,
+  providerName: z.string().min(1),
   modelName: z.string().min(1),
+  supportsAdvancedUsage: z.boolean().default(true),
 });
 
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;

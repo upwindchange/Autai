@@ -11,8 +11,8 @@ import type {
 } from "@shared/index";
 
 class SettingsService {
+  public settings: SettingsState;
   private settingsPath: string;
-  private settings: SettingsState;
 
   constructor() {
     const userDataPath = app.getPath("userData");
@@ -31,15 +31,21 @@ class SettingsService {
       modelConfigurations: {
         chat: {
           providerId: "default-openai",
+          providerName: "Default OpenAI",
           modelName: "gpt-3.5-turbo",
+          supportsAdvancedUsage: true,
         },
         simple: {
           providerId: "default-openai",
+          providerName: "Default OpenAI",
           modelName: "gpt-3.5-turbo",
+          supportsAdvancedUsage: true,
         },
         complex: {
           providerId: "default-openai",
+          providerName: "Default OpenAI",
           modelName: "gpt-4",
+          supportsAdvancedUsage: true,
         },
       },
       useSameModelForAgents: true,
@@ -54,10 +60,10 @@ class SettingsService {
     try {
       const data = await fs.readFile(this.settingsPath, "utf-8");
       this.settings = JSON.parse(data, (key, value) => {
-        // Convert date strings back to Date objects
-        if (key === "createdAt" || key === "updatedAt") {
-          return new Date(value);
-        }
+        // Example post processing
+        // if (key === "createdAt" || key === "updatedAt") {
+        //   return new Date(value);
+        // }
         return value;
       });
     } catch (_error) {
@@ -67,16 +73,44 @@ class SettingsService {
   }
 
   async saveSettings(settings: SettingsState): Promise<void> {
-    this.settings = settings;
+    // Sync provider names in model configurations before saving
+    const updatedSettings = this.syncProviderNames(settings);
+    this.settings = updatedSettings;
     await fs.writeFile(
       this.settingsPath,
-      JSON.stringify(settings, null, 2),
+      JSON.stringify(updatedSettings, null, 2),
       "utf-8"
     );
   }
 
-  getSettings(): SettingsState {
-    return this.settings;
+  // Sync provider names in model configurations to ensure they match current providers
+  private syncProviderNames(settings: SettingsState): SettingsState {
+    if (!settings.modelConfigurations || !settings.providers) return settings;
+
+    const updatedModelConfigurations = { ...settings.modelConfigurations };
+
+    // Update provider names for all model types
+    (
+      Object.keys(updatedModelConfigurations) as Array<
+        keyof typeof updatedModelConfigurations
+      >
+    ).forEach((modelType) => {
+      const modelConfig = updatedModelConfigurations[modelType];
+      const provider = settings.providers.find(
+        (p) => p.id === modelConfig.providerId
+      );
+      if (provider) {
+        updatedModelConfigurations[modelType] = {
+          ...modelConfig,
+          providerName: provider.name,
+        };
+      }
+    });
+
+    return {
+      ...settings,
+      modelConfigurations: updatedModelConfigurations,
+    };
   }
 
   async testConnection(
@@ -172,6 +206,14 @@ class SettingsService {
     const simpleConfig = this.settings.modelConfigurations.simple;
     const complexConfig = this.settings.modelConfigurations.complex;
 
+    // Check if both models use the same provider as chat (common case)
+    if (
+      simpleConfig.providerId === chatConfig.providerId &&
+      complexConfig.providerId === chatConfig.providerId
+    ) {
+      return true; // Same provider, already validated above
+    }
+
     const simpleProvider = this.settings.providers.find(
       (p) => p.id === simpleConfig.providerId
     );
@@ -190,6 +232,18 @@ class SettingsService {
     }
 
     return simpleConfigured;
+  }
+
+  // Update model advanced capability setting
+  async updateModelAdvancedCapability(
+    modelType: keyof SettingsState["modelConfigurations"],
+    supportsAdvancedUsage: boolean
+  ): Promise<void> {
+    if (!this.settings.modelConfigurations) return;
+
+    this.settings.modelConfigurations[modelType].supportsAdvancedUsage =
+      supportsAdvancedUsage;
+    await this.saveSettings(this.settings);
   }
 }
 
