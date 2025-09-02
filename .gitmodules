@@ -10,3 +10,9 @@
 [submodule "reference/p-queue"]
 	path = reference/p-queue
 	url = https://github.com/sindresorhus/p-queue.git
+[submodule "reference/langchainjs"]
+	path = reference/langchainjs
+	url = git@github.com:langchain-ai/langchainjs.git
+[submodule "reference/langgraphjs"]
+	path = reference/langgraphjs
+	url = git@github.com:langchain-ai/langgraphjs.git
