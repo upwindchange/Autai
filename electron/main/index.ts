@@ -12,7 +12,6 @@ import {
 import { apiServer } from "@agents";
 import { SettingsBridge } from "@backend/bridges/SettingsBridge";
 import { ThreadViewBridge } from "@backend/bridges/ThreadViewBridge";
-import type { MainProcessError } from "@shared/index";
 
 const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -53,7 +52,6 @@ let threadViewBridge: ThreadViewBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
 
-
 /**
  * Creates the main application window with security-focused settings
  */
@@ -63,7 +61,7 @@ async function createWindow() {
     icon: path.join(process.env.VITE_PUBLIC, "favicon.ico"),
     webPreferences: {
       preload,
-      contextIsolation: true,
+      contextIsolation: false,
       webviewTag: false,
     },
   });
