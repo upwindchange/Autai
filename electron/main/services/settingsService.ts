@@ -1,13 +1,13 @@
 import { app } from "electron";
 import * as fs from "fs/promises";
 import * as path from "path";
-import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
+import { createProvider } from "@agents/providers";
 import type {
   SettingsState,
   TestConnectionConfig,
   TestConnectionResult,
+  ProviderConfig,
 } from "@shared/index";
 
 class SettingsService {
@@ -117,29 +117,27 @@ class SettingsService {
     config: TestConnectionConfig
   ): Promise<TestConnectionResult> {
     try {
-      let provider;
-      let model;
-
-      if (config.provider === "openai-compatible") {
-        // Create OpenAI-compatible provider
-        provider = createOpenAICompatible({
-          name: config.name || "openai",
+      // Extract base provider config from test config
+      const baseConfig = {
+        id: config.id || "test-provider",
+        name: config.name || "Test Provider",
+        provider: config.provider,
+        ...(config.provider === "openai-compatible" ? {
           apiKey: config.apiKey,
-          baseURL: config.apiUrl,
-        });
-        model = config.model;
-      } else if (config.provider === "anthropic") {
-        provider = createAnthropic({
-          apiKey: config.anthropicApiKey,
-        });
-        model = config.model;
-      } else {
-        throw new Error("Unsupported provider: " + config);
-      }
+          apiUrl: config.apiUrl,
+        } : {}),
+        ...(config.provider === "anthropic" ? {
+          anthropicApiKey: config.anthropicApiKey,
+        } : {}),
+      };
+
+      // Create provider instance
+      const provider = createProvider(baseConfig as ProviderConfig);
+      const languageModel = await provider.createLanguageModel(config.model);
 
       // Try a simple completion to test the connection
       const response = await generateText({
-        model: provider(model),
+        model: languageModel,
         prompt: "Hello, this is a test message.",
         temperature: 0,
         maxOutputTokens: 20,
@@ -188,12 +186,8 @@ class SettingsService {
     if (!chatProvider) return false;
 
     // Check chat provider configuration
-    let chatConfigured = false;
-    if (chatProvider.provider === "openai-compatible") {
-      chatConfigured = !!(chatProvider.apiKey && chatProvider.apiUrl);
-    } else if (chatProvider.provider === "anthropic") {
-      chatConfigured = !!chatProvider.anthropicApiKey;
-    }
+    const providerInstance = createProvider(chatProvider);
+    const chatConfigured = providerInstance.isConfigured();
 
     if (!chatConfigured) return false;
 
@@ -224,11 +218,14 @@ class SettingsService {
     if (!simpleProvider || !complexProvider) return false;
 
     // Check simple provider configuration
-    let simpleConfigured = false;
-    if (simpleProvider.provider === "openai-compatible") {
-      simpleConfigured = !!(simpleProvider.apiKey && simpleProvider.apiUrl);
-    } else if (simpleProvider.provider === "anthropic") {
-      simpleConfigured = !!simpleProvider.anthropicApiKey;
+    const simpleProviderInstance = createProvider(simpleProvider);
+    const simpleConfigured = simpleProviderInstance.isConfigured();
+
+    // Check complex provider configuration (if different from simple)
+    if (complexConfig.providerId !== simpleConfig.providerId) {
+      const complexProviderInstance = createProvider(complexProvider);
+      const complexConfigured = complexProviderInstance.isConfigured();
+      return simpleConfigured && complexConfigured;
     }
 
     return simpleConfigured;

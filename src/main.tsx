@@ -39,7 +39,7 @@ const handleAppMessage = (event: unknown, message: AppMessage) => {
       );
       break;
     case "info":
-      toast.custom((t) => (
+      toast.custom(() => (
         <div className="w-full">
           <Alert className="relative">
             <Info className="h-4 w-4" />
@@ -50,7 +50,7 @@ const handleAppMessage = (event: unknown, message: AppMessage) => {
       ));
       break;
     case "success":
-      toast.custom((t) => (
+      toast.custom(() => (
         <div className="w-full">
           <Alert className="relative">
             <CheckCircle2 className="h-4 w-4" />

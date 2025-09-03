@@ -47,7 +47,7 @@ if (!app.requestSingleInstanceLock()) {
 let win: BrowserWindow | null = null;
 let settingsBridge: SettingsBridge | null = null;
 let threadViewService: ThreadViewService | null = null;
-let viewControlService: ViewControlService | null = null;
+let _viewControlService: ViewControlService | null = null;
 let threadViewBridge: ThreadViewBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
@@ -78,7 +78,7 @@ async function createWindow() {
    */
   // Initialize thread/view service
   threadViewService = new ThreadViewService(win);
-  viewControlService = new ViewControlService(threadViewService);
+  _viewControlService = new ViewControlService(threadViewService);
 
   // Initialize bridges
   settingsBridge = new SettingsBridge();
@@ -169,7 +169,7 @@ app.on("before-quit", async (event) => {
       console.log("settingsBridge destroyed");
     }
 
-    viewControlService = null;
+    _viewControlService = null;
 
     // Stop API server
     console.log("Stopping API server...");

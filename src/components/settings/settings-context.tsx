@@ -26,9 +26,9 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
   const [settings, setSettings] = useState<SettingsState>({
     providers: [],
     modelConfigurations: {
-      chat: { providerId: "", modelName: "" },
-      simple: { providerId: "", modelName: "" },
-      complex: { providerId: "", modelName: "" },
+      chat: { providerId: "", providerName: "", modelName: "", supportsAdvancedUsage: true },
+      simple: { providerId: "", providerName: "", modelName: "", supportsAdvancedUsage: true },
+      complex: { providerId: "", providerName: "", modelName: "", supportsAdvancedUsage: true },
     },
     useSameModelForAgents: true,
   });
@@ -59,15 +59,21 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
         modelConfigurations: {
           chat: {
             providerId: "default-openai",
+            providerName: "Default OpenAI",
             modelName: "gpt-3.5-turbo",
+            supportsAdvancedUsage: true,
           },
           simple: {
             providerId: "default-openai",
+            providerName: "Default OpenAI",
             modelName: "gpt-3.5-turbo",
+            supportsAdvancedUsage: true,
           },
           complex: {
             providerId: "default-openai",
+            providerName: "Default OpenAI",
             modelName: "gpt-4",
+            supportsAdvancedUsage: true,
           },
         },
         useSameModelForAgents: true,
@@ -136,10 +142,10 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     // If we're removing a provider that's used in model configurations, reset those configurations
     const updatedModelConfigurations = { ...settings.modelConfigurations };
     if (settings.modelConfigurations.simple.providerId === id) {
-      updatedModelConfigurations.simple = { providerId: "", modelName: "" };
+      updatedModelConfigurations.simple = { providerId: "", providerName: "", modelName: "", supportsAdvancedUsage: true };
     }
     if (settings.modelConfigurations.complex.providerId === id) {
-      updatedModelConfigurations.complex = { providerId: "", modelName: "" };
+      updatedModelConfigurations.complex = { providerId: "", providerName: "", modelName: "", supportsAdvancedUsage: true };
     }
 
     newSettings.modelConfigurations = updatedModelConfigurations;

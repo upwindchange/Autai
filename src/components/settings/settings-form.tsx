@@ -88,17 +88,23 @@ export function SettingsForm({
   // State for model configurations
   const [chatModelConfig, setChatModelConfig] = useState({
     providerId: "",
+    providerName: "",
     modelName: "",
+    supportsAdvancedUsage: true,
   });
 
   const [simpleModelConfig, setSimpleModelConfig] = useState({
     providerId: "",
+    providerName: "",
     modelName: "",
+    supportsAdvancedUsage: true,
   });
 
   const [complexModelConfig, setComplexModelConfig] = useState({
     providerId: "",
+    providerName: "",
     modelName: "",
+    supportsAdvancedUsage: true,
   });
 
   const [useSameModelForAgents, setUseSameModelForAgents] = useState(false);
@@ -108,21 +114,27 @@ export function SettingsForm({
     if (settings?.modelConfigurations?.chat) {
       setChatModelConfig({
         providerId: settings.modelConfigurations.chat.providerId || "",
+        providerName: settings.modelConfigurations.chat.providerName || "",
         modelName: settings.modelConfigurations.chat.modelName || "",
+        supportsAdvancedUsage: settings.modelConfigurations.chat.supportsAdvancedUsage ?? true,
       });
     }
 
     if (settings?.modelConfigurations?.simple) {
       setSimpleModelConfig({
         providerId: settings.modelConfigurations.simple.providerId || "",
+        providerName: settings.modelConfigurations.simple.providerName || "",
         modelName: settings.modelConfigurations.simple.modelName || "",
+        supportsAdvancedUsage: settings.modelConfigurations.simple.supportsAdvancedUsage ?? true,
       });
     }
 
     if (settings?.modelConfigurations?.complex) {
       setComplexModelConfig({
         providerId: settings.modelConfigurations.complex.providerId || "",
+        providerName: settings.modelConfigurations.complex.providerName || "",
         modelName: settings.modelConfigurations.complex.modelName || "",
+        supportsAdvancedUsage: settings.modelConfigurations.complex.supportsAdvancedUsage ?? true,
       });
     }
 
@@ -545,16 +557,17 @@ export function SettingsForm({
         <CardContent className="space-y-6">
           <ModelConfigCard
             title="Default Chat Model"
-            description="Configure the primary model used for general conversation"
             tooltip="This model will be used for general conversation and user interactions"
             providerId={chatModelConfig.providerId}
             modelName={chatModelConfig.modelName}
-            onProviderChange={(value) =>
+            onProviderChange={(value) => {
+              const provider = settings.providers.find(p => p.id === value);
               setChatModelConfig({
                 ...chatModelConfig,
                 providerId: value,
-              })
-            }
+                providerName: provider?.name || "",
+              });
+            }}
             onModelNameChange={(value) =>
               setChatModelConfig({
                 ...chatModelConfig,
@@ -607,16 +620,17 @@ export function SettingsForm({
           <CardContent className="space-y-6">
             <ModelConfigCard
               title="Simple Agent Model"
-              description="Configure specialized models for different agent tasks"
               tooltip="This model will be used for simple agent tasks like text generation, basic analysis, and straightforward queries that don't require complex reasoning or multi-step processing."
               providerId={simpleModelConfig.providerId}
               modelName={simpleModelConfig.modelName}
-              onProviderChange={(value) =>
+              onProviderChange={(value) => {
+                const provider = settings.providers.find(p => p.id === value);
                 setSimpleModelConfig({
                   ...simpleModelConfig,
                   providerId: value,
-                })
-              }
+                  providerName: provider?.name || "",
+                });
+              }}
               onModelNameChange={(value) =>
                 setSimpleModelConfig({
                   ...simpleModelConfig,
@@ -628,16 +642,17 @@ export function SettingsForm({
 
             <ModelConfigCard
               title="Complex Agent Model"
-              description="Configure specialized models for different agent tasks"
               tooltip="This model will be used for complex agent tasks requiring advanced reasoning, multi-step problem solving, creative writing, and sophisticated analysis that benefits from more powerful AI capabilities."
               providerId={complexModelConfig.providerId}
               modelName={complexModelConfig.modelName}
-              onProviderChange={(value) =>
+              onProviderChange={(value) => {
+                const provider = settings.providers.find(p => p.id === value);
                 setComplexModelConfig({
                   ...complexModelConfig,
                   providerId: value,
-                })
-              }
+                  providerName: provider?.name || "",
+                });
+              }}
               onModelNameChange={(value) =>
                 setComplexModelConfig({
                   ...complexModelConfig,

@@ -87,7 +87,14 @@ ${JSON.stringify(messages, null, 2)}`,
       });
 
       console.log("[AGENT ORCHESTRATOR] Worker decision:", object);
-      return object;
+      
+      // Validate the returned value is one of our expected types
+      const workerType = object as string;
+      if (workerType !== "chat" && workerType !== "browser-use") {
+        console.error("[AGENT ORCHESTRATOR:ERROR] Invalid worker type:", workerType);
+        return "chat"; // default fallback
+      }
+      return workerType as "chat" | "browser-use";
     } catch (error) {
       console.error(
         "[AGENT ORCHESTRATOR:ERROR] Error deciding worker type:",

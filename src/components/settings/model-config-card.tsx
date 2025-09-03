@@ -31,9 +31,16 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
+// Type for OpenAI API model response
+interface OpenAIModel {
+  id: string;
+  object: string;
+  created?: number;
+  owned_by?: string;
+}
+
 interface ModelConfigCardProps {
   title: string;
-  description: string;
   tooltip: string;
   providerId: string;
   modelName: string;
@@ -45,7 +52,6 @@ interface ModelConfigCardProps {
 
 export function ModelConfigCard({
   title,
-  description,
   tooltip,
   providerId,
   modelName,
@@ -95,9 +101,9 @@ export function ModelConfigCard({
         }
 
         const data = await response.json();
-        models = data.data
-          .filter((model: any) => model.id)
-          .map((model: any) => model.id)
+        models = (data.data as OpenAIModel[])
+          .filter((model) => model.id)
+          .map((model) => model.id)
           .sort();
       } else if (provider.provider === "anthropic") {
         // Anthropic API - allow free-form text input for model names

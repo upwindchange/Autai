@@ -12,9 +12,11 @@ import { Settings2 } from "lucide-react";
 import { SettingsForm } from "./settings-form";
 import { useSettings } from "./settings-context";
 import { ViewDebugTools } from "@/components/debug/view-debug-tools";
+import type { EditingProvider } from "./types";
 
 export function SettingsDialog() {
   const [open, setOpen] = useState(false);
+  const [editingProvider, setEditingProvider] = useState<EditingProvider | null>(null);
   const { settings } = useSettings();
   
   // Check if debug tools are enabled
@@ -42,6 +44,8 @@ export function SettingsDialog() {
           <SettingsForm
             settings={settings}
             onClose={() => setOpen(false)}
+            editingProvider={editingProvider}
+            setEditingProvider={setEditingProvider}
           />
           {isDebugToolsEnabled() && <ViewDebugTools />}
         </div>

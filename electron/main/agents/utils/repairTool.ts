@@ -1,4 +1,5 @@
 import { InvalidToolInputError } from "ai";
+import { z } from "zod";
 import {
   calculateToolSchema,
   answerToolSchema,
@@ -8,7 +9,7 @@ import {
   repairZodInput,
 } from "@shared/index";
 
-function getSchemaForTool(toolName: ToolName): any {
+function getSchemaForTool(toolName: ToolName): z.ZodSchema<unknown> | null {
   switch (toolName) {
     case TOOL_NAMES.CALCULATE:
       return calculateToolSchema;

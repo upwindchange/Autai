@@ -57,6 +57,7 @@ export const TOOL_NAMES = {
 
 export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES];
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function repairZodInput<T>(data: any, schema: z.ZodSchema<T>): T {
   // First attempt: direct validation
   const result = schema.safeParse(data);
@@ -77,6 +78,7 @@ export function repairZodInput<T>(data: any, schema: z.ZodSchema<T>): T {
   return data;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function recursiveRepairData(data: any, schema: z.ZodTypeAny): any {
   // Handle null/undefined
   if (data === null || data === undefined) {
@@ -124,6 +126,7 @@ function recursiveRepairData(data: any, schema: z.ZodTypeAny): any {
     }
     
     // Recursively repair each array element
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     return data.map((item: any) =>
       recursiveRepairData(item, schema._def.type)
     );
@@ -145,6 +148,7 @@ function recursiveRepairData(data: any, schema: z.ZodTypeAny): any {
       }
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const result: Record<string, any> = {};
     const shape = schema._def.shape();
     
