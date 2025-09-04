@@ -8,6 +8,8 @@ import {
   settingsService,
   ThreadViewService,
   ViewControlService,
+  loggerService,
+  createLogger,
 } from "@backend/services";
 import { apiServer } from "@agents";
 import { SettingsBridge } from "@backend/bridges/SettingsBridge";
@@ -15,6 +17,9 @@ import { ThreadViewBridge } from "@backend/bridges/ThreadViewBridge";
 
 const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Initialize logger
+const logger = createLogger('main');
 
 /**
  * Built directory structure:
@@ -99,6 +104,10 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // Initialize logger first
+  loggerService.initialize();
+  logger.info('Application starting', { version: app.getVersion() });
+  
   await settingsService.initialize();
   // Start API server
   apiServer.start();
@@ -107,8 +116,8 @@ app.whenReady().then(async () => {
 
 app.on("window-all-closed", () => {
   if (process.platform !== "darwin") {
-    console.log("window-all-closed event triggered");
-    console.log("Quitting app...");
+    logger.info("window-all-closed event triggered");
+    logger.info("Quitting app...");
     app.quit();
   }
 });
@@ -144,59 +153,59 @@ app.on("before-quit", async (event) => {
 
   isCleaningUp = true;
   event.preventDefault();
-  console.log("Starting app cleanup...");
+  logger.info("Starting app cleanup...");
 
   try {
     // Clean up all services and bridges
     if (threadViewService) {
-      console.log("Destroying threadViewService...");
+      logger.debug("Destroying threadViewService...");
       await threadViewService.destroy();
       threadViewService = null;
-      console.log("threadViewService destroyed");
+      logger.debug("threadViewService destroyed");
     }
 
     if (threadViewBridge) {
-      console.log("Destroying threadViewBridge...");
+      logger.debug("Destroying threadViewBridge...");
       threadViewBridge.destroy();
       threadViewBridge = null;
-      console.log("threadViewBridge destroyed");
+      logger.debug("threadViewBridge destroyed");
     }
 
     if (settingsBridge) {
-      console.log("Destroying settingsBridge...");
+      logger.debug("Destroying settingsBridge...");
       settingsBridge.destroy();
       settingsBridge = null;
-      console.log("settingsBridge destroyed");
+      logger.debug("settingsBridge destroyed");
     }
 
     _viewControlService = null;
 
     // Stop API server
-    console.log("Stopping API server...");
+    logger.info("Stopping API server...");
     apiServer.stop();
-    console.log("API server stopped");
+    logger.info("API server stopped");
 
     // Force cleanup of any remaining web contents
-    console.log("Cleaning up remaining windows...");
+    logger.debug("Cleaning up remaining windows...");
     const allWindows = BrowserWindow.getAllWindows();
     for (const window of allWindows) {
       try {
         if (!window.isDestroyed()) {
-          console.log("Destroying window...");
+          logger.debug("Destroying window...");
           window.destroy();
-          console.log("Window destroyed");
+          logger.debug("Window destroyed");
         }
       } catch (error) {
-        console.warn("Error cleaning up window:", error);
+        logger.warn("Error cleaning up window:", error);
       }
     }
 
-    console.log("App cleanup completed");
+    logger.info("App cleanup completed");
   } catch (error) {
-    console.error("Error during cleanup:", error);
+    logger.error("Error during cleanup:", error);
   } finally {
     // Ensure the app quits even if there are errors
-    console.log("Ensuring app quit...");
+    logger.info("Ensuring app quit...");
     setTimeout(() => {
       app.exit(0); // Use app.exit instead of app.quit to bypass Electron's quit handling
     }, 50);

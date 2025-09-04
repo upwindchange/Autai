@@ -17,16 +17,15 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "electron-updater": "^6.6.2",
-    "framer-motion": "^12.23.12"
+    "electron-updater": "^6.6.2"
   },
   "devDependencies": {
-    "@ai-sdk/anthropic": "^2.0.9",
+    "@ai-sdk/anthropic": "^2.0.11",
     "@ai-sdk/deepinfra": "^1.0.14",
     "@ai-sdk/openai": "^2.0.23",
     "@ai-sdk/openai-compatible": "^1.0.14",
     "@ai-sdk/react": "^2.0.30",
-    "@assistant-ui/react": "^0.10.45",
+    "@assistant-ui/react": "^0.10.46",
     "@assistant-ui/react-ai-sdk": "^1.0.5",
     "@assistant-ui/react-markdown": "^0.10.9",
     "@eslint/js": "^9.34.0",
@@ -75,9 +74,11 @@
     "date-fns": "^4.1.0",
     "electron": "^38.0.0",
     "electron-builder": "^26.0.12",
+    "electron-log": "^5.4.3",
     "embla-carousel-react": "^8.6.0",
     "eslint": "^9.34.0",
     "express": "^5.1.0",
+    "framer-motion": "^12.23.12",
     "html-react-parser": "^5.2.6",
     "input-otp": "^1.4.2",
     "langfuse-vercel": "^3.38.5",

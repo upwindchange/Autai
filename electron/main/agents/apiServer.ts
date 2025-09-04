@@ -3,11 +3,13 @@ import cors from "cors";
 import { createUIMessageStreamResponse } from "ai";
 import { type Server } from "http";
 import { agentHandler } from "@agents";
+import { createLogger } from "@backend/services";
 
 export class ApiServer {
   private app: Express;
   private server: Server | null = null;
   private port: number = 3001;
+  private logger = createLogger('ApiServer');
 
   constructor() {
     this.app = express();
@@ -26,7 +28,7 @@ export class ApiServer {
   private setupRoutes(): void {
     // Add request logging middleware for debugging
     this.app.use((req, res, next) => {
-      console.log(`[API] ${req.method} ${req.url}`);
+      this.logger.debug(`${req.method} ${req.url}`);
       next();
     });
 
@@ -34,14 +36,14 @@ export class ApiServer {
     this.app.post("/chat", async (req, res) => {
       try {
         const { messages, system, tools } = req.body;
-        console.log("[CHAT] Request received:", {
+        this.logger.info("Chat request received", {
           messagesCount: messages?.length,
-          system,
-          tools,
+          hasSystem: !!system,
+          hasTools: !!tools,
         });
 
         // Stream the response using createUIMessageStreamResponse
-        console.log("[CHAT] Starting stream response...");
+        this.logger.debug("Starting stream response...");
         try {
           const stream = await agentHandler.handleChat({
             messages,
@@ -74,7 +76,7 @@ export class ApiServer {
 
           await sendChunk();
         } catch (error) {
-          console.error("[CHAT:ERROR] Error handling chat:", error);
+          this.logger.error("Error handling chat:", error);
           if (!res.headersSent) {
             if (
               error instanceof Error &&
@@ -87,11 +89,10 @@ export class ApiServer {
           }
         }
       } catch (error) {
-        console.error("[CHAT:CATCH] Outer error:", error);
-        console.error(
-          "[CHAT:CATCH] Error stack:",
-          error instanceof Error ? error.stack : "No stack"
-        );
+        this.logger.error("Outer error in chat handler:", {
+          error,
+          stack: error instanceof Error ? error.stack : "No stack"
+        });
       }
     });
 
@@ -103,19 +104,19 @@ export class ApiServer {
 
   start(): void {
     this.server = this.app.listen(this.port, () => {
-      console.log(`API server running on http://localhost:${this.port}`);
+      this.logger.info(`API server running on http://localhost:${this.port}`);
     });
   }
 
   stop(): void {
     if (this.server) {
       try {
-        console.log("Closing API server...");
+        this.logger.info("Closing API server...");
         this.server.close((err) => {
           if (err) {
-            console.error("Error closing API server:", err);
+            this.logger.error("Error closing API server:", err);
           } else {
-            console.log("API server closed successfully");
+            this.logger.info("API server closed successfully");
           }
         });
         
@@ -124,15 +125,15 @@ export class ApiServer {
           if (this.server) {
             this.server.close(() => {});
             this.server = null;
-            console.log("API server force closed");
+            this.logger.warn("API server force closed");
           }
         }, 1000);
       } catch (error) {
-        console.error("Error stopping API server:", error);
+        this.logger.error("Error stopping API server:", error);
         this.server = null; // Ensure we clear the reference even if there's an error
       }
     } else {
-      console.log("API server already stopped or not initialized");
+      this.logger.debug("API server already stopped or not initialized");
     }
   }
 

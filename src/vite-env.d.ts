@@ -7,6 +7,7 @@ import type {
   TestConnectionConfig,
   TestConnectionResult,
   AppMessage,
+  LogLevel,
 } from "@shared/index";
 import { Rectangle } from "electron";
 
@@ -76,6 +77,11 @@ declare global {
         channel: "app:message",
         listener: (event: IpcRendererEvent, message: AppMessage) => void
       ): void;
+
+      // Logger operations
+      invoke(channel: "logger:setLevel", level: LogLevel): Promise<void>;
+      invoke(channel: "logger:getLogPath"): Promise<string>;
+      invoke(channel: "logger:clearLogs"): Promise<void>;
     };
   }
 

@@ -16,3 +16,6 @@ export * from "./ipc";
 
 // Tools types
 export * from "./tools";
+
+// Logger types
+export * from "./logger";

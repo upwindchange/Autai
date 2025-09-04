@@ -2,6 +2,7 @@ import { WebContentsView, BrowserWindow, Rectangle } from "electron";
 import { EventEmitter } from "events";
 import type { ThreadId, ViewId, ThreadViewState } from "@shared/index";
 import { getIndexScript } from "@backend/scripts/indexLoader";
+import { createLogger } from "@backend/services";
 
 interface ViewMetadata {
   id: ViewId;
@@ -25,6 +26,7 @@ export class ThreadViewService extends EventEmitter {
   private activeView: WebContentsView | null = null;
   private frontendVisibility: boolean = false;
   private win: BrowserWindow;
+  private logger = createLogger('ThreadViewService');
 
   constructor(win: BrowserWindow) {
     super();
@@ -37,7 +39,7 @@ export class ThreadViewService extends EventEmitter {
 
   async createThread(threadId: ThreadId): Promise<void> {
     if (this.threadStates.has(threadId)) {
-      console.log(`Thread ${threadId} already exists, switching to it`);
+      this.logger.info(`Thread ${threadId} already exists, switching to it`);
       this.activeThreadId = threadId;
       return;
     }
@@ -50,18 +52,18 @@ export class ThreadViewService extends EventEmitter {
     });
 
     this.activeThreadId = threadId;
-    console.log(`Thread ${threadId} created`);
+    this.logger.info(`Thread ${threadId} created`);
 
     // Create initial view and set as active view for the thread
     const viewId = await this.createView({ threadId });
     const state = this.threadStates.get(threadId)!;
     state.activeViewId = viewId;
     this.activeView = this.views.get(viewId) || null;
-    console.log(`Initial view ${viewId} created for thread ${threadId}`);
+    this.logger.info(`Initial view ${viewId} created for thread ${threadId}`);
   }
 
   async switchThread(threadId: ThreadId): Promise<void> {
-    console.log(`Switching from thread ${this.activeThreadId} to ${threadId}`);
+    this.logger.info(`Switching from thread ${this.activeThreadId} to ${threadId}`);
 
     // Hide all views from current thread
     if (this.activeThreadId) {
@@ -69,18 +71,18 @@ export class ThreadViewService extends EventEmitter {
     }
 
     this.activeThreadId = threadId;
-    console.log(`Active thread set to ${threadId}`);
+    this.logger.debug(`Active thread set to ${threadId}`);
 
     // Show active view of new thread (respecting visibility rules)
     const activeViewId = this.getActiveViewForThread(threadId);
     if (activeViewId) {
       this.activeView = this.views.get(activeViewId) || null;
-      console.log(`Active view for thread ${threadId} is ${activeViewId}`);
+      this.logger.debug(`Active view for thread ${threadId} is ${activeViewId}`);
       await this.setBackendVisibility(activeViewId, true);
     } else {
       // No active view for this thread, clear the active view reference
       this.activeView = null;
-      console.log(`No active view found for thread ${threadId}`);
+      this.logger.debug(`No active view found for thread ${threadId}`);
     }
   }
 
@@ -160,9 +162,9 @@ export class ThreadViewService extends EventEmitter {
     }
 
     // Load welcome page
-    console.log("init welcome page loading");
+    this.logger.debug("init welcome page loading");
     await webView.webContents.loadFile("public/welcome.html");
-    console.log("welcome page loaded");
+    this.logger.debug("welcome page loaded");
 
     // Page load completion - inject scripts
     webView.webContents.once("did-finish-load", async () => {
@@ -175,19 +177,19 @@ export class ThreadViewService extends EventEmitter {
           })();
         `;
         await webView.webContents.executeJavaScript(wrappedIndexScript);
-        console.log(`Successfully injected scripts for view ${viewId}`);
+        this.logger.debug(`Successfully injected scripts for view ${viewId}`);
       } catch (error) {
-        console.error("Failed to inject scripts:", error);
+        this.logger.error("Failed to inject scripts:", error);
       }
     });
 
-    console.log("createView", viewId, threadId);
+    this.logger.info("createView", viewId, threadId);
     this.emit("threadview:created", { viewId, threadId });
     return viewId;
   }
 
   async destroyView(viewId: ViewId): Promise<void> {
-    console.log(`Destroying view ${viewId}`);
+    this.logger.info(`Destroying view ${viewId}`);
 
     const webView = this.views.get(viewId);
     const metadata = this.viewMetadata.get(viewId);
@@ -202,34 +204,34 @@ export class ThreadViewService extends EventEmitter {
       // Stop and cleanup WebContents
       if (webView.webContents && !webView.webContents.isDestroyed()) {
         try {
-          console.log(`Stopping webContents for view ${viewId}`);
+          this.logger.debug(`Stopping webContents for view ${viewId}`);
           webView.webContents.stop();
           webView.webContents.removeAllListeners();
           webView.webContents.close({ waitForBeforeUnload: false });
           webView.webContents.forcefullyCrashRenderer();
-          console.log(`WebContents for view ${viewId} stopped`);
+          this.logger.debug(`WebContents for view ${viewId} stopped`);
         } catch (error) {
-          console.error(
+          this.logger.error(
             `Error cleaning up WebContents for view ${viewId}:`,
             error
           );
         }
       }
     } catch (error) {
-      console.error(`Error in webContents cleanup for view ${viewId}:`, error);
+      this.logger.error(`Error in webContents cleanup for view ${viewId}:`, error);
     }
 
     try {
       // Remove from window only if window still exists and isn't destroyed
       if (this.win && !this.win.isDestroyed()) {
-        console.log(`Removing view ${viewId} from window`);
+        this.logger.debug(`Removing view ${viewId} from window`);
         this.win.contentView.removeChildView(webView);
-        console.log(`View ${viewId} removed from window`);
+        this.logger.debug(`View ${viewId} removed from window`);
       } else {
-        console.log(`Window is destroyed, skipping view removal for ${viewId}`);
+        this.logger.debug(`Window is destroyed, skipping view removal for ${viewId}`);
       }
     } catch (error) {
-      console.error(`Error removing view ${viewId} from window:`, error);
+      this.logger.error(`Error removing view ${viewId} from window:`, error);
     }
 
     // Update thread state
@@ -257,7 +259,7 @@ export class ThreadViewService extends EventEmitter {
     this.viewMetadata.delete(viewId);
 
     this.emit("threadview:destroyed", viewId);
-    console.log(`View ${viewId} destroyed successfully`);
+    this.logger.info(`View ${viewId} destroyed successfully`);
   }
 
   // ===================
@@ -289,7 +291,7 @@ export class ThreadViewService extends EventEmitter {
     const webView = this.views.get(viewId);
     const metadata = this.viewMetadata.get(viewId);
     if (!webView || !metadata) {
-      console.log(
+      this.logger.warn(
         `Cannot update visibility for view ${viewId}: view or metadata not found`
       );
       return;
@@ -310,7 +312,7 @@ export class ThreadViewService extends EventEmitter {
       this.frontendVisibility &&
       metadata.backendVisibility;
 
-    console.log(`Updating visibility for view ${viewId}:`, {
+    this.logger.debug(`Updating visibility for view ${viewId}:`, {
       isActiveThread,
       isActiveView,
       frontendVisibility: this.frontendVisibility,
@@ -325,22 +327,22 @@ export class ThreadViewService extends EventEmitter {
       // Show this view
       webView.setBounds(this.viewBounds);
       webView.setVisible(true);
-      console.log(`view ${viewId} is set to be visible`);
+      this.logger.debug(`view ${viewId} is set to be visible`);
     } else {
       webView.setVisible(false);
-      console.log(`view ${viewId} is set to be invisible`);
+      this.logger.debug(`view ${viewId} is set to be invisible`);
     }
   }
 
   async setBounds(bounds: Rectangle): Promise<void> {
-    console.log(`Setting bounds to:`, bounds);
+    this.logger.debug(`Setting bounds to:`, bounds);
     this.viewBounds = bounds;
     // Update bounds for the active view if it exists
     if (this.activeView) {
       this.activeView.setBounds(bounds);
-      console.log(`Bounds updated for active view`);
+      this.logger.debug(`Bounds updated for active view`);
     } else {
-      console.log(`No active view to update bounds`);
+      this.logger.debug(`No active view to update bounds`);
     }
   }
 
@@ -413,14 +415,14 @@ export class ThreadViewService extends EventEmitter {
       // Force cleanup of any remaining views
       for (const [viewId, _] of this.views) {
         try {
-          console.log(`Force cleanup of view ${viewId}`);
+          this.logger.debug(`Force cleanup of view ${viewId}`);
           this.destroyView(viewId);
         } catch (error) {
-          console.error(`Error destroying view ${viewId}:`, error);
+          this.logger.error(`Error destroying view ${viewId}:`, error);
         }
       }
     } catch (error) {
-      console.error("Error during ThreadViewService.destroy():", error);
+      this.logger.error("Error during ThreadViewService.destroy():", error);
     } finally {
       // Still clean up what we can
       this.views.clear();
