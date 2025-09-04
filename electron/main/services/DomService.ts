@@ -16,6 +16,7 @@ import type {
   CoordinateSet,
 } from "@shared/index";
 import { getIndexScript } from "@backend/scripts/indexLoader";
+import { createLogger } from "@backend/services";
 
 // Result of DOM extraction and manipulation operations
 interface DOMExtractionResult {
@@ -58,7 +59,7 @@ export class DomService {
   private webContents: WebContents;
 
   /** Logger instance for debugging and error tracking */
-  private logger: Console = console;
+  private logger = createLogger('DomService');
 
   /** Cache of element hashes organized by URL for change tracking */
   private cachedElementHashes: Map<string, Set<string>> = new Map();
@@ -85,8 +86,8 @@ export class DomService {
    *
    * @example
    * const domState = await domService.getClickableElements(true, 5, 100);
-   * console.log(domState.elementTree); // DOM hierarchy
-   * console.log(domState.selectorMap); // Index to element mapping
+   * // Access DOM hierarchy: domState.elementTree
+   * // Access index to element mapping: domState.selectorMap
    */
   async getClickableElements(
     highlightElements: boolean = true,
@@ -112,7 +113,7 @@ export class DomService {
    *
    * @example
    * const elementsString = domService.clickableElementsToString(domState.elementTree);
-   * console.log(elementsString); // Formatted text representation
+   * // Returns formatted text representation of DOM elements
    */
   clickableElementsToString(
     rootNode: DOMElementNode,
@@ -258,13 +259,13 @@ export class DomService {
    *
    * @example
    * const pageInfo = await domService.getPageInfo();
-   * console.log(pageInfo.viewportWidth, pageInfo.viewportHeight); // Viewport dimensions
-   * console.log(pageInfo.scrollY); // Current vertical scroll position
+   * // Access viewport dimensions: pageInfo.viewportWidth, pageInfo.viewportHeight
+   * // Access current vertical scroll position: pageInfo.scrollY
    *
    * @example
    * const pageInfo = await domService.getPageInfo();
    * if (pageInfo.pixelsBelow > 0) {
-   *   console.log('Page has content below the viewport');
+   *   // Page has content below the viewport
    * }
    */
   async getPageInfo(): Promise<PageInfo> {
@@ -356,7 +357,7 @@ export class DomService {
    *   focusHighlightIndex: 3
    * });
    * if (result.success) {
-   *   console.log(result.data); // Extracted DOM data
+   *   // Access extracted DOM data: result.data
    * }
    */
   async buildDomTree(
@@ -444,7 +445,7 @@ export class DomService {
    *
    * @example
    * const elementHash = domService.hashDomElement(element);
-   * console.log(elementHash); // Unique fingerprint for the element
+   * // Returns unique fingerprint for the element
    */
   hashDomElement(element: DOMElementNode): string {
     const hashedElement = this._hashDomElementToComponents(element);
@@ -461,9 +462,9 @@ export class DomService {
    *
    * @example
    * const hashedElement = domService._hashDomElementToComponents(element);
-   * console.log(hashedElement.branchPathHash); // Hash of element's path in DOM tree
-   * console.log(hashedElement.attributesHash); // Hash of element's attributes
-   * console.log(hashedElement.xpathHash); // Hash of element's xpath
+   * // Access hash of element's path: hashedElement.branchPathHash
+   * // Access hash of attributes: hashedElement.attributesHash
+   * // Access hash of xpath: hashedElement.xpathHash
    */
   private _hashDomElementToComponents(
     element: DOMElementNode
@@ -494,7 +495,7 @@ export class DomService {
    *
    * @example
    * const hashes = domService.getClickableElementHashes(rootElement);
-   * console.log(hashes.size); // Number of clickable elements
+   * // Returns Set with hashes of all clickable elements
    */
   getClickableElementHashes(rootElement: DOMElementNode): Set<string> {
     const hashes = new Set<string>();
@@ -586,16 +587,16 @@ export class DomService {
    *
    * @example
    * const diff = domService.compareDOMStates(previousState, currentState);
-   * console.log(`Added: ${diff.addedElements.length}`);
-   * console.log(`Removed: ${diff.removedElements.length}`);
+   * // Access added elements: diff.addedElements
+   * // Access removed elements: diff.removedElements
    *
    * @example
    * const diff = domService.compareDOMStates(previousState, currentState);
    * if (diff.addedElements.length > 0) {
-   *   console.log('New elements detected on page');
+   *   // New elements detected on page
    *   // Process newly added elements
    *   diff.addedElements.forEach(element => {
-   *     console.log(`New element: ${element.tagName} with highlight index ${element.highlightIndex}`);
+   *     // Process new element with tagName and highlightIndex
    *   });
    * }
    */

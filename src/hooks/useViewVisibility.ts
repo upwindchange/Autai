@@ -1,6 +1,9 @@
 import { useEffect } from "react";
 import { useAssistantRuntime } from "@assistant-ui/react";
 import { useUiStore } from "@/stores/uiStore";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger('useViewVisibility');
 
 /**
  * Hook that syncs container mount/unmount state with view visibility.
@@ -15,21 +18,17 @@ export function useViewVisibility() {
 
   useEffect(() => {
     const updateVisibility = async (isVisible: boolean) => {
-      console.log(
-        `useViewVisibility: updateVisibility called with isVisible=${isVisible}, hasContainerBounds=${!!containerBounds}`
-      );
+      logger.debug("updating visibility", { isVisible, hasContainerBounds: !!containerBounds });
 
       // if (containerBounds) {
-      //   console.log('useViewVisibility: Sending setBounds IPC with:', containerBounds);
+      //   logger.debug('sending bounds ipc', { containerBounds });
       //   // Set visibility (now using send since it's one-way)
       //   window.ipcRenderer.send("threadview:setBounds", {
       //     bounds: containerBounds,
       //   });
       // }
 
-      console.log(
-        `useViewVisibility: Sending setVisibility IPC with isVisible=${isVisible}`
-      );
+      logger.debug("sending visibility ipc", { isVisible });
       // Set visibility (now using send since it's one-way)
       window.ipcRenderer.send("threadview:setVisibility", {
         isVisible,
@@ -37,14 +36,12 @@ export function useViewVisibility() {
     };
 
     // Set visibility based on current container state
-    console.log(
-      `useViewVisibility: Initializing visibility, containerRef exists=${!!containerRef}`
-    );
+    logger.debug("initializing visibility", { hasContainerRef: !!containerRef });
     updateVisibility(!!containerRef);
 
     // Cleanup function - hide view when hook unmounts
     return () => {
-      console.log("useViewVisibility: Cleaning up, hiding view");
+      logger.debug("cleaning up, hiding view");
       updateVisibility(false);
     };
   }, [containerRef, runtime.threads.mainItem]);

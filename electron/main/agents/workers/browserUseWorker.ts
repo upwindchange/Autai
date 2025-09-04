@@ -1,6 +1,7 @@
 import { streamText, convertToModelMessages, type UIMessage } from "ai";
 import { complexModel } from "@agents/providers";
 import { isDevMode, repairToolCall } from "@agents/utils";
+import { createLogger } from "@backend/services";
 
 export interface ChatRequest {
   messages: UIMessage[];
@@ -15,16 +16,16 @@ const systemPrompt = `You are a helpful AI assistant integrated into a web brows
                          When helping users with browser tasks, be clear and precise in your instructions.`;
 
 export class BrowserUseWorker {
+  private logger = createLogger('BrowserUseWorker');
   async handleChat(request: ChatRequest): Promise<ReadableStream> {
     const { messages, system } = request;
-    console.log("[BROWSER USE WORKER] Request received:", {
+    this.logger.debug("request received", {
       messagesCount: messages?.length,
-      system,
-      messages: JSON.stringify(messages, null, 2),
+      hasSystem: !!system
     });
 
     try {
-      console.log("[BROWSER USE WORKER] Creating streamText with simple model");
+      this.logger.debug("creating stream with complex model");
 
       // Simple chat implementation without tools for now
       const result = streamText({
@@ -35,18 +36,13 @@ export class BrowserUseWorker {
         experimental_telemetry: { isEnabled: isDevMode() },
       });
 
-      console.log("[BROWSER USE WORKER] Converting to UI message stream...");
+      this.logger.debug("converting to ui message stream");
       return result.toUIMessageStream();
     } catch (error) {
-      console.error("[BROWSER USE WORKER:ERROR] Error in streamText:", error);
-      console.error(
-        "[BROWSER USE WORKER:ERROR] Error stack:",
-        error instanceof Error ? error.stack : "No stack"
-      );
-      console.error(
-        "[BROWSER USE WORKER:ERROR] Error details:",
-        JSON.stringify(error, null, 2)
-      );
+      this.logger.error("failed to create stream", {
+        error,
+        stack: error instanceof Error ? error.stack : undefined
+      });
       throw error;
     }
   }

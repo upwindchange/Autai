@@ -1,5 +1,8 @@
 import { useEffect, useRef } from "react";
 import { useAssistantRuntime } from "@assistant-ui/react";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger('useThreadLifecycle');
 
 /**
  * Hook that bridges assistant-ui runtime thread events to backend IPC.
@@ -10,26 +13,20 @@ export function useThreadLifecycle() {
   const previousThreadIdRef = useRef<string | null>(null);
 
   useEffect(() => {
-    console.log("useThreadLifecycle: hook triggered");
+    logger.debug("hook triggered");
     // Check if runtime has thread support
     if (!runtime.threads?.mainItem) {
-      console.warn(
-        "[useThreadLifecycle] Runtime does not support thread management"
-      );
+      logger.warn("runtime does not support thread management");
       return;
     }
 
     try {
       // Initial thread setup - use mainItem to get current thread ID
       const currentThreadId = runtime.threads.mainItem.getState().id;
-      console.log(
-        `useThreadLifecycle: Initial thread setup, currentThreadId=${currentThreadId}`
-      );
+      logger.debug("initial thread setup", { currentThreadId });
 
       if (currentThreadId) {
-        console.log(
-          `useThreadLifecycle: Sending threadview:created IPC for thread ${currentThreadId}`
-        );
+        logger.debug("sending threadview:created ipc", { threadId: currentThreadId });
         window.ipcRenderer.send("threadview:created", currentThreadId);
         previousThreadIdRef.current = currentThreadId;
       }
@@ -39,29 +36,21 @@ export function useThreadLifecycle() {
         const currentThreadId = runtime.threads.mainItem.getState().id;
         const previousThreadId = previousThreadIdRef.current;
 
-        console.log(
-          `useThreadLifecycle: Thread change detected - previous=${previousThreadId}, current=${currentThreadId}`
-        );
+        logger.debug("thread change detected", { previousThreadId, currentThreadId });
 
         if (currentThreadId !== previousThreadId) {
           if (currentThreadId) {
             // Check if this is a new thread creation
             const threadsState = runtime.threads.getState();
-            console.log(
-              `useThreadLifecycle: Checking if thread ${currentThreadId} is new, newThread=${threadsState.newThread}`
-            );
+            logger.debug("checking if thread is new", { currentThreadId, newThread: threadsState.newThread });
 
             if (threadsState.newThread === currentThreadId) {
-              console.log(
-                `useThreadLifecycle: Detected new thread ${currentThreadId}, sending threadview:created IPC`
-              );
+              logger.debug("detected new thread, sending threadview:created ipc", { threadId: currentThreadId });
               window.ipcRenderer.send("threadview:created", currentThreadId);
             }
 
             // Thread switched
-            console.log(
-              `useThreadLifecycle: Sending threadview:switched IPC for thread ${currentThreadId}`
-            );
+            logger.debug("sending threadview:switched ipc", { threadId: currentThreadId });
             window.ipcRenderer.send("threadview:switched", currentThreadId);
           }
 
@@ -70,15 +59,11 @@ export function useThreadLifecycle() {
       });
 
       return () => {
-        console.log(
-          `useThreadLifecycle: Cleaning up subscription, last thread was ${previousThreadIdRef.current}`
-        );
+        logger.debug("cleaning up subscription", { lastThreadId: previousThreadIdRef.current });
         unsubscribe();
         // Cleanup: notify if thread is being destroyed
         if (previousThreadIdRef.current) {
-          console.log(
-            `useThreadLifecycle: Sending threadview:deleted IPC for thread ${previousThreadIdRef.current}`
-          );
+          logger.debug("sending threadview:deleted ipc", { threadId: previousThreadIdRef.current });
           window.ipcRenderer.send(
             "threadview:deleted",
             previousThreadIdRef.current
@@ -86,10 +71,7 @@ export function useThreadLifecycle() {
         }
       };
     } catch (error) {
-      console.warn(
-        "[useThreadLifecycle] Error setting up thread lifecycle:",
-        error
-      );
+      logger.error("error setting up thread lifecycle", error);
       return;
     }
   }, [runtime]);

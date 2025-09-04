@@ -1,4 +1,5 @@
 import { ipcMain, IpcMainInvokeEvent, IpcMainEvent } from "electron";
+import { createLogger } from "@backend/services";
 
 /**
  * Base class for all IPC bridge implementations.
@@ -7,6 +8,7 @@ import { ipcMain, IpcMainInvokeEvent, IpcMainEvent } from "electron";
 export abstract class BaseBridge {
   protected handlers: Map<string, string> = new Map();
   protected onHandlers: Map<string, string> = new Map();
+  protected logger = createLogger(this.constructor.name);
 
   /**
    * Setup IPC handlers. Must be implemented by subclasses.
@@ -28,7 +30,7 @@ export abstract class BaseBridge {
         try {
           return await handler(event, command);
         } catch (error) {
-          console.error(`Error in ${channel}:`, error);
+          this.logger.error(`ipc handler failed`, { channel, error });
           return {
             success: false,
             error: error instanceof Error ? error.message : "Unknown error",
@@ -53,7 +55,7 @@ export abstract class BaseBridge {
         try {
           await handler(event, command);
         } catch (error) {
-          console.error(`Error in ${channel}:`, error);
+          this.logger.error(`ipc listener failed`, { channel, error });
         }
       }
     );

@@ -5,6 +5,9 @@ import type { SyntaxHighlighterProps } from "@assistant-ui/react-markdown";
 import mermaid from "mermaid";
 import { FC, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger('MermaidDiagram');
 
 /**
  * Props for the MermaidDiagram component
@@ -73,7 +76,7 @@ export const MermaidDiagram: FC<MermaidDiagramProps> = ({
           result.bindFunctions?.(ref.current);
         }
       } catch (e) {
-        console.warn("Failed to render Mermaid diagram:", e);
+        logger.warn("failed to render mermaid diagram", e);
       }
     })();
   }, [isComplete, code]);

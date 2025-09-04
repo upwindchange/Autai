@@ -8,6 +8,9 @@ import {
   type ToolName,
   repairZodInput,
 } from "@shared/index";
+import { createLogger } from "@backend/services";
+
+const logger = createLogger('ToolRepair');
 
 function getSchemaForTool(toolName: ToolName): z.ZodSchema<unknown> | null {
   switch (toolName) {
@@ -34,10 +37,9 @@ export async function repairToolCall({
   };
   error: Error | InvalidToolInputError;
 }) {
-  console.log("[CHAT WORKER:REPAIR] Attempting to repair tool call:", {
+  logger.debug("attempting to repair tool call", {
     toolName: toolCall.toolName,
-    error: error.message,
-    originalArgs: toolCall.input,
+    error: error.message
   });
 
   // do not attempt to fix invalid tool names
@@ -53,10 +55,7 @@ export async function repairToolCall({
     const schema = getSchemaForTool(toolCall.toolName as ToolName);
 
     if (schema) {
-      console.log(
-        "[CHAT WORKER:REPAIR] Using shared Zod repair utility for tool:",
-        toolCall.toolName
-      );
+      logger.debug("using zod repair utility", { toolName: toolCall.toolName });
 
       // Use the shared repair utility to fix the entire object structure
       const repairedArgs = repairZodInput(parsedArgs, schema);
@@ -69,23 +68,15 @@ export async function repairToolCall({
         input: JSON.stringify(repairedArgs),
       };
 
-      console.log("[CHAT WORKER:REPAIR] Successfully repaired tool call:", {
-        toolName: repairedCall.toolName,
-        repairedArgs: repairedCall.input,
-      });
+      logger.info("tool call repaired", { toolName: repairedCall.toolName });
 
       return repairedCall;
     } else {
-      console.log(
-        "[CHAT WORKER:REPAIR] No schema found for tool:",
-        toolCall.toolName
-      );
+      logger.warn("no schema found for tool", { toolName: toolCall.toolName });
 
       // Fallback: check if steps is a string that needs to be parsed
       if (typeof parsedArgs.steps === "string") {
-        console.log(
-          "[CHAT WORKER:REPAIR] Detected steps as string, attempting to parse..."
-        );
+        logger.debug("detected steps as string, parsing");
         try {
           parsedArgs.steps = JSON.parse(parsedArgs.steps);
         } catch {
@@ -100,19 +91,13 @@ export async function repairToolCall({
           input: JSON.stringify(parsedArgs),
         };
 
-        console.log("[CHAT WORKER:REPAIR] Successfully repaired tool call:", {
-          toolName: repairedCall.toolName,
-          repairedArgs: repairedCall.input,
-        });
+        logger.info("tool call repaired", { toolName: repairedCall.toolName });
 
         return repairedCall;
       }
     }
   } catch (repairError) {
-    console.error(
-      "[CHAT WORKER:REPAIR] Failed to repair tool call:",
-      repairError
-    );
+    logger.error("failed to repair tool call", repairError);
   }
 
   return null;

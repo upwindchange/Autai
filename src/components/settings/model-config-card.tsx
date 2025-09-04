@@ -17,6 +17,9 @@ import { HelpCircle, RefreshCw, Check } from "lucide-react";
 import type { ProviderConfig } from "@shared/index";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger('ModelConfigCard');
 import {
   Command,
   CommandEmpty,
@@ -113,7 +116,7 @@ export function ModelConfigCard({
 
       setAvailableModels(models);
     } catch (error) {
-      console.error("Failed to fetch models:", error);
+      logger.error("failed to fetch models", error);
       setAvailableModels([]);
       // Keep the current model name even if fetch fails
     } finally {

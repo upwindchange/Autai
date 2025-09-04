@@ -1,5 +1,8 @@
 import { BrowserWindow } from "electron";
 import type { AppMessage } from "@shared/index";
+import { createLogger } from "@backend/services";
+
+const logger = createLogger('MessageUtils');
 
 /**
  * Sends an app message to the renderer process
@@ -12,7 +15,7 @@ export function sendAppMessage(message: AppMessage): void {
       mainWindow.webContents.send("app:message", message);
     }
   } catch (error) {
-    console.error("Failed to send app message:", error);
+    logger.error("failed to send app message", { error, messageType: message.type });
   }
 }
 

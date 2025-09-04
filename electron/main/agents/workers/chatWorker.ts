@@ -12,6 +12,7 @@ import * as mathjs from "mathjs";
 import { z } from "zod";
 import { chatModel } from "@agents/providers";
 import { repairToolCall } from "@agents/utils";
+import { createLogger } from "@backend/services";
 import {
   calculateToolSchema,
   answerToolSchema,
@@ -45,17 +46,17 @@ const systemPrompt = `You are a helpful AI assistant integrated into a web brows
                          When solving math problems, reason step by step and use the calculator when necessary.`;
 
 export class ChatWorker {
+  private logger = createLogger('ChatWorker');
   async handleChat(request: ChatRequest): Promise<ReadableStream> {
     const { messages, system, tools } = request;
-    console.log("[CHAT WORKER] Request received:", {
+    this.logger.debug("request received", {
       messagesCount: messages?.length,
-      system,
-      tools,
-      messages: JSON.stringify(messages, null, 2),
+      hasSystem: !!system,
+      hasTools: !!tools
     });
 
     try {
-      console.log("[CHAT WORKER] Creating streamText with chat model");
+      this.logger.debug("creating stream with chat model");
 
       const result = streamText({
         model: await chatModel(),
@@ -74,18 +75,13 @@ export class ChatWorker {
         onStepFinish: this.handleStepFinish,
       });
 
-      console.log("[CHAT WORKER] Converting to UI message stream...");
+      this.logger.debug("converting to ui message stream");
       return result.toUIMessageStream();
     } catch (error) {
-      console.error("[CHAT WORKER:ERROR] Error in streamText:", error);
-      console.error(
-        "[CHAT WORKER:ERROR] Error stack:",
-        error instanceof Error ? error.stack : "No stack"
-      );
-      console.error(
-        "[CHAT WORKER:ERROR] Error details:",
-        JSON.stringify(error, null, 2)
-      );
+      this.logger.error("failed to create stream", {
+        error,
+        stack: error instanceof Error ? error.stack : undefined
+      });
       throw error;
     }
   }
@@ -118,12 +114,12 @@ export class ChatWorker {
     expression,
   }: CalculateToolParams): Promise<CalculateToolResult> {
     try {
-      console.log("[TOOL:CALCULATE] Called with expression:", expression);
+      this.logger.debug("calculate tool called", { expression });
       const result = mathjs.evaluate(expression);
-      console.log("[TOOL:CALCULATE] Result:", result);
+      this.logger.debug("calculate result", { result });
       return result;
     } catch (error) {
-      console.error("[TOOL:CALCULATE] Error:", error);
+      this.logger.error("calculate failed", { expression, error });
       return `Error evaluating expression: ${
         error instanceof Error ? error.message : String(error)
       }`;
@@ -135,11 +131,7 @@ export class ChatWorker {
     message,
     details,
   }: DisplayErrorToolParams): Promise<DisplayErrorToolResult> {
-    console.log("[TOOL:DISPLAY_ERROR] Displaying error:", {
-      title,
-      message,
-      details,
-    });
+    this.logger.debug("display error tool called", { title, message, details });
     const result: DisplayErrorToolResult = {
       type: "error",
       title,
@@ -191,9 +183,6 @@ export class ChatWorker {
       usage,
     };
 
-    console.log(
-      "[CHAT WORKER:STEP] Step finished:",
-      JSON.stringify(logData, null, 2)
-    );
+    this.logger.debug("step finished", logData);
   }
 }

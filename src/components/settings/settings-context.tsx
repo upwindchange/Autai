@@ -7,6 +7,9 @@ import {
 } from "react";
 import { SettingsContextType } from "./types";
 import type { SettingsState, ProviderConfig } from "@shared/index";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger('SettingsContext');
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
 
@@ -44,7 +47,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       const loadedSettings = await window.ipcRenderer.invoke("settings:load");
       setSettings(loadedSettings);
     } catch (error) {
-      console.error("Failed to load settings:", error);
+      logger.error("failed to load settings", error);
       // Create default settings if none exists
       const defaultSettings: SettingsState = {
         providers: [

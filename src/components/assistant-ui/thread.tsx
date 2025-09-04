@@ -25,6 +25,9 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MarkdownText } from "./markdown-text";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger('AssistantUIThread');
 import { ToolFallback } from "./tool-fallback";
 
 export const Thread: FC = () => {
@@ -185,7 +188,7 @@ const ComposerAction: FC = () => {
         variant="ghost"
         className="hover:bg-foreground/15 dark:hover:bg-background/50 scale-115 p-3.5"
         onClick={() => {
-          console.log("Attachment clicked - not implemented");
+          logger.debug("attachment clicked - not implemented");
         }}
       >
         <PlusIcon />

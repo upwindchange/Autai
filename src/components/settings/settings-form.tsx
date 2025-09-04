@@ -43,6 +43,9 @@ import type {
   TestConnectionResult,
 } from "@shared/index";
 import type { EditingProvider } from "./types";
+import { createLogger } from "@/lib/logger";
+
+const logger = createLogger('SettingsForm');
 
 interface SettingsFormProps {
   settings: SettingsState;
@@ -166,7 +169,7 @@ export function SettingsForm({
       }
       setEditingProvider(null);
     } catch (error) {
-      console.error("Failed to save provider:", error);
+      logger.error("failed to save provider", error);
     } finally {
       setIsLoading(false);
     }
@@ -254,7 +257,7 @@ export function SettingsForm({
         details: results,
       });
     } catch (error) {
-      console.error("Test connection error:", error);
+      logger.error("test connection failed", error);
       setTestResult({
         success: false,
         message: error instanceof Error ? error.message : "Test failed",
@@ -279,7 +282,7 @@ export function SettingsForm({
       await updateSettings(newSettings);
       onClose?.();
     } catch (error) {
-      console.error("Failed to save model configurations:", error);
+      logger.error("failed to save model configurations", error);
     } finally {
       setIsLoading(false);
     }

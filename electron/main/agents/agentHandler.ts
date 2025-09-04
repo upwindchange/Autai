@@ -2,7 +2,7 @@ import { type UIMessage, generateObject } from "ai";
 import { simpleModel } from "@agents/providers";
 import { ChatWorker, BrowserUseWorker } from "@agents/workers";
 import { sendAlert } from "@backend/utils";
-import { settingsService } from "@backend/services";
+import { settingsService, createLogger } from "@backend/services";
 
 export interface ChatRequest {
   messages: UIMessage[];
@@ -13,6 +13,7 @@ export interface ChatRequest {
 export class AgentHandler {
   private chatWorker: ChatWorker;
   private browserUseWorker: BrowserUseWorker;
+  private logger = createLogger('AgentHandler');
 
   constructor() {
     this.chatWorker = new ChatWorker();
@@ -22,18 +23,15 @@ export class AgentHandler {
   async handleChat(request: ChatRequest): Promise<ReadableStream> {
     const { messages } = request;
 
-    console.log(
-      "[AGENT ORCHESTRATOR] Making worker decision based on messages:",
-      {
-        messagesCount: messages?.length,
-        messages: JSON.stringify(messages, null, 2),
-      }
-    );
+    this.logger.debug("making worker decision", {
+      messagesCount: messages?.length,
+      firstMessageRole: messages?.[0]?.role
+    });
 
     // Use LLM to decide which worker to use
     const workerType = await this.decideWorkerType(messages);
 
-    console.log("[AGENT ORCHESTRATOR] Routing request to worker:", workerType);
+    this.logger.info("routing to worker", { workerType });
 
     // Route to appropriate worker based on LLM decision
     switch (workerType) {
@@ -53,9 +51,7 @@ export class AgentHandler {
 
     // Check if the model supports advanced usage
     if (!simpleConfig.supportsAdvancedUsage) {
-      console.log(
-        "[AGENT ORCHESTRATOR] Model does not support advanced usage, defaulting to chat"
-      );
+      this.logger.debug("model lacks advanced capabilities, using chat worker");
       return "chat";
     }
 
@@ -86,20 +82,17 @@ export class AgentHandler {
 ${JSON.stringify(messages, null, 2)}`,
       });
 
-      console.log("[AGENT ORCHESTRATOR] Worker decision:", object);
+      this.logger.debug("worker decision made", { workerType: object });
       
       // Validate the returned value is one of our expected types
       const workerType = object as string;
       if (workerType !== "chat" && workerType !== "browser-use") {
-        console.error("[AGENT ORCHESTRATOR:ERROR] Invalid worker type:", workerType);
+        this.logger.error("invalid worker type", { workerType });
         return "chat"; // default fallback
       }
       return workerType as "chat" | "browser-use";
     } catch (error) {
-      console.error(
-        "[AGENT ORCHESTRATOR:ERROR] Error deciding worker type:",
-        error
-      );
+      this.logger.error("failed to decide worker type", error);
 
       // Get provider and model info for better error message
       const providerName = simpleConfig.providerName || simpleConfig.providerId;

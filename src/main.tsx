@@ -6,14 +6,17 @@ import { toast } from "sonner";
 import { AppMessage } from "@shared/index";
 import { AlertCircle, CheckCircle2, Info } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { createLogger } from "@/lib/logger";
 
 import "./index.css";
 
 import "./demos/ipc";
 
+const logger = createLogger('Main');
+
 // Main process message handler
 const handleAppMessage = (event: unknown, message: AppMessage) => {
-  console.log(message);
+  logger.debug("app message received", { type: message.type, title: message.title });
   switch (message.type) {
     case "alert":
       // Persistent alert with dismiss button
