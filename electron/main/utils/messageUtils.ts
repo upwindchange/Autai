@@ -1,8 +1,8 @@
 import { BrowserWindow } from "electron";
 import type { AppMessage } from "@shared/index";
-import { createLogger } from "@backend/services";
+import log from "electron-log/main";
 
-const logger = createLogger('MessageUtils');
+const logger = log.scope('MessageUtils');
 
 /**
  * Sends an app message to the renderer process

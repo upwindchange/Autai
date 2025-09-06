@@ -5,9 +5,9 @@ import type { SyntaxHighlighterProps } from "@assistant-ui/react-markdown";
 import mermaid from "mermaid";
 import { FC, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import { createLogger } from "@/lib/logger";
+import log from 'electron-log/renderer';
 
-const logger = createLogger('MermaidDiagram');
+const logger = log.scope('MermaidDiagram');
 
 /**
  * Props for the MermaidDiagram component

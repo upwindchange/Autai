@@ -45,9 +45,9 @@ import {
 import { TOOL_NAMES } from "@shared/index";
 import { useUiStore } from "@/stores/uiStore";
 import { useViewVisibility } from "@/hooks/useViewVisibility";
-import { createLogger } from "@/lib/logger";
+import log from 'electron-log/renderer';
 
-const logger = createLogger('Thread');
+const logger = log.scope('Thread');
 
 interface ThreadProps {
   showSplitView?: boolean;

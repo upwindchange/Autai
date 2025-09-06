@@ -7,9 +7,9 @@ import {
 } from "react";
 import { SettingsContextType } from "./types";
 import type { SettingsState, ProviderConfig } from "@shared/index";
-import { createLogger } from "@/lib/logger";
+import log from 'electron-log/renderer';
 
-const logger = createLogger('SettingsContext');
+const logger = log.scope('SettingsContext');
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
 

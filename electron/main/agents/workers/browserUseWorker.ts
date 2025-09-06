@@ -1,7 +1,7 @@
 import { streamText, convertToModelMessages, type UIMessage } from "ai";
 import { complexModel } from "@agents/providers";
 import { isDevMode, repairToolCall } from "@agents/utils";
-import { createLogger } from "@backend/services";
+import log from "electron-log/main";
 
 export interface ChatRequest {
   messages: UIMessage[];
@@ -16,7 +16,7 @@ const systemPrompt = `You are a helpful AI assistant integrated into a web brows
                          When helping users with browser tasks, be clear and precise in your instructions.`;
 
 export class BrowserUseWorker {
-  private logger = createLogger('BrowserUseWorker');
+  private logger = log.scope('BrowserUseWorker');
   async handleChat(request: ChatRequest): Promise<ReadableStream> {
     const { messages, system } = request;
     this.logger.debug("request received", {

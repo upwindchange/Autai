@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { useAssistantRuntime } from "@assistant-ui/react";
-import { createLogger } from "@/lib/logger";
+import log from 'electron-log/renderer';
 
-const logger = createLogger('useThreadLifecycle');
+const logger = log.scope('useThreadLifecycle');
 
 /**
  * Hook that bridges assistant-ui runtime thread events to backend IPC.

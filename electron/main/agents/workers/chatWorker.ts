@@ -12,7 +12,7 @@ import * as mathjs from "mathjs";
 import { z } from "zod";
 import { chatModel } from "@agents/providers";
 import { repairToolCall } from "@agents/utils";
-import { createLogger } from "@backend/services";
+import log from "electron-log/main";
 import {
   calculateToolSchema,
   answerToolSchema,
@@ -46,7 +46,7 @@ const systemPrompt = `You are a helpful AI assistant integrated into a web brows
                          When solving math problems, reason step by step and use the calculator when necessary.`;
 
 export class ChatWorker {
-  private logger = createLogger('ChatWorker');
+  private logger = log.scope('ChatWorker');
   async handleChat(request: ChatRequest): Promise<ReadableStream> {
     const { messages, system, tools } = request;
     this.logger.debug("request received", {
@@ -72,7 +72,7 @@ export class ChatWorker {
         ],
         tools: this.getTools(),
         experimental_repairToolCall: repairToolCall,
-        onStepFinish: this.handleStepFinish,
+        onStepFinish: this.handleStepFinish.bind(this),
       });
 
       this.logger.debug("converting to ui message stream");

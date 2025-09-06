@@ -3,13 +3,13 @@ import cors from "cors";
 import { createUIMessageStreamResponse } from "ai";
 import { type Server } from "http";
 import { agentHandler } from "@agents";
-import { createLogger } from "@backend/services";
+import log from "electron-log/main";
 
 export class ApiServer {
   private app: Express;
   private server: Server | null = null;
   private port: number = 3001;
-  private logger = createLogger('ApiServer');
+  private logger = log.scope('ApiServer');
 
   constructor() {
     this.app = express();

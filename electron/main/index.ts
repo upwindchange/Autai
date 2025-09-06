@@ -3,13 +3,12 @@ import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
+import log from "electron-log/main";
 import { update } from "./update";
 import {
   settingsService,
   ThreadViewService,
   ViewControlService,
-  loggerService,
-  createLogger,
 } from "@backend/services";
 import { apiServer } from "@agents";
 import { SettingsBridge } from "@backend/bridges/SettingsBridge";
@@ -18,8 +17,8 @@ import { ThreadViewBridge } from "@backend/bridges/ThreadViewBridge";
 const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Initialize logger
-const logger = createLogger('main');
+// Create scoped logger for main process
+const logger = log.scope('main');
 
 /**
  * Built directory structure:
@@ -104,8 +103,32 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  // Initialize logger first
-  loggerService.initialize();
+  // Initialize electron-log
+  log.initialize();
+  
+  // Configure log file path
+  const userDataPath = app.getPath("userData");
+  const logPath = path.join(userDataPath, "logs");
+  
+  log.transports.file.resolvePathFn = () => {
+    const date = new Date().toISOString().split("T")[0];
+    const filename = app.isPackaged ? `main-${date}.log` : "main.log";
+    return path.join(logPath, filename);
+  };
+  
+  // Set log levels
+  log.transports.file.level = app.isPackaged ? "info" : "debug";
+  log.transports.console.level = app.isPackaged ? "warn" : "debug";
+  log.transports.ipc.level = "debug";
+  
+  // Catch errors
+  log.errorHandler.startCatching({
+    showDialog: false,
+    onError: (error) => {
+      log.error("Uncaught error:", error);
+    },
+  });
+  
   logger.info('Application starting', { version: app.getVersion() });
   
   await settingsService.initialize();

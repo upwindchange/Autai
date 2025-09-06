@@ -1,8 +1,8 @@
 import { lstat } from 'node:fs/promises'
 import { cwd } from 'node:process'
-import { createLogger } from '@/lib/logger'
+import log from 'electron-log/renderer'
 
-const logger = createLogger('NodeDemo')
+const logger = log.scope('NodeDemo')
 
 lstat(cwd()).then(stats => {
   logger.info('fs.lstat result', { stats })

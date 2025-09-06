@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import { useAssistantRuntime } from "@assistant-ui/react";
 import { useUiStore } from "@/stores/uiStore";
-import { createLogger } from "@/lib/logger";
+import log from 'electron-log/renderer';
 
-const logger = createLogger('useViewVisibility');
+const logger = log.scope('useViewVisibility');
 
 /**
  * Hook that syncs container mount/unmount state with view visibility.

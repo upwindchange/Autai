@@ -25,9 +25,9 @@ import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { MarkdownText } from "./markdown-text";
-import { createLogger } from "@/lib/logger";
+import log from 'electron-log/renderer';
 
-const logger = createLogger('AssistantUIThread');
+const logger = log.scope('AssistantUIThread');
 import { ToolFallback } from "./tool-fallback";
 
 export const Thread: FC = () => {

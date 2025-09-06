@@ -8,9 +8,9 @@ import {
   type ToolName,
   repairZodInput,
 } from "@shared/index";
-import { createLogger } from "@backend/services";
+import log from "electron-log/main";
 
-const logger = createLogger('ToolRepair');
+const logger = log.scope('ToolRepair');
 
 function getSchemaForTool(toolName: ToolName): z.ZodSchema<unknown> | null {
   switch (toolName) {

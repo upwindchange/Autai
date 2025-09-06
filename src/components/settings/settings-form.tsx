@@ -43,9 +43,9 @@ import type {
   TestConnectionResult,
 } from "@shared/index";
 import type { EditingProvider } from "./types";
-import { createLogger } from "@/lib/logger";
+import log from 'electron-log/renderer';
 
-const logger = createLogger('SettingsForm');
+const logger = log.scope('SettingsForm');
 
 interface SettingsFormProps {
   settings: SettingsState;

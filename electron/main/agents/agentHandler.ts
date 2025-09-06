@@ -2,7 +2,8 @@ import { type UIMessage, generateObject } from "ai";
 import { simpleModel } from "@agents/providers";
 import { ChatWorker, BrowserUseWorker } from "@agents/workers";
 import { sendAlert } from "@backend/utils";
-import { settingsService, createLogger } from "@backend/services";
+import { settingsService } from "@backend/services";
+import log from "electron-log/main";
 
 export interface ChatRequest {
   messages: UIMessage[];
@@ -13,7 +14,7 @@ export interface ChatRequest {
 export class AgentHandler {
   private chatWorker: ChatWorker;
   private browserUseWorker: BrowserUseWorker;
-  private logger = createLogger('AgentHandler');
+  private logger = log.scope('AgentHandler');
 
   constructor() {
     this.chatWorker = new ChatWorker();

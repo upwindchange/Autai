@@ -1,5 +1,5 @@
 import { ipcMain, IpcMainInvokeEvent, IpcMainEvent } from "electron";
-import { createLogger } from "@backend/services";
+import log from "electron-log/main";
 
 /**
  * Base class for all IPC bridge implementations.
@@ -8,7 +8,7 @@ import { createLogger } from "@backend/services";
 export abstract class BaseBridge {
   protected handlers: Map<string, string> = new Map();
   protected onHandlers: Map<string, string> = new Map();
-  protected logger = createLogger(this.constructor.name);
+  protected logger = log.scope(this.constructor.name);
 
   /**
    * Setup IPC handlers. Must be implemented by subclasses.

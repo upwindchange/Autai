@@ -16,7 +16,7 @@ import type {
   CoordinateSet,
 } from "@shared/index";
 import { getIndexScript } from "@backend/scripts/indexLoader";
-import { createLogger } from "@backend/services";
+import log from "electron-log/main";
 
 // Result of DOM extraction and manipulation operations
 interface DOMExtractionResult {
@@ -59,7 +59,7 @@ export class DomService {
   private webContents: WebContents;
 
   /** Logger instance for debugging and error tracking */
-  private logger = createLogger('DomService');
+  private logger = log.scope('DomService');
 
   /** Cache of element hashes organized by URL for change tracking */
   private cachedElementHashes: Map<string, Set<string>> = new Map();

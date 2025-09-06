@@ -1,7 +1,7 @@
 
-import { createLogger } from '@/lib/logger'
+import log from 'electron-log/renderer'
 
-const logger = createLogger('IpcDemo')
+const logger = log.scope('IpcDemo')
 
 window.ipcRenderer.on('main-process-message', (_event, ...args) => {
   logger.info('received main-process message', { args })

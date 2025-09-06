@@ -17,9 +17,9 @@ import { HelpCircle, RefreshCw, Check } from "lucide-react";
 import type { ProviderConfig } from "@shared/index";
 import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { createLogger } from "@/lib/logger";
+import log from 'electron-log/renderer';
 
-const logger = createLogger('ModelConfigCard');
+const logger = log.scope('ModelConfigCard');
 import {
   Command,
   CommandEmpty,

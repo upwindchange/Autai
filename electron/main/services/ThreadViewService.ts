@@ -2,7 +2,7 @@ import { WebContentsView, BrowserWindow, Rectangle } from "electron";
 import { EventEmitter } from "events";
 import type { ThreadId, ViewId, ThreadViewState } from "@shared/index";
 import { getIndexScript } from "@backend/scripts/indexLoader";
-import { createLogger } from "@backend/services";
+import log from "electron-log/main";
 
 interface ViewMetadata {
   id: ViewId;
@@ -26,7 +26,7 @@ export class ThreadViewService extends EventEmitter {
   private activeView: WebContentsView | null = null;
   private frontendVisibility: boolean = false;
   private win: BrowserWindow;
-  private logger = createLogger('ThreadViewService');
+  private logger = log.scope('ThreadViewService');
 
   constructor(win: BrowserWindow) {
     super();
