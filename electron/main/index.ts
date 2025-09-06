@@ -116,10 +116,14 @@ app.whenReady().then(async () => {
     return path.join(logPath, filename);
   };
   
-  // Set log levels
-  log.transports.file.level = app.isPackaged ? "info" : "debug";
-  log.transports.console.level = app.isPackaged ? "warn" : "debug";
-  log.transports.ipc.level = "debug";
+  // Load settings first to get log level
+  await settingsService.initialize();
+  
+  // Set log levels from settings or use defaults
+  const logLevel = settingsService.settings.logLevel || (app.isPackaged ? "info" : "debug");
+  log.transports.file.level = logLevel as any;
+  log.transports.console.level = logLevel as any;
+  log.transports.ipc.level = logLevel as any;
   
   // Catch errors
   log.errorHandler.startCatching({
@@ -131,7 +135,6 @@ app.whenReady().then(async () => {
   
   logger.info('Application starting', { version: app.getVersion() });
   
-  await settingsService.initialize();
   // Start API server
   apiServer.start();
   createWindow();

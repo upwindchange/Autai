@@ -34,6 +34,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       complex: { providerId: "", providerName: "", modelName: "", supportsAdvancedUsage: true },
     },
     useSameModelForAgents: true,
+    logLevel: 'info',
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -80,6 +81,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
           },
         },
         useSameModelForAgents: true,
+        logLevel: 'info',
       };
       setSettings(defaultSettings);
     } finally {
@@ -88,6 +90,11 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
   };
 
   const updateSettings = async (newSettings: SettingsState) => {
+    // Check if log level changed
+    if (newSettings.logLevel && newSettings.logLevel !== settings.logLevel) {
+      // Apply log level change immediately
+      await window.ipcRenderer.invoke("settings:updateLogLevel", newSettings.logLevel);
+    }
     setSettings(newSettings);
     await window.ipcRenderer.invoke("settings:save", newSettings);
   };

@@ -66,6 +66,7 @@ export const SettingsStateSchema = z.object({
     complex: ModelConfigSchema,
   }),
   useSameModelForAgents: z.boolean().default(false),
+  logLevel: z.enum(['error', 'warn', 'info', 'verbose', 'debug', 'silly']).default('info'),
 });
 
 export type SettingsState = z.infer<typeof SettingsStateSchema>;

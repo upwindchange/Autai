@@ -111,6 +111,7 @@ export function SettingsForm({
   });
 
   const [useSameModelForAgents, setUseSameModelForAgents] = useState(false);
+  const [logLevel, setLogLevel] = useState<string>('info');
 
   // Update state when settings change
   useEffect(() => {
@@ -143,6 +144,10 @@ export function SettingsForm({
 
     if (settings?.useSameModelForAgents !== undefined) {
       setUseSameModelForAgents(settings.useSameModelForAgents);
+    }
+
+    if (settings?.logLevel) {
+      setLogLevel(settings.logLevel);
     }
   }, [settings]);
 
@@ -278,6 +283,7 @@ export function SettingsForm({
           complex: complexModelConfig,
         },
         useSameModelForAgents,
+        logLevel,
       };
       await updateSettings(newSettings);
       onClose?.();
@@ -667,6 +673,36 @@ export function SettingsForm({
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Development Settings</CardTitle>
+          <CardDescription>
+            Configure development and debugging options
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="log-level">Log Level</Label>
+            <Select value={logLevel} onValueChange={setLogLevel}>
+              <SelectTrigger id="log-level">
+                <SelectValue placeholder="Select log level" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="error">Error - Only errors</SelectItem>
+                <SelectItem value="warn">Warning - Errors and warnings</SelectItem>
+                <SelectItem value="info">Info - General information (default)</SelectItem>
+                <SelectItem value="verbose">Verbose - Detailed information</SelectItem>
+                <SelectItem value="debug">Debug - Debug messages</SelectItem>
+                <SelectItem value="silly">Silly - All messages</SelectItem>
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground">
+              Controls the verbosity of logging across the application. Higher levels include all lower levels.
+            </p>
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardContent className="pt-6">

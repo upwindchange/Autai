@@ -49,6 +49,7 @@ class SettingsService {
         },
       },
       useSameModelForAgents: true,
+      logLevel: 'info',
     };
   }
 
