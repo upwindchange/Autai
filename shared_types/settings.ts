@@ -57,6 +57,10 @@ export const ModelConfigSchema = z.object({
 
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 
+// Log level type
+export const LogLevelSchema = z.enum(['error', 'warn', 'info', 'verbose', 'debug', 'silly']);
+export type LogLevel = z.infer<typeof LogLevelSchema>;
+
 // Settings State schema - single profile with multiple providers and model configurations
 export const SettingsStateSchema = z.object({
   providers: z.array(ProviderConfigSchema),
@@ -66,7 +70,7 @@ export const SettingsStateSchema = z.object({
     complex: ModelConfigSchema,
   }),
   useSameModelForAgents: z.boolean().default(false),
-  logLevel: z.enum(['error', 'warn', 'info', 'verbose', 'debug', 'silly']).default('info'),
+  logLevel: LogLevelSchema.default('info'),
 });
 
 export type SettingsState = z.infer<typeof SettingsStateSchema>;

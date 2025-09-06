@@ -18,17 +18,30 @@ export function AboutSection() {
 
   useEffect(() => {
     // Get app version from main process
-    window.ipcRenderer.invoke("app:getVersion").then((version: string) => {
-      setAppVersion(version);
+    window.ipcRenderer.invoke("app:getVersion").then((version: unknown) => {
+      setAppVersion(String(version));
     }).catch(() => {
       setAppVersion("Unknown");
     });
 
     // Get system info from main process
-    window.ipcRenderer.invoke("app:getSystemInfo").then((info: any) => {
-      setPlatform(info.platform || "Unknown");
-      setElectronVersion(info.electronVersion || "Unknown");
-      setNodeVersion(info.nodeVersion || "Unknown");
+    window.ipcRenderer.invoke("app:getSystemInfo").then((info: unknown) => {
+      if (info && typeof info === 'object') {
+        const systemInfo = info as {
+          platform: string;
+          electronVersion: string;
+          nodeVersion: string;
+          chromeVersion?: string;
+          v8Version?: string;
+        };
+        setPlatform(systemInfo.platform || "Unknown");
+        setElectronVersion(systemInfo.electronVersion || "Unknown");
+        setNodeVersion(systemInfo.nodeVersion || "Unknown");
+      } else {
+        setPlatform("Unknown");
+        setElectronVersion("Unknown");
+        setNodeVersion("Unknown");
+      }
     }).catch(() => {
       setPlatform("Unknown");
       setElectronVersion("Unknown");

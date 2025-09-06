@@ -3,6 +3,7 @@ import { BaseBridge } from "./BaseBridge";
 import { settingsService } from "../services";
 import type { SettingsState, TestConnectionConfig } from "@shared/index";
 import log from "electron-log/main";
+import type { LogLevel } from "@shared/index";
 
 /**
  * Handles settings-related IPC operations
@@ -46,9 +47,10 @@ export class SettingsBridge extends BaseBridge {
       "settings:updateLogLevel",
       async (_event: IpcMainInvokeEvent, logLevel: string) => {
         // Apply to electron-log immediately
-        log.transports.file.level = logLevel as any;
-        log.transports.console.level = logLevel as any;
-        log.transports.ipc.level = logLevel as any;
+        // electron-log accepts string literals for log levels
+        log.transports.file.level = logLevel as LogLevel;
+        log.transports.console.level = logLevel as LogLevel;
+        log.transports.ipc.level = logLevel as LogLevel;
         
         this.logger.info(`Log level changed to: ${logLevel}`);
         return { success: true };

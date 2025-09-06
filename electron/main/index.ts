@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
 import log from "electron-log/main";
+import type { LogLevel } from "@shared/index";
 import { update } from "./update";
 import {
   settingsService,
@@ -121,9 +122,10 @@ app.whenReady().then(async () => {
   
   // Set log levels from settings or use defaults
   const logLevel = settingsService.settings.logLevel || (app.isPackaged ? "info" : "debug");
-  log.transports.file.level = logLevel as any;
-  log.transports.console.level = logLevel as any;
-  log.transports.ipc.level = logLevel as any;
+  // electron-log accepts string literals for log levels
+  log.transports.file.level = logLevel as LogLevel;
+  log.transports.console.level = logLevel as LogLevel;
+  log.transports.ipc.level = logLevel as LogLevel;
   
   // Catch errors
   log.errorHandler.startCatching({

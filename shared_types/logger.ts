@@ -1,11 +1,4 @@
-export enum LogLevel {
-  ERROR = 'error',
-  WARN = 'warn',
-  INFO = 'info',
-  VERBOSE = 'verbose',
-  DEBUG = 'debug',
-  SILLY = 'silly'
-}
+import type { LogLevel } from './settings';
 
 export interface LogEntry {
   level: LogLevel;

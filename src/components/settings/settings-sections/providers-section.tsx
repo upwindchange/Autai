@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Card,
   CardContent,
@@ -20,7 +19,6 @@ interface ProvidersSectionProps {
 
 export function ProvidersSection({ 
   settings, 
-  editingProvider, 
   setEditingProvider 
 }: ProvidersSectionProps) {
   const { removeProvider } = useSettings();

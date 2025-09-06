@@ -16,9 +16,9 @@ import {
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { FileText, Trash2, FolderOpen } from "lucide-react";
+import { Trash2, FolderOpen } from "lucide-react";
 import { useSettings } from "../settings-context";
-import type { SettingsState } from "@shared/index";
+import type { SettingsState, LogLevel } from "@shared/index";
 import log from 'electron-log/renderer';
 
 const logger = log.scope('DevelopmentSection');
@@ -29,7 +29,7 @@ interface DevelopmentSectionProps {
 
 export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
   const { updateSettings } = useSettings();
-  const [logLevel, setLogLevel] = useState<string>(settings?.logLevel || 'info');
+  const [logLevel, setLogLevel] = useState<LogLevel>(settings?.logLevel || 'info');
   const [logPath, setLogPath] = useState<string>('');
 
   useEffect(() => {
@@ -40,18 +40,19 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
 
   useEffect(() => {
     // Get log file path
-    window.ipcRenderer.invoke("settings:getLogPath").then((path: string) => {
-      setLogPath(path);
+    window.ipcRenderer.invoke("settings:getLogPath").then((path: unknown) => {
+      setLogPath(String(path));
     }).catch((error: unknown) => {
       logger.error("Failed to get log path", error);
     });
   }, []);
 
   const handleLogLevelChange = async (value: string) => {
-    setLogLevel(value);
-    const newSettings = {
+    const level = value as LogLevel;
+    setLogLevel(level);
+    const newSettings: SettingsState = {
       ...settings,
-      logLevel: value,
+      logLevel: level,
     };
     await updateSettings(newSettings);
   };

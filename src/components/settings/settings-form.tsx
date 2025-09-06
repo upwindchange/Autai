@@ -41,6 +41,7 @@ import type {
   OpenAICompatibleProviderConfig,
   AnthropicProviderConfig,
   TestConnectionResult,
+  LogLevel,
 } from "@shared/index";
 import type { EditingProvider } from "./types";
 import log from 'electron-log/renderer';
@@ -111,7 +112,7 @@ export function SettingsForm({
   });
 
   const [useSameModelForAgents, setUseSameModelForAgents] = useState(false);
-  const [logLevel, setLogLevel] = useState<string>('info');
+  const [logLevel, setLogLevel] = useState<LogLevel>('info');
 
   // Update state when settings change
   useEffect(() => {
@@ -684,7 +685,7 @@ export function SettingsForm({
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="log-level">Log Level</Label>
-            <Select value={logLevel} onValueChange={setLogLevel}>
+            <Select value={logLevel} onValueChange={(value) => setLogLevel(value as LogLevel)}>
               <SelectTrigger id="log-level">
                 <SelectValue placeholder="Select log level" />
               </SelectTrigger>
