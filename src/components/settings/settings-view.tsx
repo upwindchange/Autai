@@ -1,9 +1,14 @@
-import { SettingsForm } from "./settings-form";
-import { useSettings } from "./settings-context";
-import { ViewDebugTools } from "@/components/debug/view-debug-tools";
+import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useState } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useSettings } from "./settings-context";
+import { useUiStore } from "@/stores/uiStore";
+import { ProvidersSection } from "./settings-sections/providers-section";
+import { ModelsSection } from "./settings-sections/models-section";
+import { DevelopmentSection } from "./settings-sections/development-section";
+import { AboutSection } from "./settings-sections/about-section";
+import { SettingsForm } from "./settings-form";
 import type { EditingProvider } from "./types";
 
 interface SettingsViewProps {
@@ -12,17 +17,46 @@ interface SettingsViewProps {
 
 export function SettingsView({ onClose }: SettingsViewProps) {
   const { settings } = useSettings();
-  const [editingProvider, setEditingProvider] =
-    useState<EditingProvider | null>(null);
+  const { activeSettingsSection } = useUiStore();
+  const [editingProvider, setEditingProvider] = useState<EditingProvider | null>(null);
 
-  // Check if debug tools are enabled
-  const isDebugToolsEnabled = () => {
-    const saved = localStorage.getItem("debugToolsEnabled");
-    return saved ? JSON.parse(saved) : false;
+  // Render the active section
+  const renderSection = () => {
+    // If editing a provider, show the form
+    if (editingProvider) {
+      return (
+        <SettingsForm
+          settings={settings}
+          onClose={() => setEditingProvider(null)}
+          editingProvider={editingProvider}
+          setEditingProvider={setEditingProvider}
+        />
+      );
+    }
+
+    switch (activeSettingsSection) {
+      case "providers":
+        return (
+          <ProvidersSection
+            settings={settings}
+            editingProvider={editingProvider}
+            setEditingProvider={setEditingProvider}
+          />
+        );
+      case "models":
+        return <ModelsSection settings={settings} />;
+      case "development":
+        return <DevelopmentSection settings={settings} />;
+      case "about":
+        return <AboutSection />;
+      default:
+        return null;
+    }
   };
 
   return (
     <div className="absolute inset-0 flex flex-col bg-background">
+      {/* Header */}
       <div className="flex items-center gap-2 p-4 border-b">
         <Button
           variant="ghost"
@@ -39,23 +73,24 @@ export function SettingsView({ onClose }: SettingsViewProps) {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h2 className="text-lg font-semibold">AI Settings</h2>
+          <h2 className="text-lg font-semibold">Settings</h2>
           <p className="text-sm text-muted-foreground">
-            Configure your AI providers and model settings.
+            {activeSettingsSection === "providers" && "Manage AI provider configurations"}
+            {activeSettingsSection === "models" && "Configure AI models for different use cases"}
+            {activeSettingsSection === "development" && "Development tools and debugging options"}
+            {activeSettingsSection === "about" && "Application information and resources"}
           </p>
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto p-6">
-        <div className="max-w-2xl mx-auto space-y-6">
-          <SettingsForm 
-            settings={settings} 
-            onClose={onClose}
-            editingProvider={editingProvider}
-            setEditingProvider={setEditingProvider}
-          />
-          {isDebugToolsEnabled() && <ViewDebugTools />}
+
+      {/* Content Area - No sidebar here anymore */}
+      <ScrollArea className="flex-1">
+        <div className="p-6">
+          <div className="max-w-3xl mx-auto">
+            {renderSection()}
+          </div>
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 }

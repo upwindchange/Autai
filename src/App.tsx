@@ -3,6 +3,7 @@ import { SidebarLeft } from "@/components/side-bar/sidebar-left";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AssistantChatContainer } from "@/components/ai-chat";
 import { SettingsProvider, SettingsView } from "@/components/settings";
+import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useUiStore } from "@/stores/uiStore";
 import {
   AssistantRuntimeProvider,
@@ -34,7 +35,7 @@ function AppContent() {
     <SettingsProvider>
       <div className="w-dvw flex flex-row h-dvh">
         <SidebarProvider>
-          <SidebarLeft />
+          {showSettings ? <SettingsSidebar /> : <SidebarLeft />}
           <SidebarInset className="relative flex-1">
             <AppHeader
               title={showSettings ? "Settings" : "AI Assistant"}

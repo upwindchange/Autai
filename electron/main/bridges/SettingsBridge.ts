@@ -54,5 +54,48 @@ export class SettingsBridge extends BaseBridge {
         return { success: true };
       }
     );
+
+    // Get log file path
+    this.handle("settings:getLogPath", async () => {
+      const file = log.transports.file.getFile();
+      return file?.path || "";
+    });
+
+    // Clear logs
+    this.handle("settings:clearLogs", async () => {
+      try {
+        const file = log.transports.file.getFile();
+        if (file) {
+          file.clear();
+          this.logger.info("Log file cleared");
+        }
+        return { success: true };
+      } catch (error) {
+        this.logger.error("Failed to clear logs:", error);
+        throw error;
+      }
+    });
+
+    // Open log folder
+    this.handle("settings:openLogFolder", async () => {
+      const { shell } = await import("electron");
+      const file = log.transports.file.getFile();
+      if (file?.path) {
+        const path = await import("path");
+        const logDir = path.dirname(file.path);
+        await shell.openPath(logDir);
+      }
+      return { success: true };
+    });
+
+    // Open DevTools
+    this.handle("settings:openDevTools", async (_event: IpcMainInvokeEvent) => {
+      const { BrowserWindow } = await import("electron");
+      const win = BrowserWindow.getFocusedWindow();
+      if (win) {
+        win.webContents.openDevTools();
+      }
+      return { success: true };
+    });
   }
 }

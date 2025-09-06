@@ -256,3 +256,31 @@ ipcMain.handle("open-win", (_, arg) => {
     childWindow.loadFile(indexHtml, { hash: arg });
   }
 });
+
+/**
+ * Handler for getting app version
+ */
+ipcMain.handle("app:getVersion", () => {
+  return app.getVersion();
+});
+
+/**
+ * Handler for getting system info
+ */
+ipcMain.handle("app:getSystemInfo", () => {
+  return {
+    platform: process.platform,
+    electronVersion: process.versions.electron,
+    nodeVersion: process.versions.node,
+    chromeVersion: process.versions.chrome,
+    v8Version: process.versions.v8,
+  };
+});
+
+/**
+ * Handler for opening external URLs
+ */
+ipcMain.handle("shell:openExternal", async (_, url) => {
+  await shell.openExternal(url);
+  return { success: true };
+});

@@ -22,3 +22,5 @@ export interface SettingsContextType {
 export type EditingProvider =
   | (OpenAICompatibleProviderConfig & { isNew?: boolean })
   | (AnthropicProviderConfig & { isNew?: boolean });
+
+export type SectionType = "providers" | "models" | "development" | "about";

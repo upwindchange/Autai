@@ -2,11 +2,17 @@ import { Rectangle } from "electron";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 
+export type SettingsSection = "providers" | "models" | "development" | "about";
+
 interface UiState {
   // Settings visibility
   showSettings: boolean;
   toggleSettings: () => void;
   setShowSettings: (show: boolean) => void;
+  
+  // Settings navigation
+  activeSettingsSection: SettingsSection;
+  setActiveSettingsSection: (section: SettingsSection) => void;
 
   // Container management
   containerRef: HTMLDivElement | null;
@@ -22,6 +28,10 @@ export const useUiStore = create<UiState>()(
     toggleSettings: () =>
       set((state) => ({ showSettings: !state.showSettings })),
     setShowSettings: (show) => set({ showSettings: show }),
+    
+    // Settings navigation
+    activeSettingsSection: "providers",
+    setActiveSettingsSection: (section) => set({ activeSettingsSection: section }),
 
     // Container state
     containerRef: null,
