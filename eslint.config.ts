@@ -1,20 +1,21 @@
 import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
+import { defineConfig } from "eslint/config";
 
-export default tseslint.config(
+export default defineConfig(
   eslint.configs.recommended,
-  ...tseslint.configs.recommended,
+  tseslint.configs.recommended,
   {
     ignores: [
       ".vscode/**",
       "dist/**",
-      "dist-electron/**",
+      "out/**",
       "node_modules/**",
       "*.config.js",
       "*.config.ts",
-      "electron/main/scripts/*.js",
-      "src/components/ui/**",
-      "src/components/assistant-ui/**",
+      "src/main/scripts/*.js",
+      "src/renderer/components/ui/**",
+      "src/renderer/components/assistant-ui/**",
       "reference/**",
       "test/**",
     ],
@@ -23,7 +24,7 @@ export default tseslint.config(
     files: ["**/*.ts", "**/*.tsx"],
     languageOptions: {
       parserOptions: {
-        project: true,
+        projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },

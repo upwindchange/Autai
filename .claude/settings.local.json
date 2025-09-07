@@ -1,29 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(rm:*)",
-      "Bash(mkdir:*)",
-      "Bash(powershell:*)",
-      "Bash(cmd:*)",
-      "Bash(echo $SHELL)",
-      "Bash(node:*)",
-      "Bash(grep:*)",
-      "Bash(rg:*)",
-      "WebFetch(*)",
-      "Bash(find:*)",
-      "Bash(ls:*)",
-      "Bash(pnpm lint:*)",
-      "WebFetch(domain:*)",
-      "mcp__context7__resolve-library-id",
-      "mcp__context7__get-library-docs",
-      "Bash(cat:*)",
-      "WebFetch(domain:www.assistant-ui.com)",
-      "Bash(del \"C:\\Users\\HTPC\\Documents\\dev\\Autai\\electron\\main\\bridge\\AgentBridge.ts\")",
-      "Bash(cd:*)",
-      "Bash(pnpm add:*)",
-      "Bash(mv:*)",
-      "Bash(cp:*)"
+      "Bash(git mv:*)"
     ],
-    "deny": []
+    "deny": [],
+    "ask": []
   }
 }

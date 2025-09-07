@@ -105,6 +105,8 @@ reference/         # several projects for reference
 - `reference\p-queue`: p-queue library reference, used for queue main process operations
   - api docs is `reference\p-queue\readme.md`
   - source code is `reference\p-queue\source`
+- `reference\electron-vite-docs\packages\en-US\docs`: electron-vite documents
+- `reference\electron-vite\src`: electron-vite source code
 
 ## Important Technical Details
 

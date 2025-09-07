@@ -16,3 +16,9 @@
 [submodule "reference/langgraphjs"]
 	path = reference/langgraphjs
 	url = git@github.com:langchain-ai/langgraphjs.git
+[submodule "reference/electron-vite-docs"]
+	path = reference/electron-vite-docs
+	url = git@github.com:alex8088/electron-vite-docs.git
+[submodule "reference/electron-vite"]
+	path = reference/electron-vite
+	url = git@github.com:alex8088/electron-vite.git
