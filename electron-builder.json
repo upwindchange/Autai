@@ -6,7 +6,14 @@
     "output": "release/${version}"
   },
   "files": [
-    "out"
+    "out",
+    "resources"
+  ],
+  "extraResources": [
+    {
+      "from": "resources",
+      "to": "resources"
+    }
   ],
   "mac": {
     "artifactName": "${productName}_${version}.${ext}",

@@ -167,7 +167,7 @@ export class ThreadViewService extends EventEmitter {
 
     // Load welcome page
     this.logger.debug("init welcome page loading");
-    await webView.webContents.loadFile("public/welcome.html");
+    await webView.webContents.loadFile("resources/welcome.html");
     this.logger.debug("welcome page loaded");
 
     // Page load completion - inject scripts
