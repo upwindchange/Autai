@@ -40,27 +40,38 @@ pnpm build
 ### Directory Structure
 
 ```
-electron/
-├── main/          # Main process code
-│   ├── bridge/    # IPC bridges for typed communication
-│   ├── scripts/   # DOM tree building script the agent ai
-│   └── services/  # Core application services
-│       ├── agent/ # AI agent server implementation
-│       └── dom/   # DOM manipulation services
-├── preload/       # Preload scripts
-shared_types/      # TypeScript type definitions between main and renderer
 src/
-├── components/    # React components
-│   ├── ai-chat/   # AI chat interface
-│   ├── ui/        # shadcn/ui components (Tailwind-based)
-│   ├── assistant-ui/ # assistant-ui components (do not modify, if need to modify, copy it out)
-│   ├── settings/  # Settings management UI
-│   └── side-bar/  # Sidebar navigation components
-├── stores/        # Zustand state management
-├── hooks/         # Custom React hooks
-├── lib/           # Utility functions
-└── vite-env.d.ts  # IPC type definitions: if there is a new IPC endpoint, add type definition here
-reference/         # several projects for reference
+├── main/              # Main process code
+│   ├── agents/        # AI agent implementation
+│   │   ├── providers/ # AI provider integrations
+│   │   ├── telemetry/ # Telemetry and tracking
+│   │   ├── utils/     # Agent utilities
+│   │   └── workers/   # Worker threads for agents
+│   ├── bridges/       # IPC bridges for typed communication
+│   ├── scripts/       # DOM tree building script for agent AI
+│   ├── services/      # Core application services
+│   └── utils/         # Main process utilities
+├── preload/           # Preload scripts
+├── renderer/          # Renderer process (React app)
+│   ├── components/    # React components
+│   │   ├── ai-chat/   # AI chat interface
+│   │   ├── assistant-ui/ # assistant-ui components (do not modify, if need to modify, copy it out)
+│   │   ├── settings/  # Settings management UI
+│   │   ├── side-bar/  # Sidebar navigation components
+│   │   └── ui/        # shadcn/ui components (Tailwind-based)
+│   ├── stores/        # Zustand state management
+│   ├── hooks/         # Custom React hooks
+│   ├── lib/           # Utility functions
+│   └── transports/    # Communication transports
+└── shared/            # Shared TypeScript type definitions
+    ├── chat.ts        # Chat-related types
+    ├── dom.ts         # DOM manipulation types
+    ├── ipc.ts         # IPC communication types
+    ├── logger.ts      # Logging types
+    ├── settings.ts    # Settings types
+    ├── thread.ts      # Thread management types
+    └── tools.ts       # Tool-related types
+reference/             # Several projects for reference
 ```
 
 ## Development Guidelines
@@ -68,13 +79,19 @@ reference/         # several projects for reference
 ### TypeScript
 
 - Strict mode enabled
-- Use `@/` path alias for imports from `src/`
-- Use `@shared/index` path alias for any type imports from `shared_types/`
-- All IPC channels must be typed in `src/vite-env.d.ts`
+- Path aliases configuration:
+  - **Main process**: 
+    - `@/` and `@/*` for imports from `src/main/`
+    - `@agents` and `@agents/*` for agent-related imports
+  - **Renderer process**: 
+    - `@/*` for imports from `src/renderer/`
+  - **Shared**: 
+    - `@shared` and `@shared/*` for shared type imports from `src/shared/`
+- All IPC channels must be properly typed
 
 ### State Management
 
-- Zustand stores in `src/stores/`
+- Zustand stores in `src/renderer/stores/`
 - Use typed actions and selectors
 
 ### Reference projects
@@ -107,10 +124,12 @@ reference/         # several projects for reference
   - source code is `reference\p-queue\source`
 - `reference\electron-vite-docs\packages\en-US\docs`: electron-vite documents
 - `reference\electron-vite\src`: electron-vite source code
+- `reference\langfuse-docs`: Langfuse documents
 
 ## Important Technical Details
 
-- Custom Vite plugin builds injected scripts separately
+- DOM injection script located at `src/main/scripts/index.js` for browser automation
 - Electron security: context isolation enabled, nodeIntegration disabled
-- WebView tags are disabled for security; use BrowserView instead
+- WebView tags are disabled for security; use WebContentView instead
 - All browser automation runs in isolated contexts with proper sandboxing
+- The project uses electron-vite for building and bundling

@@ -50,6 +50,12 @@ class SettingsService {
       },
       useSameModelForAgents: true,
       logLevel: 'info',
+      langfuse: {
+        enabled: false,
+        publicKey: undefined,
+        secretKey: undefined,
+        host: undefined,
+      },
     };
   }
 

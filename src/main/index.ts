@@ -13,6 +13,7 @@ import {
   // ViewControlService,
 } from "@/services";
 import { apiServer } from "@agents";
+import { initializeTelemetry, shutdownTelemetry } from "@agents/telemetry";
 import { SettingsBridge } from "@/bridges/SettingsBridge";
 import { ThreadViewBridge } from "@/bridges/ThreadViewBridge";
 
@@ -142,6 +143,9 @@ app.whenReady().then(async () => {
 
   logger.info("Application starting", { version: app.getVersion() });
 
+  // Initialize telemetry (must be done after settings are loaded)
+  initializeTelemetry();
+
   // Start API server
   apiServer.start();
   createWindow();
@@ -217,6 +221,11 @@ app.on("before-quit", async (event) => {
     logger.info("Stopping API server...");
     apiServer.stop();
     logger.info("API server stopped");
+
+    // Shutdown telemetry
+    logger.info("Shutting down telemetry...");
+    await shutdownTelemetry();
+    logger.info("Telemetry shutdown complete");
 
     // Force cleanup of any remaining web contents
     logger.debug("Cleaning up remaining windows...");

@@ -4,12 +4,13 @@ import { createUIMessageStreamResponse } from "ai";
 import { type Server } from "http";
 import { agentHandler } from "@agents";
 import log from "electron-log/main";
+import type { ChatRequest } from "@shared";
 
 export class ApiServer {
   private app: Express;
   private server: Server | null = null;
   private port: number = 3001;
-  private logger = log.scope('ApiServer');
+  private logger = log.scope("ApiServer");
 
   constructor() {
     this.app = express();
@@ -33,68 +34,81 @@ export class ApiServer {
     });
 
     // Chat endpoint
-    this.app.post("/chat", async (req, res) => {
-      try {
-        const { messages, system, tools } = req.body;
-        this.logger.info("Chat request received", {
-          messagesCount: messages?.length,
-          hasSystem: !!system,
-          hasTools: !!tools,
-        });
-
-        // Stream the response using createUIMessageStreamResponse
-        this.logger.debug("Starting stream response...");
+    this.app.post(
+      "/chat",
+      async (
+        req: express.Request<
+          Record<string, never>,
+          Record<string, unknown>,
+          ChatRequest & { id: string }
+        >,
+        res
+      ) => {
         try {
-          const stream = await agentHandler.handleChat({
-            messages,
-            system,
-            tools,
+          const { messages, system, tools, id: requestId } = req.body;
+
+          this.logger.info("Chat request received", {
+            messagesCount: messages?.length,
+            hasSystem: !!system,
+            hasTools: !!tools,
+            requestId,
           });
 
-          const response = createUIMessageStreamResponse({ stream });
+          // Stream the response using createUIMessageStreamResponse
+          this.logger.debug("Starting stream response...");
+          try {
+            const stream = await agentHandler.handleChat({
+              messages,
+              system,
+              tools,
+              requestId,
+            });
 
-          // Set headers from the Response object
-          response.headers.forEach((value, key) => {
-            res.setHeader(key, value);
-          });
+            const response = createUIMessageStreamResponse({ stream });
 
-          // Pipe the stream to the Express response
-          const reader = response.body?.getReader();
-          if (!reader) {
-            throw new Error("No response body");
-          }
+            // Set headers from the Response object
+            response.headers.forEach((value, key) => {
+              res.setHeader(key, value);
+            });
 
-          const sendChunk = async () => {
-            const { done, value } = await reader.read();
-            if (done) {
-              res.end();
-              return;
+            // Pipe the stream to the Express response
+            const reader = response.body?.getReader();
+            if (!reader) {
+              throw new Error("No response body");
             }
-            res.write(value);
+
+            const sendChunk = async () => {
+              const { done, value } = await reader.read();
+              if (done) {
+                res.end();
+                return;
+              }
+              res.write(value);
+              await sendChunk();
+            };
+
             await sendChunk();
-          };
-
-          await sendChunk();
-        } catch (error) {
-          this.logger.error("Error handling chat:", error);
-          if (!res.headersSent) {
-            if (
-              error instanceof Error &&
-              error.message === "API key not configured"
-            ) {
-              res.status(400).json({ error: "API key not configured" });
-            } else {
-              res.status(500).json({ error: "Internal server error" });
+          } catch (error) {
+            this.logger.error("Error handling chat:", error);
+            if (!res.headersSent) {
+              if (
+                error instanceof Error &&
+                error.message === "API key not configured"
+              ) {
+                res.status(400).json({ error: "API key not configured" });
+              } else {
+                res.status(500).json({ error: "Internal server error" });
+              }
             }
           }
+        } catch (error) {
+          this.logger.error("Outer error in chat handler:", {
+            error,
+            stack: error instanceof Error ? error.stack : "No stack",
+          });
         }
-      } catch (error) {
-        this.logger.error("Outer error in chat handler:", {
-          error,
-          stack: error instanceof Error ? error.stack : "No stack"
-        });
       }
-    });
+    );
 
     // Health check endpoint
     this.app.get("/health", (_req, res) => {
@@ -119,7 +133,7 @@ export class ApiServer {
             this.logger.info("API server closed successfully");
           }
         });
-        
+
         // Force close after 1 second if it hasn't closed gracefully
         setTimeout(() => {
           if (this.server) {

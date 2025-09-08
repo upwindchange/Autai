@@ -58,8 +58,25 @@ export const ModelConfigSchema = z.object({
 export type ModelConfig = z.infer<typeof ModelConfigSchema>;
 
 // Log level type
-export const LogLevelSchema = z.enum(['error', 'warn', 'info', 'verbose', 'debug', 'silly']);
+export const LogLevelSchema = z.enum([
+  "error",
+  "warn",
+  "info",
+  "verbose",
+  "debug",
+  "silly",
+]);
 export type LogLevel = z.infer<typeof LogLevelSchema>;
+
+// Langfuse configuration schema
+export const LangfuseConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  publicKey: z.string().optional(),
+  secretKey: z.string().optional(),
+  host: z.string().optional(), // Optional, defaults to cloud.langfuse.com
+});
+
+export type LangfuseConfig = z.infer<typeof LangfuseConfigSchema>;
 
 // Settings State schema - single profile with multiple providers and model configurations
 export const SettingsStateSchema = z.object({
@@ -70,7 +87,8 @@ export const SettingsStateSchema = z.object({
     complex: ModelConfigSchema,
   }),
   useSameModelForAgents: z.boolean().default(false),
-  logLevel: LogLevelSchema.default('info'),
+  logLevel: LogLevelSchema.default("info"),
+  langfuse: LangfuseConfigSchema,
 });
 
 export type SettingsState = z.infer<typeof SettingsStateSchema>;

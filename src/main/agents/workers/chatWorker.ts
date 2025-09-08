@@ -1,7 +1,6 @@
 import {
   streamText,
   tool,
-  type UIMessage,
   type StepResult,
   type Tool,
   convertToModelMessages,
@@ -12,6 +11,7 @@ import * as mathjs from "mathjs";
 import { z } from "zod";
 import { chatModel } from "@agents/providers";
 import { repairToolCall } from "@agents/utils";
+import { settingsService } from "@/services";
 import log from "electron-log/main";
 import {
   calculateToolSchema,
@@ -22,6 +22,7 @@ import {
   type DisplayErrorToolResult,
   type CalculateToolParams,
   type DisplayErrorToolParams,
+  type ChatRequest,
 } from "@shared";
 
 type AgentTools = {
@@ -33,12 +34,6 @@ type AgentTools = {
   >;
 };
 
-export interface ChatRequest {
-  messages: UIMessage[];
-  system?: string;
-  tools?: unknown;
-}
-
 const systemPrompt = `You are a helpful AI assistant integrated into a web browser automation tool. 
                          You can help users navigate web pages, answer questions about the current page content, 
                          and provide assistance with browser automation tasks.
@@ -46,13 +41,14 @@ const systemPrompt = `You are a helpful AI assistant integrated into a web brows
                          When solving math problems, reason step by step and use the calculator when necessary.`;
 
 export class ChatWorker {
-  private logger = log.scope('ChatWorker');
+  private logger = log.scope("ChatWorker");
+
   async handleChat(request: ChatRequest): Promise<ReadableStream> {
-    const { messages, system, tools } = request;
+    const { messages, system, requestId } = request;
     this.logger.debug("request received", {
       messagesCount: messages?.length,
       hasSystem: !!system,
-      hasTools: !!tools
+      requestId,
     });
 
     try {
@@ -72,6 +68,13 @@ export class ChatWorker {
         ],
         tools: this.getTools(),
         experimental_repairToolCall: repairToolCall,
+        experimental_telemetry: {
+          isEnabled: settingsService.settings.langfuse.enabled,
+          functionId: "chat-worker",
+          metadata: {
+            langfuseTraceId: requestId,
+          },
+        },
         onStepFinish: this.handleStepFinish.bind(this),
       });
 
@@ -80,7 +83,7 @@ export class ChatWorker {
     } catch (error) {
       this.logger.error("failed to create stream", {
         error,
-        stack: error instanceof Error ? error.stack : undefined
+        stack: error instanceof Error ? error.stack : undefined,
       });
       throw error;
     }

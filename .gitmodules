@@ -22,3 +22,6 @@
 [submodule "reference/electron-vite"]
 	path = reference/electron-vite
 	url = git@github.com:alex8088/electron-vite.git
+[submodule "reference/langfuse-docs"]
+	path = reference/langfuse-docs
+	url = git@github.com:langfuse/langfuse-docs.git

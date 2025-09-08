@@ -15,10 +15,12 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Trash2, FolderOpen } from "lucide-react";
+import { Trash2, FolderOpen, ExternalLink } from "lucide-react";
 import { useSettings } from "@/components/settings";
-import type { SettingsState, LogLevel } from "@shared";
+import type { SettingsState, LogLevel, LangfuseConfig } from "@shared";
 import log from "electron-log/renderer";
 
 const logger = log.scope("DevelopmentSection");
@@ -33,10 +35,19 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
     settings?.logLevel || "info"
   );
   const [logPath, setLogPath] = useState<string>("");
+  const [langfuseConfig, setLangfuseConfig] = useState<LangfuseConfig>({
+    enabled: settings?.langfuse?.enabled || false,
+    publicKey: settings?.langfuse?.publicKey || "",
+    secretKey: settings?.langfuse?.secretKey || "",
+    host: settings?.langfuse?.host || "",
+  });
 
   useEffect(() => {
     if (settings?.logLevel) {
       setLogLevel(settings.logLevel);
+    }
+    if (settings?.langfuse) {
+      setLangfuseConfig(settings.langfuse);
     }
   }, [settings]);
 
@@ -77,6 +88,29 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
     } catch (error) {
       logger.error("Failed to open log folder", error);
     }
+  };
+
+  const handleLangfuseToggle = async (enabled: boolean) => {
+    const newConfig = { ...langfuseConfig, enabled };
+    setLangfuseConfig(newConfig);
+    const newSettings: SettingsState = {
+      ...settings,
+      langfuse: newConfig,
+    };
+    await updateSettings(newSettings);
+  };
+
+  const handleLangfuseConfigChange = async (
+    key: keyof LangfuseConfig,
+    value: string
+  ) => {
+    const newConfig = { ...langfuseConfig, [key]: value };
+    setLangfuseConfig(newConfig);
+    const newSettings: SettingsState = {
+      ...settings,
+      langfuse: newConfig,
+    };
+    await updateSettings(newSettings);
   };
 
   return (
@@ -181,6 +215,99 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
               Open DevTools
             </Button>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Langfuse Observability</CardTitle>
+          <CardDescription>
+            Configure Langfuse for AI agent tracing and analytics
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label htmlFor="langfuse-enabled">Enable Langfuse</Label>
+              <p className="text-sm text-muted-foreground">
+                Send telemetry data to Langfuse for observability
+              </p>
+            </div>
+            <Switch
+              id="langfuse-enabled"
+              checked={langfuseConfig.enabled}
+              onCheckedChange={handleLangfuseToggle}
+            />
+          </div>
+
+          {langfuseConfig.enabled && (
+            <>
+              <Separator />
+              
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="langfuse-public-key">Public Key</Label>
+                  <Input
+                    id="langfuse-public-key"
+                    type="text"
+                    placeholder="pk-lf-..."
+                    value={langfuseConfig.publicKey || ""}
+                    onChange={(e) =>
+                      handleLangfuseConfigChange("publicKey", e.target.value)
+                    }
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Your Langfuse public key from the project settings
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="langfuse-secret-key">Secret Key</Label>
+                  <Input
+                    id="langfuse-secret-key"
+                    type="password"
+                    placeholder="sk-lf-..."
+                    value={langfuseConfig.secretKey || ""}
+                    onChange={(e) =>
+                      handleLangfuseConfigChange("secretKey", e.target.value)
+                    }
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Your Langfuse secret key from the project settings
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="langfuse-host">Host URL (Optional)</Label>
+                  <Input
+                    id="langfuse-host"
+                    type="url"
+                    placeholder="https://cloud.langfuse.com (default)"
+                    value={langfuseConfig.host || ""}
+                    onChange={(e) =>
+                      handleLangfuseConfigChange("host", e.target.value)
+                    }
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Leave empty for cloud version or enter your self-hosted URL
+                  </p>
+                </div>
+
+                <div className="pt-2">
+                  <Button
+                    variant="outline"
+                    className="gap-2"
+                    onClick={() =>
+                      window.open("https://langfuse.com", "_blank")
+                    }
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    Open Langfuse Dashboard
+                  </Button>
+                </div>
+              </div>
+            </>
+          )}
         </CardContent>
       </Card>
     </div>

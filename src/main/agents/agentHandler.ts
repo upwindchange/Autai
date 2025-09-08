@@ -3,13 +3,8 @@ import { simpleModel } from "@agents/providers";
 import { ChatWorker, BrowserUseWorker } from "@agents/workers";
 import { sendAlert } from "@/utils";
 import { settingsService } from "@/services";
+import { type ChatRequest } from "@shared";
 import log from "electron-log/main";
-
-export interface ChatRequest {
-  messages: UIMessage[];
-  system?: string;
-  tools?: unknown;
-}
 
 export class AgentHandler {
   private chatWorker: ChatWorker;
@@ -30,7 +25,7 @@ export class AgentHandler {
     });
 
     // Use LLM to decide which worker to use
-    const workerType = await this.decideWorkerType(messages);
+    const workerType = await this.decideWorkerType(messages, request.requestId);
 
     this.logger.info("routing to worker", { workerType });
 
@@ -45,7 +40,8 @@ export class AgentHandler {
   }
 
   private async decideWorkerType(
-    messages: UIMessage[]
+    messages: UIMessage[],
+    requestId: string
   ): Promise<"chat" | "browser-use"> {
     const settings = settingsService.settings;
     const simpleConfig = settings.modelConfigurations.simple;
@@ -61,6 +57,13 @@ export class AgentHandler {
         model: await simpleModel(),
         output: "enum",
         enum: ["chat", "browser-use"],
+        experimental_telemetry: {
+          isEnabled: settingsService.settings.langfuse.enabled,
+          functionId: "agent-handler-decide-worker",
+          metadata: {
+            langfuseTraceId: requestId,
+          },
+        },
         system: `You are an expert at determining whether a user's request requires browser automation capabilities or can be handled with a standard chat response.
           
           Choose "browser-use" when the user wants to:
