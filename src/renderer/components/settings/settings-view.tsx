@@ -89,8 +89,8 @@ export function SettingsView({ onClose }: SettingsViewProps) {
       </div>
 
       {/* Content Area - No sidebar here anymore */}
-      <ScrollArea className="flex-1">
-        <div className="p-6">
+      <ScrollArea className="flex-1 overflow-hidden">
+        <div className="p-6 h-full">
           <div className="max-w-3xl mx-auto">{renderSection()}</div>
         </div>
       </ScrollArea>
