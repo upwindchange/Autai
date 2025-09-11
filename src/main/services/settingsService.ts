@@ -3,6 +3,7 @@ import * as fs from "fs/promises";
 import * as path from "path";
 import { generateText } from "ai";
 import { createProvider } from "@agents/providers";
+import { sendSuccess, sendAlert, sendInfo } from "@/utils/messageUtils";
 import type {
   SettingsState,
   TestConnectionConfig,
@@ -124,6 +125,9 @@ class SettingsService {
     config: TestConnectionConfig
   ): Promise<TestConnectionResult> {
     try {
+      // Send initial test message
+      sendInfo("Testing Connection", `Testing ${config.model} connection...`);
+
       // Extract base provider config from test config
       const baseConfig = {
         id: config.id || "test-provider",
@@ -151,6 +155,10 @@ class SettingsService {
       });
 
       if (response && response.text) {
+        sendSuccess(
+          "Connection Successful",
+          `${config.model} connected successfully! API is working correctly.`
+        );
         return {
           success: true,
           message: "Connection successful! API is working correctly.",
@@ -162,6 +170,10 @@ class SettingsService {
         };
       }
 
+      sendAlert(
+        "Connection Failed",
+        `${config.model} connection failed: No response from API`
+      );
       return {
         success: false,
         message: "Connection failed: No response from API",
@@ -169,6 +181,10 @@ class SettingsService {
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
+      sendAlert(
+        "Connection Failed",
+        `${config.model} connection failed: ${errorMessage}`
+      );
       return {
         success: false,
         message: `Connection failed`,

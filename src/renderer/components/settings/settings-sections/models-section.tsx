@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/tooltip";
 import { HelpCircle, TestTube, Save, Loader2 } from "lucide-react";
 import { useSettings } from "@/components/settings";
-import { ModelConfigCard } from "@/components/settings";
+import { ModelConfigCard } from "@/components/settings/settings-sections/model-config-card";
 import type { SettingsState } from "@shared";
 import log from "electron-log/renderer";
 
@@ -116,8 +116,50 @@ export function ModelsSection({ settings }: ModelsSectionProps) {
   const handleTestModels = async () => {
     setIsTesting(true);
     try {
-      // TODO: Implement model testing
-      logger.info("Testing models...");
+      // Test chat model
+      if (chatModelConfig.providerId && chatModelConfig.modelName) {
+        const chatProvider = settings.providers.find(
+          (p) => p.id === chatModelConfig.providerId
+        );
+        if (chatProvider) {
+          const testConfig = {
+            ...chatProvider,
+            model: chatModelConfig.modelName,
+          };
+          await window.ipcRenderer.invoke("settings:test", testConfig);
+        }
+      }
+
+      // Test agent models only if not using same model for agents
+      if (!useSameModelForAgents) {
+        // Test simple model
+        if (simpleModelConfig.providerId && simpleModelConfig.modelName) {
+          const simpleProvider = settings.providers.find(
+            (p) => p.id === simpleModelConfig.providerId
+          );
+          if (simpleProvider) {
+            const testConfig = {
+              ...simpleProvider,
+              model: simpleModelConfig.modelName,
+            };
+            await window.ipcRenderer.invoke("settings:test", testConfig);
+          }
+        }
+
+        // Test complex model
+        if (complexModelConfig.providerId && complexModelConfig.modelName) {
+          const complexProvider = settings.providers.find(
+            (p) => p.id === complexModelConfig.providerId
+          );
+          if (complexProvider) {
+            const testConfig = {
+              ...complexProvider,
+              model: complexModelConfig.modelName,
+            };
+            await window.ipcRenderer.invoke("settings:test", testConfig);
+          }
+        }
+      }
     } catch (error) {
       logger.error("failed to test models", error);
     } finally {

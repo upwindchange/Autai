@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -8,8 +7,6 @@ import { ProvidersSection } from "@/components/settings/settings-sections";
 import { ModelsSection } from "@/components/settings/settings-sections";
 import { DevelopmentSection } from "@/components/settings/settings-sections";
 import { AboutSection } from "@/components/settings/settings-sections";
-import { SettingsForm } from "@/components/settings";
-import type { EditingProvider } from "./types";
 
 interface SettingsViewProps {
   onClose: () => void;
@@ -18,32 +15,12 @@ interface SettingsViewProps {
 export function SettingsView({ onClose }: SettingsViewProps) {
   const { settings } = useSettings();
   const { activeSettingsSection } = useUiStore();
-  const [editingProvider, setEditingProvider] =
-    useState<EditingProvider | null>(null);
 
   // Render the active section
   const renderSection = () => {
-    // If editing a provider, show the form
-    if (editingProvider) {
-      return (
-        <SettingsForm
-          settings={settings}
-          onClose={() => setEditingProvider(null)}
-          editingProvider={editingProvider}
-          setEditingProvider={setEditingProvider}
-        />
-      );
-    }
-
     switch (activeSettingsSection) {
       case "providers":
-        return (
-          <ProvidersSection
-            settings={settings}
-            editingProvider={editingProvider}
-            setEditingProvider={setEditingProvider}
-          />
-        );
+        return <ProvidersSection settings={settings} />;
       case "models":
         return <ModelsSection settings={settings} />;
       case "development":
@@ -62,13 +39,7 @@ export function SettingsView({ onClose }: SettingsViewProps) {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => {
-            if (editingProvider) {
-              setEditingProvider(null); // Go back to provider list
-            } else {
-              onClose(); // Close settings view
-            }
-          }}
+          onClick={onClose}
           className="h-8 w-8"
         >
           <ArrowLeft className="h-4 w-4" />

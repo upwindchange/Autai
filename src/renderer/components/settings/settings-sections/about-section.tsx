@@ -8,7 +8,7 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { ExternalLink, Github, FileText, Heart } from "lucide-react";
+import { ExternalLink, Code, FileText, Heart } from "lucide-react";
 
 export function AboutSection() {
   const [appVersion, setAppVersion] = useState<string>("Loading...");
@@ -101,7 +101,7 @@ export function AboutSection() {
             className="w-full justify-start gap-2"
             onClick={() => openExternal("https://github.com/yourusername/autai")}
           >
-            <Github className="h-4 w-4" />
+            <Code className="h-4 w-4" />
             GitHub Repository
             <ExternalLink className="h-3 w-3 ml-auto" />
           </Button>
