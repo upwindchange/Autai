@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { AppMessage } from "@shared";
-import { AlertCircle, CheckCircle2, Info } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import log from "electron-log/renderer";
 import { SidebarLeft } from "@/components/side-bar/sidebar-left";
@@ -51,7 +51,7 @@ const handleAppMessage = (_event: unknown, message: AppMessage) => {
                 onClick={() => toast.dismiss(t)}
                 className="absolute right-3 top-3 text-destructive-foreground/70 hover:text-destructive-foreground"
               >
-                ×
+                <X className="h-4 w-4" />
               </button>
             </Alert>
           </div>

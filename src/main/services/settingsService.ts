@@ -1,19 +1,21 @@
 import { app } from "electron";
 import * as fs from "fs/promises";
 import * as path from "path";
-import { generateText } from "ai";
+import { generateText, generateObject, LanguageModel } from "ai";
 import { createProvider } from "@agents/providers";
 import { sendSuccess, sendAlert, sendInfo } from "@/utils/messageUtils";
+import { z } from "zod";
+import log from "electron-log/main";
 import type {
   SettingsState,
   TestConnectionConfig,
-  TestConnectionResult,
   ProviderConfig,
 } from "@shared";
 
 class SettingsService {
   public settings: SettingsState;
   private settingsPath: string;
+  private logger = log.scope("SettingsService");
 
   constructor() {
     const userDataPath = app.getPath("userData");
@@ -50,7 +52,7 @@ class SettingsService {
         },
       },
       useSameModelForAgents: true,
-      logLevel: 'info',
+      logLevel: "info",
       langfuse: {
         enabled: false,
         publicKey: undefined,
@@ -121,10 +123,14 @@ class SettingsService {
     };
   }
 
-  async testConnection(
-    config: TestConnectionConfig
-  ): Promise<TestConnectionResult> {
+  async testConnection(config: TestConnectionConfig): Promise<void> {
     try {
+      this.logger.info("testing connection", {
+        model: config.model,
+        provider: config.provider,
+        providerName: config.name,
+      });
+
       // Send initial test message
       sendInfo("Testing Connection", `Testing ${config.model} connection...`);
 
@@ -133,13 +139,17 @@ class SettingsService {
         id: config.id || "test-provider",
         name: config.name || "Test Provider",
         provider: config.provider,
-        ...(config.provider === "openai-compatible" ? {
-          apiKey: config.apiKey,
-          apiUrl: config.apiUrl,
-        } : {}),
-        ...(config.provider === "anthropic" ? {
-          anthropicApiKey: config.anthropicApiKey,
-        } : {}),
+        ...(config.provider === "openai-compatible"
+          ? {
+              apiKey: config.apiKey,
+              apiUrl: config.apiUrl,
+            }
+          : {}),
+        ...(config.provider === "anthropic"
+          ? {
+              anthropicApiKey: config.anthropicApiKey,
+            }
+          : {}),
       };
 
       // Create provider instance
@@ -147,49 +157,98 @@ class SettingsService {
       const languageModel = await provider.createLanguageModel(config.model);
 
       // Try a simple completion to test the connection
+      this.logger.debug("testing basic connection with Hi prompt");
       const response = await generateText({
         model: languageModel,
-        prompt: "Hello, this is a test message.",
+        prompt: "Hi",
         temperature: 0,
         maxOutputTokens: 20,
       });
 
       if (response && response.text) {
+        this.logger.info("basic connection test successful", {
+          responseLength: response.text.length,
+          usage: response.usage,
+        });
+
+        // Connection successful - show immediate success message
         sendSuccess(
           "Connection Successful",
           `${config.model} connected successfully! API is working correctly.`
         );
-        return {
-          success: true,
-          message: "Connection successful! API is working correctly.",
-          usage: {
-            promptTokens: response.usage.inputTokens ?? 0,
-            completionTokens: response.usage.outputTokens ?? 0,
-            totalTokens: response.usage.totalTokens ?? 0,
-          },
-        };
-      }
 
-      sendAlert(
-        "Connection Failed",
-        `${config.model} connection failed: No response from API`
-      );
-      return {
-        success: false,
-        message: "Connection failed: No response from API",
-      };
+        // Now test advanced capabilities
+        this.logger.debug("testing advanced capabilities with enum generation");
+        await this.validateModelCapabilities(languageModel, config);
+      } else {
+        this.logger.error("basic connection test failed - no response");
+        sendAlert(
+          "Connection Failed",
+          `${config.model} connection failed: No response from API`
+        );
+      }
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : "Unknown error";
+      this.logger.error("connection test failed", { error: errorMessage });
       sendAlert(
         "Connection Failed",
         `${config.model} connection failed: ${errorMessage}`
       );
-      return {
-        success: false,
-        message: `Connection failed`,
-        error: errorMessage,
-      };
+    }
+  }
+
+  private async validateModelCapabilities(
+    languageModel: LanguageModel,
+    config: TestConnectionConfig
+  ): Promise<void> {
+    try {
+      const { object } = await generateObject({
+        model: languageModel,
+        output: "enum",
+        enum: ["JHERfcgPFc", "TjWwVanGcn"],
+        experimental_telemetry: {
+          isEnabled: this.settings.langfuse.enabled,
+          functionId: "test-connection-validate-capabilities",
+        },
+        prompt: "Generate one of the provided enum values",
+      });
+      
+      this.logger.debug("enum generation result", { object });
+
+      // Validate the returned value is one of our expected strings using Zod
+      const validValues = z.enum(["JHERfcgPFc", "TjWwVanGcn"]);
+      const result = validValues.safeParse(object);
+
+      if (!result.success) {
+        this.logger.error("enum validation failed", { 
+          object, 
+          validationError: result.error 
+        });
+        
+        // Enum validation failed - show capability alert
+        const providerName = config.name || config.id;
+        const modelName = config.model;
+
+        sendAlert(
+          "Model capability alert",
+          `AI model "${modelName}" from provider "${providerName}" is unable to process advanced requests. Browser automation and AI agent features will be disabled. Tool usage may fail. Please configure a model that supports advanced capabilities for optimal experience.`
+        );
+      } else {
+        this.logger.info("enum validation successful", { object });
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      this.logger.error("enum generation failed", { error: errorMessage });
+      
+      // Exception during enum generation - show capability alert
+      const providerName = config.name || config.id;
+      const modelName = config.model;
+
+      sendAlert(
+        "Model capability alert",
+        `AI model "${modelName}" from provider "${providerName}" is unable to process advanced requests. Browser automation and AI agent features will be disabled. Tool usage may fail. Please configure a model that supports advanced capabilities for optimal experience.`
+      );
     }
   }
 

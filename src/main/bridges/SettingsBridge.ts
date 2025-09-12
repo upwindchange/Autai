@@ -28,7 +28,7 @@ export class SettingsBridge extends BaseBridge {
     this.handle(
       "settings:test",
       async (_event: IpcMainInvokeEvent, config: TestConnectionConfig) => {
-        return await settingsService.testConnection(config);
+        await settingsService.testConnection(config);
       }
     );
 

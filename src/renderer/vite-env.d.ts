@@ -5,7 +5,6 @@ import type {
   IpcRendererEvent,
   SettingsState,
   TestConnectionConfig,
-  TestConnectionResult,
   AppMessage,
   LogLevel,
 } from "@shared";
@@ -30,7 +29,7 @@ declare global {
       invoke(
         channel: "settings:test",
         config: TestConnectionConfig
-      ): Promise<TestConnectionResult>;
+      ): Promise<void>;
       invoke(channel: "settings:get"): Promise<SettingsState>;
       invoke(channel: "settings:isConfigured"): Promise<boolean>;
 

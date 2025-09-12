@@ -105,22 +105,7 @@ export const TestConnectionConfigSchema = z.discriminatedUnion("provider", [
 
 export type TestConnectionConfig = z.infer<typeof TestConnectionConfigSchema>;
 
-// Usage info schema
-const UsageSchema = z.object({
-  promptTokens: z.number().int().nonnegative(),
-  completionTokens: z.number().int().nonnegative(),
-  totalTokens: z.number().int().nonnegative(),
-});
-
-// Test Connection Result schema
-export const TestConnectionResultSchema = z.object({
-  success: z.boolean(),
-  message: z.string(),
-  error: z.string().optional(),
-  usage: UsageSchema.optional(),
-});
-
-export type TestConnectionResult = z.infer<typeof TestConnectionResultSchema>;
+// Test Connection now returns void - only sends alerts via notification system
 
 // Type alias for ProviderId - inferred from schema
 export type ProviderId = z.infer<typeof ProviderIdSchema>;
