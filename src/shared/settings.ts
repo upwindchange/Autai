@@ -8,7 +8,7 @@ import { z } from "zod";
 export const ProviderIdSchema = z.string().min(1);
 
 // Provider type enum
-export const ProviderTypeSchema = z.enum(["openai-compatible", "anthropic"]);
+export const ProviderTypeSchema = z.enum(["openai-compatible", "anthropic", "deepinfra"]);
 export type ProviderType = z.infer<typeof ProviderTypeSchema>;
 
 // Base Provider Config schema
@@ -39,10 +39,22 @@ export type AnthropicProviderConfig = z.infer<
   typeof AnthropicProviderConfigSchema
 >;
 
+// DeepInfra Provider Config schema
+const DeepInfraProviderConfigSchema = BaseProviderConfigSchema.extend({
+  provider: z.literal("deepinfra"),
+  apiKey: z.string().min(1),
+  baseUrl: z.string().url().default("https://api.deepinfra.com/v1/openai"),
+});
+
+export type DeepInfraProviderConfig = z.infer<
+  typeof DeepInfraProviderConfigSchema
+>;
+
 // Union of all provider configurations
 export const ProviderConfigSchema = z.discriminatedUnion("provider", [
   OpenAICompatibleProviderConfigSchema,
   AnthropicProviderConfigSchema,
+  DeepInfraProviderConfigSchema,
 ]);
 
 export type ProviderConfig = z.infer<typeof ProviderConfigSchema>;
@@ -99,6 +111,9 @@ export const TestConnectionConfigSchema = z.discriminatedUnion("provider", [
     model: z.string().min(1), // For testing, we might want to specify a different model
   }),
   AnthropicProviderConfigSchema.extend({
+    model: z.string().min(1), // For testing, we might want to specify a different model
+  }),
+  DeepInfraProviderConfigSchema.extend({
     model: z.string().min(1), // For testing, we might want to specify a different model
   }),
 ]);

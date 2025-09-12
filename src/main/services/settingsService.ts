@@ -30,6 +30,13 @@ class SettingsService {
           apiUrl: "https://api.openai.com/v1",
           apiKey: "",
         },
+        {
+          id: "default-deepinfra",
+          name: "Default DeepInfra",
+          provider: "deepinfra",
+          baseUrl: "https://api.deepinfra.com/v1/openai",
+          apiKey: "",
+        },
       ],
       modelConfigurations: {
         chat: {
@@ -45,9 +52,9 @@ class SettingsService {
           supportsAdvancedUsage: true,
         },
         complex: {
-          providerId: "default-openai",
-          providerName: "Default OpenAI",
-          modelName: "gpt-4",
+          providerId: "default-deepinfra",
+          providerName: "Default DeepInfra",
+          modelName: "meta-llama/Meta-Llama-3.1-70B-Instruct",
           supportsAdvancedUsage: true,
         },
       },
@@ -148,6 +155,12 @@ class SettingsService {
         ...(config.provider === "anthropic"
           ? {
               anthropicApiKey: config.anthropicApiKey,
+            }
+          : {}),
+        ...(config.provider === "deepinfra"
+          ? {
+              apiKey: config.apiKey,
+              baseUrl: config.baseUrl,
             }
           : {}),
       };

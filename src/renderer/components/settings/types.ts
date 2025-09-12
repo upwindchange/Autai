@@ -1,4 +1,4 @@
-import type { ProviderConfig, SettingsState, OpenAICompatibleProviderConfig, AnthropicProviderConfig } from "@shared";
+import type { ProviderConfig, SettingsState, OpenAICompatibleProviderConfig, AnthropicProviderConfig, DeepInfraProviderConfig } from "@shared";
 
 /**
  * Settings context API exposed to components
@@ -21,6 +21,7 @@ export interface SettingsContextType {
 
 export type EditingProvider =
   | (OpenAICompatibleProviderConfig & { isNew?: boolean })
-  | (AnthropicProviderConfig & { isNew?: boolean });
+  | (AnthropicProviderConfig & { isNew?: boolean })
+  | (DeepInfraProviderConfig & { isNew?: boolean });
 
 export type SectionType = "providers" | "models" | "development" | "about";

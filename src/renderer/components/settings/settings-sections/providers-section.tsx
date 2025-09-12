@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Trash2, EyeIcon, EyeOffIcon, Save, Loader2 } from "lucide-react";
 import { useSettings } from "@/components/settings";
-import type { SettingsState, OpenAICompatibleProviderConfig, AnthropicProviderConfig } from "@shared";
+import type { SettingsState, OpenAICompatibleProviderConfig, AnthropicProviderConfig, DeepInfraProviderConfig } from "@shared";
 import type { EditingProvider } from "../types";
 import log from "electron-log/renderer";
 
@@ -39,6 +39,12 @@ const isAnthropicProvider = (
   provider: EditingProvider | null
 ): provider is AnthropicProviderConfig & { isNew?: boolean } => {
   return provider !== null && provider.provider === "anthropic";
+};
+
+const isDeepInfraProvider = (
+  provider: EditingProvider | null
+): provider is DeepInfraProviderConfig & { isNew?: boolean } => {
+  return provider !== null && provider.provider === "deepinfra";
 };
 
 interface ProvidersSectionProps {
@@ -177,18 +183,10 @@ export function ProvidersSection({
               id="provider-name"
               value={editingProvider.name}
               onChange={(e) => {
-                // Create a new object with the updated name, preserving the provider type
-                if (isOpenAIProvider(editingProvider)) {
-                  setEditingProvider({
-                    ...editingProvider,
-                    name: e.target.value,
-                  });
-                } else if (isAnthropicProvider(editingProvider)) {
-                  setEditingProvider({
-                    ...editingProvider,
-                    name: e.target.value,
-                  });
-                }
+                setEditingProvider({
+                  ...editingProvider,
+                  name: e.target.value,
+                });
               }}
               placeholder="e.g., OpenAI Production, Anthropic Dev"
             />
@@ -204,7 +202,7 @@ export function ProvidersSection({
                 <Label htmlFor="provider-type">AI Provider</Label>
                 <Select
                   value={editingProvider.provider}
-                  onValueChange={(value: "openai-compatible" | "anthropic") => {
+                  onValueChange={(value: "openai-compatible" | "anthropic" | "deepinfra") => {
                     if (value === "openai-compatible") {
                       setEditingProvider({
                         id: editingProvider.id,
@@ -226,6 +224,19 @@ export function ProvidersSection({
                           : "",
                         isNew: editingProvider.isNew,
                       });
+                    } else if (value === "deepinfra") {
+                      setEditingProvider({
+                        id: editingProvider.id,
+                        name: editingProvider.name,
+                        provider: "deepinfra",
+                        apiKey: isDeepInfraProvider(editingProvider)
+                          ? editingProvider.apiKey || ""
+                          : "",
+                        baseUrl: isDeepInfraProvider(editingProvider)
+                          ? editingProvider.baseUrl || "https://api.deepinfra.com/v1/openai"
+                          : "https://api.deepinfra.com/v1/openai",
+                        isNew: editingProvider.isNew,
+                      });
                     }
                   }}
                 >
@@ -237,6 +248,7 @@ export function ProvidersSection({
                       OpenAI Compatible
                     </SelectItem>
                     <SelectItem value="anthropic">Anthropic</SelectItem>
+                    <SelectItem value="deepinfra">DeepInfra</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -247,9 +259,18 @@ export function ProvidersSection({
             <CardHeader>
               <CardTitle>API Configuration</CardTitle>
               <CardDescription>
-                {isOpenAIProvider(editingProvider)
-                  ? "Configure your OpenAI-compatible API endpoint and authentication"
-                  : "Configure your Anthropic API authentication"}
+                {(() => {
+                  switch (editingProvider.provider) {
+                    case "openai-compatible":
+                      return "Configure your OpenAI-compatible API endpoint and authentication";
+                    case "anthropic":
+                      return "Configure your Anthropic API authentication";
+                    case "deepinfra":
+                      return "Configure your DeepInfra API endpoint and authentication";
+                    default:
+                      return "Configure your API authentication";
+                  }
+                })()}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -347,6 +368,62 @@ export function ProvidersSection({
                     </Button>
                   </div>
                 </div>
+              )}
+              {isDeepInfraProvider(editingProvider) && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="deepinfra-base-url">Base URL</Label>
+                    <Input
+                      id="deepinfra-base-url"
+                      value={editingProvider.baseUrl}
+                      onChange={(e) => {
+                        const updated = {
+                          ...editingProvider,
+                          baseUrl: e.target.value,
+                        };
+                        if (updated.provider === "deepinfra") {
+                          setEditingProvider(updated);
+                        }
+                      }}
+                      placeholder="https://api.deepinfra.com/v1/openai"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="deepinfra-api-key">DeepInfra API Key</Label>
+                    <div className="relative">
+                      <Input
+                        id="deepinfra-api-key"
+                        type={showApiKey ? "text" : "password"}
+                        value={editingProvider.apiKey}
+                        onChange={(e) => {
+                          const updated = {
+                            ...editingProvider,
+                            apiKey: e.target.value,
+                          };
+                          if (updated.provider === "deepinfra") {
+                            setEditingProvider(updated);
+                          }
+                        }}
+                        placeholder="sk-..."
+                        className="pr-10"
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="absolute right-0 top-0 h-full px-3"
+                        onClick={() => setShowApiKey(!showApiKey)}
+                      >
+                        {showApiKey ? (
+                          <EyeOffIcon className="h-4 w-4" />
+                        ) : (
+                          <EyeIcon className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </>
               )}
             </CardContent>
           </Card>

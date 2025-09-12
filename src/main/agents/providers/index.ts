@@ -4,6 +4,7 @@ import type { ProviderConfig } from "@shared";
 import { BaseProvider } from "@agents/providers/BaseProvider";
 import { OpenAICompatibleProvider } from "@agents/providers/OpenAICompatibleProvider";
 import { AnthropicProvider } from "@agents/providers/AnthropicProvider";
+import { DeepInfraProvider } from "@agents/providers/DeepInfraProvider";
 import { sendAlert } from "@/utils/messageUtils";
 
 /**
@@ -18,6 +19,9 @@ export function createProvider(config: ProviderConfig): BaseProvider {
 
     case "anthropic":
       return new AnthropicProvider(config);
+
+    case "deepinfra":
+      return new DeepInfraProvider(config);
   }
 }
 

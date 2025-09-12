@@ -1,4 +1,4 @@
-import { type ToolCallContentPartComponent } from "@assistant-ui/react";
+import { type ToolCallMessagePartComponent } from "@assistant-ui/react";
 import { CalculatorIcon, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -16,7 +16,7 @@ import {
   displayErrorToolSchema,
 } from "@shared";
 
-export const CalculatorTool: ToolCallContentPartComponent<
+export const CalculatorTool: ToolCallMessagePartComponent<
   CalculateToolParams,
   CalculateToolResult
 > = ({ args, result, status }) => {
@@ -68,7 +68,7 @@ export const CalculatorTool: ToolCallContentPartComponent<
   );
 };
 
-export const AnswerTool: ToolCallContentPartComponent<
+export const AnswerTool: ToolCallMessagePartComponent<
   AnswerToolParams,
   void
 > = ({ args, status }) => {
@@ -119,7 +119,7 @@ export const AnswerTool: ToolCallContentPartComponent<
   );
 };
 
-export const DisplayErrorTool: ToolCallContentPartComponent<
+export const DisplayErrorTool: ToolCallMessagePartComponent<
   DisplayErrorToolParams,
   DisplayErrorToolResult
 > = ({ args, result, status }) => {
