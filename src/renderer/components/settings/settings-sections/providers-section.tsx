@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Trash2, EyeIcon, EyeOffIcon, Save, Loader2 } from "lucide-react";
 import { useSettings } from "@/components/settings";
-import type { SettingsState, OpenAICompatibleProviderConfig, AnthropicProviderConfig, DeepInfraProviderConfig } from "@shared";
+import type { SettingsState } from "@shared";
 import type { EditingProvider } from "../types";
 import log from "electron-log/renderer";
 
@@ -28,24 +28,6 @@ interface ProvidersSectionProps {
 
 const logger = log.scope("ProvidersSection");
 
-// Type guards for provider types
-const isOpenAIProvider = (
-  provider: EditingProvider | null
-): provider is OpenAICompatibleProviderConfig & { isNew?: boolean } => {
-  return provider !== null && provider.provider === "openai-compatible";
-};
-
-const isAnthropicProvider = (
-  provider: EditingProvider | null
-): provider is AnthropicProviderConfig & { isNew?: boolean } => {
-  return provider !== null && provider.provider === "anthropic";
-};
-
-const isDeepInfraProvider = (
-  provider: EditingProvider | null
-): provider is DeepInfraProviderConfig & { isNew?: boolean } => {
-  return provider !== null && provider.provider === "deepinfra";
-};
 
 interface ProvidersSectionProps {
   settings: SettingsState;
@@ -64,8 +46,8 @@ export function ProvidersSection({
       id: `provider-${Date.now()}`,
       name: "New Provider",
       provider: "openai-compatible",
-      apiUrl: "https://api.openai.com/v1",
       apiKey: "",
+      apiUrl: "https://api.openai.com/v1",
       isNew: true,
     });
   };
@@ -126,8 +108,7 @@ export function ProvidersSection({
                 <div>
                   <div className="font-medium">{provider.name}</div>
                   <div className="text-sm text-muted-foreground">
-                    {provider.provider} -{" "}
-                    {"apiUrl" in provider ? provider.apiUrl : "Anthropic"}
+                    {provider.provider} - {provider.apiUrl || "Default URL"}
                   </div>
                 </div>
                 <div className="flex gap-2">
@@ -203,41 +184,15 @@ export function ProvidersSection({
                 <Select
                   value={editingProvider.provider}
                   onValueChange={(value: "openai-compatible" | "anthropic" | "deepinfra") => {
-                    if (value === "openai-compatible") {
-                      setEditingProvider({
-                        id: editingProvider.id,
-                        name: editingProvider.name,
-                        provider: "openai-compatible",
-                        apiUrl: "https://api.openai.com/v1",
-                        apiKey: isOpenAIProvider(editingProvider)
-                          ? editingProvider.apiKey || ""
-                          : "",
-                        isNew: editingProvider.isNew,
-                      });
-                    } else if (value === "anthropic") {
-                      setEditingProvider({
-                        id: editingProvider.id,
-                        name: editingProvider.name,
-                        provider: "anthropic",
-                        anthropicApiKey: isAnthropicProvider(editingProvider)
-                          ? editingProvider.anthropicApiKey || ""
-                          : "",
-                        isNew: editingProvider.isNew,
-                      });
-                    } else if (value === "deepinfra") {
-                      setEditingProvider({
-                        id: editingProvider.id,
-                        name: editingProvider.name,
-                        provider: "deepinfra",
-                        apiKey: isDeepInfraProvider(editingProvider)
-                          ? editingProvider.apiKey || ""
-                          : "",
-                        baseUrl: isDeepInfraProvider(editingProvider)
-                          ? editingProvider.baseUrl || "https://api.deepinfra.com/v1/openai"
-                          : "https://api.deepinfra.com/v1/openai",
-                        isNew: editingProvider.isNew,
-                      });
-                    }
+                    setEditingProvider({
+                      ...editingProvider,
+                      provider: value,
+                      apiKey: editingProvider.apiKey || "",
+                      apiUrl: editingProvider.apiUrl || 
+                        (value === "openai-compatible" ? "https://api.openai.com/v1" :
+                         value === "anthropic" ? "https://api.anthropic.com/v1" :
+                         "https://api.deepinfra.com/v1/openai")
+                    });
                   }}
                 >
                   <SelectTrigger id="provider-type">
@@ -274,157 +229,52 @@ export function ProvidersSection({
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {isOpenAIProvider(editingProvider) && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="api-url">API URL</Label>
-                    <Input
-                      id="api-url"
-                      value={editingProvider.apiUrl}
-                      onChange={(e) => {
-                        const updated = {
-                          ...editingProvider,
-                          apiUrl: e.target.value,
-                        };
-                        // Type guard to ensure we're working with the correct type
-                        if (updated.provider === "openai-compatible") {
-                          setEditingProvider(updated);
-                        }
-                      }}
-                      placeholder="https://api.openai.com/v1"
-                    />
-                  </div>
+              <div className="space-y-2">
+                <Label htmlFor="api-url">API URL</Label>
+                <Input
+                  id="api-url"
+                  value={editingProvider.apiUrl || ""}
+                  onChange={(e) => {
+                    setEditingProvider({
+                      ...editingProvider,
+                      apiUrl: e.target.value || undefined,
+                    });
+                  }}
+                  placeholder="Leave empty for default URL"
+                />
+              </div>
 
-                  <div className="space-y-2">
-                    <Label htmlFor="api-key">API Key</Label>
-                    <div className="relative">
-                      <Input
-                        id="api-key"
-                        type={showApiKey ? "text" : "password"}
-                        value={editingProvider.apiKey}
-                        onChange={(e) => {
-                          const updated = {
-                            ...editingProvider,
-                            apiKey: e.target.value,
-                          };
-                          // Type guard to ensure we're working with the correct type
-                          if (updated.provider === "openai-compatible") {
-                            setEditingProvider(updated);
-                          }
-                        }}
-                        placeholder="sk-..."
-                        className="pr-10"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3"
-                        onClick={() => setShowApiKey(!showApiKey)}
-                      >
-                        {showApiKey ? (
-                          <EyeOffIcon className="h-4 w-4" />
-                        ) : (
-                          <EyeIcon className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </>
-              )}
-              {isAnthropicProvider(editingProvider) && (
-                <div className="space-y-2">
-                  <Label htmlFor="anthropic-api-key">Anthropic API Key</Label>
-                  <div className="relative">
-                    <Input
-                      id="anthropic-api-key"
-                      type={showApiKey ? "text" : "password"}
-                      value={editingProvider.anthropicApiKey}
-                      onChange={(e) => {
-                        const updated = {
-                          ...editingProvider,
-                          anthropicApiKey: e.target.value,
-                        };
-                        // Type guard to ensure we're working with the correct type
-                        if (updated.provider === "anthropic") {
-                          setEditingProvider(updated);
-                        }
-                      }}
-                      placeholder="sk-ant-..."
-                      className="pr-10"
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="absolute right-0 top-0 h-full px-3"
-                      onClick={() => setShowApiKey(!showApiKey)}
-                    >
-                      {showApiKey ? (
-                        <EyeOffIcon className="h-4 w-4" />
-                      ) : (
-                        <EyeIcon className="h-4 w-4" />
-                      )}
-                    </Button>
-                  </div>
+              <div className="space-y-2">
+                <Label htmlFor="api-key">API Key</Label>
+                <div className="relative">
+                  <Input
+                    id="api-key"
+                    type={showApiKey ? "text" : "password"}
+                    value={editingProvider.apiKey}
+                    onChange={(e) => {
+                      setEditingProvider({
+                        ...editingProvider,
+                        apiKey: e.target.value,
+                      });
+                    }}
+                    placeholder="sk-..."
+                    className="pr-10"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full px-3"
+                    onClick={() => setShowApiKey(!showApiKey)}
+                  >
+                    {showApiKey ? (
+                      <EyeOffIcon className="h-4 w-4" />
+                    ) : (
+                      <EyeIcon className="h-4 w-4" />
+                    )}
+                  </Button>
                 </div>
-              )}
-              {isDeepInfraProvider(editingProvider) && (
-                <>
-                  <div className="space-y-2">
-                    <Label htmlFor="deepinfra-base-url">Base URL</Label>
-                    <Input
-                      id="deepinfra-base-url"
-                      value={editingProvider.baseUrl}
-                      onChange={(e) => {
-                        const updated = {
-                          ...editingProvider,
-                          baseUrl: e.target.value,
-                        };
-                        if (updated.provider === "deepinfra") {
-                          setEditingProvider(updated);
-                        }
-                      }}
-                      placeholder="https://api.deepinfra.com/v1/openai"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="deepinfra-api-key">DeepInfra API Key</Label>
-                    <div className="relative">
-                      <Input
-                        id="deepinfra-api-key"
-                        type={showApiKey ? "text" : "password"}
-                        value={editingProvider.apiKey}
-                        onChange={(e) => {
-                          const updated = {
-                            ...editingProvider,
-                            apiKey: e.target.value,
-                          };
-                          if (updated.provider === "deepinfra") {
-                            setEditingProvider(updated);
-                          }
-                        }}
-                        placeholder="sk-..."
-                        className="pr-10"
-                      />
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="absolute right-0 top-0 h-full px-3"
-                        onClick={() => setShowApiKey(!showApiKey)}
-                      >
-                        {showApiKey ? (
-                          <EyeOffIcon className="h-4 w-4" />
-                        ) : (
-                          <EyeIcon className="h-4 w-4" />
-                        )}
-                      </Button>
-                    </div>
-                  </div>
-                </>
-              )}
+              </div>
             </CardContent>
           </Card>
 

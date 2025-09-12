@@ -43,7 +43,7 @@ export class DeepInfraProvider extends BaseProvider {
     // Create the DeepInfra provider
     const provider = createDeepInfra({
       apiKey: this.config.apiKey,
-      baseURL: this.config.baseUrl || "https://api.deepinfra.com/v1/openai",
+      baseURL: this.config.apiUrl || "https://api.deepinfra.com/v1/openai",
     });
 
     // Return the provider with the specified model
@@ -62,6 +62,6 @@ export class DeepInfraProvider extends BaseProvider {
    * Returns the base URL being used
    */
   get baseUrl(): string {
-    return this.config.baseUrl || "https://api.deepinfra.com/v1/openai";
+    return this.config.apiUrl || "https://api.deepinfra.com/v1/openai";
   }
 }

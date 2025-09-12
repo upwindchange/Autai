@@ -34,7 +34,6 @@ class SettingsService {
           id: "default-deepinfra",
           name: "Default DeepInfra",
           provider: "deepinfra",
-          baseUrl: "https://api.deepinfra.com/v1/openai",
           apiKey: "",
         },
       ],
@@ -141,28 +140,13 @@ class SettingsService {
       // Send initial test message
       sendInfo("Testing Connection", `Testing ${config.model} connection...`);
 
-      // Extract base provider config from test config
+      // Extract base provider config from test config - unified properties
       const baseConfig = {
         id: config.id || "test-provider",
         name: config.name || "Test Provider",
         provider: config.provider,
-        ...(config.provider === "openai-compatible"
-          ? {
-              apiKey: config.apiKey,
-              apiUrl: config.apiUrl,
-            }
-          : {}),
-        ...(config.provider === "anthropic"
-          ? {
-              anthropicApiKey: config.anthropicApiKey,
-            }
-          : {}),
-        ...(config.provider === "deepinfra"
-          ? {
-              apiKey: config.apiKey,
-              baseUrl: config.baseUrl,
-            }
-          : {}),
+        apiKey: config.apiKey,
+        ...(config.apiUrl && { apiUrl: config.apiUrl }),
       };
 
       // Create provider instance
@@ -226,7 +210,7 @@ class SettingsService {
         },
         prompt: "Generate one of the provided enum values",
       });
-      
+
       this.logger.debug("enum generation result", { object });
 
       // Validate the returned value is one of our expected strings using Zod
@@ -234,11 +218,11 @@ class SettingsService {
       const result = validValues.safeParse(object);
 
       if (!result.success) {
-        this.logger.error("enum validation failed", { 
-          object, 
-          validationError: result.error 
+        this.logger.error("enum validation failed", {
+          object,
+          validationError: result.error,
         });
-        
+
         // Enum validation failed - show capability alert
         const providerName = config.name || config.id;
         const modelName = config.model;
@@ -251,9 +235,10 @@ class SettingsService {
         this.logger.info("enum validation successful", { object });
       }
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
       this.logger.error("enum generation failed", { error: errorMessage });
-      
+
       // Exception during enum generation - show capability alert
       const providerName = config.name || config.id;
       const modelName = config.model;

@@ -41,7 +41,8 @@ export class AnthropicProvider extends BaseProvider {
 
     // Create the Anthropic provider
     const provider = createAnthropic({
-      apiKey: this.config.anthropicApiKey,
+      apiKey: this.config.apiKey,
+      baseURL: this.config.apiUrl || "https://api.anthropic.com/v1",
     });
 
     // Return the provider with the specified model
@@ -54,8 +55,8 @@ export class AnthropicProvider extends BaseProvider {
    */
   isConfigured(): boolean {
     return !!(
-      this.config.anthropicApiKey &&
-      this.config.anthropicApiKey.trim().length > 0
+      this.config.apiKey &&
+      this.config.apiKey.trim().length > 0
     );
   }
 }

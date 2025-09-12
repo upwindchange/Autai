@@ -8,21 +8,28 @@ import { z } from "zod";
 export const ProviderIdSchema = z.string().min(1);
 
 // Provider type enum
-export const ProviderTypeSchema = z.enum(["openai-compatible", "anthropic", "deepinfra"]);
+export const ProviderTypeSchema = z.enum([
+  "openai-compatible",
+  "anthropic",
+  "deepinfra",
+]);
 export type ProviderType = z.infer<typeof ProviderTypeSchema>;
 
 // Base Provider Config schema
+
+// Unified Base Provider Config schema - aggressive simplification
 const BaseProviderConfigSchema = z.object({
   id: ProviderIdSchema,
-  name: z.string().min(1), // User-friendly name for the provider
+  name: z.string().min(1),
   provider: ProviderTypeSchema,
+  apiKey: z.string().min(1),
+  apiUrl: z.string().url().optional(),
 });
 
 // OpenAI Compatible Provider Config schema
 const OpenAICompatibleProviderConfigSchema = BaseProviderConfigSchema.extend({
   provider: z.literal("openai-compatible"),
-  apiUrl: z.string().url().default("https://api.openai.com/v1"),
-  apiKey: z.string().min(1),
+  apiUrl: z.string().url().optional(),
 });
 
 export type OpenAICompatibleProviderConfig = z.infer<
@@ -32,7 +39,7 @@ export type OpenAICompatibleProviderConfig = z.infer<
 // Anthropic Provider Config schema
 const AnthropicProviderConfigSchema = BaseProviderConfigSchema.extend({
   provider: z.literal("anthropic"),
-  anthropicApiKey: z.string().min(1),
+  apiUrl: z.string().url().optional(),
 });
 
 export type AnthropicProviderConfig = z.infer<
@@ -42,8 +49,7 @@ export type AnthropicProviderConfig = z.infer<
 // DeepInfra Provider Config schema
 const DeepInfraProviderConfigSchema = BaseProviderConfigSchema.extend({
   provider: z.literal("deepinfra"),
-  apiKey: z.string().min(1),
-  baseUrl: z.string().url().default("https://api.deepinfra.com/v1/openai"),
+  apiUrl: z.string().url().optional(),
 });
 
 export type DeepInfraProviderConfig = z.infer<
