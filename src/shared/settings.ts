@@ -67,10 +67,7 @@ const DeepInfraProviderConfigSchema = z.object({
   name: z.string().min(1).default("Default DeepInfra"),
   provider: z.literal("deepinfra").default("deepinfra"),
   apiKey: z.string().default(""),
-  apiUrl: z
-    .string()
-    .url()
-    .default("https://api.deepinfra.com/v1/openai"),
+  apiUrl: z.string().url().default("https://api.deepinfra.com/v1"),
 });
 
 export type DeepInfraProviderConfig = z.infer<
@@ -84,7 +81,7 @@ const DefaultDeepInfraProviderConfigSchema =
     name: "Default DeepInfra",
     provider: "deepinfra",
     apiKey: "",
-    apiUrl: "https://api.deepinfra.com/v1/openai",
+    apiUrl: "https://api.deepinfra.com/v1",
   });
 
 // Union of all provider configurations

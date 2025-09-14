@@ -18,8 +18,7 @@ import {
 import { HelpCircle, TestTube, Save, Loader2 } from "lucide-react";
 import { useSettings } from "@/components/settings";
 import { ModelConfigCard } from "@/components/settings/settings-sections/model-config-card";
-import type { SettingsState } from "@shared";
-import { DefaultModelConfigSchema } from "@shared";
+import type { SettingsState, ModelConfig } from "@shared";
 import log from "electron-log/renderer";
 
 const logger = log.scope("ModelsSection");
@@ -33,44 +32,67 @@ export function ModelsSection({ settings }: ModelsSectionProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
 
-  // State for model configurations - use schema defaults
-  const [chatModelConfig, setChatModelConfig] = useState(DefaultModelConfigSchema.parse({}));
-  const [simpleModelConfig, setSimpleModelConfig] = useState(DefaultModelConfigSchema.parse({}));
-  const [complexModelConfig, setComplexModelConfig] = useState(DefaultModelConfigSchema.parse({}));
+  // Helper function to create model config state
+  const createModelConfigState = (): ModelConfig => ({
+    providerId: "",
+    providerName: "",
+    modelName: "",
+    supportsAdvancedUsage: true,
+  });
 
+  // State for model configurations
+  const [chatModelConfig, setChatModelConfig] = useState<ModelConfig>(
+    createModelConfigState()
+  );
+  const [simpleModelConfig, setSimpleModelConfig] = useState<ModelConfig>(
+    createModelConfigState()
+  );
+  const [complexModelConfig, setComplexModelConfig] = useState<ModelConfig>(
+    createModelConfigState()
+  );
   const [useSameModelForAgents, setUseSameModelForAgents] = useState(false);
+
+  // Helper function to update model config from settings
+  const updateModelConfigFromSettings = (
+    configKey: "chat" | "simple" | "complex",
+    setter: (config: ModelConfig) => void
+  ) => {
+    if (settings?.modelConfigurations?.[configKey]) {
+      const config = settings.modelConfigurations[configKey];
+      setter({
+        providerId: config.providerId || "",
+        providerName: config.providerName || "",
+        modelName: config.modelName || "",
+        supportsAdvancedUsage: config.supportsAdvancedUsage ?? true,
+      });
+    }
+  };
+
+  // Helper function to create ModelConfigCard props
+  const createModelCardProps = (config: ModelConfig, setter: (config: ModelConfig) => void) => ({
+    providerId: config.providerId,
+    modelName: config.modelName,
+    onProviderChange: (value: string) => {
+      const provider = settings.providers.find((p) => p.id === value);
+      setter({
+        ...config,
+        providerId: value,
+        providerName: provider?.name || "",
+      });
+    },
+    onModelNameChange: (value: string) =>
+      setter({
+        ...config,
+        modelName: value,
+      }),
+    providers: settings?.providers || [],
+  });
 
   // Update state when settings change
   useEffect(() => {
-    if (settings?.modelConfigurations?.chat) {
-      setChatModelConfig({
-        providerId: settings.modelConfigurations.chat.providerId || "",
-        providerName: settings.modelConfigurations.chat.providerName || "",
-        modelName: settings.modelConfigurations.chat.modelName || "",
-        supportsAdvancedUsage:
-          settings.modelConfigurations.chat.supportsAdvancedUsage ?? true,
-      });
-    }
-
-    if (settings?.modelConfigurations?.simple) {
-      setSimpleModelConfig({
-        providerId: settings.modelConfigurations.simple.providerId || "",
-        providerName: settings.modelConfigurations.simple.providerName || "",
-        modelName: settings.modelConfigurations.simple.modelName || "",
-        supportsAdvancedUsage:
-          settings.modelConfigurations.simple.supportsAdvancedUsage ?? true,
-      });
-    }
-
-    if (settings?.modelConfigurations?.complex) {
-      setComplexModelConfig({
-        providerId: settings.modelConfigurations.complex.providerId || "",
-        providerName: settings.modelConfigurations.complex.providerName || "",
-        modelName: settings.modelConfigurations.complex.modelName || "",
-        supportsAdvancedUsage:
-          settings.modelConfigurations.complex.supportsAdvancedUsage ?? true,
-      });
-    }
+    updateModelConfigFromSettings("chat", setChatModelConfig);
+    updateModelConfigFromSettings("simple", setSimpleModelConfig);
+    updateModelConfigFromSettings("complex", setComplexModelConfig);
 
     if (settings?.useSameModelForAgents !== undefined) {
       setUseSameModelForAgents(settings.useSameModelForAgents);
@@ -171,24 +193,8 @@ export function ModelsSection({ settings }: ModelsSectionProps) {
           <ModelConfigCard
             title="Default Chat Model"
             tooltip="This model will be used for general conversation and user interactions"
-            providerId={chatModelConfig.providerId}
-            modelName={chatModelConfig.modelName}
-            onProviderChange={(value) => {
-              const provider = settings.providers.find((p) => p.id === value);
-              setChatModelConfig({
-                ...chatModelConfig,
-                providerId: value,
-                providerName: provider?.name || "",
-              });
-            }}
-            onModelNameChange={(value) =>
-              setChatModelConfig({
-                ...chatModelConfig,
-                modelName: value,
-              })
-            }
-            providers={settings?.providers || []}
             showTooltip={false}
+            {...createModelCardProps(chatModelConfig, setChatModelConfig)}
           />
 
           <div className="flex items-center space-x-2">
@@ -234,45 +240,16 @@ export function ModelsSection({ settings }: ModelsSectionProps) {
             <ModelConfigCard
               title="Simple Agent Model"
               tooltip="This model will be used for straightforward agent tasks"
-              providerId={simpleModelConfig.providerId}
-              modelName={simpleModelConfig.modelName}
-              onProviderChange={(value) => {
-                const provider = settings.providers.find((p) => p.id === value);
-                setSimpleModelConfig({
-                  ...simpleModelConfig,
-                  providerId: value,
-                  providerName: provider?.name || "",
-                });
-              }}
-              onModelNameChange={(value) =>
-                setSimpleModelConfig({
-                  ...simpleModelConfig,
-                  modelName: value,
-                })
-              }
-              providers={settings?.providers || []}
+              {...createModelCardProps(simpleModelConfig, setSimpleModelConfig)}
             />
 
             <ModelConfigCard
               title="Complex Agent Model"
               tooltip="This model will be used for complex agent tasks requiring advanced reasoning"
-              providerId={complexModelConfig.providerId}
-              modelName={complexModelConfig.modelName}
-              onProviderChange={(value) => {
-                const provider = settings.providers.find((p) => p.id === value);
-                setComplexModelConfig({
-                  ...complexModelConfig,
-                  providerId: value,
-                  providerName: provider?.name || "",
-                });
-              }}
-              onModelNameChange={(value) =>
-                setComplexModelConfig({
-                  ...complexModelConfig,
-                  modelName: value,
-                })
-              }
-              providers={settings?.providers || []}
+              {...createModelCardProps(
+                complexModelConfig,
+                setComplexModelConfig
+              )}
             />
           </CardContent>
         </Card>

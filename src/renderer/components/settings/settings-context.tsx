@@ -74,26 +74,9 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       ...settings,
       providers: settings.providers.map((p) => {
         if (p.id !== id) return p;
-
-        // Type-safe provider updates based on provider type
-        if (p.provider === "openai-compatible") {
-          return {
-            ...p,
-            ...(updates as Partial<
-              Extract<ProviderConfig, { provider: "openai-compatible" }>
-            >),
-          };
-        } else if (p.provider === "anthropic") {
-          return {
-            ...p,
-            ...(updates as Partial<
-              Extract<ProviderConfig, { provider: "anthropic" }>
-            >),
-          };
-        }
-
-        // This should never happen with proper typing, but we need to satisfy TS
-        return p;
+        
+        // Type-safe spread for all provider types
+        return { ...p, ...updates };
       }),
     };
     await updateSettings(newSettings);

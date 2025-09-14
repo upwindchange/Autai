@@ -69,12 +69,18 @@ export function ModelConfigCard({
 
   // Fetch models when provider changes or on initial load
   useEffect(() => {
-    if (providerId) {
-      fetchModels();
+    if (providerId && providers.length > 0) {
+      const provider = providers.find((p) => p.id === providerId);
+      if (provider) {
+        fetchModels();
+      } else {
+        logger.warn(`Provider with ID "${providerId}" not found in providers array`);
+        setAvailableModels([]);
+      }
     } else {
       setAvailableModels([]);
     }
-  }, [providerId]);
+  }, [providerId, providers]);
 
   const fetchModels = async () => {
     if (!providerId) return;
