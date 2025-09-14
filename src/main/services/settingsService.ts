@@ -14,7 +14,7 @@ import type {
 import { SettingsStateSchema } from "@shared";
 
 class SettingsService {
-  public settings: SettingsState;
+  private _settings: SettingsState;
   private settingsPath: string;
   private logger = log.scope("SettingsService");
 
@@ -22,7 +22,28 @@ class SettingsService {
     const userDataPath = app.getPath("userData");
     this.settingsPath = path.join(userDataPath, "settings.json");
     // Initialize with default settings from schema
-    this.settings = SettingsStateSchema.parse({});
+    this._settings = SettingsStateSchema.parse({});
+  }
+
+  // Override settings getter to return effective model configurations
+  public get settings(): SettingsState {
+    if (this._settings.useSameModelForAgents) {
+      // When useSameModelForAgents is enabled, override simple and complex with chat config
+      return {
+        ...this._settings,
+        modelConfigurations: {
+          ...this._settings.modelConfigurations,
+          simple: this._settings.modelConfigurations.chat,
+          complex: this._settings.modelConfigurations.chat,
+        },
+      };
+    }
+    return this._settings;
+  }
+
+  // Private setter for internal use
+  private set settings(value: SettingsState) {
+    this._settings = value;
   }
 
   async initialize() {
@@ -40,7 +61,7 @@ class SettingsService {
         return value;
       });
       // Parse and validate with schema, which will apply defaults
-      this.settings = SettingsStateSchema.parse(parsedData);
+      this._settings = SettingsStateSchema.parse(parsedData);
     } catch (_error) {
       // If file doesn't exist or is invalid, use existing settings (which already have defaults)
       this.logger.info("Settings file not found or invalid, using defaults");
@@ -51,7 +72,7 @@ class SettingsService {
   async saveSettings(settings: SettingsState): Promise<void> {
     // Sync provider names in model configurations before saving
     const updatedSettings = this.syncProviderNames(settings);
-    this.settings = updatedSettings;
+    this._settings = updatedSettings;
     await fs.writeFile(
       this.settingsPath,
       JSON.stringify(updatedSettings, null, 2),
@@ -163,7 +184,7 @@ class SettingsService {
         output: "enum",
         enum: ["JHERfcgPFc", "TjWwVanGcn"],
         experimental_telemetry: {
-          isEnabled: this.settings.langfuse.enabled,
+          isEnabled: this._settings.langfuse.enabled,
           functionId: "test-connection-validate-capabilities",
         },
         prompt: "Generate one of the provided enum values",
@@ -210,14 +231,14 @@ class SettingsService {
 
   // Utility method to check if settings are configured
   isConfigured(): boolean {
-    if (!this.settings || !this.settings.providers) return false;
+    if (!this._settings || !this._settings.providers) return false;
 
     // Check if we have model configurations
-    if (!this.settings.modelConfigurations) return false;
+    if (!this._settings.modelConfigurations) return false;
 
     // Check if the chat model is configured
-    const chatConfig = this.settings.modelConfigurations.chat;
-    const chatProvider = this.settings.providers.find(
+    const chatConfig = this._settings.modelConfigurations.chat;
+    const chatProvider = this._settings.providers.find(
       (p) => p.id === chatConfig.providerId
     );
 
@@ -230,13 +251,13 @@ class SettingsService {
     if (!chatConfigured) return false;
 
     // If useSameModelForAgents is enabled, only chat model needs to be configured
-    if (this.settings.useSameModelForAgents) {
+    if (this._settings.useSameModelForAgents) {
       return true;
     }
 
     // Otherwise, check both simple and complex models
-    const simpleConfig = this.settings.modelConfigurations.simple;
-    const complexConfig = this.settings.modelConfigurations.complex;
+    const simpleConfig = this._settings.modelConfigurations.simple;
+    const complexConfig = this._settings.modelConfigurations.complex;
 
     // Check if both models use the same provider as chat (common case)
     if (
@@ -246,10 +267,10 @@ class SettingsService {
       return true; // Same provider, already validated above
     }
 
-    const simpleProvider = this.settings.providers.find(
+    const simpleProvider = this._settings.providers.find(
       (p) => p.id === simpleConfig.providerId
     );
-    const complexProvider = this.settings.providers.find(
+    const complexProvider = this._settings.providers.find(
       (p) => p.id === complexConfig.providerId
     );
 
@@ -274,11 +295,11 @@ class SettingsService {
     modelType: keyof SettingsState["modelConfigurations"],
     supportsAdvancedUsage: boolean
   ): Promise<void> {
-    if (!this.settings.modelConfigurations) return;
+    if (!this._settings.modelConfigurations) return;
 
-    this.settings.modelConfigurations[modelType].supportsAdvancedUsage =
+    this._settings.modelConfigurations[modelType].supportsAdvancedUsage =
       supportsAdvancedUsage;
-    await this.saveSettings(this.settings);
+    await this.saveSettings(this._settings);
   }
 }
 
