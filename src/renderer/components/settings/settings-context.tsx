@@ -7,6 +7,7 @@ import {
 } from "react";
 import { SettingsContextType } from "./types";
 import type { SettingsState, ProviderConfig } from "@shared";
+import { getDefaultSettings } from "@shared";
 import log from 'electron-log/renderer';
 
 const logger = log.scope('SettingsContext');
@@ -26,22 +27,7 @@ interface SettingsProviderProps {
 }
 
 export function SettingsProvider({ children }: SettingsProviderProps) {
-  const [settings, setSettings] = useState<SettingsState>({
-    providers: [],
-    modelConfigurations: {
-      chat: { providerId: "", providerName: "", modelName: "", supportsAdvancedUsage: true },
-      simple: { providerId: "", providerName: "", modelName: "", supportsAdvancedUsage: true },
-      complex: { providerId: "", providerName: "", modelName: "", supportsAdvancedUsage: true },
-    },
-    useSameModelForAgents: true,
-    logLevel: 'info',
-    langfuse: {
-      enabled: false,
-      publicKey: undefined,
-      secretKey: undefined,
-      host: undefined,
-    },
-  });
+  const [settings, setSettings] = useState<SettingsState>(getDefaultSettings());
   const [isLoading, setIsLoading] = useState(true);
 
   // Load settings on mount
@@ -56,46 +42,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     } catch (error) {
       logger.error("failed to load settings", error);
       // Create default settings if none exists
-      const defaultSettings: SettingsState = {
-        providers: [
-          {
-            id: "default-openai",
-            name: "Default OpenAI",
-            provider: "openai-compatible",
-            apiUrl: "https://api.openai.com/v1",
-            apiKey: "",
-          },
-        ],
-        modelConfigurations: {
-          chat: {
-            providerId: "default-openai",
-            providerName: "Default OpenAI",
-            modelName: "gpt-3.5-turbo",
-            supportsAdvancedUsage: true,
-          },
-          simple: {
-            providerId: "default-openai",
-            providerName: "Default OpenAI",
-            modelName: "gpt-3.5-turbo",
-            supportsAdvancedUsage: true,
-          },
-          complex: {
-            providerId: "default-openai",
-            providerName: "Default OpenAI",
-            modelName: "gpt-4",
-            supportsAdvancedUsage: true,
-          },
-        },
-        useSameModelForAgents: true,
-        logLevel: 'info',
-        langfuse: {
-          enabled: false,
-          publicKey: undefined,
-          secretKey: undefined,
-          host: undefined,
-        },
-      };
-      setSettings(defaultSettings);
+      setSettings(getDefaultSettings());
     } finally {
       setIsLoading(false);
     }
@@ -161,13 +108,29 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       providers: settings.providers.filter((p) => p.id !== id),
     };
 
-    // If we're removing a provider that's used in model configurations, reset those configurations
+    // If we're removing a provider that's used in model configurations, reset those configurations to defaults
     const updatedModelConfigurations = { ...settings.modelConfigurations };
     if (settings.modelConfigurations.simple.providerId === id) {
-      updatedModelConfigurations.simple = { providerId: "", providerName: "", modelName: "", supportsAdvancedUsage: true };
+      const firstProvider = newSettings.providers[0];
+      if (firstProvider) {
+        updatedModelConfigurations.simple = {
+          providerId: firstProvider.id,
+          providerName: firstProvider.name,
+          modelName: "gpt-3.5-turbo",
+          supportsAdvancedUsage: true,
+        };
+      }
     }
     if (settings.modelConfigurations.complex.providerId === id) {
-      updatedModelConfigurations.complex = { providerId: "", providerName: "", modelName: "", supportsAdvancedUsage: true };
+      const firstProvider = newSettings.providers[0];
+      if (firstProvider) {
+        updatedModelConfigurations.complex = {
+          providerId: firstProvider.id,
+          providerName: firstProvider.name,
+          modelName: "gpt-4",
+          supportsAdvancedUsage: true,
+        };
+      }
     }
 
     newSettings.modelConfigurations = updatedModelConfigurations;

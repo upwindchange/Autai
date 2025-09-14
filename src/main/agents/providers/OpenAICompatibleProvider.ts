@@ -58,11 +58,4 @@ export class OpenAICompatibleProvider extends BaseProvider {
   isConfigured(): boolean {
     return !!(this.config.apiKey && this.config.apiKey.trim().length > 0);
   }
-
-  /**
-   * Returns the API URL being used
-   */
-  get apiUrl(): string {
-    return this.config.apiUrl || "https://api.openai.com/v1";
-  }
 }

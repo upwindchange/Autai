@@ -19,6 +19,7 @@ import { HelpCircle, TestTube, Save, Loader2 } from "lucide-react";
 import { useSettings } from "@/components/settings";
 import { ModelConfigCard } from "@/components/settings/settings-sections/model-config-card";
 import type { SettingsState } from "@shared";
+import { DefaultModelConfigSchema } from "@shared";
 import log from "electron-log/renderer";
 
 const logger = log.scope("ModelsSection");
@@ -32,27 +33,10 @@ export function ModelsSection({ settings }: ModelsSectionProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
 
-  // State for model configurations
-  const [chatModelConfig, setChatModelConfig] = useState({
-    providerId: "",
-    providerName: "",
-    modelName: "",
-    supportsAdvancedUsage: true,
-  });
-
-  const [simpleModelConfig, setSimpleModelConfig] = useState({
-    providerId: "",
-    providerName: "",
-    modelName: "",
-    supportsAdvancedUsage: true,
-  });
-
-  const [complexModelConfig, setComplexModelConfig] = useState({
-    providerId: "",
-    providerName: "",
-    modelName: "",
-    supportsAdvancedUsage: true,
-  });
+  // State for model configurations - use schema defaults
+  const [chatModelConfig, setChatModelConfig] = useState(DefaultModelConfigSchema.parse({}));
+  const [simpleModelConfig, setSimpleModelConfig] = useState(DefaultModelConfigSchema.parse({}));
+  const [complexModelConfig, setComplexModelConfig] = useState(DefaultModelConfigSchema.parse({}));
 
   const [useSameModelForAgents, setUseSameModelForAgents] = useState(false);
 

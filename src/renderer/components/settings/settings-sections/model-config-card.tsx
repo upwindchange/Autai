@@ -88,7 +88,7 @@ export function ModelConfigCard({
 
       let models: string[] = [];
 
-      if (provider.provider === "openai-compatible") {
+      if (provider.provider === "openai-compatible" || provider.provider === "deepinfra") {
         // OpenAI-compatible API
         const response = await fetch(`${provider.apiUrl}/models`, {
           headers: {

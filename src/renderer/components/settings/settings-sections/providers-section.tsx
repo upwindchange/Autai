@@ -20,6 +20,7 @@ import { Plus, Trash2, EyeIcon, EyeOffIcon, Save, Loader2 } from "lucide-react";
 import { useSettings } from "@/components/settings";
 import type { SettingsState } from "@shared";
 import type { EditingProvider } from "../types";
+import { getDefaultProvider } from "@shared";
 import log from "electron-log/renderer";
 
 interface ProvidersSectionProps {
@@ -28,26 +29,23 @@ interface ProvidersSectionProps {
 
 const logger = log.scope("ProvidersSection");
 
-
 interface ProvidersSectionProps {
   settings: SettingsState;
 }
 
-export function ProvidersSection({
-  settings,
-}: ProvidersSectionProps) {
+export function ProvidersSection({ settings }: ProvidersSectionProps) {
   const { removeProvider, addProvider, updateProvider } = useSettings();
-  const [editingProvider, setEditingProvider] = useState<EditingProvider | null>(null);
+  const [editingProvider, setEditingProvider] =
+    useState<EditingProvider | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleAddProvider = () => {
+    const defaultProvider = getDefaultProvider("openai-compatible");
     setEditingProvider({
+      ...defaultProvider,
       id: `provider-${Date.now()}`,
       name: "New Provider",
-      provider: "openai-compatible",
-      apiKey: "",
-      apiUrl: "https://api.openai.com/v1",
       isNew: true,
     });
   };
@@ -183,15 +181,15 @@ export function ProvidersSection({
                 <Label htmlFor="provider-type">AI Provider</Label>
                 <Select
                   value={editingProvider.provider}
-                  onValueChange={(value: "openai-compatible" | "anthropic" | "deepinfra") => {
+                  onValueChange={(
+                    value: "openai-compatible" | "anthropic" | "deepinfra"
+                  ) => {
+                    const defaultProvider = getDefaultProvider(value);
                     setEditingProvider({
                       ...editingProvider,
                       provider: value,
-                      apiKey: editingProvider.apiKey || "",
-                      apiUrl: editingProvider.apiUrl || 
-                        (value === "openai-compatible" ? "https://api.openai.com/v1" :
-                         value === "anthropic" ? "https://api.anthropic.com/v1" :
-                         "https://api.deepinfra.com/v1/openai")
+                      apiKey: editingProvider.apiKey || defaultProvider.apiKey,
+                      apiUrl: editingProvider.apiUrl || defaultProvider.apiUrl,
                     });
                   }}
                 >
@@ -237,10 +235,21 @@ export function ProvidersSection({
                   onChange={(e) => {
                     setEditingProvider({
                       ...editingProvider,
-                      apiUrl: e.target.value || undefined,
+                      apiUrl: e.target.value,
                     });
                   }}
-                  placeholder="Leave empty for default URL"
+                  onBlur={(e) => {
+                    if (!e.target.value) {
+                      const defaultProvider = getDefaultProvider(
+                        editingProvider.provider
+                      );
+                      setEditingProvider({
+                        ...editingProvider,
+                        apiUrl: defaultProvider.apiUrl,
+                      });
+                    }
+                  }}
+                  placeholder={`Default: ${getDefaultProvider(editingProvider.provider).apiUrl}`}
                 />
               </div>
 

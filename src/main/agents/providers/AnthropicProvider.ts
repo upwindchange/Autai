@@ -1,4 +1,4 @@
-import { createAnthropic } from "@ai-sdk/anthropic";
+import { createAnthropic, AnthropicProviderSettings } from "@ai-sdk/anthropic";
 import type { LanguageModel } from "ai";
 import type { AnthropicProviderConfig } from "@shared";
 import { BaseProvider } from "@agents/providers/BaseProvider";
@@ -40,10 +40,15 @@ export class AnthropicProvider extends BaseProvider {
     }
 
     // Create the Anthropic provider
-    const provider = createAnthropic({
+    const providerOptions: AnthropicProviderSettings = {
       apiKey: this.config.apiKey,
-      baseURL: this.config.apiUrl || "https://api.anthropic.com/v1",
-    });
+    };
+
+    if (this.config.apiUrl) {
+      providerOptions.baseURL = this.config.apiUrl;
+    }
+
+    const provider = createAnthropic(providerOptions);
 
     // Return the provider with the specified model
     return provider(modelName);
@@ -54,9 +59,6 @@ export class AnthropicProvider extends BaseProvider {
    * @returns true if Anthropic API key is configured, false otherwise
    */
   isConfigured(): boolean {
-    return !!(
-      this.config.apiKey &&
-      this.config.apiKey.trim().length > 0
-    );
+    return !!(this.config.apiKey && this.config.apiKey.trim().length > 0);
   }
 }

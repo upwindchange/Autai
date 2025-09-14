@@ -11,6 +11,7 @@ import type {
   TestConnectionConfig,
   ProviderConfig,
 } from "@shared";
+import { SettingsStateSchema } from "@shared";
 
 class SettingsService {
   public settings: SettingsState;
@@ -20,52 +21,8 @@ class SettingsService {
   constructor() {
     const userDataPath = app.getPath("userData");
     this.settingsPath = path.join(userDataPath, "settings.json");
-    // Initialize with default settings
-    this.settings = {
-      providers: [
-        {
-          id: "default-openai",
-          name: "Default OpenAI",
-          provider: "openai-compatible",
-          apiUrl: "https://api.openai.com/v1",
-          apiKey: "",
-        },
-        {
-          id: "default-deepinfra",
-          name: "Default DeepInfra",
-          provider: "deepinfra",
-          apiKey: "",
-        },
-      ],
-      modelConfigurations: {
-        chat: {
-          providerId: "default-openai",
-          providerName: "Default OpenAI",
-          modelName: "gpt-3.5-turbo",
-          supportsAdvancedUsage: true,
-        },
-        simple: {
-          providerId: "default-openai",
-          providerName: "Default OpenAI",
-          modelName: "gpt-3.5-turbo",
-          supportsAdvancedUsage: true,
-        },
-        complex: {
-          providerId: "default-deepinfra",
-          providerName: "Default DeepInfra",
-          modelName: "meta-llama/Meta-Llama-3.1-70B-Instruct",
-          supportsAdvancedUsage: true,
-        },
-      },
-      useSameModelForAgents: true,
-      logLevel: "info",
-      langfuse: {
-        enabled: false,
-        publicKey: undefined,
-        secretKey: undefined,
-        host: undefined,
-      },
-    };
+    // Initialize with default settings from schema
+    this.settings = SettingsStateSchema.parse({});
   }
 
   async initialize() {
@@ -75,15 +32,18 @@ class SettingsService {
   async loadSettings(): Promise<SettingsState> {
     try {
       const data = await fs.readFile(this.settingsPath, "utf-8");
-      this.settings = JSON.parse(data, (_key, value) => {
+      const parsedData = JSON.parse(data, (_key, value) => {
         // Example post processing
         // if (_key === "createdAt" || _key === "updatedAt") {
         //   return new Date(value);
         // }
         return value;
       });
+      // Parse and validate with schema, which will apply defaults
+      this.settings = SettingsStateSchema.parse(parsedData);
     } catch (_error) {
-      // If file doesn't exist or is invalid, use existing settings
+      // If file doesn't exist or is invalid, use existing settings (which already have defaults)
+      this.logger.info("Settings file not found or invalid, using defaults");
     }
     return this.settings;
   }
@@ -132,9 +92,7 @@ class SettingsService {
   async testConnection(config: TestConnectionConfig): Promise<void> {
     try {
       this.logger.info("testing connection", {
-        model: config.model,
-        provider: config.provider,
-        providerName: config.name,
+        config,
       });
 
       // Send initial test message

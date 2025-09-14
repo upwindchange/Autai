@@ -1,4 +1,4 @@
-import { createDeepInfra } from "@ai-sdk/deepinfra";
+import { createDeepInfra, DeepInfraProviderSettings } from "@ai-sdk/deepinfra";
 import type { LanguageModel } from "ai";
 import type { DeepInfraProviderConfig } from "@shared";
 import { BaseProvider } from "@agents/providers/BaseProvider";
@@ -41,10 +41,15 @@ export class DeepInfraProvider extends BaseProvider {
     }
 
     // Create the DeepInfra provider
-    const provider = createDeepInfra({
+    const providerOptions: DeepInfraProviderSettings = {
       apiKey: this.config.apiKey,
-      baseURL: this.config.apiUrl || "https://api.deepinfra.com/v1/openai",
-    });
+    };
+
+    if (this.config.apiUrl) {
+      providerOptions.baseURL = this.config.apiUrl;
+    }
+
+    const provider = createDeepInfra(providerOptions);
 
     // Return the provider with the specified model
     return provider(modelName);
@@ -56,12 +61,5 @@ export class DeepInfraProvider extends BaseProvider {
    */
   isConfigured(): boolean {
     return !!(this.config.apiKey && this.config.apiKey.trim().length > 0);
-  }
-
-  /**
-   * Returns the base URL being used
-   */
-  get baseUrl(): string {
-    return this.config.apiUrl || "https://api.deepinfra.com/v1/openai";
   }
 }
