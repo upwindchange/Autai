@@ -5,6 +5,15 @@ import { sendAlert } from "@/utils";
 import { settingsService } from "@/services";
 import { type ChatRequest } from "@shared";
 import log from "electron-log/main";
+import { z } from "zod";
+import {
+  observe,
+  updateActiveObservation,
+  updateActiveTrace,
+} from "@langfuse/tracing";
+import { trace } from "@opentelemetry/api";
+
+import { flushTelemetry } from "@agents/telemetry/instrumentation";
 
 export class AgentHandler {
   private chatWorker: ChatWorker;
@@ -52,19 +61,32 @@ export class AgentHandler {
       return "chat";
     }
 
-    try {
-      const { object } = await generateObject({
-        model: await simpleModel(),
-        output: "enum",
-        enum: ["chat", "browser-use"],
-        experimental_telemetry: {
-          isEnabled: settingsService.settings.langfuse.enabled,
-          functionId: "agent-handler-decide-worker",
-          metadata: {
-            langfuseTraceId: requestId,
-          },
+    // try {
+    // updateActiveObservation({
+    //   input: inputText,
+    // });
+
+    // updateActiveTrace({
+    //   name: "my-ai-sdk-trace",
+    //   sessionId: chatId,
+    //   userId,
+    //   input: inputText,
+    // });
+    this.logger.info(JSON.stringify(messages, null, 2));
+    const { object } = await generateObject({
+      model: await simpleModel(),
+      schema: z.object({
+        mode: z.enum(["chat", "browser-use"]),
+      }),
+      experimental_telemetry: {
+        isEnabled: settingsService.settings.langfuse.enabled,
+        functionId: "agent-handler-decide-worker",
+        metadata: {
+          langfuseTraceId: requestId,
         },
-        system: `You are an expert at determining whether a user's request requires browser automation capabilities or can be handled with a standard chat response.
+      },
+      mode: "json",
+      system: `You are an expert at determining whether a user's request requires browser automation capabilities or can be handled with a standard chat response.
           
           Choose "browser-use" when the user wants to:
           - Navigate websites or web pages
@@ -81,38 +103,38 @@ export class AgentHandler {
           - Get explanations or creative content
           - Discuss topics or concepts
           - Anything that can be answered without browsing the web`,
-        prompt: `Based on this conversation, determine whether to use the browser automation worker or the standard chat worker:
+      prompt: `Based on this conversation, determine whether to use the browser automation worker or the standard chat worker:
           
 ${JSON.stringify(messages, null, 2)}`,
-      });
+    });
 
-      this.logger.debug("worker decision made", { workerType: object });
+    this.logger.debug("worker decision made", { workerType: object });
 
-      // Validate the returned value is one of our expected types
-      const workerType = object as string;
-      if (workerType !== "chat" && workerType !== "browser-use") {
-        this.logger.error("invalid worker type", { workerType });
-        return "chat"; // default fallback
-      }
-      return workerType as "chat" | "browser-use";
-    } catch (error) {
-      this.logger.error("failed to decide worker type", error);
-
-      // Get provider and model info for better error message
-      const providerName = simpleConfig.providerName || simpleConfig.providerId;
-      const modelName = simpleConfig.modelName;
-
-      // Update capability setting and persist to storage
-      await settingsService.updateModelAdvancedCapability("simple", false);
-
-      sendAlert(
-        "Model capability alert",
-        `AI model "${modelName}" from provider "${providerName}" is unable to process advanced requests. Browser automation and AI agent features will be disabled. Tool usage may fail. Please configure a model that supports advanced capabilities for optimal experience.`
-      );
-
-      // Default to chat worker if decision fails
-      return "chat";
+    // Validate the returned value is one of our expected types
+    const workerType = object.mode;
+    if (workerType !== "chat" && workerType !== "browser-use") {
+      this.logger.error("invalid worker type", { workerType });
+      return "chat"; // default fallback
     }
+    return workerType as "chat" | "browser-use";
+    // } catch (error) {
+    //   this.logger.error("failed to decide worker type", error);
+
+    //   // Get provider and model info for better error message
+    //   const providerName = simpleConfig.providerName || simpleConfig.providerId;
+    //   const modelName = simpleConfig.modelName;
+
+    //   // Update capability setting and persist to storage
+    //   await settingsService.updateModelAdvancedCapability("simple", false);
+
+    //   sendAlert(
+    //     "Model capability alert",
+    //     `AI model "${modelName}" from provider "${providerName}" is unable to process advanced requests. Browser automation and AI agent features will be disabled. Tool usage may fail. Please configure a model that supports advanced capabilities for optimal experience.`
+    //   );
+
+    //   // Default to chat worker if decision fails
+    //   return "chat";
+    // }
   }
 }
 

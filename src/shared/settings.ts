@@ -21,7 +21,7 @@ const OpenAICompatibleProviderConfigSchema = z.object({
   name: z.string().min(1).default("Default OpenAI"),
   provider: z.literal("openai-compatible").default("openai-compatible"),
   apiKey: z.string().default(""),
-  apiUrl: z.string().url().default("https://api.openai.com/v1"),
+  apiUrl: z.url().default("https://api.openai.com/v1"),
 });
 
 export type OpenAICompatibleProviderConfig = z.infer<
@@ -44,7 +44,7 @@ const AnthropicProviderConfigSchema = z.object({
   name: z.string().min(1).default("Default Anthropic"),
   provider: z.literal("anthropic").default("anthropic"),
   apiKey: z.string().default(""),
-  apiUrl: z.string().url().default("https://api.anthropic.com"),
+  apiUrl: z.url().default("https://api.anthropic.com"),
 });
 
 export type AnthropicProviderConfig = z.infer<
@@ -67,7 +67,7 @@ const DeepInfraProviderConfigSchema = z.object({
   name: z.string().min(1).default("Default DeepInfra"),
   provider: z.literal("deepinfra").default("deepinfra"),
   apiKey: z.string().default(""),
-  apiUrl: z.string().url().default("https://api.deepinfra.com/v1"),
+  apiUrl: z.url().default("https://api.deepinfra.com/v1"),
 });
 
 export type DeepInfraProviderConfig = z.infer<

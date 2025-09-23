@@ -37,8 +37,9 @@ class SettingsService {
           complex: this._settings.modelConfigurations.chat,
         },
       };
+    } else {
+      return this._settings;
     }
-    return this._settings;
   }
 
   // Private setter for internal use
@@ -181,8 +182,9 @@ class SettingsService {
     try {
       const { object } = await generateObject({
         model: languageModel,
-        output: "enum",
-        enum: ["JHERfcgPFc", "TjWwVanGcn"],
+        schema: z.object({
+          mode: z.enum(["JHERfcgPFc", "TjWwVanGcn"]),
+        }),
         experimental_telemetry: {
           isEnabled: this._settings.langfuse.enabled,
           functionId: "test-connection-validate-capabilities",
@@ -194,7 +196,7 @@ class SettingsService {
 
       // Validate the returned value is one of our expected strings using Zod
       const validValues = z.enum(["JHERfcgPFc", "TjWwVanGcn"]);
-      const result = validValues.safeParse(object);
+      const result = validValues.safeParse(object.mode);
 
       if (!result.success) {
         this.logger.error("enum validation failed", {
