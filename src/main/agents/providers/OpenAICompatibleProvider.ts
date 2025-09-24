@@ -1,4 +1,5 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { ChatOpenAI } from "@langchain/openai";
 import type { LanguageModel } from "ai";
 import type { OpenAICompatibleProviderConfig } from "@shared";
 import { BaseProvider } from "@agents/providers/BaseProvider";
@@ -49,6 +50,33 @@ export class OpenAICompatibleProvider extends BaseProvider {
 
     // Return the provider with the specified model
     return provider(modelName);
+  }
+
+  /**
+   * Creates a LangChain ChatOpenAI model instance for the OpenAI-compatible provider
+   * @param modelName - The name of the model to use (e.g., "gpt-4", "gpt-3.5-turbo")
+   * @returns BaseChatModel instance configured with the provider settings
+   */
+  createLangchainModel(modelName: string): ChatOpenAI {
+    if (!this.isConfigured()) {
+      sendAlert(
+        "Provider Not Configured",
+        `Provider "${this.config.name}" is missing API key. Please configure it in settings.`
+      );
+      throw new Error(
+        `Provider ${this.config.name} is not properly configured. API key is required.`
+      );
+    }
+
+    // Create the LangChain ChatOpenAI model
+    return new ChatOpenAI({
+      configuration: {
+        baseURL: this.config.apiUrl || "https://api.openai.com/v1",
+        apiKey: this.config.apiKey,
+      },
+      model: modelName,
+      temperature: 0,
+    });
   }
 
   /**

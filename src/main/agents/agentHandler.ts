@@ -1,11 +1,12 @@
 import { type UIMessage, generateObject } from "ai";
-import { simpleModel } from "@agents/providers";
+import { simpleModel, simpleLangchainModel } from "@agents/providers";
 import { ChatWorker, BrowserUseWorker } from "@agents/workers";
 import { sendAlert } from "@/utils";
 import { settingsService } from "@/services";
 import { type ChatRequest } from "@shared";
 import log from "electron-log/main";
 import { z } from "zod";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import {
   observe,
   updateActiveObservation,
@@ -73,21 +74,21 @@ export class AgentHandler {
     //   input: inputText,
     // });
     this.logger.info(JSON.stringify(messages, null, 2));
-    const { object } = await generateObject({
-      model: await simpleModel(),
-      schema: z.object({
-        mode: z.enum(["chat", "browser-use"]),
-      }),
-      experimental_telemetry: {
-        isEnabled: settingsService.settings.langfuse.enabled,
-        functionId: "agent-handler-decide-worker",
-        metadata: {
-          langfuseTraceId: requestId,
-        },
-      },
-      mode: "json",
-      system: `You are an expert at determining whether a user's request requires browser automation capabilities or can be handled with a standard chat response.
-          
+
+    // Define the schema for structured output
+    const workerDecisionSchema = z.object({
+      mode: z.enum(["chat", "browser-use"]),
+    });
+
+    // Get the LangChain model
+    const model = await simpleLangchainModel();
+
+    // Create structured output model with function calling
+    const structuredLlm = model.withStructuredOutput(workerDecisionSchema, { method: "functionCalling" });
+
+    // Create system message
+    const systemMessage = new SystemMessage(`You are an expert at determining whether a user's request requires browser automation capabilities or can be handled with a standard chat response.
+
           Choose "browser-use" when the user wants to:
           - Navigate websites or web pages
           - Find information on specific websites
@@ -95,23 +96,27 @@ export class AgentHandler {
           - Perform actions on websites (login, fill forms, click buttons, etc.)
           - Compare information across multiple websites
           - Extract specific data from web pages
-          
+
           Choose "chat" when the user wants to:
           - Have a general conversation
           - Ask questions that don't require web browsing
           - Perform calculations or solve math problems
           - Get explanations or creative content
           - Discuss topics or concepts
-          - Anything that can be answered without browsing the web`,
-      prompt: `Based on this conversation, determine whether to use the browser automation worker or the standard chat worker:
-          
-${JSON.stringify(messages, null, 2)}`,
-    });
+          - Anything that can be answered without browsing the web`);
 
-    this.logger.debug("worker decision made", { workerType: object });
+    // Create human message with the conversation
+    const humanMessage = new HumanMessage(`Based on this conversation, determine whether to use the browser automation worker or the standard chat worker:
+
+${JSON.stringify(messages, null, 2)}`);
+
+    // Invoke the structured model
+    const result = await structuredLlm.invoke([systemMessage, humanMessage]);
+
+    this.logger.debug("worker decision made", { workerType: result });
 
     // Validate the returned value is one of our expected types
-    const workerType = object.mode;
+    const workerType = result.mode;
     if (workerType !== "chat" && workerType !== "browser-use") {
       this.logger.error("invalid worker type", { workerType });
       return "chat"; // default fallback

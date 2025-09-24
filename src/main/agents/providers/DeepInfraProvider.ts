@@ -1,4 +1,5 @@
 import { createDeepInfra, DeepInfraProviderSettings } from "@ai-sdk/deepinfra";
+import { ChatDeepInfra } from "@langchain/community/chat_models/deepinfra";
 import type { LanguageModel } from "ai";
 import type { DeepInfraProviderConfig } from "@shared";
 import { BaseProvider } from "@agents/providers/BaseProvider";
@@ -53,6 +54,30 @@ export class DeepInfraProvider extends BaseProvider {
 
     // Return the provider with the specified model
     return provider(modelName);
+  }
+
+  /**
+   * Creates a LangChain model instance for the DeepInfra provider
+   * @param modelName - The name of the model to use
+   * @returns BaseChatModel instance configured with DeepInfra settings
+   */
+  createLangchainModel(modelName: string): ChatDeepInfra {
+    if (!this.isConfigured()) {
+      sendAlert(
+        "Provider Not Configured",
+        `Provider "${this.config.name}" is missing API key. Please configure it in settings.`
+      );
+      throw new Error(
+        `Provider ${this.config.name} is not properly configured. API key is required.`
+      );
+    }
+
+    // Create the LangChain ChatDeepInfra model
+    return new ChatDeepInfra({
+      apiKey: this.config.apiKey,
+      model: modelName,
+      temperature: 0,
+    });
   }
 
   /**

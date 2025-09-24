@@ -1,4 +1,5 @@
 import { createAnthropic, AnthropicProviderSettings } from "@ai-sdk/anthropic";
+import { ChatAnthropic } from "@langchain/anthropic";
 import type { LanguageModel } from "ai";
 import type { AnthropicProviderConfig } from "@shared";
 import { BaseProvider } from "@agents/providers/BaseProvider";
@@ -52,6 +53,30 @@ export class AnthropicProvider extends BaseProvider {
 
     // Return the provider with the specified model
     return provider(modelName);
+  }
+
+  /**
+   * Creates a LangChain model instance for the Anthropic provider
+   * @param modelName - The name of the model to use
+   * @returns BaseChatModel instance configured with the provider settings
+   */
+  createLangchainModel(modelName: string): ChatAnthropic {
+    if (!this.isConfigured()) {
+      sendAlert(
+        "Provider Not Configured",
+        `Provider "${this.config.name}" is missing Anthropic API key. Please configure it in settings.`
+      );
+      throw new Error(
+        `Provider ${this.config.name} is not properly configured. Anthropic API key is required.`
+      );
+    }
+
+    // Create the LangChain ChatAnthropic model
+    return new ChatAnthropic({
+      apiKey: this.config.apiKey,
+      model: modelName,
+      temperature: 0,
+    });
   }
 
   /**

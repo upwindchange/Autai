@@ -38,6 +38,8 @@
     "@electron-toolkit/utils": "^4.0.0",
     "@eslint/js": "^9.36.0",
     "@hookform/resolvers": "^5.2.2",
+    "@langchain/anthropic": "^0.3.28",
+    "@langchain/community": "^0.3.56",
     "@langchain/core": "^0.3.77",
     "@langchain/langgraph": "^0.4.9",
     "@langchain/openai": "^0.6.13",

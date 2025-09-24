@@ -110,6 +110,12 @@ reference/             # Several projects for reference
   - Design pattern and examples in `reference/ai/content/cookbook` and `reference/ai/examples`
     - for this project, `reference/ai/examples/express` will be valuable.
   - Providers in `reference/ai/content/providers`
+- `reference/langchainjs`: langchain.js project
+  - Documentation in `reference/langchainjs/docs`
+  - Examples in `reference/langchainjs/examples`
+- `reference/langgraphjs`: langchain.js project
+  - Documentation in `reference/langgraphjs/docs`
+  - Examples in `reference/langgraphjs/examples`
 - `reference/assitant-ui`: Assistant UI React Component Library.
   - Source code in `reference/assitant-ui/packages`
   - Documentation in `reference/assitant-ui/apps/docs/content/docs`
