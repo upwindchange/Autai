@@ -1,11 +1,11 @@
 import { LangfuseSpanProcessor, ShouldExportSpan } from "@langfuse/otel";
-import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
+import { NodeSDK } from "@opentelemetry/sdk-node";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
 
 const logger = log.scope("Telemetry");
 
-let tracerProvider: NodeTracerProvider | null = null;
+let tracerProvider: NodeSDK | null = null;
 let langfuseSpanProcessor: LangfuseSpanProcessor | null = null;
 
 /**
@@ -23,23 +23,12 @@ export function initializeTelemetry(): void {
 
     const { publicKey, secretKey, host } = settings.langfuse;
 
-    if (!publicKey || !secretKey) {
+    if (!publicKey || !secretKey || !host) {
       logger.warn(
-        "Langfuse keys not configured, skipping telemetry initialization"
+        "Langfuse not configured correctly, skipping telemetry initialization"
       );
       return;
     }
-
-    // Set environment variables for Langfuse
-    process.env.LANGFUSE_PUBLIC_KEY = publicKey;
-    process.env.LANGFUSE_SECRET_KEY = secretKey;
-    if (host) {
-      process.env.LANGFUSE_HOST = host;
-    }
-
-    logger.info("Initializing Langfuse telemetry", {
-      host: host || "https://cloud.langfuse.com",
-    });
 
     const shouldExportSpan: ShouldExportSpan = (span) => {
       return span.otelSpan.instrumentationScope.name !== "express";
@@ -48,15 +37,19 @@ export function initializeTelemetry(): void {
     // Create the span processor
     langfuseSpanProcessor = new LangfuseSpanProcessor({
       shouldExportSpan,
+      publicKey: publicKey,
+      secretKey: secretKey,
+      baseUrl: host, // Default to cloud if not specified
+      environment: process.env.NODE_ENV ?? "development", // Default to development if not specified
     });
 
     // Create and configure the tracer provider
-    tracerProvider = new NodeTracerProvider({
+    tracerProvider = new NodeSDK({
       spanProcessors: [langfuseSpanProcessor],
     });
 
     // Register the tracer provider globally
-    tracerProvider.register();
+    tracerProvider.start();
 
     logger.info("Langfuse telemetry initialized successfully");
   } catch (error) {

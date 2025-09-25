@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "electron-updater": "^6.6.2",
-    "motion": "^12.23.20"
+    "motion": "^12.23.21"
   },
   "devDependencies": {
     "@ai-sdk/anthropic": "^2.0.18",
@@ -29,7 +29,7 @@
     "@ai-sdk/openai": "^2.0.34",
     "@ai-sdk/openai-compatible": "^1.0.18",
     "@ai-sdk/react": "^2.0.51",
-    "@assistant-ui/react": "^0.11.17",
+    "@assistant-ui/react": "^0.11.18",
     "@assistant-ui/react-ai-sdk": "^1.1.0",
     "@assistant-ui/react-markdown": "^0.11.0",
     "@assistant-ui/react-ui": "^0.2.0",
@@ -43,10 +43,9 @@
     "@langchain/core": "^0.3.77",
     "@langchain/langgraph": "^0.4.9",
     "@langchain/openai": "^0.6.13",
+    "@langfuse/langchain": "^4.2.0",
     "@langfuse/otel": "^4.2.0",
-    "@langfuse/tracing": "^4.2.0",
-    "@opentelemetry/api": "^1.9.0",
-    "@opentelemetry/sdk-trace-node": "^2.1.0",
+    "@opentelemetry/sdk-node": "^0.205",
     "@playwright/test": "^1.55.1",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
@@ -95,7 +94,7 @@
     "embla-carousel-react": "^8.6.0",
     "eslint": "^9.36.0",
     "express": "^5.1.0",
-    "framer-motion": "^12.23.20",
+    "framer-motion": "^12.23.21",
     "html-react-parser": "^5.2.6",
     "input-otp": "^1.4.2",
     "langfuse-vercel": "^3.38.5",

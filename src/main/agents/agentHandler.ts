@@ -1,5 +1,5 @@
-import { type UIMessage, generateObject } from "ai";
-import { simpleModel, simpleLangchainModel } from "@agents/providers";
+import { type UIMessage } from "ai";
+import { simpleLangchainModel } from "@agents/providers";
 import { ChatWorker, BrowserUseWorker } from "@agents/workers";
 import { sendAlert } from "@/utils";
 import { settingsService } from "@/services";
@@ -7,14 +7,6 @@ import { type ChatRequest } from "@shared";
 import log from "electron-log/main";
 import { z } from "zod";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
-import {
-  observe,
-  updateActiveObservation,
-  updateActiveTrace,
-} from "@langfuse/tracing";
-import { trace } from "@opentelemetry/api";
-
-import { flushTelemetry } from "@agents/telemetry/instrumentation";
 
 export class AgentHandler {
   private chatWorker: ChatWorker;
@@ -62,84 +54,81 @@ export class AgentHandler {
       return "chat";
     }
 
-    // try {
-    // updateActiveObservation({
-    //   input: inputText,
-    // });
+    try {
+      this.logger.info(JSON.stringify(messages, null, 2));
 
-    // updateActiveTrace({
-    //   name: "my-ai-sdk-trace",
-    //   sessionId: chatId,
-    //   userId,
-    //   input: inputText,
-    // });
-    this.logger.info(JSON.stringify(messages, null, 2));
+      // Define the schema for structured output
+      const workerDecisionSchema = z.object({
+        mode: z.enum(["chat", "browser-use"]),
+      });
 
-    // Define the schema for structured output
-    const workerDecisionSchema = z.object({
-      mode: z.enum(["chat", "browser-use"]),
-    });
+      // Get the LangChain model
+      const model = await simpleLangchainModel();
 
-    // Get the LangChain model
-    const model = await simpleLangchainModel();
+      // Create structured output model with function calling
+      const structuredLlm = model.withStructuredOutput(workerDecisionSchema, {
+        method: "functionCalling",
+      });
 
-    // Create structured output model with function calling
-    const structuredLlm = model.withStructuredOutput(workerDecisionSchema, { method: "functionCalling" });
+      // Create system message
+      const systemMessage = new SystemMessage(
+        "You are an expert at determining whether a user's request requires browser" +
+          " automation capabilities or can be handled with a standard chat response.\n\n" +
+          'Choose "browser-use" when the user wants to:\n' +
+          "- Navigate websites or web pages\n" +
+          "- Find information on specific websites\n" +
+          "- Interact with web page elements\n" +
+          "- Perform actions on websites (login, fill forms, click buttons, etc.)\n" +
+          "- Compare information across multiple websites\n" +
+          "- Extract specific data from web pages\n\n" +
+          'Choose "chat" when the user wants to:\n' +
+          "- Have a general conversation\n" +
+          "- Ask questions that don't require web browsing\n" +
+          "- Perform calculations or solve math problems\n" +
+          "- Get explanations or creative content\n" +
+          "- Discuss topics or concepts\n" +
+          "- Anything that can be answered without browsing the web"
+      );
 
-    // Create system message
-    const systemMessage = new SystemMessage(`You are an expert at determining whether a user's request requires browser automation capabilities or can be handled with a standard chat response.
+      // Create human message with the conversation
+      const humanMessage = new HumanMessage(
+        "Based on this conversation, determine whether to use the web browser automation " +
+          "or the standard chat:\n\n" +
+          `${JSON.stringify(messages, null, 2)}`
+      );
 
-          Choose "browser-use" when the user wants to:
-          - Navigate websites or web pages
-          - Find information on specific websites
-          - Interact with web page elements
-          - Perform actions on websites (login, fill forms, click buttons, etc.)
-          - Compare information across multiple websites
-          - Extract specific data from web pages
+      // Invoke the structured model
+      const result = await structuredLlm.invoke([systemMessage, humanMessage]);
 
-          Choose "chat" when the user wants to:
-          - Have a general conversation
-          - Ask questions that don't require web browsing
-          - Perform calculations or solve math problems
-          - Get explanations or creative content
-          - Discuss topics or concepts
-          - Anything that can be answered without browsing the web`);
+      this.logger.debug("worker decision made", { workerType: result });
 
-    // Create human message with the conversation
-    const humanMessage = new HumanMessage(`Based on this conversation, determine whether to use the browser automation worker or the standard chat worker:
+      // Validate the returned value is one of our expected types
+      const workerType = result.mode;
+      if (workerType !== "chat" && workerType !== "browser-use") {
+        this.logger.error("invalid worker type", { workerType });
+        return "chat"; // default fallback
+      }
+      return workerType as "chat" | "browser-use";
+    } catch (error) {
+      this.logger.error("failed to decide worker type", error);
 
-${JSON.stringify(messages, null, 2)}`);
+      // Get provider and model info for better error message
+      const providerName = simpleConfig.providerName || simpleConfig.providerId;
+      const modelName = simpleConfig.modelName;
 
-    // Invoke the structured model
-    const result = await structuredLlm.invoke([systemMessage, humanMessage]);
+      // Update capability setting and persist to storage
+      await settingsService.updateModelAdvancedCapability("simple", false);
 
-    this.logger.debug("worker decision made", { workerType: result });
+      sendAlert(
+        "Model capability alert",
+        `AI model "${modelName}" from provider "${providerName}" is unable to process advanced requests. ` +
+          "Browser automation and AI agent features will be disabled. Tool usage may fail. " +
+          "Please configure a model that supports advanced capabilities for optimal experience."
+      );
 
-    // Validate the returned value is one of our expected types
-    const workerType = result.mode;
-    if (workerType !== "chat" && workerType !== "browser-use") {
-      this.logger.error("invalid worker type", { workerType });
-      return "chat"; // default fallback
+      // Default to chat worker if decision fails
+      return "chat";
     }
-    return workerType as "chat" | "browser-use";
-    // } catch (error) {
-    //   this.logger.error("failed to decide worker type", error);
-
-    //   // Get provider and model info for better error message
-    //   const providerName = simpleConfig.providerName || simpleConfig.providerId;
-    //   const modelName = simpleConfig.modelName;
-
-    //   // Update capability setting and persist to storage
-    //   await settingsService.updateModelAdvancedCapability("simple", false);
-
-    //   sendAlert(
-    //     "Model capability alert",
-    //     `AI model "${modelName}" from provider "${providerName}" is unable to process advanced requests. Browser automation and AI agent features will be disabled. Tool usage may fail. Please configure a model that supports advanced capabilities for optimal experience.`
-    //   );
-
-    //   // Default to chat worker if decision fails
-    //   return "chat";
-    // }
   }
 }
 
