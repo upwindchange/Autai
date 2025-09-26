@@ -10,8 +10,9 @@ import { update } from "./update";
 import {
   settingsService,
   ThreadViewService,
-  // ViewControlService,
+  ViewControlService,
 } from "@/services";
+import { PQueueManager } from "@/agents/queue/PQueueManager";
 import { apiServer } from "@agents";
 import { initializeTelemetry, shutdownTelemetry } from "@agents/telemetry";
 import { SettingsBridge } from "@/bridges/SettingsBridge";
@@ -54,7 +55,6 @@ if (!app.requestSingleInstanceLock()) {
 let win: BrowserWindow | null = null;
 let settingsBridge: SettingsBridge | null = null;
 let threadViewService: ThreadViewService | null = null;
-// let _viewControlService: ViewControlService | null = null;
 let threadViewBridge: ThreadViewBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
@@ -88,7 +88,16 @@ async function createWindow() {
    */
   // Initialize thread/view service
   threadViewService = new ThreadViewService(win);
-  // _viewControlService = new ViewControlService(threadViewService);
+
+  // Initialize ViewControlService singleton
+  ViewControlService.getInstance(threadViewService);
+
+  // Initialize PQueueManager for all agent operations
+  PQueueManager.getInstance({
+    concurrency: 3,
+    timeout: 30000,
+    autoStart: true,
+  });
 
   // Initialize bridges
   settingsBridge = new SettingsBridge();
@@ -215,12 +224,18 @@ app.on("before-quit", async (event) => {
       logger.debug("settingsBridge destroyed");
     }
 
-    // _viewControlService = null;
+    // Clean up ViewControlService singleton
+    ViewControlService.destroyInstance();
 
     // Stop API server
     logger.info("Stopping API server...");
     apiServer.stop();
     logger.info("API server stopped");
+
+    // Shutdown PQueueManager
+    logger.info("Shutting down PQueueManager...");
+    await PQueueManager.getInstance().shutdown();
+    logger.info("PQueueManager shutdown complete");
 
     // Shutdown telemetry
     logger.info("Shutting down telemetry...");
