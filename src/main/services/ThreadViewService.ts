@@ -377,6 +377,23 @@ export class ThreadViewService extends EventEmitter {
     return state?.viewIds || [];
   }
 
+  getAllThreadIds(): ThreadId[] {
+    return Array.from(this.threadStates.keys());
+  }
+
+  getAllViewMetadata(threadId: ThreadId): ViewMetadata[] {
+    const state = this.threadStates.get(threadId);
+    if (!state) return [];
+
+    return state.viewIds
+      .map(viewId => this.viewMetadata.get(viewId))
+      .filter((metadata): metadata is ViewMetadata => metadata !== undefined);
+  }
+
+  getViewMetadata(viewId: ViewId): ViewMetadata | null {
+    return this.viewMetadata.get(viewId) || null;
+  }
+
   // ===================
   // PRIVATE HELPERS
   // ===================

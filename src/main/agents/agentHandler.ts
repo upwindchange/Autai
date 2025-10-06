@@ -43,7 +43,7 @@ export class AgentHandler {
 
   private async decideWorkerType(
     messages: UIMessage[],
-    requestId: string
+    _requestId: string
   ): Promise<"chat" | "browser-use"> {
     const settings = settingsService.settings;
     const simpleConfig = settings.modelConfigurations.simple;

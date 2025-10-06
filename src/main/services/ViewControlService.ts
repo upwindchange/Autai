@@ -36,6 +36,13 @@ export class ViewControlService {
   }
 
   /**
+   * Get the underlying ThreadViewService instance
+   */
+  getThreadViewService() {
+    return this.threadViewService;
+  }
+
+  /**
    * Navigates a view to a URL
    */
   async navigateTo(viewId: ViewId, url: string): Promise<string> {

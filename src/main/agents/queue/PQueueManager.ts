@@ -48,7 +48,7 @@ export class PQueueManager {
       });
     });
 
-    this.queue.on("completed", (result) => {
+    this.queue.on("completed", (_result) => {
       this.logger.debug("Task completed", {
         queueSize: this.queue.size,
         pending: this.queue.pending,
@@ -87,7 +87,7 @@ export class PQueueManager {
       signal?: AbortSignal;
     }
   ): Promise<TaskResultType> {
-    return this.queue.add(task, options);
+    return this.queue.add(task, options) as Promise<TaskResultType>;
   }
 
   async addAll<TaskResultsType>(
@@ -99,7 +99,7 @@ export class PQueueManager {
       signal?: AbortSignal;
     }
   ): Promise<Array<TaskResultsType>> {
-    return this.queue.addAll(tasks, options);
+    return this.queue.addAll(tasks, options) as Promise<Array<TaskResultsType>>;
   }
 
   get size(): number {

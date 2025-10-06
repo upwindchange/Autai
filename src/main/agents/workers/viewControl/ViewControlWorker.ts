@@ -3,35 +3,42 @@ import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { complexLangchainModel } from "@agents/providers";
 import { PQueueManager } from "@/agents/queue/PQueueManager";
 import { viewControlTools } from "@/agents/tools/ViewControlTools";
+import { threadViewTools } from "@/agents/tools/ThreadViewTools";
 import { type ChatRequest } from "@shared";
+import { type UIMessage } from "ai";
 import log from "electron-log/main";
+import type { Runnable } from "@langchain/core/runnables";
 
-const systemPrompt = `You are a specialized AI agent for browser view control. You can navigate browser views, refresh pages, and control navigation history.
+const systemPrompt = `You are a specialized AI agent for browser view control. You can navigate browser views, refresh pages, control navigation history, and discover available threads and views.
 
 Your capabilities include:
+- List all available threads and their views
+- Get detailed information about views for specific threads
+- Get detailed information about specific views
 - Navigate views to specific URLs
 - Refresh current pages in views
 - Navigate back and forward in browser history
 
 When executing view control tasks:
 1. Always validate that the view exists before attempting operations
-2. Provide clear feedback about operation success or failure
-3. Be specific about which view you're operating on
-4. Handle errors gracefully and provide helpful error messages
-5. Use the appropriate tool for each specific operation
-6. Always execute one tool at a time and wait for the result before proceeding
+2. Use discovery tools first to find available threads and views
+3. Provide clear feedback about operation success or failure
+4. Be specific about which view you're operating on
+5. Handle errors gracefully and provide helpful error messages
+6. Use the appropriate tool for each specific operation
+7. Always execute one tool at a time and wait for the result before proceeding
 
 You should focus exclusively on browser view control tasks and avoid performing other types of operations.`;
 
 export class ViewControlWorker {
   private logger = log.scope("ViewControlWorker");
-  private agent: any = null;
+  private agent: Runnable | null = null;
 
   constructor() {
     this.logger.info("ViewControlWorker initialized");
   }
 
-  private async initializeAgent(): Promise<any> {
+  private async initializeAgent(): Promise<Runnable> {
     if (this.agent) {
       return this.agent;
     }
@@ -43,10 +50,10 @@ export class ViewControlWorker {
       const model = await complexLangchainModel();
 
       // Get the tools
-      const tools = viewControlTools;
+      const tools = [...viewControlTools, ...threadViewTools];
       this.logger.debug("Using tools", {
         count: tools.length,
-        toolNames: tools.map((tool: any) => tool.name),
+        toolNames: tools.map((tool) => tool.name),
       });
 
       // Create the React agent using LangGraph
@@ -121,7 +128,7 @@ export class ViewControlWorker {
   }
 
   private convertToLangchainMessages(
-    messages: any[]
+    messages: UIMessage[]
   ): Array<HumanMessage | AIMessage> {
     return messages.map((message) => {
       if (message.role === "user") {
@@ -135,7 +142,9 @@ export class ViewControlWorker {
     });
   }
 
-  private createResultStream(result: any): ReadableStream {
+  private createResultStream(result: {
+    messages: Array<HumanMessage | AIMessage>;
+  }): ReadableStream {
     const encoder = new TextEncoder();
     const stream = new ReadableStream({
       start(controller) {

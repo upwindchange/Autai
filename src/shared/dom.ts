@@ -102,7 +102,7 @@ export type DOMTextNode = DOMTextNodeType;
 
 // Selector Map schema
 export const SelectorMapSchema = z.record(
-  z.coerce.number().int().positive(),
+  z.string(),
   DOMElementNodeSchema
 );
 

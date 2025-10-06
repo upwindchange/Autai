@@ -126,9 +126,8 @@ function recursiveRepairData(data: any, schema: z.ZodTypeAny): any {
     }
     
     // Recursively repair each array element
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return data.map((item: any) =>
-      recursiveRepairData(item, schema._def.type)
+    return data.map((item: unknown) =>
+      recursiveRepairData(item, (schema._def as any).type)
     );
   }
 
@@ -148,9 +147,8 @@ function recursiveRepairData(data: any, schema: z.ZodTypeAny): any {
       }
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const result: Record<string, any> = {};
-    const shape = schema._def.shape();
+    const result: Record<string, unknown> = {};
+    const shape = (schema._def as any).shape();
     
     for (const [key, fieldSchema] of Object.entries(shape)) {
       result[key] = recursiveRepairData(
@@ -171,7 +169,7 @@ function recursiveRepairData(data: any, schema: z.ZodTypeAny): any {
     // Try each option until one works
     for (const option of options) {
       try {
-        const repaired = recursiveRepairData(data, option);
+        const repaired = recursiveRepairData(data, option as z.ZodTypeAny);
         if (repaired !== undefined && repaired !== null) {
           return repaired;
         }
