@@ -86,8 +86,8 @@ async function createWindow() {
   /**
    * Initialize core services
    */
-  // Initialize thread/view service
-  threadViewService = new ThreadViewService(win);
+  // Initialize ThreadViewService singleton
+  threadViewService = ThreadViewService.getInstance(win);
 
   // Initialize ViewControlService singleton
   ViewControlService.getInstance(threadViewService);

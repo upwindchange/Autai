@@ -1,5 +1,15 @@
 {
   "extends": "@electron-toolkit/tsconfig/tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/components": ["src/renderer/components"],
+      "@/lib": ["src/renderer/lib"],
+      "@/lib/utils": ["src/renderer/lib/utils"],
+      "@/components/ui": ["src/renderer/components/ui"],
+      "@/hooks": ["src/renderer/hooks"]
+    }
+  },
   "references": [
     { "path": "./tsconfig.node.json" },
     { "path": "./tsconfig.web.json" }

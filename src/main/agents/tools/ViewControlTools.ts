@@ -115,14 +115,6 @@ export const viewControlTools = [
   goForwardTool,
 ];
 
-// Export tools individually for granular imports
-export {
-  navigateTool as navigateViewTool,
-  refreshTool as refreshViewTool,
-  goBackTool as goBackViewTool,
-  goForwardTool as goForwardViewTool,
-};
-
 // Type definitions for tool results
 export type NavigateToolResult = string;
 export type RefreshToolResult = string;

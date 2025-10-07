@@ -18,6 +18,7 @@ interface CreateViewOptions {
 }
 
 export class ThreadViewService extends EventEmitter {
+  private static instance: ThreadViewService | null = null;
   private views = new Map<ViewId, WebContentsView>();
   private viewMetadata = new Map<ViewId, ViewMetadata>();
   private viewBounds: Rectangle = { x: 0, y: 0, width: 1920, height: 1080 };
@@ -28,9 +29,26 @@ export class ThreadViewService extends EventEmitter {
   private win: BrowserWindow;
   private logger = log.scope("ThreadViewService");
 
-  constructor(win: BrowserWindow) {
+  private constructor(win: BrowserWindow) {
     super();
     this.win = win;
+  }
+
+  static getInstance(win?: BrowserWindow): ThreadViewService {
+    if (!ThreadViewService.instance) {
+      if (!win) {
+        throw new Error("BrowserWindow instance required for first initialization");
+      }
+      ThreadViewService.instance = new ThreadViewService(win);
+    }
+    return ThreadViewService.instance;
+  }
+
+  static destroyInstance(): void {
+    if (ThreadViewService.instance) {
+      ThreadViewService.instance.removeAllListeners();
+      ThreadViewService.instance = null;
+    }
   }
 
   // ===================
