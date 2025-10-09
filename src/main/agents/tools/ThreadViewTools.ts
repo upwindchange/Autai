@@ -2,6 +2,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { ThreadViewService } from "@/services";
 import { PQueueManager } from "@/agents/queue/PQueueManager";
+import { threadContextProvider } from "@/agents/tools/ThreadContextProvider";
 import { type ThreadId } from "@shared";
 
 // Get all threads schema
@@ -19,9 +20,12 @@ const getViewInfoSchema = z.object({
 
 // Create view schema
 const createViewSchema = z.object({
-  threadId: z.string().describe("The ID of the thread to create the view for"),
+  threadId: z.string().optional().describe("The ID of the thread to create the view for (optional, will use current thread if not provided)"),
   url: z.string().optional().describe("The URL to load in the view (optional, defaults to welcome page)"),
 });
+
+// Get current thread context schema
+const getCurrentThreadContextSchema = z.object({});
 
 // Tool execution with p-queue
 const executeWithQueue = async <T>(
@@ -170,37 +174,104 @@ export const createViewTool = tool(
     return executeWithQueue(async () => {
       const threadViewService = ThreadViewService.getInstance();
 
+      // Use provided thread ID or get current thread from context
+      const targetThreadId = threadId || threadContextProvider.getCurrentThreadId();
+
+      if (!targetThreadId) {
+        const result = {
+          success: false,
+          error: "No thread ID provided and no current thread context available. Please specify a thread ID.",
+        };
+        return JSON.stringify(result, null, 2);
+      }
+
       // Check if thread exists
-      const threadState = threadViewService.getThreadViewState(threadId);
+      const threadState = threadViewService.getThreadViewState(targetThreadId);
       if (!threadState) {
-        return `Thread ${threadId} not found. Please create the thread first.`;
+        const result = {
+          success: false,
+          threadId: targetThreadId,
+          error: `Thread ${targetThreadId} not found. Please create the thread first.`,
+        };
+        return JSON.stringify(result, null, 2);
       }
 
       try {
-        const viewId = await threadViewService.createView({ threadId, url });
+        const viewId = await threadViewService.createView({ threadId: targetThreadId, url });
         const result = {
           success: true,
           viewId,
-          threadId,
+          threadId: targetThreadId,
           url: url || "welcome page",
-          message: `Successfully created view ${viewId} for thread ${threadId}`,
+          message: `Successfully created view ${viewId} for thread ${targetThreadId}`,
         };
         return JSON.stringify(result, null, 2);
       } catch (error) {
         const result = {
           success: false,
-          threadId,
+          threadId: targetThreadId,
           url: url || "welcome page",
           error: error instanceof Error ? error.message : String(error),
         };
         return JSON.stringify(result, null, 2);
       }
-    }, `Create view for thread ${threadId}`);
+    }, `Create view for thread ${threadId || 'current thread'}`);
   },
   {
     name: "create_view",
-    description: "Create a new view for a specific thread with optional URL",
+    description: "Create a new view for a specific thread with optional URL. If no thread ID is provided, uses the current thread context.",
     schema: createViewSchema,
+  }
+);
+
+// Get current thread context tool
+export const getCurrentThreadContextTool = tool(
+  async (): Promise<string> => {
+    return executeWithQueue(async () => {
+      const threadViewService = ThreadViewService.getInstance();
+      const currentThreadId = threadContextProvider.getCurrentThreadId();
+
+      if (!currentThreadId) {
+        const result = {
+          success: false,
+          error: "No current thread context available",
+        };
+        return JSON.stringify(result, null, 2);
+      }
+
+      const threadState = threadViewService.getThreadViewState(currentThreadId);
+      if (!threadState) {
+        const result = {
+          success: false,
+          threadId: currentThreadId,
+          error: `Current thread ${currentThreadId} not found in thread view service`,
+        };
+        return JSON.stringify(result, null, 2);
+      }
+
+      const activeViewId = threadViewService.getActiveViewForThread(currentThreadId);
+      const viewMetadataList = threadViewService.getAllViewMetadata(currentThreadId);
+
+      const result = {
+        success: true,
+        threadId: currentThreadId,
+        activeViewId,
+        totalViews: viewMetadataList.length,
+        views: viewMetadataList.map(metadata => ({
+          viewId: metadata.id,
+          url: metadata.url,
+          isActive: metadata.id === activeViewId,
+          backendVisibility: metadata.backendVisibility,
+        })),
+      };
+
+      return JSON.stringify(result, null, 2);
+    }, "Get current thread context");
+  },
+  {
+    name: "get_current_thread_context",
+    description: "Get information about the current thread context including its views",
+    schema: getCurrentThreadContextSchema,
   }
 );
 
@@ -210,6 +281,7 @@ export const threadViewTools = [
   getThreadViewsTool,
   getViewInfoTool,
   createViewTool,
+  getCurrentThreadContextTool,
 ];
 
 // Type definitions for tool results
@@ -224,4 +296,5 @@ export enum ThreadViewToolNames {
   GET_THREAD_VIEWS = "get_thread_views",
   GET_VIEW_INFO = "get_view_info",
   CREATE_VIEW = "create_view",
+  GET_CURRENT_THREAD_CONTEXT = "get_current_thread_context",
 }

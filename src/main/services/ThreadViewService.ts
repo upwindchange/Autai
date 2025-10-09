@@ -23,7 +23,7 @@ export class ThreadViewService extends EventEmitter {
   private viewMetadata = new Map<ViewId, ViewMetadata>();
   private viewBounds: Rectangle = { x: 0, y: 0, width: 1920, height: 1080 };
   private threadStates = new Map<ThreadId, ThreadViewState>();
-  private activeThreadId: ThreadId | null = null;
+  public activeThreadId: ThreadId | null = null;
   private activeView: WebContentsView | null = null;
   private frontendVisibility: boolean = false;
   private win: BrowserWindow;
@@ -37,7 +37,9 @@ export class ThreadViewService extends EventEmitter {
   static getInstance(win?: BrowserWindow): ThreadViewService {
     if (!ThreadViewService.instance) {
       if (!win) {
-        throw new Error("BrowserWindow instance required for first initialization");
+        throw new Error(
+          "BrowserWindow instance required for first initialization"
+        );
       }
       ThreadViewService.instance = new ThreadViewService(win);
     }
@@ -404,7 +406,7 @@ export class ThreadViewService extends EventEmitter {
     if (!state) return [];
 
     return state.viewIds
-      .map(viewId => this.viewMetadata.get(viewId))
+      .map((viewId) => this.viewMetadata.get(viewId))
       .filter((metadata): metadata is ViewMetadata => metadata !== undefined);
   }
 

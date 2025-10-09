@@ -8,4 +8,5 @@ export interface ChatRequest {
   requestId: string;
   system?: string;
   tools?: unknown;
+  threadId: string;
 }

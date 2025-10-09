@@ -4,6 +4,7 @@ import { complexLangchainModel } from "@agents/providers";
 import { PQueueManager } from "@/agents/queue/PQueueManager";
 import { viewControlTools } from "@/agents/tools/ViewControlTools";
 import { threadViewTools } from "@/agents/tools/ThreadViewTools";
+import { threadContextProvider } from "@/agents/tools/ThreadContextProvider";
 import { type ChatRequest } from "@shared";
 import { type UIMessage } from "ai";
 import log from "electron-log/main";
@@ -75,19 +76,34 @@ export class ViewControlWorker {
   }
 
   async handleChat(request: ChatRequest): Promise<ReadableStream> {
-    const { messages, system, requestId } = request;
+    const { messages, system, requestId, threadId } = request;
     this.logger.debug("Request received", {
       messagesCount: messages?.length,
       hasSystem: !!system,
       requestId,
+      threadId,
     });
 
     try {
-      // Convert messages to LangChain format
-      const langchainMessages = this.convertToLangchainMessages(messages);
+      // Extract thread ID from request or message metadata
+      const extractedThreadId = threadId || this.extractThreadIdFromMessages(messages);
 
-      // Initialize agent if not already done
-      const agent = await this.initializeAgent();
+      if (!extractedThreadId) {
+        this.logger.warn("No thread ID available for ViewControlWorker operations");
+        throw new Error("Thread ID is required for ViewControlWorker operations");
+      }
+
+      this.logger.debug("Using thread ID for operations", { threadId: extractedThreadId });
+
+      // Set the thread context for tools to access
+      threadContextProvider.setCurrentThreadId(extractedThreadId);
+
+      try {
+        // Convert messages to LangChain format
+        const langchainMessages = this.convertToLangchainMessages(messages);
+
+        // Initialize agent if not already done
+        const agent = await this.initializeAgent();
 
       // Prepare the input with system prompt
       const input = {
@@ -110,14 +126,18 @@ export class ViewControlWorker {
       });
 
       // Execute the agent
-      const result = await agent.invoke(input);
+        const result = await agent.invoke(input);
 
-      this.logger.debug("Agent execution completed", {
-        messagesCount: result.messages?.length || 0,
-      });
+        this.logger.debug("Agent execution completed", {
+          messagesCount: result.messages?.length || 0,
+        });
 
-      // Create a readable stream from the result
-      return this.createResultStream(result);
+        // Create a readable stream from the result
+        return this.createResultStream(result);
+      } finally {
+        // Clear the thread context after execution
+        threadContextProvider.clearCurrentThreadId();
+      }
     } catch (error) {
       this.logger.error("Failed to execute agent", {
         error: error instanceof Error ? error.message : String(error),
@@ -125,6 +145,17 @@ export class ViewControlWorker {
       });
       throw error;
     }
+  }
+
+  private extractThreadIdFromMessages(messages: UIMessage[]): string | null {
+    // Try to get thread ID from the most recent message metadata
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const message = messages[i];
+      if (message?.metadata?.threadId) {
+        return message.metadata.threadId as string;
+      }
+    }
+    return null;
   }
 
   private convertToLangchainMessages(
