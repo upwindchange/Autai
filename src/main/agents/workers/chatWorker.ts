@@ -44,11 +44,11 @@ export class ChatWorker {
   private logger = log.scope("ChatWorker");
 
   async handleChat(request: ChatRequest): Promise<ReadableStream> {
-    const { messages, system, requestId } = request;
+    const { messages, system, threadId } = request;
     this.logger.debug("request received", {
       messagesCount: messages?.length,
       hasSystem: !!system,
-      requestId,
+      threadId,
     });
 
     try {
@@ -72,7 +72,7 @@ export class ChatWorker {
           isEnabled: settingsService.settings.langfuse.enabled,
           functionId: "chat-worker",
           metadata: {
-            langfuseTraceId: requestId,
+            langfuseTraceId: threadId,
           },
         },
         onStepFinish: this.handleStepFinish.bind(this),

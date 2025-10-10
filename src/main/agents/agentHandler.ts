@@ -27,7 +27,7 @@ export class AgentHandler {
     });
 
     // Use LLM to decide which worker to use
-    const workerType = await this.decideWorkerType(messages, request.requestId);
+    const workerType = await this.decideWorkerType(messages);
 
     this.logger.info("routing to worker", { workerType });
 
@@ -42,8 +42,7 @@ export class AgentHandler {
   }
 
   private async decideWorkerType(
-    messages: UIMessage[],
-    _requestId: string
+    messages: UIMessage[]
   ): Promise<"chat" | "browser-use"> {
     const settings = settingsService.settings;
     const simpleConfig = settings.modelConfigurations.simple;

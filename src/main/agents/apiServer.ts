@@ -6,6 +6,7 @@ import { agentHandler } from "@agents";
 import log from "electron-log/main";
 import type { ChatRequest } from "@shared";
 import { ThreadViewService } from "@/services/ThreadViewService";
+import { sendAlert } from "@/utils";
 
 export class ApiServer {
   private app: Express;
@@ -46,13 +47,12 @@ export class ApiServer {
         res
       ) => {
         try {
-          const { messages, system, tools, id: requestId } = req.body;
+          const { messages, system, tools } = req.body;
 
           this.logger.info("Chat request received", {
             messagesCount: messages?.length,
             hasSystem: !!system,
             hasTools: !!tools,
-            requestId,
           });
 
           // Get current active thread ID from ThreadViewService
@@ -64,23 +64,25 @@ export class ApiServer {
             hasActiveThread: !!activeThreadId,
           });
 
-          // Inject thread ID into message metadata
-          const messagesWithThreadContext = messages.map((msg: any) => ({
-            ...msg,
-            metadata: {
-              ...msg.metadata,
-              threadId: activeThreadId,
-            },
-          }));
+          // Ensure we have an active thread ID - this should always exist when a chat starts
+          if (!activeThreadId) {
+            this.logger.error(
+              "No active thread found when chat request was made"
+            );
+            sendAlert(
+              "Chat Error",
+              "No active thread found. Please start a new chat session."
+            );
+            return;
+          }
 
           // Stream the response using createUIMessageStreamResponse
           this.logger.debug("Starting stream response...");
           try {
             const stream = await agentHandler.handleChat({
-              messages: messagesWithThreadContext,
+              messages,
               system,
               tools,
-              requestId,
               threadId: activeThreadId,
             });
 

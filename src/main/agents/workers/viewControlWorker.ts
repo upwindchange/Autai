@@ -9,6 +9,7 @@ import { type ChatRequest } from "@shared";
 import { type UIMessage } from "ai";
 import log from "electron-log/main";
 import type { Runnable } from "@langchain/core/runnables";
+import { sendAlert } from "@/utils";
 
 const systemPrompt = `You are a specialized AI agent for browser view control. You can navigate browser views, refresh pages, control navigation history, and discover available threads and views.
 
@@ -76,34 +77,41 @@ export class ViewControlWorker {
   }
 
   async handleChat(request: ChatRequest): Promise<ReadableStream> {
-    const { messages, system, requestId, threadId } = request;
+    const { messages, system, threadId } = request;
     this.logger.debug("Request received", {
       messagesCount: messages?.length,
       hasSystem: !!system,
-      requestId,
       threadId,
     });
 
+    // Ensure we have a threadId - this should always exist when chat is started
+    if (!threadId) {
+      this.logger.error("No threadId provided to ViewControlWorker");
+      sendAlert(
+        "View Control Error",
+        "No active thread found for view control operations. Please start a new chat session."
+      );
+      // Return empty stream
+      return new ReadableStream({
+        start(controller) {
+          controller.close();
+        }
+      });
+    }
+
+    this.logger.debug("Using thread ID for operations", {
+      threadId,
+    });
+
+    // Set the thread context for tools to access
+    threadContextProvider.setCurrentThreadId(threadId);
+
     try {
-      // Extract thread ID from request or message metadata
-      const extractedThreadId = threadId || this.extractThreadIdFromMessages(messages);
+      // Convert messages to LangChain format
+      const langchainMessages = this.convertToLangchainMessages(messages);
 
-      if (!extractedThreadId) {
-        this.logger.warn("No thread ID available for ViewControlWorker operations");
-        throw new Error("Thread ID is required for ViewControlWorker operations");
-      }
-
-      this.logger.debug("Using thread ID for operations", { threadId: extractedThreadId });
-
-      // Set the thread context for tools to access
-      threadContextProvider.setCurrentThreadId(extractedThreadId);
-
-      try {
-        // Convert messages to LangChain format
-        const langchainMessages = this.convertToLangchainMessages(messages);
-
-        // Initialize agent if not already done
-        const agent = await this.initializeAgent();
+      // Initialize agent if not already done
+      const agent = await this.initializeAgent();
 
       // Prepare the input with system prompt
       const input = {
@@ -126,49 +134,37 @@ export class ViewControlWorker {
       });
 
       // Execute the agent
-        const result = await agent.invoke(input);
+      const result = await agent.invoke(input);
 
-        this.logger.debug("Agent execution completed", {
-          messagesCount: result.messages?.length || 0,
-        });
-
-        // Create a readable stream from the result
-        return this.createResultStream(result);
-      } finally {
-        // Clear the thread context after execution
-        threadContextProvider.clearCurrentThreadId();
-      }
-    } catch (error) {
-      this.logger.error("Failed to execute agent", {
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
+      this.logger.debug("Agent execution completed", {
+        messagesCount: result.messages?.length || 0,
       });
-      throw error;
-    }
-  }
 
-  private extractThreadIdFromMessages(messages: UIMessage[]): string | null {
-    // Try to get thread ID from the most recent message metadata
-    for (let i = messages.length - 1; i >= 0; i--) {
-      const message = messages[i];
-      if (message?.metadata?.threadId) {
-        return message.metadata.threadId as string;
-      }
+      // Create a readable stream from the result
+      return this.createResultStream(result);
+    } finally {
+      // Clear the thread context after execution
+      threadContextProvider.clearCurrentThreadId();
     }
-    return null;
   }
 
   private convertToLangchainMessages(
     messages: UIMessage[]
   ): Array<HumanMessage | AIMessage> {
     return messages.map((message) => {
+      // Extract text content from message parts
+      const textContent = message.parts
+        .filter((part): part is { type: "text"; text: string } => part.type === "text")
+        .map(part => part.text)
+        .join("\n");
+
       if (message.role === "user") {
-        return new HumanMessage(message.content);
+        return new HumanMessage(textContent);
       } else if (message.role === "assistant") {
-        return new AIMessage(message.content);
+        return new AIMessage(textContent);
       } else {
         // Handle other message types or convert to appropriate format
-        return new HumanMessage(String(message.content));
+        return new HumanMessage(textContent);
       }
     });
   }

@@ -15,11 +15,11 @@ export class BrowserUseWorker {
   private logger = log.scope("BrowserUseWorker");
 
   async handleChat(request: ChatRequest): Promise<ReadableStream> {
-    const { messages, system, requestId } = request;
+    const { messages, system, threadId } = request;
     this.logger.debug("request received", {
       messagesCount: messages?.length,
       hasSystem: !!system,
-      requestId,
+      threadId,
     });
 
     try {
@@ -35,7 +35,7 @@ export class BrowserUseWorker {
           isEnabled: settingsService.settings.langfuse.enabled,
           functionId: "browser-use-worker",
           metadata: {
-            langfuseTraceId: requestId,
+            langfuseTraceId: threadId,
           },
         },
       });
