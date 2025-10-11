@@ -14,6 +14,7 @@ export default defineConfig(
       "*.config.js",
       "*.config.ts",
       "src/main/scripts/*.js",
+      "scripts/postinstall.js",
       "src/renderer/components/ui/**",
       "src/renderer/components/assistant-ui/**",
       "reference/**",

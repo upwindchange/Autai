@@ -38,12 +38,12 @@ export type DisplayErrorToolResult = {
 };
 
 // Union types for all tools
-export type ToolParams = 
+export type ToolParams =
   | { name: "calculate"; params: CalculateToolParams }
   | { name: "answer"; params: AnswerToolParams }
   | { name: "displayError"; params: DisplayErrorToolParams };
 
-export type ToolResults = 
+export type ToolResults =
   | { name: "calculate"; result: CalculateToolResult }
   | { name: "answer"; result: AnswerToolResult }
   | { name: "displayError"; result: DisplayErrorToolResult };
@@ -55,7 +55,7 @@ export const TOOL_NAMES = {
   DISPLAY_ERROR: "displayError",
 } as const;
 
-export type ToolName = typeof TOOL_NAMES[keyof typeof TOOL_NAMES];
+export type ToolName = (typeof TOOL_NAMES)[keyof typeof TOOL_NAMES];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function repairZodInput<T>(data: any, schema: z.ZodSchema<T>): T {
@@ -67,7 +67,7 @@ export function repairZodInput<T>(data: any, schema: z.ZodSchema<T>): T {
 
   // If validation fails, attempt to repair the data
   const repairedData = recursiveRepairData(data, schema);
-  
+
   // Try validation again with repaired data
   const repairedResult = schema.safeParse(repairedData);
   if (repairedResult.success) {
@@ -87,18 +87,18 @@ function recursiveRepairData(data: any, schema: z.ZodTypeAny): any {
 
   // Handle primitive types
   if (schema instanceof z.ZodString) {
-    if (typeof data === 'string') return data;
+    if (typeof data === "string") return data;
     return String(data);
   }
-  
+
   if (schema instanceof z.ZodNumber) {
-    if (typeof data === 'number') return data;
+    if (typeof data === "number") return data;
     const num = Number(data);
     return isNaN(num) ? 0 : num;
   }
-  
+
   if (schema instanceof z.ZodBoolean) {
-    if (typeof data === 'boolean') return data;
+    if (typeof data === "boolean") return data;
     return Boolean(data);
   }
 
@@ -106,7 +106,7 @@ function recursiveRepairData(data: any, schema: z.ZodTypeAny): any {
   if (schema instanceof z.ZodArray) {
     if (!Array.isArray(data)) {
       // Try to parse as JSON string
-      if (typeof data === 'string') {
+      if (typeof data === "string") {
         try {
           const parsed = JSON.parse(data);
           if (Array.isArray(parsed)) {
@@ -124,18 +124,19 @@ function recursiveRepairData(data: any, schema: z.ZodTypeAny): any {
         data = [data];
       }
     }
-    
+
     // Recursively repair each array element
     return data.map((item: unknown) =>
-      recursiveRepairData(item, (schema._def as any).type)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      recursiveRepairData(item, (schema.def as any).type)
     );
   }
 
   // Handle objects
   if (schema instanceof z.ZodObject) {
-    if (typeof data !== 'object' || data === null) {
+    if (typeof data !== "object" || data === null) {
       // Try to parse as JSON string
-      if (typeof data === 'string') {
+      if (typeof data === "string") {
         try {
           data = JSON.parse(data);
         } catch {
@@ -148,24 +149,24 @@ function recursiveRepairData(data: any, schema: z.ZodTypeAny): any {
     }
 
     const result: Record<string, unknown> = {};
-    const shape = (schema._def as any).shape();
-    
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const shape = (schema.def as any).shape();
+
     for (const [key, fieldSchema] of Object.entries(shape)) {
-      result[key] = recursiveRepairData(
-        data[key],
-        fieldSchema as z.ZodTypeAny
-      );
+      result[key] = recursiveRepairData(data[key], fieldSchema as z.ZodTypeAny);
     }
-    
+
     return result;
   }
 
   // Handle unions (like z.optional, z.nullable)
   if (schema instanceof z.ZodUnion || schema instanceof z.ZodOptional) {
-    const options = schema instanceof z.ZodUnion 
-      ? schema._def.options 
-      : [schema._def.innerType];
-    
+    const options =
+      schema instanceof z.ZodUnion
+        ? schema.def.options
+        : [schema.def.innerType];
+
     // Try each option until one works
     for (const option of options) {
       try {
@@ -177,7 +178,7 @@ function recursiveRepairData(data: any, schema: z.ZodTypeAny): any {
         // Continue to next option
       }
     }
-    
+
     return data;
   }
 
