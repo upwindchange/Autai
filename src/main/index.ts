@@ -12,9 +12,9 @@ import {
   ThreadViewService,
   ViewControlService,
 } from "@/services";
-import { PQueueManager } from "@/agents/queue/PQueueManager";
+import { PQueueManager } from "@agents/utils";
 import { apiServer } from "@agents";
-import { initializeTelemetry, shutdownTelemetry } from "@agents/telemetry";
+import { initializeTelemetry, shutdownTelemetry } from "@agents/utils";
 import { SettingsBridge } from "@/bridges/SettingsBridge";
 import { ThreadViewBridge } from "@/bridges/ThreadViewBridge";
 

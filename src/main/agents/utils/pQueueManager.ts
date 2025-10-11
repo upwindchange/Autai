@@ -1,7 +1,7 @@
 import PQueue from "p-queue";
 import log from "electron-log/main";
 
-export interface PQueueManagerConfig {
+interface PQueueManagerConfig {
   concurrency?: number;
   timeout?: number;
   autoStart?: boolean;

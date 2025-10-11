@@ -1,10 +1,10 @@
 import { createReactAgent } from "@langchain/langgraph/prebuilt";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { complexLangchainModel } from "@agents/providers";
-import { PQueueManager } from "@/agents/queue/PQueueManager";
-import { viewControlTools } from "@/agents/tools/ViewControlTools";
-import { threadViewTools } from "@/agents/tools/ThreadViewTools";
-import { threadContextProvider } from "@/agents/tools/ThreadContextProvider";
+import { PQueueManager } from "@agents/utils";
+import { viewControlTools } from "@agents/tools/ViewControlTools";
+import { threadViewTools } from "@agents/tools/ThreadViewTools";
+import { threadContextProvider } from "@agents/tools/ThreadContextProvider";
 import { type ChatRequest } from "@shared";
 import { type UIMessage } from "ai";
 import log from "electron-log/main";
@@ -95,7 +95,7 @@ export class ViewControlWorker {
       return new ReadableStream({
         start(controller) {
           controller.close();
-        }
+        },
       });
     }
 
@@ -154,8 +154,10 @@ export class ViewControlWorker {
     return messages.map((message) => {
       // Extract text content from message parts
       const textContent = message.parts
-        .filter((part): part is { type: "text"; text: string } => part.type === "text")
-        .map(part => part.text)
+        .filter(
+          (part): part is { type: "text"; text: string } => part.type === "text"
+        )
+        .map((part) => part.text)
         .join("\n");
 
       if (message.role === "user") {

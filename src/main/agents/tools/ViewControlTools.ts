@@ -1,7 +1,7 @@
 import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { ViewControlService } from "@/services";
-import { PQueueManager } from "@/agents/queue/PQueueManager";
+import { PQueueManager } from "@agents/utils";
 
 // NavigateTool schema
 const navigateSchema = z.object({
