@@ -16,7 +16,7 @@ export function initializeTelemetry(): void {
     const settings = settingsService.settings;
 
     // Check if Langfuse is enabled and configured
-    if (!settings?.langfuse?.enabled) {
+    if (!settings.langfuse.enabled) {
       logger.info("Langfuse telemetry disabled in settings");
       return;
     }

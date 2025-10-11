@@ -7,7 +7,7 @@ import {
   stepCountIs,
   hasToolCall,
 } from "ai";
-import * as mathjs from "mathjs";
+import { evaluate } from "mathjs";
 import { z } from "zod";
 import { chatModel } from "@agents/providers";
 import { repairToolCall } from "@agents/utils";
@@ -118,7 +118,7 @@ export class ChatWorker {
   }: CalculateToolParams): Promise<CalculateToolResult> {
     try {
       this.logger.debug("calculate tool called", { expression });
-      const result = mathjs.evaluate(expression);
+      const result = evaluate(expression);
       this.logger.debug("calculate result", { result });
       return result;
     } catch (error) {

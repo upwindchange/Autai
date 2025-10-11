@@ -10,6 +10,8 @@ import { type UIMessage } from "ai";
 import log from "electron-log/main";
 import type { Runnable } from "@langchain/core/runnables";
 import { sendAlert } from "@/utils";
+import { CallbackHandler } from "@langfuse/langchain";
+import { settingsService } from "@/services";
 
 const systemPrompt = `You are a specialized AI agent for browser view control. You can navigate browser views, refresh pages, control navigation history, and discover available threads and views.
 
@@ -106,6 +108,15 @@ export class ViewControlWorker {
     // Set the thread context for tools to access
     threadContextProvider.setCurrentThreadId(threadId);
 
+    const settings = settingsService.settings;
+    // Conditionally create the langfuse handler based on settings
+    const langfuseHandler = settings.langfuse.enabled
+      ? new CallbackHandler({
+          sessionId: threadId,
+          tags: ["langchain-test"],
+        })
+      : undefined;
+
     try {
       // Convert messages to LangChain format
       const langchainMessages = this.convertToLangchainMessages(messages);
@@ -131,10 +142,14 @@ export class ViewControlWorker {
       this.logger.debug("Executing agent", {
         messageCount: input.messages.length,
         lastMessage: input.messages[input.messages.length - 1]?.content,
+        langfuseEnabled: settings.langfuse.enabled,
       });
 
-      // Execute the agent
-      const result = await agent.invoke(input);
+      // Execute the agent with conditional callbacks
+      const result = await agent.invoke(
+        { input },
+        langfuseHandler ? { callbacks: [langfuseHandler] } : {}
+      );
 
       this.logger.debug("Agent execution completed", {
         messagesCount: result.messages?.length || 0,
