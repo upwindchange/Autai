@@ -4,7 +4,6 @@ import { complexLangchainModel } from "@agents/providers";
 import { PQueueManager } from "@agents/utils";
 import { viewControlTools } from "@agents/tools/ViewControlTools";
 import { threadViewTools } from "@agents/tools/ThreadViewTools";
-import { threadContextProvider } from "@agents/tools/ThreadContextProvider";
 import { type ChatRequest } from "@shared";
 import { type UIMessage } from "ai";
 import log from "electron-log/main";
@@ -37,6 +36,7 @@ You should focus exclusively on browser view control tasks and avoid performing 
 export class ViewControlWorker {
   private logger = log.scope("ViewControlWorker");
   private agent: Runnable | null = null;
+  public currentThreadId: string | null = null;
 
   constructor() {
     this.logger.info("ViewControlWorker initialized");
@@ -105,8 +105,8 @@ export class ViewControlWorker {
       threadId,
     });
 
-    // Set the thread context for tools to access
-    threadContextProvider.setCurrentThreadId(threadId);
+    // Store the current thread ID for this worker instance
+    this.currentThreadId = threadId;
 
     const settings = settingsService.settings;
     // Conditionally create the langfuse handler based on settings
@@ -157,9 +157,15 @@ export class ViewControlWorker {
 
       // Create a readable stream from the result
       return this.createResultStream(result);
-    } finally {
-      // Clear the thread context after execution
-      threadContextProvider.clearCurrentThreadId();
+    } catch (error) {
+      this.logger.error("Agent execution failed", {
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        threadId: this.currentThreadId,
+      });
+
+      // Re-throw the error to let the caller handle it
+      throw error;
     }
   }
 

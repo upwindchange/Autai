@@ -2,7 +2,7 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { ThreadViewService } from "@/services";
 import { PQueueManager } from "@agents/utils";
-import { threadContextProvider } from "@agents/tools/ThreadContextProvider";
+import type { ThreadId } from "@shared";
 
 // Get all threads schema
 const listThreadsSchema = z.object({});
@@ -21,9 +21,8 @@ const getViewInfoSchema = z.object({
 const createViewSchema = z.object({
   threadId: z
     .string()
-    .optional()
     .describe(
-      "The ID of the thread to create the view for (optional, will use current thread if not provided)"
+      "The ID of the thread to create the view for"
     ),
   url: z
     .string()
@@ -34,7 +33,13 @@ const createViewSchema = z.object({
 });
 
 // Get current thread context schema
-const getCurrentThreadContextSchema = z.object({});
+const getCurrentThreadContextSchema = z.object({
+  threadId: z
+    .string()
+    .describe(
+      "The ID of the thread to get context for"
+    ),
+});
 
 // Tool execution with p-queue
 const executeWithQueue = async <T>(
@@ -183,15 +188,13 @@ export const createViewTool = tool(
     return executeWithQueue(async () => {
       const threadViewService = ThreadViewService.getInstance();
 
-      // Use provided thread ID or get current thread from context
-      const targetThreadId =
-        threadId || threadContextProvider.getCurrentThreadId();
+      // ThreadId is now required in the input schema
+      const targetThreadId = threadId;
 
       if (!targetThreadId) {
         const result = {
           success: false,
-          error:
-            "No thread ID provided and no current thread context available. Please specify a thread ID.",
+          error: "No thread ID provided and no current thread context available. Please specify a thread ID.",
         };
         return JSON.stringify(result, null, 2);
       }
@@ -234,44 +237,44 @@ export const createViewTool = tool(
   {
     name: "create_view",
     description:
-      "Create a new view for a specific thread with optional URL. If no thread ID is provided, uses the current thread context.",
+      "Create a new view for a specific thread with optional URL.",
     schema: createViewSchema,
   }
 );
 
 // Get current thread context tool
 export const getCurrentThreadContextTool = tool(
-  async (): Promise<string> => {
+  async (input): Promise<string> => {
     return executeWithQueue(async () => {
+      const { threadId } = input as z.infer<typeof getCurrentThreadContextSchema>;
       const threadViewService = ThreadViewService.getInstance();
-      const currentThreadId = threadContextProvider.getCurrentThreadId();
 
-      if (!currentThreadId) {
+      if (!threadId) {
         const result = {
           success: false,
-          error: "No current thread context available",
+          error: "No thread ID provided",
         };
         return JSON.stringify(result, null, 2);
       }
 
-      const threadState = threadViewService.getThreadViewState(currentThreadId);
+      const threadState = threadViewService.getThreadViewState(threadId);
       if (!threadState) {
         const result = {
           success: false,
-          threadId: currentThreadId,
-          error: `Current thread ${currentThreadId} not found in thread view service`,
+          threadId: threadId,
+          error: `Thread ${threadId} not found in thread view service`,
         };
         return JSON.stringify(result, null, 2);
       }
 
       const activeViewId =
-        threadViewService.getActiveViewForThread(currentThreadId);
+        threadViewService.getActiveViewForThread(threadId);
       const viewMetadataList =
-        threadViewService.getAllViewMetadata(currentThreadId);
+        threadViewService.getAllViewMetadata(threadId);
 
       const result = {
         success: true,
-        threadId: currentThreadId,
+        threadId: threadId,
         activeViewId,
         totalViews: viewMetadataList.length,
         views: viewMetadataList.map((metadata) => ({
@@ -288,7 +291,7 @@ export const getCurrentThreadContextTool = tool(
   {
     name: "get_current_thread_context",
     description:
-      "Get information about the current thread context including its views",
+      "Get information about a thread context including its views",
     schema: getCurrentThreadContextSchema,
   }
 );
