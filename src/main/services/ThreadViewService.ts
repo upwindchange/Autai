@@ -2,6 +2,7 @@ import { WebContentsView, BrowserWindow, Rectangle } from "electron";
 import { EventEmitter } from "events";
 import type { ThreadId, ViewId, ThreadViewState } from "@shared";
 import { getIndexScript } from "@/scripts/indexLoader";
+import { DomService } from "@/services";
 import log from "electron-log/main";
 
 interface ViewMetadata {
@@ -21,6 +22,7 @@ export class ThreadViewService extends EventEmitter {
   private static instance: ThreadViewService | null = null;
   private views = new Map<ViewId, WebContentsView>();
   private viewMetadata = new Map<ViewId, ViewMetadata>();
+  private domServices = new Map<ViewId, DomService>();
   private viewBounds: Rectangle = { x: 0, y: 0, width: 1920, height: 1080 };
   private threadStates = new Map<ThreadId, ThreadViewState>();
   public activeThreadId: ThreadId | null = null;
@@ -163,6 +165,10 @@ export class ThreadViewService extends EventEmitter {
       backendVisibility: true, // Default to visible from backend
     });
 
+    // Create and store DomService for this view
+    const domService = new DomService(webView.webContents);
+    this.domServices.set(viewId, domService);
+
     if (bounds) {
       this.viewBounds = bounds;
     }
@@ -286,6 +292,7 @@ export class ThreadViewService extends EventEmitter {
     // Clean up storage
     this.views.delete(viewId);
     this.viewMetadata.delete(viewId);
+    this.domServices.delete(viewId);
 
     this.emit("threadview:destroyed", viewId);
     this.logger.info(`View ${viewId} destroyed successfully`);
@@ -383,6 +390,10 @@ export class ThreadViewService extends EventEmitter {
     return this.views.get(viewId) || null;
   }
 
+  getDomService(viewId: ViewId): DomService | null {
+    return this.domServices.get(viewId) || null;
+  }
+
   getActiveViewForThread(threadId: ThreadId): ViewId | null {
     const state = this.threadStates.get(threadId);
     return state?.activeViewId || null;
@@ -473,6 +484,7 @@ export class ThreadViewService extends EventEmitter {
       // Still clean up what we can
       this.views.clear();
       this.viewMetadata.clear();
+      this.domServices.clear();
       this.threadStates.clear();
       this.removeAllListeners();
       this.activeThreadId = null;
