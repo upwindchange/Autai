@@ -2,7 +2,6 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { ThreadViewService } from "@/services";
 import { PQueueManager } from "@agents/utils";
-import type { ThreadId } from "@shared";
 
 // Get all threads schema
 const listThreadsSchema = z.object({});
@@ -19,11 +18,7 @@ const getViewInfoSchema = z.object({
 
 // Create view schema
 const createViewSchema = z.object({
-  threadId: z
-    .string()
-    .describe(
-      "The ID of the thread to create the view for"
-    ),
+  threadId: z.string().describe("The ID of the thread to create the view for"),
   url: z
     .string()
     .optional()
@@ -34,11 +29,7 @@ const createViewSchema = z.object({
 
 // Get current thread context schema
 const getCurrentThreadContextSchema = z.object({
-  threadId: z
-    .string()
-    .describe(
-      "The ID of the thread to get context for"
-    ),
+  threadId: z.string().describe("The ID of the thread to get context for"),
 });
 
 // Tool execution with p-queue
@@ -194,7 +185,8 @@ export const createViewTool = tool(
       if (!targetThreadId) {
         const result = {
           success: false,
-          error: "No thread ID provided and no current thread context available. Please specify a thread ID.",
+          error:
+            "No thread ID provided and no current thread context available. Please specify a thread ID.",
         };
         return JSON.stringify(result, null, 2);
       }
@@ -236,8 +228,7 @@ export const createViewTool = tool(
   },
   {
     name: "create_view",
-    description:
-      "Create a new view for a specific thread with optional URL.",
+    description: "Create a new view for a specific thread with optional URL.",
     schema: createViewSchema,
   }
 );
@@ -246,7 +237,9 @@ export const createViewTool = tool(
 export const getCurrentThreadContextTool = tool(
   async (input): Promise<string> => {
     return executeWithQueue(async () => {
-      const { threadId } = input as z.infer<typeof getCurrentThreadContextSchema>;
+      const { threadId } = input as z.infer<
+        typeof getCurrentThreadContextSchema
+      >;
       const threadViewService = ThreadViewService.getInstance();
 
       if (!threadId) {
@@ -267,10 +260,8 @@ export const getCurrentThreadContextTool = tool(
         return JSON.stringify(result, null, 2);
       }
 
-      const activeViewId =
-        threadViewService.getActiveViewForThread(threadId);
-      const viewMetadataList =
-        threadViewService.getAllViewMetadata(threadId);
+      const activeViewId = threadViewService.getActiveViewForThread(threadId);
+      const viewMetadataList = threadViewService.getAllViewMetadata(threadId);
 
       const result = {
         success: true,
@@ -290,8 +281,7 @@ export const getCurrentThreadContextTool = tool(
   },
   {
     name: "get_current_thread_context",
-    description:
-      "Get information about a thread context including its views",
+    description: "Get information about a thread context including its views",
     schema: getCurrentThreadContextSchema,
   }
 );

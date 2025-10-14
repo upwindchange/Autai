@@ -2,20 +2,37 @@ import { tool } from "@langchain/core/tools";
 import { z } from "zod";
 import { ThreadViewService } from "@/services";
 import { PQueueManager } from "@agents/utils";
-import type { DOMState, PageInfo } from "@shared";
+import type { DOMState, DOMNode, DOMElementNode } from "@shared";
 
 // Get clickable elements schema
 const getClickableElementsSchema = z.object({
   viewId: z.string().describe("The ID of the view to analyze"),
-  highlightElements: z.boolean().optional().default(true).describe("Whether to highlight elements on the page"),
-  focusElement: z.number().optional().default(-1).describe("Element index to focus specifically (-1 for no focus)"),
-  viewportExpansion: z.number().optional().default(0).describe("Additional area around viewport to include in analysis"),
+  highlightElements: z
+    .boolean()
+    .optional()
+    .default(true)
+    .describe("Whether to highlight elements on the page"),
+  focusElement: z
+    .number()
+    .optional()
+    .default(-1)
+    .describe("Element index to focus specifically (-1 for no focus)"),
+  viewportExpansion: z
+    .number()
+    .optional()
+    .default(0)
+    .describe("Additional area around viewport to include in analysis"),
 });
 
 // Convert DOM elements to string schema
 const clickableElementsToStringSchema = z.object({
   viewId: z.string().describe("The ID of the view to analyze"),
-  includeAttributes: z.array(z.string()).optional().describe("Array of attribute names to include in output. Uses sensible defaults if not provided"),
+  includeAttributes: z
+    .array(z.string())
+    .optional()
+    .describe(
+      "Array of attribute names to include in output. Uses sensible defaults if not provided"
+    ),
 });
 
 // Get page info schema
@@ -26,7 +43,9 @@ const getPageInfoSchema = z.object({
 // Hash DOM element schema
 const hashDomElementSchema = z.object({
   viewId: z.string().describe("The ID of the view containing the element"),
-  elementXpath: z.string().describe("XPath of the element to generate hash for"),
+  elementXpath: z
+    .string()
+    .describe("XPath of the element to generate hash for"),
 });
 
 // Update element cache schema
@@ -38,13 +57,20 @@ const updateElementCacheSchema = z.object({
 // Clear element cache schema
 const clearElementCacheSchema = z.object({
   viewId: z.string().describe("The ID of the view to clear cache for"),
-  url: z.string().optional().describe("Specific URL to clear, or clear all cached URLs if not provided"),
+  url: z
+    .string()
+    .optional()
+    .describe(
+      "Specific URL to clear, or clear all cached URLs if not provided"
+    ),
 });
 
 // Compare DOM states schema
 const compareDOMStatesSchema = z.object({
   viewId: z.string().describe("The ID of the view to compare"),
-  previousDomStateJson: z.string().describe("Serialized previous DOM state JSON for comparison"),
+  previousDomStateJson: z
+    .string()
+    .describe("Serialized previous DOM state JSON for comparison"),
 });
 
 // Tool execution with p-queue
@@ -72,7 +98,9 @@ const getDomServiceForView = async (viewId: string) => {
   const domService = threadViewService.getDomService(viewId);
 
   if (!domService) {
-    throw new Error(`DOM service not found for view ${viewId}. Make sure the view exists and is properly initialized.`);
+    throw new Error(
+      `DOM service not found for view ${viewId}. Make sure the view exists and is properly initialized.`
+    );
   }
 
   return domService;
@@ -81,11 +109,16 @@ const getDomServiceForView = async (viewId: string) => {
 // Get clickable elements tool
 export const getClickableElementsTool = tool(
   async (input): Promise<string> => {
-    const { viewId, highlightElements, focusElement, viewportExpansion } = input as z.infer<typeof getClickableElementsSchema>;
+    const { viewId, highlightElements, focusElement, viewportExpansion } =
+      input as z.infer<typeof getClickableElementsSchema>;
     return executeWithQueue(async () => {
       try {
         const domService = await getDomServiceForView(viewId);
-        const domState = await domService.getClickableElements(highlightElements, focusElement, viewportExpansion);
+        const domState = await domService.getClickableElements(
+          highlightElements,
+          focusElement,
+          viewportExpansion
+        );
 
         const result = {
           success: true,
@@ -122,7 +155,8 @@ export const getClickableElementsTool = tool(
   },
   {
     name: "get_clickable_elements",
-    description: "Extract all clickable/interactive elements from a web page and return structured DOM information",
+    description:
+      "Extract all clickable/interactive elements from a web page and return structured DOM information",
     schema: getClickableElementsSchema,
   }
 );
@@ -130,7 +164,9 @@ export const getClickableElementsTool = tool(
 // Convert DOM elements to string tool
 export const clickableElementsToStringTool = tool(
   async (input): Promise<string> => {
-    const { viewId, includeAttributes } = input as z.infer<typeof clickableElementsToStringSchema>;
+    const { viewId, includeAttributes } = input as z.infer<
+      typeof clickableElementsToStringSchema
+    >;
     return executeWithQueue(async () => {
       try {
         const domService = await getDomServiceForView(viewId);
@@ -139,7 +175,10 @@ export const clickableElementsToStringTool = tool(
         const domState = await domService.getClickableElements(true, -1, 0);
 
         // Convert to string representation
-        const elementsString = domService.clickableElementsToString(domState.elementTree, includeAttributes);
+        const elementsString = domService.clickableElementsToString(
+          domState.elementTree,
+          includeAttributes
+        );
 
         const result = {
           success: true,
@@ -169,7 +208,8 @@ export const clickableElementsToStringTool = tool(
   },
   {
     name: "clickable_elements_to_string",
-    description: "Convert DOM elements to a human-readable string format optimized for AI consumption",
+    description:
+      "Convert DOM elements to a human-readable string format optimized for AI consumption",
     schema: clickableElementsToStringSchema,
   }
 );
@@ -206,7 +246,11 @@ export const getPageInfoTool = tool(
             pixelsRight: pageInfo.pixelsRight,
 
             // Additional context
-            scrollPercentage: Math.round((pageInfo.scrollY / (pageInfo.pageHeight - pageInfo.viewportHeight)) * 100),
+            scrollPercentage: Math.round(
+              (pageInfo.scrollY /
+                (pageInfo.pageHeight - pageInfo.viewportHeight)) *
+                100
+            ),
             hasVerticalScroll: pageInfo.pageHeight > pageInfo.viewportHeight,
             hasHorizontalScroll: pageInfo.pageWidth > pageInfo.viewportWidth,
           },
@@ -231,7 +275,8 @@ export const getPageInfoTool = tool(
   },
   {
     name: "get_page_info",
-    description: "Get comprehensive page information including dimensions, scroll position, and viewport context",
+    description:
+      "Get comprehensive page information including dimensions, scroll position, and viewport context",
     schema: getPageInfoSchema,
   }
 );
@@ -239,7 +284,9 @@ export const getPageInfoTool = tool(
 // Hash DOM element tool
 export const hashDomElementTool = tool(
   async (input): Promise<string> => {
-    const { viewId, elementXpath } = input as z.infer<typeof hashDomElementSchema>;
+    const { viewId, elementXpath } = input as z.infer<
+      typeof hashDomElementSchema
+    >;
     return executeWithQueue(async () => {
       try {
         const domService = await getDomServiceForView(viewId);
@@ -248,11 +295,11 @@ export const hashDomElementTool = tool(
         const domState = await domService.getClickableElements(true, -1, 0);
 
         // Find the element by XPath
-        const findElementByXpath = (node: any, xpath: string): any => {
-          if (node.xpath === xpath) {
+        const findElementByXpath = (node: DOMNode, xpath: string): DOMElementNode | null => {
+          if (node.type === 'ELEMENT_NODE' && node.xpath === xpath) {
             return node;
           }
-          if (node.children) {
+          if (node.type === 'ELEMENT_NODE' && node.children) {
             for (const child of node.children) {
               const found = findElementByXpath(child, xpath);
               if (found) return found;
@@ -264,7 +311,9 @@ export const hashDomElementTool = tool(
         const element = findElementByXpath(domState.elementTree, elementXpath);
 
         if (!element) {
-          throw new Error(`Element with XPath "${elementXpath}" not found in the page`);
+          throw new Error(
+            `Element with XPath "${elementXpath}" not found in the page`
+          );
         }
 
         // Generate hash for the element
@@ -303,7 +352,8 @@ export const hashDomElementTool = tool(
   },
   {
     name: "hash_dom_element",
-    description: "Generate a unique hash fingerprint for a DOM element using its XPath for element tracking",
+    description:
+      "Generate a unique hash fingerprint for a DOM element using its XPath for element tracking",
     schema: hashDomElementSchema,
   }
 );
@@ -326,14 +376,18 @@ export const updateElementCacheTool = tool(
         let newElementCount = 0;
         let totalElementCount = 0;
 
-        const countElements = (node: any) => {
-          if (node.highlightIndex !== null && node.highlightIndex !== undefined) {
+        const countElements = (node: DOMNode) => {
+          if (
+            node.type === 'ELEMENT_NODE' &&
+            node.highlightIndex !== null &&
+            node.highlightIndex !== undefined
+          ) {
             totalElementCount++;
             if (node.isNew) {
               newElementCount++;
             }
           }
-          if (node.children) {
+          if (node.type === 'ELEMENT_NODE' && node.children) {
             for (const child of node.children) {
               countElements(child);
             }
@@ -372,7 +426,8 @@ export const updateElementCacheTool = tool(
   },
   {
     name: "update_element_cache",
-    description: "Update the element cache for change tracking and identify new elements on the page",
+    description:
+      "Update the element cache for change tracking and identify new elements on the page",
     schema: updateElementCacheSchema,
   }
 );
@@ -416,7 +471,8 @@ export const clearElementCacheTool = tool(
   },
   {
     name: "clear_element_cache",
-    description: "Clear the element hash cache for a specific URL or all cached URLs",
+    description:
+      "Clear the element hash cache for a specific URL or all cached URLs",
     schema: clearElementCacheSchema,
   }
 );
@@ -424,7 +480,9 @@ export const clearElementCacheTool = tool(
 // Compare DOM states tool
 export const compareDOMStatesTool = tool(
   async (input): Promise<string> => {
-    const { viewId, previousDomStateJson } = input as z.infer<typeof compareDOMStatesSchema>;
+    const { viewId, previousDomStateJson } = input as z.infer<
+      typeof compareDOMStatesSchema
+    >;
     return executeWithQueue(async () => {
       try {
         const domService = await getDomServiceForView(viewId);
@@ -434,14 +492,27 @@ export const compareDOMStatesTool = tool(
         try {
           previousDomState = JSON.parse(previousDomStateJson);
         } catch (parseError) {
-          throw new Error(`Failed to parse previous DOM state JSON: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+          throw new Error(
+            `Failed to parse previous DOM state JSON: ${
+              parseError instanceof Error
+                ? parseError.message
+                : String(parseError)
+            }`
+          );
         }
 
         // Get the current DOM state
-        const currentDomState = await domService.getClickableElements(true, -1, 0);
+        const currentDomState = await domService.getClickableElements(
+          true,
+          -1,
+          0
+        );
 
         // Compare the DOM states
-        const domDiff = domService.compareDOMStates(previousDomState, currentDomState);
+        const domDiff = domService.compareDOMStates(
+          previousDomState,
+          currentDomState
+        );
 
         const result = {
           success: true,
@@ -449,7 +520,7 @@ export const compareDOMStatesTool = tool(
           comparison: {
             addedElements: {
               count: domDiff.addedElements.length,
-              elements: domDiff.addedElements.map(el => ({
+              elements: domDiff.addedElements.map((el) => ({
                 tagName: el.tagName,
                 xpath: el.xpath,
                 highlightIndex: el.highlightIndex,
@@ -458,7 +529,7 @@ export const compareDOMStatesTool = tool(
             },
             removedElements: {
               count: domDiff.removedElements.length,
-              elements: domDiff.removedElements.map(el => ({
+              elements: domDiff.removedElements.map((el) => ({
                 tagName: el.tagName,
                 xpath: el.xpath,
                 highlightIndex: el.highlightIndex,
@@ -469,7 +540,7 @@ export const compareDOMStatesTool = tool(
             },
             modifiedElements: {
               count: domDiff.modifiedElements.length,
-              elements: domDiff.modifiedElements.map(el => ({
+              elements: domDiff.modifiedElements.map((el) => ({
                 tagName: el.tagName,
                 xpath: el.xpath,
                 highlightIndex: el.highlightIndex,
@@ -477,10 +548,18 @@ export const compareDOMStatesTool = tool(
             },
           },
           summary: {
-            totalChanges: domDiff.addedElements.length + domDiff.removedElements.length + domDiff.modifiedElements.length,
-            hasChanges: domDiff.addedElements.length > 0 || domDiff.removedElements.length > 0 || domDiff.modifiedElements.length > 0,
-            currentTotalElements: Object.keys(currentDomState.selectorMap).length,
-            previousTotalElements: Object.keys(previousDomState.selectorMap).length,
+            totalChanges:
+              domDiff.addedElements.length +
+              domDiff.removedElements.length +
+              domDiff.modifiedElements.length,
+            hasChanges:
+              domDiff.addedElements.length > 0 ||
+              domDiff.removedElements.length > 0 ||
+              domDiff.modifiedElements.length > 0,
+            currentTotalElements: Object.keys(currentDomState.selectorMap)
+              .length,
+            previousTotalElements: Object.keys(previousDomState.selectorMap)
+              .length,
           },
           metadata: {
             timestamp: new Date().toISOString(),
@@ -503,7 +582,8 @@ export const compareDOMStatesTool = tool(
   },
   {
     name: "compare_dom_states",
-    description: "Compare two DOM states to identify added, removed, modified, and unchanged elements",
+    description:
+      "Compare two DOM states to identify added, removed, modified, and unchanged elements",
     schema: compareDOMStatesSchema,
   }
 );
