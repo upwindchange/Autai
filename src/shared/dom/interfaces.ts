@@ -4,7 +4,7 @@
  */
 
 import type { Debugger, WebContents } from "electron";
-import type { SessionInfo, CDPOptions } from "./types";
+import type { SessionInfo, CDPOptions, CurrentPageTargets, FrameTree } from "./types";
 
 export interface ICDPSessionManager {
   /**
@@ -45,6 +45,31 @@ export interface ICDPSessionManager {
    * Get the number of active sessions
    */
   getSessionCount(): number;
+
+  /**
+   * Get targets for the current page
+   */
+  getTargetsForPage(targetId?: string): Promise<CurrentPageTargets>;
+
+  /**
+   * Get frame tree for a target
+   */
+  getFrameTree(targetId?: string): Promise<FrameTree[]>;
+
+  /**
+   * Get frame information by frame ID
+   */
+  getFrameInfo(frameId: string, targetId?: string): Promise<FrameTree | null>;
+
+  /**
+   * Check if frame has cross-origin content
+   */
+  isCrossOriginFrame(frameId: string, targetId?: string): Promise<boolean>;
+
+  /**
+   * Clear frame and target caches
+   */
+  clearCaches(): void;
 }
 
 export interface IDOMService {
