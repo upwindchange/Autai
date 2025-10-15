@@ -48,7 +48,6 @@ src/
 │   │   ├── utils/     # Agent utilities
 │   │   └── workers/   # Worker threads for agents
 │   ├── bridges/       # IPC bridges for typed communication
-│   ├── scripts/       # DOM tree building script for agent AI
 │   ├── services/      # Core application services
 │   └── utils/         # Main process utilities
 ├── preload/           # Preload scripts
@@ -65,7 +64,6 @@ src/
 │   └── transports/    # Communication transports
 └── shared/            # Shared TypeScript type definitions
     ├── chat.ts        # Chat-related types
-    ├── dom.ts         # DOM manipulation types
     ├── ipc.ts         # IPC communication types
     ├── logger.ts      # Logging types
     ├── settings.ts    # Settings types
@@ -134,7 +132,6 @@ reference/             # Several projects for reference
 
 ## Important Technical Details
 
-- DOM injection script located at `src/main/scripts/index.js` for browser automation
 - Electron security: context isolation enabled, nodeIntegration disabled
 - WebView tags are disabled for security; use WebContentView instead
 - All browser automation runs in isolated contexts with proper sandboxing

@@ -2,7 +2,7 @@ import { WebContentsView, BrowserWindow, Rectangle } from "electron";
 import { EventEmitter } from "events";
 import type { ThreadId, ViewId, ThreadViewState } from "@shared";
 import { getIndexScript } from "@/scripts/indexLoader";
-import { DomService } from "@/services";
+import { DOMService } from "./dom";
 import log from "electron-log/main";
 
 interface ViewMetadata {
@@ -22,7 +22,7 @@ export class ThreadViewService extends EventEmitter {
   private static instance: ThreadViewService | null = null;
   private views = new Map<ViewId, WebContentsView>();
   private viewMetadata = new Map<ViewId, ViewMetadata>();
-  private domServices = new Map<ViewId, DomService>();
+  private domServices = new Map<ViewId, DOMService>();
   private viewBounds: Rectangle = { x: 0, y: 0, width: 1920, height: 1080 };
   private threadStates = new Map<ThreadId, ThreadViewState>();
   public activeThreadId: ThreadId | null = null;
@@ -166,7 +166,7 @@ export class ThreadViewService extends EventEmitter {
     });
 
     // Create and store DomService for this view
-    const domService = new DomService(webView.webContents);
+    const domService = new DOMService(webView.webContents);
     this.domServices.set(viewId, domService);
 
     if (bounds) {
@@ -390,7 +390,7 @@ export class ThreadViewService extends EventEmitter {
     return this.views.get(viewId) || null;
   }
 
-  getDomService(viewId: ViewId): DomService | null {
+  getDomService(viewId: ViewId): DOMService | null {
     return this.domServices.get(viewId) || null;
   }
 

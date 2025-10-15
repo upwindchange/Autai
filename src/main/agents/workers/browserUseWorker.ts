@@ -205,9 +205,8 @@ export class BrowserUseWorker {
         index,
         id: message.id,
         role: message.role,
-        hasParts: !!message.parts,
         partCount: message.parts?.length || 0,
-        contentPreview: message.content?.substring(0, 100) || "",
+        parts: message.parts,
       });
 
       // Extract content from parts if available, otherwise use content field
@@ -222,28 +221,24 @@ export class BrowserUseWorker {
           .map((part) => part.text);
 
         // Also handle tool invocation parts by extracting their text representation
-        const toolParts = message.parts
-          .filter((part) => part.type === "tool-invocation")
-          .map((part) => {
-            this.logger.debug("found tool invocation part", {
-              toolName: part.toolInvocation.toolName,
-              state: part.toolInvocation.state,
-              args: part.toolInvocation.args,
-            });
-            return `[Tool: ${part.toolInvocation.toolName}]`;
-          });
+        // We will handle tools later after everything is done
+        // const toolParts = message.parts
+        //   .filter((part) => part.type === "tool-invocation")
+        //   .map((part) => {
+        //     this.logger.debug("found tool invocation part", {
+        //       toolName: part.toolInvocation.toolName,
+        //       state: part.toolInvocation.state,
+        //       args: part.toolInvocation.args,
+        //     });
+        //     return `[Tool: ${part.toolInvocation.toolName}]`;
+        //   });
 
-        textContent = [...textParts, ...toolParts].join("\n");
+        // textContent = [...textParts, ...toolParts].join("\n");
+        textContent = textParts.join("\n");
         this.logger.debug("extracted content from parts", {
           textPartsCount: textParts.length,
-          toolPartsCount: toolParts.length,
+          // toolPartsCount: toolParts.length,
           totalLength: textContent.length,
-        });
-      } else {
-        // Fallback to content field
-        textContent = message.content || "";
-        this.logger.debug("using content field as fallback", {
-          contentLength: textContent.length,
         });
       }
 
