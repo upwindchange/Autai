@@ -4,7 +4,6 @@ import { complexLangchainModel } from "@agents/providers";
 import { PQueueManager } from "@agents/utils";
 import { viewControlTools } from "@agents/tools/ViewControlTools";
 import { threadViewTools } from "@agents/tools/ThreadViewTools";
-import { domTools } from "@agents/tools/DomTools";
 import { type ChatRequest } from "@shared";
 import { type UIMessage } from "ai";
 import log from "electron-log/main";
@@ -69,7 +68,7 @@ export class BrowserUseWorker {
       const model = await complexLangchainModel();
 
       // Get the tools
-      const tools = [...viewControlTools, ...threadViewTools, ...domTools];
+      const tools = [...viewControlTools, ...threadViewTools];
       this.logger.debug("Using tools", {
         count: tools.length,
         toolNames: tools.map((tool) => tool.name),
@@ -153,7 +152,11 @@ export class BrowserUseWorker {
           type: msg.constructor.name,
           role: msg._getType(),
           contentLength: msg.content?.length || 0,
-          contentPreview: (typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content))?.substring(0, 100) || "",
+          contentPreview:
+            (typeof msg.content === "string"
+              ? msg.content
+              : JSON.stringify(msg.content)
+            )?.substring(0, 100) || "",
         })),
       });
 
@@ -213,7 +216,8 @@ export class BrowserUseWorker {
         // Process parts to extract text content
         const textParts = message.parts
           .filter(
-            (part): part is { type: "text"; text: string } => part.type === "text"
+            (part): part is { type: "text"; text: string } =>
+              part.type === "text"
           )
           .map((part) => part.text);
 
