@@ -139,30 +139,36 @@ export class BrowserUseWorker {
       // Initialize agent if not already done
       const agent = await this.initializeAgent();
 
-      // Prepare the input with system prompt
-      const input = {
-        messages: [
-          ...(system
-            ? [
-                {
-                  role: "system" as const,
-                  content: `${systemPrompt} ${system}`,
-                },
-              ]
-            : []),
-          ...langchainMessages,
-        ],
-      };
-
-      this.logger.debug("Executing agent", {
-        messageCount: input.messages.length,
-        lastMessage: input.messages[input.messages.length - 1]?.content,
+      this.logger.debug("preparing agent input", {
+        messageCount: langchainMessages.length,
+        hasSystemMessage: !!system,
+        systemMessageLength: system?.length || 0,
         langfuseEnabled: settings.langfuse.enabled,
       });
 
-      // Execute the agent with conditional callbacks
+      // Log the structure of messages being passed to the agent
+      this.logger.debug("agent input messages", {
+        messages: langchainMessages.map((msg, index) => ({
+          index,
+          type: msg.constructor.name,
+          role: msg._getType(),
+          contentLength: msg.content?.length || 0,
+          contentPreview: (typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content))?.substring(0, 100) || "",
+        })),
+      });
+
+      // Execute the agent with the correct input format
+      // The system prompt is handled by the messageModifier in createReactAgent
+      const input = { messages: langchainMessages };
+
+      this.logger.debug("executing agent with input", {
+        inputKeys: Object.keys(input),
+        messageCount: input.messages.length,
+        langfuseEnabled: settings.langfuse.enabled,
+      });
+
       const result = await agent.invoke(
-        { input },
+        input,
         langfuseHandler ? { callbacks: [langfuseHandler] } : {}
       );
 
@@ -187,24 +193,97 @@ export class BrowserUseWorker {
   private convertToLangchainMessages(
     messages: UIMessage[]
   ): Array<HumanMessage | AIMessage> {
-    return messages.map((message) => {
-      // Extract text content from message parts
-      const textContent = message.parts
-        .filter(
-          (part): part is { type: "text"; text: string } => part.type === "text"
-        )
-        .map((part) => part.text)
-        .join("\n");
-
-      if (message.role === "user") {
-        return new HumanMessage(textContent);
-      } else if (message.role === "assistant") {
-        return new AIMessage(textContent);
-      } else {
-        // Handle other message types or convert to appropriate format
-        return new HumanMessage(textContent);
-      }
+    this.logger.debug("converting ai sdk messages to langchain format", {
+      messageCount: messages.length,
     });
+
+    const langchainMessages = messages.map((message, index) => {
+      this.logger.debug("processing message", {
+        index,
+        id: message.id,
+        role: message.role,
+        hasParts: !!message.parts,
+        partCount: message.parts?.length || 0,
+        contentPreview: message.content?.substring(0, 100) || "",
+      });
+
+      // Extract content from parts if available, otherwise use content field
+      let textContent = "";
+      if (message.parts && message.parts.length > 0) {
+        // Process parts to extract text content
+        const textParts = message.parts
+          .filter(
+            (part): part is { type: "text"; text: string } => part.type === "text"
+          )
+          .map((part) => part.text);
+
+        // Also handle tool invocation parts by extracting their text representation
+        const toolParts = message.parts
+          .filter((part) => part.type === "tool-invocation")
+          .map((part) => {
+            this.logger.debug("found tool invocation part", {
+              toolName: part.toolInvocation.toolName,
+              state: part.toolInvocation.state,
+              args: part.toolInvocation.args,
+            });
+            return `[Tool: ${part.toolInvocation.toolName}]`;
+          });
+
+        textContent = [...textParts, ...toolParts].join("\n");
+        this.logger.debug("extracted content from parts", {
+          textPartsCount: textParts.length,
+          toolPartsCount: toolParts.length,
+          totalLength: textContent.length,
+        });
+      } else {
+        // Fallback to content field
+        textContent = message.content || "";
+        this.logger.debug("using content field as fallback", {
+          contentLength: textContent.length,
+        });
+      }
+
+      // Create appropriate LangChain message based on role
+      let langchainMessage: HumanMessage | AIMessage;
+      if (message.role === "user") {
+        langchainMessage = new HumanMessage(textContent);
+        this.logger.debug("created HumanMessage", {
+          index,
+          contentLength: textContent.length,
+        });
+      } else if (message.role === "assistant") {
+        langchainMessage = new AIMessage(textContent);
+        this.logger.debug("created AIMessage", {
+          index,
+          contentLength: textContent.length,
+        });
+      } else if (message.role === "system") {
+        // System messages are handled by messageModifier, but convert to human message for safety
+        langchainMessage = new HumanMessage(textContent);
+        this.logger.warn("unexpected system message in conversion", {
+          index,
+          contentLength: textContent.length,
+        });
+      } else {
+        // Handle other message types
+        langchainMessage = new HumanMessage(textContent);
+        this.logger.warn("converting unknown message type to HumanMessage", {
+          index,
+          role: message.role,
+          contentLength: textContent.length,
+        });
+      }
+
+      return langchainMessage;
+    });
+
+    this.logger.info("successfully converted messages to langchain format", {
+      inputCount: messages.length,
+      outputCount: langchainMessages.length,
+      messageTypes: langchainMessages.map((msg) => msg.constructor.name),
+    });
+
+    return langchainMessages;
   }
 
   private createResultStream(result: {
