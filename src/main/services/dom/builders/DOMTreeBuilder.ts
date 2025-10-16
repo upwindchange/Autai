@@ -1,8 +1,8 @@
 /**
  * DOM Tree Builder - Constructs enhanced DOM trees from CDP data
  *
- * Integrates DOM, accessibility, and snapshot data to create comprehensive
- * DOM tree representations with enhanced element information.
+ * Simplified implementation following browser-use patterns with direct data integration
+ * and minimal abstraction layers.
  */
 
 import type {
@@ -14,8 +14,14 @@ import type {
   CurrentPageTargets,
 } from "@shared/dom";
 import { NodeType } from "@shared/dom";
-import { SnapshotProcessor } from "../processors/SnapshotProcessor";
-import { CoordinateTransformer } from "../processors/CoordinateTransformer";
+import {
+  buildSnapshotLookup,
+  isElementVisible,
+  isElementScrollable,
+  extractScrollInfo,
+  calculateAbsolutePosition,
+  calculateScrollPercentage
+} from "../utils/DOMUtils";
 
 /**
  * Builds enhanced DOM trees from CDP data sources
@@ -36,7 +42,7 @@ export class DOMTreeBuilder {
 
     // Build lookup tables for efficient access
     const axTreeLookup = DOMTreeBuilder.buildAXTreeLookup(axTree.nodes);
-    const snapshotLookup = SnapshotProcessor.buildSnapshotLookup(snapshot, devicePixelRatio);
+    const snapshotLookup = buildSnapshotLookup(snapshot, devicePixelRatio);
 
     // Create node lookup for parent relationships
     const nodeLookup: Record<number, EnhancedDOMTreeNode> = {};
@@ -202,8 +208,8 @@ export class DOMTreeBuilder {
 
     // Calculate absolute position
     const absolutePosition = snapshotData?.bounds
-      ? CoordinateTransformer.calculateAbsolutePosition(
-          { snapshotNode: snapshotData } as EnhancedDOMTreeNode,
+      ? calculateAbsolutePosition(
+          { snapshotNode: snapshotData },
           totalFrameOffset
         )
       : null;
@@ -280,7 +286,7 @@ export class DOMTreeBuilder {
           return false;
         }
 
-        return SnapshotProcessor.isElementScrollable(
+        return isElementScrollable(
           this.snapshotNode.scrollRects || null,
           this.snapshotNode.clientRects || null,
           this.snapshotNode.computedStyles || null
@@ -316,7 +322,7 @@ export class DOMTreeBuilder {
           return null;
         }
 
-        const scrollInfo = SnapshotProcessor.extractScrollInfo(
+        const scrollInfo = extractScrollInfo(
           this.snapshotNode.scrollRects || null,
           this.snapshotNode.clientRects || null
         );
@@ -332,7 +338,7 @@ export class DOMTreeBuilder {
         const contentRight = Math.max(0, scrollInfo.scrollableWidth - scrollInfo.visibleWidth - scrollInfo.scrollLeft);
 
         // Calculate scroll percentages
-        const scrollPercentages = CoordinateTransformer.calculateScrollPercentage(
+        const scrollPercentages = calculateScrollPercentage(
           this.snapshotNode.bounds || { x: 0, y: 0, width: 0, height: 0, toDict() { return {}; } },
           scrollInfo
         );
@@ -556,7 +562,7 @@ export class DOMTreeBuilder {
 
     // Calculate visibility based on computed styles
     if (node.snapshotNode?.computedStyles) {
-      node.isVisible = SnapshotProcessor.isElementVisible(node.snapshotNode.computedStyles);
+      node.isVisible = isElementVisible(node.snapshotNode.computedStyles);
     } else {
       // Default to visible for elements without style info
       node.isVisible = true;

@@ -1,8 +1,8 @@
 /**
  * DOM Service - Simplified implementation using Electron's debugger directly
  *
- * Phase 1 implementation that uses webContents.debugger directly with simple retry logic.
- * Eliminates unnecessary CDPService abstraction while maintaining functionality.
+ * Simplified implementation following browser-use patterns with direct CDP integration
+ * and minimal abstraction layers.
  */
 
 import type { WebContents } from "electron";
@@ -10,41 +10,24 @@ import log from "electron-log/main";
 
 import type {
   IDOMService,
-  ICDPSessionManager,
   EnhancedDOMTreeNode,
   TargetAllTrees,
   CurrentPageTargets,
   ViewportInfo,
   DOMSnapshot,
 } from "@shared/dom";
-import { CDPSessionManager } from "./CDPSessionManager";
 import { DOMTreeBuilder } from "./builders/DOMTreeBuilder";
-
-interface RetryOptions {
-  attempts?: number;
-  delay?: number;
-  timeout?: number;
-}
-
-const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
-  attempts: 3,
-  delay: 1000,
-  timeout: 10000,
-};
 
 export class DOMService implements IDOMService {
   private webContents: WebContents;
-  private sessionManager: ICDPSessionManager;
   private isInitialized = false;
   private logger = log.scope("DOMService");
 
   constructor(webContents: WebContents) {
     this.webContents = webContents;
-    this.sessionManager = new CDPSessionManager(this);
-
     this.isInitialized = true;
     this.logger.info(
-      "DOMService initialized (Phase 2 - enhanced DOM analysis)"
+      "DOMService initialized (Simplified - direct CDP integration)"
     );
   }
 
@@ -56,13 +39,6 @@ export class DOMService implements IDOMService {
   }
 
   /**
-   * Get the session manager instance
-   */
-  getSessionManager(): ICDPSessionManager {
-    return this.sessionManager;
-  }
-
-  /**
    * Get the webContents instance
    */
   getWebContents(): WebContents {
@@ -70,61 +46,19 @@ export class DOMService implements IDOMService {
   }
 
   /**
-   * Send CDP command with simple retry logic
+   * Send CDP command with simple wrapper
    */
-  async sendCommand<T = unknown>(
-    method: string,
-    params?: unknown,
-    options?: RetryOptions
-  ): Promise<T> {
-    const opts = { ...DEFAULT_RETRY_OPTIONS, ...options };
-
-    return this.executeCommandWithRetry<T>(method, opts, 1, params);
-  }
-
-  /**
-   * Simple retry logic for CDP commands
-   */
-  private async executeCommandWithRetry<T>(
-    method: string,
-    options: Required<RetryOptions>,
-    attempt: number = 1,
-    params?: unknown
-  ): Promise<T> {
+  async sendCommand<T = unknown>(method: string, params?: unknown): Promise<T> {
     return new Promise<T>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        if (attempt < options.attempts) {
-          const delay = options.delay * Math.pow(2, attempt - 1);
-          this.logger.warn(
-            `Command ${method} timed out, retrying in ${delay}ms (attempt ${
-              attempt + 1
-            }/${options.attempts})`
-          );
-
-          setTimeout(() => {
-            this.executeCommandWithRetry<T>(
-              method,
-              options,
-              attempt + 1,
-              params
-            )
-              .then(resolve)
-              .catch(reject);
-          }, delay);
-        } else {
-          const error = new Error(
-            `Command ${method} timed out after ${attempt} attempts`
-          );
-          this.logger.error(`Command ${method} failed:`, error);
-          reject(error);
-        }
-      }, options.timeout);
+        this.webContents.debugger.removeAllListeners("message");
+        reject(new Error(`Command ${method} timed out after 10 seconds`));
+      }, 10000);
 
       try {
         this.webContents.debugger.sendCommand(method, params);
         this.logger.debug(`Command sent: ${method}`);
 
-        // Handle the response
         const handleResponse = (
           _event: unknown,
           responseMethod: string,
@@ -135,9 +69,7 @@ export class DOMService implements IDOMService {
             clearTimeout(timeout);
 
             if (responseMethod.includes("error")) {
-              const error = new Error(`Command ${method} failed`);
-              this.logger.error(`Command ${method} failed:`, error);
-              reject(error);
+              reject(new Error(`Command ${method} failed`));
             } else {
               this.logger.debug(`Command succeeded: ${method}`);
               resolve(responseParams as T);
@@ -216,7 +148,7 @@ export class DOMService implements IDOMService {
 
       // Get all required data from CDP
       const trees = await this.getAllTrees(targetId);
-      const targets = await this.sessionManager.getTargetsForPage(targetId);
+      const targets = await this.getTargetsForPage(targetId);
 
       // Build enhanced DOM tree
       const enhancedTree = DOMTreeBuilder.buildEnhancedDOMTree(trees, targets);
@@ -253,7 +185,9 @@ export class DOMService implements IDOMService {
     try {
       this.logger.debug("Getting device pixel ratio");
 
-      const layoutMetrics = await this.sendCommand("Page.getLayoutMetrics") as {
+      const layoutMetrics = (await this.sendCommand(
+        "Page.getLayoutMetrics"
+      )) as {
         visualViewport?: Record<string, number>;
         cssVisualViewport?: Record<string, number>;
       };
@@ -362,7 +296,9 @@ export class DOMService implements IDOMService {
   /**
    * Get accessibility tree
    */
-  private async getAccessibilityTree(_frameId?: string): Promise<{ nodes: unknown[] }> {
+  private async getAccessibilityTree(
+    _frameId?: string
+  ): Promise<{ nodes: unknown[] }> {
     try {
       const axTree = await this.sendCommand("Accessibility.getFullAXTree");
       return { nodes: (axTree as { nodes?: unknown[] }).nodes || [] };
@@ -384,8 +320,12 @@ export class DOMService implements IDOMService {
 
     try {
       const layoutMetrics = await this.sendCommand("Page.getLayoutMetrics");
-      const visualViewport = (layoutMetrics as { visualViewport?: Record<string, number> }).visualViewport || {};
-      const cssVisualViewport = (layoutMetrics as { cssVisualViewport?: Record<string, number> }).cssVisualViewport || {};
+      const visualViewport =
+        (layoutMetrics as { visualViewport?: Record<string, number> })
+          .visualViewport || {};
+      const cssVisualViewport =
+        (layoutMetrics as { cssVisualViewport?: Record<string, number> })
+          .cssVisualViewport || {};
 
       return {
         width:
@@ -452,7 +392,41 @@ export class DOMService implements IDOMService {
    * Get targets for current page
    */
   async getTargetsForPage(targetId?: string): Promise<CurrentPageTargets> {
-    return this.sessionManager.getTargetsForPage(targetId);
+    try {
+      this.logger.debug(`Getting targets for page: ${targetId || "default"}`);
+
+      // Get all targets
+      const targetsData = (await this.sendCommand("Target.getTargets")) as {
+        targetInfos: Array<{
+          targetId: string;
+          type: string;
+          title: string;
+          url: string;
+          attached: boolean;
+        }>;
+      };
+
+      // Find main page target
+      const mainTargetId = targetId || "default";
+      const mainTarget = targetsData.targetInfos.find(
+        (target) => target.targetId === mainTargetId
+      );
+
+      if (!mainTarget) {
+        throw new Error(`Main target not found: ${mainTargetId}`);
+      }
+
+      // For now, return simple structure without iframe sessions
+      // This can be enhanced later when cross-origin iframe support is needed
+      return {
+        pageSession: mainTarget,
+        iframeSessions: [], // Simplified - no iframe handling in phase 1-2
+      };
+    } catch (_error) {
+      const errorMessage = "Target detection failed";
+      this.logger.error(`Failed to get targets for page: ${errorMessage}`);
+      throw new Error(errorMessage);
+    }
   }
 
   /**
@@ -505,9 +479,6 @@ export class DOMService implements IDOMService {
     this.logger.debug("Destroying DOMService");
 
     try {
-      // Cleanup session manager
-      await this.sessionManager.cleanup();
-
       // Cleanup debugger
       await this.detach();
 
@@ -531,13 +502,11 @@ export class DOMService implements IDOMService {
   getStatus(): {
     isInitialized: boolean;
     isAttached: boolean;
-    sessionCount: number;
     webContentsId: number;
   } {
     return {
       isInitialized: this.isInitialized,
       isAttached: this.isAttached(),
-      sessionCount: this.sessionManager.getSessionCount(),
       webContentsId: this.webContents.id,
     };
   }

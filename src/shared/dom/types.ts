@@ -14,19 +14,6 @@ export interface DOMRect {
   toDict(): Record<string, number>;
 }
 
-export interface SessionInfo {
-  sessionId: string;
-  targetId?: string;
-  isAttached: boolean;
-  createdAt: Date;
-}
-
-export interface CDPOptions {
-  protocolVersion?: string;
-  timeout?: number;
-  retryAttempts?: number;
-  retryDelay?: number;
-}
 
 // ===== PHASE 2: Enhanced DOM Analysis Types =====
 
@@ -221,19 +208,6 @@ export interface ViewportInfo {
   scrollY: number;
 }
 
-/**
- * Frame tree information
- */
-export interface FrameTree {
-  frameId: string;
-  parentId?: string | null;
-  url: string;
-  name?: string | null;
-  isCrossOrigin?: boolean;
-  frameTargetId?: string | null;
-  parentTargetId?: string | null;
-  children?: FrameTree[];
-}
 
 /**
  * DOM snapshot return data structure

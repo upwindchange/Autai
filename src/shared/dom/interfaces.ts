@@ -1,95 +1,23 @@
 /**
  * DOM service interfaces for CDP infrastructure
- * Simplified version without CDPService abstraction
+ * Simplified implementation following browser-use patterns with minimal abstraction
  */
 
 import type { Debugger, WebContents } from "electron";
-import type { SessionInfo, CDPOptions, CurrentPageTargets, FrameTree } from "./types";
-
-export interface ICDPSessionManager {
-  /**
-   * Create a new CDP session
-   */
-  createSession(targetId?: string): Promise<string>;
-
-  /**
-   * Destroy an existing session
-   */
-  destroySession(sessionId: string): Promise<void>;
-
-  /**
-   * Get all active sessions
-   */
-  getActiveSessions(): Map<string, SessionInfo>;
-
-  /**
-   * Check if session exists
-   */
-  hasSession(sessionId: string): boolean;
-
-  /**
-   * Send command through specific session
-   */
-  sendSessionCommand<T = unknown>(
-    sessionId: string,
-    method: string,
-    params?: unknown
-  ): Promise<T>;
-
-  /**
-   * Cleanup all sessions
-   */
-  cleanup(): Promise<void>;
-
-  /**
-   * Get the number of active sessions
-   */
-  getSessionCount(): number;
-
-  /**
-   * Get targets for the current page
-   */
-  getTargetsForPage(targetId?: string): Promise<CurrentPageTargets>;
-
-  /**
-   * Get frame tree for a target
-   */
-  getFrameTree(targetId?: string): Promise<FrameTree[]>;
-
-  /**
-   * Get frame information by frame ID
-   */
-  getFrameInfo(frameId: string, targetId?: string): Promise<FrameTree | null>;
-
-  /**
-   * Check if frame has cross-origin content
-   */
-  isCrossOriginFrame(frameId: string, targetId?: string): Promise<boolean>;
-
-  /**
-   * Clear frame and target caches
-   */
-  clearCaches(): void;
-}
+import type { CurrentPageTargets, EnhancedDOMTreeNode, ViewportInfo } from "./types";
 
 export interface IDOMService {
-  /**
-   * Get the session manager instance
-   */
-  getSessionManager(): ICDPSessionManager;
-
   /**
    * Get the webContents instance
    */
   getWebContents(): WebContents;
 
   /**
-   * Send a CDP command with retry logic
+   * Send a CDP command
    */
   sendCommand<T = unknown>(
     method: string,
-    params?: unknown,
-    options?: CDPOptions
+    params?: unknown
   ): Promise<T>;
 
   /**
@@ -111,6 +39,56 @@ export interface IDOMService {
    * Check if debugger is attached
    */
   isAttached(): boolean;
+
+  /**
+   * Get enhanced DOM tree with integrated CDP data
+   */
+  getDOMTree(targetId?: string): Promise<EnhancedDOMTreeNode>;
+
+  /**
+   * Initialize the DOM service
+   */
+  initialize(): Promise<void>;
+
+  /**
+   * Check if the service is ready
+   */
+  isReady(): boolean;
+
+  /**
+   * Get service status information
+   */
+  getStatus(): {
+    isInitialized: boolean;
+    isAttached: boolean;
+    webContentsId: number;
+  };
+
+  /**
+   * Get viewport information
+   */
+  getViewportInfo(): Promise<ViewportInfo>;
+
+  /**
+   * Get frame tree
+   */
+  getFrameTree(): Promise<{
+    frameTree: {
+      frame: {
+        id: string;
+        url: string;
+        name?: string;
+        securityOrigin?: string;
+      };
+      childFrames?: unknown[];
+      parent?: unknown;
+    };
+  }>;
+
+  /**
+   * Get targets for current page
+   */
+  getTargetsForPage(targetId?: string): Promise<CurrentPageTargets>;
 
   /**
    * Cleanup resources
