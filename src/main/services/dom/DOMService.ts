@@ -15,19 +15,27 @@ import type {
   CurrentPageTargets,
   ViewportInfo,
   DOMSnapshot,
+  SerializedDOMState,
+  SerializationConfig,
+  SerializationTiming,
+  SerializationStats,
 } from "@shared/dom";
 import { DOMTreeBuilder } from "./builders/DOMTreeBuilder";
+import { DOMTreeSerializer } from "./serializer/DOMTreeSerializer";
 
 export class DOMService implements IDOMService {
   private webContents: WebContents;
   private isInitialized = false;
   private logger = log.scope("DOMService");
+  private serializer: DOMTreeSerializer;
+  private previousState?: SerializedDOMState;
 
   constructor(webContents: WebContents) {
     this.webContents = webContents;
     this.isInitialized = true;
+    this.serializer = new DOMTreeSerializer();
     this.logger.info(
-      "DOMService initialized (Simplified - direct CDP integration)"
+      "DOMService initialized (Simplified - direct CDP integration with serialization pipeline)"
     );
   }
 
@@ -482,6 +490,9 @@ export class DOMService implements IDOMService {
       // Cleanup debugger
       await this.detach();
 
+      // Clear previous state
+      this.previousState = undefined;
+
       this.isInitialized = false;
       this.logger.info("DOMService destroyed");
     } catch (error) {
@@ -497,17 +508,132 @@ export class DOMService implements IDOMService {
   }
 
   /**
+   * Get serialized DOM tree optimized for LLM consumption
+   */
+  async getSerializedDOMTree(
+    previousState?: SerializedDOMState,
+    config?: Partial<SerializationConfig>
+  ): Promise<{
+    serializedState: SerializedDOMState;
+    timing: SerializationTiming;
+    stats: SerializationStats;
+  }> {
+    if (!this.isInitialized) {
+      throw new Error("DOMService not initialized");
+    }
+
+    if (!this.isAttached()) {
+      throw new Error("Debugger not attached - call initialize() first");
+    }
+
+    try {
+      this.logger.debug("Getting serialized DOM tree for LLM consumption");
+
+      // Get enhanced DOM tree
+      const domTree = await this.getDOMTree();
+
+      // Serialize with previous state for change detection
+      const result = await this.serializer.serializeDOMTree(
+        domTree,
+        previousState,
+        config
+      );
+
+      // Store previous state for change detection
+      this.previousState = result.serializedState;
+
+      this.logger.info(
+        `DOM tree serialized successfully: ${result.stats.interactiveElements} interactive elements, ${result.stats.filteredNodes} filtered nodes`
+      );
+
+      return result;
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      this.logger.error(`Failed to serialize DOM tree: ${errorMessage}`);
+      throw new Error(`DOM serialization failed: ${errorMessage}`);
+    }
+  }
+
+  /**
+   * Get DOM tree with change detection for efficient updates
+   */
+  async getDOMTreeWithChangeDetection(
+    previousState?: SerializedDOMState
+  ): Promise<{
+    domTree: EnhancedDOMTreeNode;
+    serializedState?: SerializedDOMState;
+    hasChanges: boolean;
+    changeCount: number;
+  }> {
+    if (!this.isInitialized) {
+      throw new Error("DOMService not initialized");
+    }
+
+    if (!this.isAttached()) {
+      throw new Error("Debugger not attached - call initialize() first");
+    }
+
+    try {
+      this.logger.debug("Getting DOM tree with change detection");
+
+      // Get enhanced DOM tree
+      const domTree = await this.getDOMTree();
+
+      // If no previous state, everything is new
+      if (!previousState) {
+        const serializedResult = await this.serializer.serializeDOMTree(domTree);
+        return {
+          domTree,
+          serializedState: serializedResult.serializedState,
+          hasChanges: true,
+          changeCount: serializedResult.stats.totalNodes
+        };
+      }
+
+      // Compare with previous state
+      const serializedResult = await this.serializer.serializeDOMTree(
+        domTree,
+        previousState
+      );
+
+      const changeCount = serializedResult.stats.newElements;
+      const hasChanges = changeCount > 0;
+
+      this.logger.debug(
+        `Change detection completed: ${changeCount} changes detected`
+      );
+
+      return {
+        domTree,
+        serializedState: serializedResult.serializedState,
+        hasChanges,
+        changeCount
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "Unknown error";
+      this.logger.error(`Failed to get DOM tree with change detection: ${errorMessage}`);
+      throw new Error(`Change detection failed: ${errorMessage}`);
+    }
+  }
+
+  /**
    * Get service status information
    */
   getStatus(): {
     isInitialized: boolean;
     isAttached: boolean;
     webContentsId: number;
+    hasPreviousState: boolean;
+    serializationEnabled: boolean;
   } {
     return {
       isInitialized: this.isInitialized,
       isAttached: this.isAttached(),
       webContentsId: this.webContents.id,
+      hasPreviousState: !!this.previousState,
+      serializationEnabled: !!this.serializer
     };
   }
 }

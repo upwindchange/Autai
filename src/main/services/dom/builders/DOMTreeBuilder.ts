@@ -188,7 +188,7 @@ export class DOMTreeBuilder {
     nodeLookup: Record<number, EnhancedDOMTreeNode>,
     targetId: string,
     devicePixelRatio: number,
-    totalFrameOffset: DOMRect = { x: 0, y: 0, width: 0, height: 0, toDict() { return { x: this.x, y: this.y, width: this.width, height: this.height }; } }
+    totalFrameOffset: DOMRect = { x: 0, y: 0, width: 0, height: 0, x1: 0, y1: 0, x2: 0, y2: 0, area: 0, toDict() { return { x: this.x, y: this.y, width: this.width, height: this.height }; } }
   ): EnhancedDOMTreeNode {
     // Check if we've already processed this node
     if (nodeLookup[node.nodeId]) {
@@ -255,7 +255,7 @@ export class DOMTreeBuilder {
       elementIndex: null, // Will be assigned later
 
       // Compound control information
-      _compoundChildren: [] as Array<Array<Record<string, unknown>>>,
+      _compoundChildren: [] as Record<string, unknown>[],
 
       // UUID for identification
       uuid: DOMTreeBuilder.generateUUID(),
@@ -339,7 +339,7 @@ export class DOMTreeBuilder {
 
         // Calculate scroll percentages
         const scrollPercentages = calculateScrollPercentage(
-          this.snapshotNode.bounds || { x: 0, y: 0, width: 0, height: 0, toDict() { return {}; } },
+          this.snapshotNode.bounds || { x: 0, y: 0, width: 0, height: 0, x1: 0, y1: 0, x2: 0, y2: 0, area: 0, toDict() { return {}; } },
           scrollInfo
         );
 

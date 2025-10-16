@@ -94,6 +94,11 @@ export function buildSnapshotLookup(
               y: rawY / devicePixelRatio,
               width: rawWidth / devicePixelRatio,
               height: rawHeight / devicePixelRatio,
+              x1: rawX / devicePixelRatio,
+              y1: rawY / devicePixelRatio,
+              x2: (rawX + rawWidth) / devicePixelRatio,
+              y2: (rawY + rawHeight) / devicePixelRatio,
+              area: (rawWidth * rawHeight) / (devicePixelRatio * devicePixelRatio),
               toDict() {
                 return { x: this.x, y: this.y, width: this.width, height: this.height };
               }
@@ -120,6 +125,11 @@ export function buildSnapshotLookup(
             const [x, y, width, height] = clientRectData;
             clientRects = {
               x, y, width, height,
+              x1: x,
+              y1: y,
+              x2: x + width,
+              y2: y + height,
+              area: width * height,
               toDict() {
                 return { x: this.x, y: this.y, width: this.width, height: this.height };
               }
@@ -134,6 +144,11 @@ export function buildSnapshotLookup(
             const [x, y, width, height] = scrollRectData;
             scrollRects = {
               x, y, width, height,
+              x1: x,
+              y1: y,
+              x2: x + width,
+              y2: y + height,
+              area: width * height,
               toDict() {
                 return { x: this.x, y: this.y, width: this.width, height: this.height };
               }
@@ -286,6 +301,11 @@ export function deviceToCSSPixels(rect: DOMRect, devicePixelRatio: number): DOMR
     y: rect.y / devicePixelRatio,
     width: rect.width / devicePixelRatio,
     height: rect.height / devicePixelRatio,
+    x1: rect.x1 / devicePixelRatio,
+    y1: rect.y1 / devicePixelRatio,
+    x2: rect.x2 / devicePixelRatio,
+    y2: rect.y2 / devicePixelRatio,
+    area: rect.area / (devicePixelRatio * devicePixelRatio),
     toDict() {
       return { x: this.x, y: this.y, width: this.width, height: this.height };
     }
@@ -301,6 +321,11 @@ export function csToDevicePixels(rect: DOMRect, devicePixelRatio: number): DOMRe
     y: rect.y * devicePixelRatio,
     width: rect.width * devicePixelRatio,
     height: rect.height * devicePixelRatio,
+    x1: rect.x1 * devicePixelRatio,
+    y1: rect.y1 * devicePixelRatio,
+    x2: rect.x2 * devicePixelRatio,
+    y2: rect.y2 * devicePixelRatio,
+    area: rect.area * (devicePixelRatio * devicePixelRatio),
     toDict() {
       return { x: this.x, y: this.y, width: this.width, height: this.height };
     }
@@ -312,7 +337,7 @@ export function csToDevicePixels(rect: DOMRect, devicePixelRatio: number): DOMRe
  */
 export function calculateAbsolutePosition(
   node: { snapshotNode?: { bounds?: DOMRect | null } },
-  totalFrameOffset: DOMRect = { x: 0, y: 0, width: 0, height: 0, toDict() { return { x: this.x, y: this.y, width: this.width, height: this.height }; } }
+  totalFrameOffset: DOMRect = { x: 0, y: 0, width: 0, height: 0, x1: 0, y1: 0, x2: 0, y2: 0, area: 0, toDict() { return { x: this.x, y: this.y, width: this.width, height: this.height }; } }
 ): DOMRect | null {
   if (!node.snapshotNode?.bounds) {
     return null;
@@ -324,6 +349,11 @@ export function calculateAbsolutePosition(
     y: node.snapshotNode.bounds.y + totalFrameOffset.y,
     width: node.snapshotNode.bounds.width,
     height: node.snapshotNode.bounds.height,
+    x1: node.snapshotNode.bounds.x + totalFrameOffset.x,
+    y1: node.snapshotNode.bounds.y + totalFrameOffset.y,
+    x2: node.snapshotNode.bounds.x + totalFrameOffset.x + node.snapshotNode.bounds.width,
+    y2: node.snapshotNode.bounds.y + totalFrameOffset.y + node.snapshotNode.bounds.height,
+    area: node.snapshotNode.bounds.area,
     toDict() {
       return { x: this.x, y: this.y, width: this.width, height: this.height };
     }
@@ -359,6 +389,11 @@ export function calculateIntersection(rect1: DOMRect, rect2: DOMRect): DOMRect |
 
   return {
     x, y, width, height,
+    x1: x,
+    y1: y,
+    x2: x + width,
+    y2: y + height,
+    area: width * height,
     toDict() {
       return { x: this.x, y: this.y, width: this.width, height: this.height };
     }
@@ -378,6 +413,11 @@ export function isElementVisibleInViewport(
     y: viewportInfo.scrollY,
     width: viewportInfo.width,
     height: viewportInfo.height,
+    x1: viewportInfo.scrollX,
+    y1: viewportInfo.scrollY,
+    x2: viewportInfo.scrollX + viewportInfo.width,
+    y2: viewportInfo.scrollY + viewportInfo.height,
+    area: viewportInfo.width * viewportInfo.height,
     toDict() {
       return { x: this.x, y: this.y, width: this.width, height: this.height };
     }

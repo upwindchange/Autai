@@ -7,6 +7,11 @@ export interface DOMRect {
   y: number;
   width: number;
   height: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  area: number;
 
   /**
    * Convert to dictionary format
@@ -111,7 +116,7 @@ export interface EnhancedDOMTreeNode {
   elementIndex?: number | null;
 
   // Compound control information
-  _compoundChildren?: Array<Record<string, unknown>>[];
+  _compoundChildren?: Record<string, unknown>[];
 
   // UUID for identification
   uuid?: string;
@@ -241,11 +246,91 @@ export interface AXTree {
 }
 
 /**
+ * Propagating bounds information for bounding box filtering
+ */
+export interface PropagatingBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  node: SimplifiedNode;
+}
+
+/**
+ * DOM selector map for element mapping and interaction
+ */
+export type DOMSelectorMap = Record<number, EnhancedDOMTreeNode>;
+
+/**
+ * Compound component virtual element
+ */
+export interface CompoundComponent {
+  role: 'spinbutton' | 'slider' | 'button' | 'textbox' | 'listbox' | 'combobox';
+  name: string;
+  description?: string;
+  valuemin?: number;
+  valuemax?: number;
+  valuenow?: number | null;
+  options_count?: number;
+  first_options?: string[];
+  format_hint?: string;
+  readonly?: boolean;
+  formats?: string;
+}
+
+/**
+ * Serialization configuration options
+ */
+export interface SerializationConfig {
+  enablePaintOrderFiltering: boolean;
+  enableBoundingBoxFiltering: boolean;
+  enableCompoundComponents: boolean;
+  opacityThreshold: number;
+  containmentThreshold: number;
+  maxInteractiveElements: number;
+}
+
+/**
+ * Serialization timing information
+ */
+export interface SerializationTiming {
+  total: number;
+  createSimplifiedTree: number;
+  paintOrderFiltering: number;
+  optimizeTreeStructure: number;
+  boundingBoxFiltering: number;
+  assignInteractiveIndices: number;
+  markNewElements: number;
+}
+
+/**
+ * Serialization statistics
+ */
+export interface SerializationStats {
+  totalNodes: number;
+  simplifiedNodes: number;
+  filteredNodes: number;
+  interactiveElements: number;
+  newElements: number;
+  occludedNodes: number;
+  containedNodes: number;
+  compoundComponents: number;
+}
+
+/**
  * Serialized DOM state for LLM consumption
  */
 export interface SerializedDOMState {
   root: SimplifiedNode;
-  selectorMap: Record<number, EnhancedDOMTreeNode>;
+  selectorMap: DOMSelectorMap;
+  timing?: SerializationTiming;
+  stats?: SerializationStats;
+  config?: SerializationConfig;
+
+  /**
+   * Generate LLM-friendly representation of the DOM
+   */
+  llm_representation?(): string;
 }
 
 /**
@@ -255,10 +340,84 @@ export interface SimplifiedNode {
   originalNode: EnhancedDOMTreeNode;
   children: SimplifiedNode[];
   shouldDisplay: boolean;
-  interactiveIndex?: number | null;
+  interactiveIndex: number | null;
   isNew: boolean;
   ignoredByPaintOrder: boolean;
   excludedByParent: boolean;
   isShadowHost: boolean;
   isCompoundComponent: boolean;
+
+  // Additional properties for enhanced tracking
+  hasCompoundChildren: boolean;
+  isLeaf: boolean;
+  depth: number;
+  nodeHash: number;
+
+  // Helper properties (required for object creation)
+  interactiveElement: boolean;
+  hasChildren: boolean;
+  xpath: string;
+  tagName: string;
+  textContent: string;
+}
+
+/**
+ * Interactive element detection result
+ */
+export interface InteractiveDetectionResult {
+  isInteractive: boolean;
+  score: number;
+  detectionLayers: string[];
+}
+
+/**
+ * Paint order filtering statistics
+ */
+export interface PaintOrderStats {
+  totalNodes: number;
+  visibleNodes: number;
+  occludedNodes: number;
+  filterRate: number;
+  unionRectCount: number;
+}
+
+/**
+ * Bounding box filtering statistics
+ */
+export interface BoundingBoxFilterStats {
+  totalNodes: number;
+  excludedNodes: number;
+  propagatingNodes: number;
+  interactiveExceptions: number;
+  sizeFiltered: number;
+}
+
+
+/**
+ * Element pattern for matching
+ */
+export interface ElementPattern {
+  tag: string;
+  role?: string;
+  hasAttribute?: string;
+  className?: string;
+  idPattern?: string;
+}
+
+/**
+ * Performance metrics for serialization
+ */
+export interface SerializationMetrics {
+  cdpTiming: Record<string, number>;
+  serializationTiming: SerializationTiming;
+  memoryUsage: {
+    peak: number;
+    current: number;
+    freed: number;
+  };
+  efficiency: {
+    tokenReduction: number;
+    filteringEfficiency: number;
+    cacheHitRate: number;
+  };
 }
