@@ -438,7 +438,7 @@ export class DOMTreeSerializer {
     const interactiveNodes: SimplifiedNode[] = [];
 
     // Check current node
-    const { isInteractive } = this.interactiveDetector.isInteractive(node.originalNode);
+    const isInteractive = this.interactiveDetector.isInteractive(node.originalNode);
     if (isInteractive && node.shouldDisplay) {
       interactiveNodes.push(node);
     }
