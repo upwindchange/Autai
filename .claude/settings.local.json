@@ -1,15 +1,9 @@
 {
   "permissions": {
-    "allow": [
-      "Bash(git mv:*)",
-      "mcp__language-server__diagnostics",
-      "mcp__language-server__edit_file"
-    ],
+    "allow": ["Bash(git mv:*)", "mcp__language-server__diagnostics"],
     "deny": [],
     "ask": []
   },
   "enableAllProjectMcpServers": true,
-  "enabledMcpjsonServers": [
-    "language-server"
-  ]
+  "enabledMcpjsonServers": ["language-server"]
 }

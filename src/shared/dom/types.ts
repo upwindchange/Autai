@@ -157,7 +157,7 @@ export interface CurrentPageTargets {
 /**
  * DOM document structure from CDP
  */
-interface DOMDocument {
+export interface DOMDocument {
   root: {
     nodeId: number;
     backendNodeId: number;
@@ -177,7 +177,7 @@ interface DOMDocument {
 /**
  * Accessibility node from CDP
  */
-interface AXNode {
+export interface AXNode {
   nodeId: string;
   backendDOMNodeId?: number;
   ignored: boolean;
@@ -196,7 +196,7 @@ interface AXNode {
  */
 export interface TargetAllTrees {
   snapshot: DOMSnapshot;
-  domTree: DOMDocument;
+  domTree: DOMDocument | null;
   axTree: { nodes: AXNode[] };
   devicePixelRatio: number;
   cdpTiming: Record<string, number>;

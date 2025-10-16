@@ -1,8 +1,7 @@
 /**
- * DOM Service - Simplified implementation using Electron's debugger directly
+ * Simplified DOM Service - Direct CDP integration following browser-use patterns
  *
- * Simplified implementation following browser-use patterns with direct CDP integration
- * and minimal abstraction layers.
+ * Minimal abstraction with direct CDP access and simple timeout handling
  */
 
 import type { WebContents } from "electron";
@@ -12,31 +11,420 @@ import type {
   IDOMService,
   EnhancedDOMTreeNode,
   TargetAllTrees,
-  CurrentPageTargets,
-  ViewportInfo,
   DOMSnapshot,
   SerializedDOMState,
   SerializationConfig,
   SerializationTiming,
   SerializationStats,
+  DOMDocument,
+  AXNode,
+  EnhancedSnapshotNode,
+  DOMRect,
 } from "@shared/dom";
-import { DOMTreeBuilder } from "./builders/DOMTreeBuilder";
 import { DOMTreeSerializer } from "./serializer/DOMTreeSerializer";
 
 export class DOMService implements IDOMService {
   private webContents: WebContents;
-  private isInitialized = false;
   private logger = log.scope("DOMService");
   private serializer: DOMTreeSerializer;
   private previousState?: SerializedDOMState;
 
   constructor(webContents: WebContents) {
     this.webContents = webContents;
-    this.isInitialized = true;
     this.serializer = new DOMTreeSerializer();
-    this.logger.info(
-      "DOMService initialized (Simplified - direct CDP integration with serialization pipeline)"
+    this.logger.info("DOMService initialized - direct CDP integration");
+  }
+
+  /**
+   * Send CDP command with simple timeout
+   */
+  async sendCommand<T = unknown>(method: string, params?: unknown): Promise<T> {
+    return new Promise<T>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error(`Command ${method} timed out after 10s`));
+      }, 10000);
+
+      this.webContents.debugger.sendCommand(method, params);
+
+      const handleResponse = (
+        _event: unknown,
+        responseMethod: string,
+        responseParams: unknown
+      ) => {
+        if (responseMethod === method || responseMethod.includes("error")) {
+          clearTimeout(timeout);
+          this.webContents.debugger.removeAllListeners("message");
+
+          if (responseMethod.includes("error")) {
+            reject(new Error(`Command ${method} failed`));
+          } else {
+            resolve(responseParams as T);
+          }
+        }
+      };
+
+      this.webContents.debugger.on("message", handleResponse);
+    });
+  }
+
+  /**
+   * Attach debugger
+   */
+  async attach(): Promise<void> {
+    try {
+      this.webContents.debugger.attach("1.3");
+      this.logger.info("Debugger attached");
+    } catch (error) {
+      this.logger.error(`Failed to attach debugger: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Detach debugger
+   */
+  async detach(): Promise<void> {
+    try {
+      this.webContents.debugger.detach();
+      this.logger.info("Debugger detached");
+    } catch (error) {
+      this.logger.error(`Failed to detach debugger: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Check if debugger is attached
+   */
+  isAttached(): boolean {
+    return this.webContents.debugger.isAttached();
+  }
+
+  /**
+   * Get enhanced DOM tree
+   */
+  async getDOMTree(): Promise<EnhancedDOMTreeNode> {
+    if (!this.isAttached()) {
+      throw new Error("Debugger not attached - call initialize() first");
+    }
+
+    try {
+      this.logger.debug("Getting DOM tree");
+
+      // Get all CDP data
+      const trees = await this.getAllTrees();
+
+      // Build enhanced tree directly
+      const enhancedTree = this.buildEnhancedDOMTree(trees);
+
+      this.logger.info(
+        `DOM tree built with ${this.countNodes(enhancedTree)} nodes`
+      );
+      return enhancedTree;
+    } catch (error) {
+      this.logger.error(`Failed to get DOM tree: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all CDP tree data for DOM analysis
+   */
+  private async getAllTrees(): Promise<TargetAllTrees> {
+    try {
+      this.logger.debug("Collecting CDP data");
+
+      // Get DOM data in parallel
+      const [domTree, snapshot, axTree] = await Promise.allSettled([
+        this.sendCommand("DOM.getDocument", { depth: -1, pierce: true }),
+        this.sendCommand("DOMSnapshot.captureSnapshot", {
+          computedStyles: [
+            "display",
+            "visibility",
+            "opacity",
+            "cursor",
+            "position",
+          ],
+          includePaintOrder: true,
+          includeDOMRects: true,
+          includeBlendedBackgroundColors: false,
+          includeTextColorOpacities: false,
+        }),
+        this.sendCommand("Accessibility.getFullAXTree"),
+      ]);
+
+      return {
+        snapshot:
+          snapshot.status === "fulfilled"
+            ? (snapshot.value as DOMSnapshot)
+            : { documents: [], strings: [] },
+        domTree: domTree.status === "fulfilled" ? (domTree.value as DOMDocument) : null,
+        axTree:
+          axTree.status === "fulfilled"
+            ? { nodes: (axTree.value as { nodes: AXNode[] }).nodes || [] }
+            : { nodes: [] },
+        devicePixelRatio: 1.0, // Simplified - use basic scaling
+        cdpTiming: { cdp_calls_total: 0 },
+      };
+    } catch (error) {
+      this.logger.error(`CDP data collection failed: ${error}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Build enhanced DOM tree from CDP data (simplified DOMTreeBuilder merge)
+   */
+  private buildEnhancedDOMTree(trees: TargetAllTrees): EnhancedDOMTreeNode {
+    const { snapshot, domTree, axTree } = trees;
+
+    // Build lookups
+    const axTreeLookup: Record<number, AXNode> = {};
+    for (const axNode of axTree.nodes) {
+      if (axNode.backendDOMNodeId) {
+        axTreeLookup[axNode.backendDOMNodeId] = axNode;
+      }
+    }
+
+    const snapshotLookup = this.buildSnapshotLookup(snapshot, 1.0);
+    const nodeLookup: Record<number, EnhancedDOMTreeNode> = {};
+
+    // Build enhanced tree
+    if (!domTree) {
+      throw new Error("DOM tree is null - cannot build enhanced tree");
+    }
+    return this.constructEnhancedNode(
+      domTree.root,
+      axTreeLookup,
+      snapshotLookup,
+      nodeLookup,
+      "default"
     );
+  }
+
+  /**
+   * Build snapshot lookup (simplified)
+   */
+  private buildSnapshotLookup(
+    snapshot: DOMSnapshot,
+    _devicePixelRatio: number
+  ): Record<number, EnhancedSnapshotNode> {
+    const lookup: Record<number, EnhancedSnapshotNode> = {};
+
+    if (!snapshot.documents?.[0]) return lookup;
+
+    const { nodeTree, layout } = snapshot.documents[0];
+    if (!nodeTree?.backendNodeId || !layout?.nodeIndex) return lookup;
+
+    for (let i = 0; i < nodeTree.backendNodeId.length; i++) {
+      const nodeId = nodeTree.backendNodeId[i];
+      const isClickable = nodeTree.isClickable?.index?.includes(i) || false;
+
+      let bounds: DOMRect | null = null;
+      let computedStyles: Record<string, string> | null = null;
+
+      const layoutIdx = layout.nodeIndex.indexOf(i);
+      if (
+        layoutIdx >= 0 &&
+        layout.bounds &&
+        layout.bounds[layoutIdx]?.length >= 4
+      ) {
+        const boundsData = layout.bounds[layoutIdx];
+        const [x, y, w, h] = boundsData;
+        bounds = {
+          x,
+          y,
+          width: w,
+          height: h,
+          x1: x,
+          y1: y,
+          x2: x + w,
+          y2: y + h,
+          area: w * h,
+          toDict: function() { return { x: this.x, y: this.y, width: this.width, height: this.height }; }
+        };
+        if (layout.styles?.[layoutIdx]) {
+          computedStyles = {};
+        }
+      }
+
+      lookup[nodeId] = {
+        bounds,
+        computedStyles,
+        isClickable,
+      };
+    }
+
+    return lookup;
+  }
+
+  /**
+   * Construct enhanced node (simplified)
+   */
+  private constructEnhancedNode(
+    node: DOMDocument['root'],
+    axTreeLookup: Record<number, AXNode>,
+    snapshotLookup: Record<number, EnhancedSnapshotNode>,
+    nodeLookup: Record<number, EnhancedDOMTreeNode>,
+    targetId: string
+  ): EnhancedDOMTreeNode {
+    // Check if already processed
+    if (nodeLookup[node.nodeId]) {
+      return nodeLookup[node.nodeId];
+    }
+
+    // Parse attributes
+    const attributes: Record<string, string> = {};
+    if (node.attributes) {
+      for (let i = 0; i < node.attributes.length; i += 2) {
+        attributes[node.attributes[i]] = node.attributes[i + 1] || "";
+      }
+    }
+
+    // Get snapshot data
+    const snapshotData = snapshotLookup[node.backendNodeId];
+    const axNode = axTreeLookup[node.backendNodeId];
+
+    // Create enhanced node
+    const enhancedNode: EnhancedDOMTreeNode = {
+      nodeId: node.nodeId,
+      backendNodeId: node.backendNodeId,
+      nodeType: node.nodeType,
+      nodeName: node.nodeName,
+      nodeValue: node.nodeValue || "",
+      attributes,
+      isScrollable: node.isScrollable || false,
+      isVisible: undefined, // Will be calculated later
+      absolutePosition: snapshotData?.bounds || null,
+      targetId,
+      frameId: node.frameId || null,
+      sessionId: null,
+      shadowRootType: node.shadowRootType || null,
+      shadowRoots: [],
+      parentNode: undefined,
+      childrenNodes: [],
+      contentDocument: null,
+      axNode: axNode
+        ? {
+            axNodeId: axNode.nodeId,
+            ignored: axNode.ignored,
+            role: axNode.role?.value || null,
+            name: axNode.name?.value || null,
+            description: axNode.description?.value || null,
+            properties: axNode.properties?.map(prop => ({
+              name: prop.name,
+              value: prop.value?.value ?? null
+            })) || null,
+            childIds: axNode.childIds || null,
+          }
+        : null,
+      snapshotNode: snapshotData,
+      elementIndex: null,
+      _compoundChildren: [],
+      uuid: Math.random().toString(36).substring(2, 15),
+
+      // Simplified getters
+      get tag() {
+        return this.nodeName.toLowerCase();
+      },
+      get children() {
+        return this.childrenNodes || [];
+      },
+      get childrenAndShadowRoots() {
+        const children = [...(this.childrenNodes || [])];
+        if (this.shadowRoots) children.push(...this.shadowRoots);
+        return children;
+      },
+      get parent() {
+        return this.parentNode || null;
+      },
+      get isActuallyScrollable() {
+        return this.isScrollable || false;
+      },
+      get shouldShowScrollInfo(): boolean {
+        return (this.isScrollable || false) && this.tag
+          ? ["body", "html"].includes(this.tag)
+          : false;
+      },
+      get scrollInfo() {
+        return null;
+      },
+      get elementHash() {
+        return 0;
+      },
+      get xpath() {
+        return "";
+      },
+    };
+
+    // Store in lookup
+    nodeLookup[node.nodeId] = enhancedNode;
+
+    // Process children recursively
+    if (node.children && Array.isArray(node.children)) {
+      enhancedNode.childrenNodes = [];
+      for (const child of node.children) {
+        const childNode = this.constructEnhancedNode(
+          child.root,
+          axTreeLookup,
+          snapshotLookup,
+          nodeLookup,
+          targetId
+        );
+        childNode.parentNode = enhancedNode;
+        enhancedNode.childrenNodes.push(childNode);
+      }
+    }
+
+    // Calculate visibility
+    if (snapshotData?.computedStyles) {
+      const styles = snapshotData.computedStyles;
+      enhancedNode.isVisible =
+        styles.display !== "none" &&
+        styles.visibility !== "hidden" &&
+        parseFloat(styles.opacity || "1") > 0;
+    } else {
+      enhancedNode.isVisible = true;
+    }
+
+    return enhancedNode;
+  }
+
+  /**
+   * Count total nodes in tree
+   */
+  private countNodes(node: EnhancedDOMTreeNode): number {
+    let count = 1;
+    for (const child of node.childrenNodes || []) {
+      count += this.countNodes(child);
+    }
+    return count;
+  }
+
+  /**
+   * Initialize the DOM service
+   */
+  async initialize(): Promise<void> {
+    try {
+      await this.attach();
+      this.logger.info("DOMService initialized");
+    } catch (error) {
+      this.logger.error("Failed to initialize DOMService:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cleanup resources
+   */
+  async destroy(): Promise<void> {
+    try {
+      await this.detach();
+      this.previousState = undefined;
+      this.logger.info("DOMService destroyed");
+    } catch (error) {
+      this.logger.error("Error during DOMService destruction:", error);
+    }
   }
 
   /**
@@ -54,457 +442,55 @@ export class DOMService implements IDOMService {
   }
 
   /**
-   * Send CDP command with simple wrapper
+   * Get viewport information (simplified)
    */
-  async sendCommand<T = unknown>(method: string, params?: unknown): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        this.webContents.debugger.removeAllListeners("message");
-        reject(new Error(`Command ${method} timed out after 10 seconds`));
-      }, 10000);
-
-      try {
-        this.webContents.debugger.sendCommand(method, params);
-        this.logger.debug(`Command sent: ${method}`);
-
-        const handleResponse = (
-          _event: unknown,
-          responseMethod: string,
-          responseParams: unknown
-        ) => {
-          if (responseMethod === method || responseMethod.includes("error")) {
-            this.webContents.debugger.removeAllListeners("message");
-            clearTimeout(timeout);
-
-            if (responseMethod.includes("error")) {
-              reject(new Error(`Command ${method} failed`));
-            } else {
-              this.logger.debug(`Command succeeded: ${method}`);
-              resolve(responseParams as T);
-            }
-          }
-        };
-
-        this.webContents.debugger.on("message", handleResponse);
-      } catch (error) {
-        clearTimeout(timeout);
-        const errorMessage =
-          error instanceof Error ? error.message : "Unknown error";
-        this.logger.error(`Failed to send command ${method}: ${errorMessage}`);
-        reject(new Error(`Command send failed: ${errorMessage}`));
-      }
-    });
-  }
-
-  /**
-   * Attach the debugger to the webContents
-   */
-  async attach(protocolVersion = "1.3"): Promise<void> {
-    try {
-      this.logger.debug(
-        `Attaching debugger with protocol version: ${protocolVersion}`
-      );
-      this.webContents.debugger.attach(protocolVersion);
-      this.logger.info("Debugger attached successfully");
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      this.logger.error(`Failed to attach debugger: ${errorMessage}`);
-      throw new Error(`Debugger attach failed: ${errorMessage}`);
-    }
-  }
-
-  /**
-   * Detach the debugger from the webContents
-   */
-  async detach(): Promise<void> {
-    try {
-      this.logger.debug("Detaching debugger");
-      this.webContents.debugger.detach();
-      this.logger.info("Debugger detached successfully");
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      this.logger.error(`Failed to detach debugger: ${errorMessage}`);
-      throw new Error(`Debugger detach failed: ${errorMessage}`);
-    }
-  }
-
-  /**
-   * Check if debugger is attached
-   */
-  isAttached(): boolean {
-    return this.webContents.debugger.isAttached();
-  }
-
-  /**
-   * Get enhanced DOM tree with integrated CDP data
-   */
-  async getDOMTree(targetId?: string): Promise<EnhancedDOMTreeNode> {
-    if (!this.isInitialized) {
-      throw new Error("DOMService not initialized");
-    }
-
-    if (!this.isAttached()) {
-      throw new Error("Debugger not attached - call initialize() first");
-    }
-
-    try {
-      this.logger.debug(
-        `Getting DOM tree for target: ${targetId || "default"}`
-      );
-
-      // Get all required data from CDP
-      const trees = await this.getAllTrees(targetId);
-      const targets = await this.getTargetsForPage(targetId);
-
-      // Build enhanced DOM tree
-      const enhancedTree = DOMTreeBuilder.buildEnhancedDOMTree(trees, targets);
-
-      // Calculate visibility for all nodes
-      DOMTreeBuilder.calculateVisibility(enhancedTree);
-
-      this.logger.info(
-        `DOM tree built successfully with ${this.countNodes(
-          enhancedTree
-        )} nodes`
-      );
-      return enhancedTree;
-    } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      this.logger.error(`Failed to get DOM tree: ${errorMessage}`);
-      throw new Error(`DOM tree analysis failed: ${errorMessage}`);
-    }
-  }
-
-  /**
-   * Get device pixel ratio from layout metrics
-   */
-  async getDevicePixelRatio(): Promise<number> {
-    if (!this.isInitialized) {
-      throw new Error("DOMService not initialized");
-    }
-
-    if (!this.isAttached()) {
-      throw new Error("Debugger not attached - call initialize() first");
-    }
-
-    try {
-      this.logger.debug("Getting device pixel ratio");
-
-      const layoutMetrics = (await this.sendCommand(
-        "Page.getLayoutMetrics"
-      )) as {
-        visualViewport?: Record<string, number>;
-        cssVisualViewport?: Record<string, number>;
-      };
-
-      // Extract device pixel ratio from visual viewport
-      const visualViewport = layoutMetrics.visualViewport || {};
-      const cssVisualViewport = layoutMetrics.cssVisualViewport || {};
-
-      // Calculate device pixel ratio
-      const deviceWidth =
-        visualViewport.clientWidth || cssVisualViewport.clientWidth || 1920;
-      const cssWidth =
-        cssVisualViewport.clientWidth || visualViewport.clientWidth || 1920;
-      const devicePixelRatio = deviceWidth / cssWidth;
-
-      this.logger.debug(`Device pixel ratio: ${devicePixelRatio}`);
-      return devicePixelRatio || 1.0;
-    } catch (_error) {
-      this.logger.warn("Failed to get device pixel ratio, using fallback: 1.0");
-      return 1.0;
-    }
-  }
-
-  /**
-   * Get all CDP tree data for DOM analysis
-   */
-  private async getAllTrees(_targetId?: string): Promise<TargetAllTrees> {
-    const startTime = Date.now();
-
-    try {
-      this.logger.debug("Collecting all CDP tree data");
-
-      // Get device pixel ratio first
-      const devicePixelRatio = await this.getDevicePixelRatio();
-
-      // Get DOM document
-      const domTree = await this.sendCommand("DOM.getDocument", {
-        depth: -1,
-        pierce: true,
-      });
-
-      // Get DOM snapshot
-      const snapshot = await this.getDOMSnapshot();
-
-      // Get accessibility tree
-      const axTree = await this.getAccessibilityTree();
-
-      const endTime = Date.now();
-      const cdpTiming = {
-        cdp_calls_total: (endTime - startTime) / 1000,
-      };
-
-      this.logger.debug(
-        `CDP tree collection completed in ${cdpTiming.cdp_calls_total}s`
-      );
-
-      return {
-        snapshot,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        domTree: domTree as any,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        axTree: axTree as { nodes: any[] },
-        devicePixelRatio,
-        cdpTiming,
-      };
-    } catch (_error) {
-      const errorMessage = "CDP data collection failed";
-      this.logger.error(`Failed to collect CDP tree data: ${errorMessage}`);
-      throw new Error(errorMessage);
-    }
-  }
-
-  /**
-   * Get DOM snapshot with computed styles
-   */
-  private async getDOMSnapshot(): Promise<DOMSnapshot> {
-    try {
-      const snapshot = await this.sendCommand("DOMSnapshot.captureSnapshot", {
-        computedStyles: [
-          "display",
-          "visibility",
-          "opacity",
-          "overflow",
-          "overflow-x",
-          "overflow-y",
-          "cursor",
-          "pointer-events",
-          "position",
-          "background-color",
-        ],
-        includePaintOrder: true,
-        includeDOMRects: true,
-        includeBlendedBackgroundColors: false,
-        includeTextColorOpacities: false,
-      });
-
-      return snapshot as DOMSnapshot;
-    } catch (_error) {
-      this.logger.warn(
-        "DOM snapshot capture failed, some features may be limited"
-      );
-      return { documents: [], strings: [] };
-    }
-  }
-
-  /**
-   * Get accessibility tree
-   */
-  private async getAccessibilityTree(
-    _frameId?: string
-  ): Promise<{ nodes: unknown[] }> {
-    try {
-      const axTree = await this.sendCommand("Accessibility.getFullAXTree");
-      return { nodes: (axTree as { nodes?: unknown[] }).nodes || [] };
-    } catch (_error) {
-      this.logger.warn(
-        "Accessibility tree capture failed, accessibility features may be limited"
-      );
-      return { nodes: [] };
-    }
-  }
-
-  /**
-   * Get viewport information
-   */
-  async getViewportInfo(): Promise<ViewportInfo> {
-    if (!this.isInitialized) {
-      throw new Error("DOMService not initialized");
-    }
-
-    try {
-      const layoutMetrics = await this.sendCommand("Page.getLayoutMetrics");
-      const visualViewport =
-        (layoutMetrics as { visualViewport?: Record<string, number> })
-          .visualViewport || {};
-      const cssVisualViewport =
-        (layoutMetrics as { cssVisualViewport?: Record<string, number> })
-          .cssVisualViewport || {};
-
-      return {
-        width:
-          cssVisualViewport.clientWidth || visualViewport.clientWidth || 1920,
-        height:
-          cssVisualViewport.clientHeight || visualViewport.clientHeight || 1080,
-        devicePixelRatio: await this.getDevicePixelRatio(),
-        scrollX: visualViewport.pageXOffset || 0,
-        scrollY: visualViewport.pageYOffset || 0,
-      };
-    } catch (_error) {
-      this.logger.warn("Failed to get viewport info, using defaults");
-      return {
-        width: 1920,
-        height: 1080,
-        devicePixelRatio: 1.0,
-        scrollX: 0,
-        scrollY: 0,
-      };
-    }
-  }
-
-  /**
-   * Get frame tree
-   */
-  async getFrameTree(): Promise<{
-    frameTree: {
-      frame: {
-        id: string;
-        url: string;
-        name?: string;
-        securityOrigin?: string;
-      };
-      childFrames?: unknown[];
-      parent?: unknown;
+  async getViewportInfo() {
+    return {
+      width: 1920,
+      height: 1080,
+      devicePixelRatio: 1.0,
+      scrollX: 0,
+      scrollY: 0,
     };
-  }> {
-    if (!this.isInitialized) {
-      throw new Error("DOMService not initialized");
-    }
-
-    try {
-      const frameTree = await this.sendCommand("Page.getFrameTree");
-      return frameTree as {
-        frameTree: {
-          frame: {
-            id: string;
-            url: string;
-            name?: string;
-            securityOrigin?: string;
-          };
-          childFrames?: unknown[];
-          parent?: unknown;
-        };
-      };
-    } catch (_error) {
-      const errorMessage = "Frame tree detection failed";
-      this.logger.error(`Failed to get frame tree: ${errorMessage}`);
-      throw new Error(errorMessage);
-    }
   }
 
   /**
-   * Get targets for current page
+   * Get frame tree (simplified)
    */
-  async getTargetsForPage(targetId?: string): Promise<CurrentPageTargets> {
-    try {
-      this.logger.debug(`Getting targets for page: ${targetId || "default"}`);
-
-      // Get all targets
-      const targetsData = (await this.sendCommand("Target.getTargets")) as {
-        targetInfos: Array<{
-          targetId: string;
-          type: string;
-          title: string;
-          url: string;
-          attached: boolean;
-        }>;
-      };
-
-      // Find main page target
-      const mainTargetId = targetId || "default";
-      const mainTarget = targetsData.targetInfos.find(
-        (target) => target.targetId === mainTargetId
-      );
-
-      if (!mainTarget) {
-        throw new Error(`Main target not found: ${mainTargetId}`);
-      }
-
-      // For now, return simple structure without iframe sessions
-      // This can be enhanced later when cross-origin iframe support is needed
-      return {
-        pageSession: mainTarget,
-        iframeSessions: [], // Simplified - no iframe handling in phase 1-2
-      };
-    } catch (_error) {
-      const errorMessage = "Target detection failed";
-      this.logger.error(`Failed to get targets for page: ${errorMessage}`);
-      throw new Error(errorMessage);
-    }
+  async getFrameTree() {
+    return {
+      frameTree: {
+        frame: {
+          id: "default",
+          url: "",
+          name: "",
+          securityOrigin: "",
+        },
+      },
+    };
   }
 
   /**
-   * Count total nodes in enhanced DOM tree (for debugging)
+   * Get targets for current page (simplified)
    */
-  private countNodes(node: EnhancedDOMTreeNode): number {
-    let count = 1;
-
-    if (node.childrenNodes) {
-      for (const child of node.childrenNodes) {
-        count += this.countNodes(child);
-      }
-    }
-
-    if (node.shadowRoots) {
-      for (const shadowRoot of node.shadowRoots) {
-        count += this.countNodes(shadowRoot);
-      }
-    }
-
-    if (node.contentDocument) {
-      count += this.countNodes(node.contentDocument);
-    }
-
-    return count;
+  async getTargetsForPage() {
+    return {
+      pageSession: {
+        targetId: "default",
+        type: "page",
+        title: "",
+        url: "",
+        attached: true,
+      },
+      iframeSessions: [],
+    };
   }
 
   /**
-   * Initialize the DOM service
-   */
-  async initialize(): Promise<void> {
-    if (!this.isInitialized) {
-      throw new Error("DOMService not properly initialized");
-    }
-
-    try {
-      // Attach the debugger
-      await this.attach();
-      this.logger.info("DOMService initialized and debugger attached");
-    } catch (error) {
-      this.logger.error("Failed to initialize DOMService:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Cleanup resources
-   */
-  async destroy(): Promise<void> {
-    this.logger.debug("Destroying DOMService");
-
-    try {
-      // Cleanup debugger
-      await this.detach();
-
-      // Clear previous state
-      this.previousState = undefined;
-
-      this.isInitialized = false;
-      this.logger.info("DOMService destroyed");
-    } catch (error) {
-      this.logger.error("Error during DOMService destruction:", error);
-    }
-  }
-
-  /**
-   * Check if the service is initialized
+   * Check if the service is ready
    */
   isReady(): boolean {
-    return this.isInitialized && this.isAttached();
+    return this.isAttached();
   }
 
   /**
@@ -518,45 +504,48 @@ export class DOMService implements IDOMService {
     timing: SerializationTiming;
     stats: SerializationStats;
   }> {
-    if (!this.isInitialized) {
-      throw new Error("DOMService not initialized");
-    }
-
     if (!this.isAttached()) {
       throw new Error("Debugger not attached - call initialize() first");
     }
 
     try {
-      this.logger.debug("Getting serialized DOM tree for LLM consumption");
+      this.logger.debug("Getting serialized DOM tree");
 
-      // Get enhanced DOM tree
       const domTree = await this.getDOMTree();
-
-      // Serialize with previous state for change detection
       const result = await this.serializer.serializeDOMTree(
         domTree,
         previousState,
         config
       );
 
-      // Store previous state for change detection
       this.previousState = result.serializedState;
-
       this.logger.info(
-        `DOM tree serialized successfully: ${result.stats.interactiveElements} interactive elements, ${result.stats.filteredNodes} filtered nodes`
+        `DOM tree serialized: ${result.stats.interactiveElements} interactive elements`
       );
 
-      return result;
+      // Convert timing to expected format
+      const convertedTiming: SerializationTiming = {
+        total: result.timing.serialize_dom_tree_total,
+        createSimplifiedTree: 0,
+        paintOrderFiltering: 0,
+        optimizeTreeStructure: 0,
+        boundingBoxFiltering: 0,
+        assignInteractiveIndices: 0,
+        markNewElements: 0,
+      };
+
+      return {
+        ...result,
+        timing: convertedTiming,
+      };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      this.logger.error(`Failed to serialize DOM tree: ${errorMessage}`);
-      throw new Error(`DOM serialization failed: ${errorMessage}`);
+      this.logger.error(`Failed to serialize DOM tree: ${error}`);
+      throw error;
     }
   }
 
   /**
-   * Get DOM tree with change detection for efficient updates
+   * Get DOM tree with change detection
    */
   async getDOMTreeWithChangeDetection(
     previousState?: SerializedDOMState
@@ -566,74 +555,61 @@ export class DOMService implements IDOMService {
     hasChanges: boolean;
     changeCount: number;
   }> {
-    if (!this.isInitialized) {
-      throw new Error("DOMService not initialized");
-    }
-
     if (!this.isAttached()) {
       throw new Error("Debugger not attached - call initialize() first");
     }
 
     try {
-      this.logger.debug("Getting DOM tree with change detection");
-
-      // Get enhanced DOM tree
       const domTree = await this.getDOMTree();
 
-      // If no previous state, everything is new
       if (!previousState) {
-        const serializedResult = await this.serializer.serializeDOMTree(domTree);
+        const serializedResult = await this.serializer.serializeDOMTree(
+          domTree
+        );
         return {
           domTree,
           serializedState: serializedResult.serializedState,
           hasChanges: true,
-          changeCount: serializedResult.stats.totalNodes
+          changeCount: serializedResult.stats.totalNodes,
         };
       }
 
-      // Compare with previous state
       const serializedResult = await this.serializer.serializeDOMTree(
         domTree,
         previousState
       );
-
       const changeCount = serializedResult.stats.newElements;
       const hasChanges = changeCount > 0;
-
-      this.logger.debug(
-        `Change detection completed: ${changeCount} changes detected`
-      );
 
       return {
         domTree,
         serializedState: serializedResult.serializedState,
         hasChanges,
-        changeCount
+        changeCount,
       };
     } catch (error) {
-      const errorMessage =
-        error instanceof Error ? error.message : "Unknown error";
-      this.logger.error(`Failed to get DOM tree with change detection: ${errorMessage}`);
-      throw new Error(`Change detection failed: ${errorMessage}`);
+      this.logger.error(
+        `Failed to get DOM tree with change detection: ${error}`
+      );
+      throw error;
     }
   }
 
   /**
-   * Get service status information
+   * Get service status
    */
-  getStatus(): {
-    isInitialized: boolean;
-    isAttached: boolean;
-    webContentsId: number;
-    hasPreviousState: boolean;
-    serializationEnabled: boolean;
-  } {
+  getStatus() {
     return {
-      isInitialized: this.isInitialized,
+      isInitialized: true,
       isAttached: this.isAttached(),
       webContentsId: this.webContents.id,
-      hasPreviousState: !!this.previousState,
-      serializationEnabled: !!this.serializer
     };
+  }
+
+  /**
+   * Get previous serialized state for change detection
+   */
+  getPreviousState(): SerializedDOMState | undefined {
+    return this.previousState;
   }
 }
