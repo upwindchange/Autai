@@ -16,13 +16,31 @@ import type {
   SimplifiedNode,
   DOMSelectorMap,
   SerializationConfig,
-  SerializationStats
+  SerializationStats,
 } from "@shared/dom";
 
 import { InteractiveElementDetector } from "./InteractiveElementDetector";
 import { PaintOrderAnalyzer } from "./PaintOrderAnalyzer";
 import { BoundingBoxFilter } from "./BoundingBoxFilter";
 import { CompoundComponentBuilder } from "./CompoundComponentBuilder";
+
+/**
+ * Node hash cache for efficient change detection
+ */
+interface NodeHashCache {
+  nodeId: number;
+  hash: string;
+  lastModified: number;
+}
+
+/**
+ * Enhanced change detection result
+ */
+interface ChangeDetectionResult {
+  isChanged: boolean;
+  changeType: "new" | "modified" | "unchanged";
+  changeDetails: string[];
+}
 
 /**
  * Timing information for serialization stages
@@ -37,7 +55,6 @@ export interface SerializationTiming {
   markNewElements: number;
 }
 
-
 /**
  * DOM Tree Serializer with comprehensive pipeline
  */
@@ -48,6 +65,11 @@ export class DOMTreeSerializer {
   private readonly boundingBoxFilter: BoundingBoxFilter;
   private readonly compoundComponentBuilder: CompoundComponentBuilder;
 
+  // Enhanced change detection caches
+  private nodeHashCache: Map<number, NodeHashCache> = new Map();
+  private layoutIndexMap: Map<number, number> = new Map();
+  private duplicateNodeMap: Map<string, number[]> = new Map();
+
   constructor(config: Partial<SerializationConfig> = {}) {
     this.config = {
       enablePaintOrderFiltering: true,
@@ -56,16 +78,16 @@ export class DOMTreeSerializer {
       opacityThreshold: 0.8,
       containmentThreshold: 0.99,
       maxInteractiveElements: 1000,
-      ...config
+      ...config,
     };
 
     this.interactiveDetector = InteractiveElementDetector;
     this.paintOrderAnalyzer = new PaintOrderAnalyzer({
       opacityThreshold: this.config.opacityThreshold,
-      enableTransparencyFiltering: this.config.enablePaintOrderFiltering
+      enableTransparencyFiltering: this.config.enablePaintOrderFiltering,
     });
     this.boundingBoxFilter = new BoundingBoxFilter({
-      containmentThreshold: this.config.containmentThreshold
+      containmentThreshold: this.config.containmentThreshold,
     });
     this.compoundComponentBuilder = new CompoundComponentBuilder();
   }
@@ -87,7 +109,7 @@ export class DOMTreeSerializer {
     // Apply config overrides
     const effectiveConfig = {
       ...this.config,
-      ...config
+      ...config,
     };
 
     const timing: SerializationTiming = {
@@ -97,7 +119,7 @@ export class DOMTreeSerializer {
       optimizeTreeStructure: 0,
       boundingBoxFiltering: 0,
       assignInteractiveIndices: 0,
-      markNewElements: 0
+      markNewElements: 0,
     };
 
     try {
@@ -127,7 +149,10 @@ export class DOMTreeSerializer {
 
       // Stage 5: Assign interactive indices
       const stage5Start = Date.now();
-      this.assignInteractiveIndices(simplifiedRoot, effectiveConfig.maxInteractiveElements);
+      this.assignInteractiveIndices(
+        simplifiedRoot,
+        effectiveConfig.maxInteractiveElements
+      );
       timing.assignInteractiveIndices = Date.now() - stage5Start;
 
       // Stage 6: Mark new elements for change detection
@@ -146,14 +171,17 @@ export class DOMTreeSerializer {
       return {
         serializedState: {
           root: simplifiedRoot,
-          selectorMap
+          selectorMap,
         },
         timing,
-        stats
+        stats,
       };
-
     } catch (error) {
-      throw new Error(`DOM serialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(
+        `DOM serialization failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
     }
   }
 
@@ -184,9 +212,9 @@ export class DOMTreeSerializer {
       nodeHash: node.elementHash || 0,
       interactiveElement: false,
       hasChildren: false,
-      xpath: '',
-      tagName: node.tag || '',
-      textContent: node.nodeValue || ''
+      xpath: "",
+      tagName: node.tag || "",
+      textContent: node.nodeValue || "",
     };
 
     // Process children and shadow roots
@@ -225,7 +253,7 @@ export class DOMTreeSerializer {
     // Check computed styles for visibility
     if (node.snapshotNode?.computedStyles) {
       const styles = node.snapshotNode.computedStyles;
-      if (styles.display === 'none' || styles.visibility === 'hidden') {
+      if (styles.display === "none" || styles.visibility === "hidden") {
         return false;
       }
     }
@@ -266,7 +294,7 @@ export class DOMTreeSerializer {
    * Remove filtered nodes from tree
    */
   private removeFilteredNodes(node: SimplifiedNode): void {
-    node.children = node.children.filter(child => {
+    node.children = node.children.filter((child) => {
       if (child.ignoredByPaintOrder || child.excludedByParent) {
         return false;
       }
@@ -287,7 +315,8 @@ export class DOMTreeSerializer {
     for (const child of node.children) {
       this.optimizeTextNodes(child);
 
-      if (child.originalNode.nodeType === 3) { // Text node
+      if (child.originalNode.nodeType === 3) {
+        // Text node
         currentTextGroup.push(child);
       } else {
         // Flush current text group
@@ -317,8 +346,8 @@ export class DOMTreeSerializer {
 
     // Combine into a single text node
     const combinedText = textNodes
-      .map(node => node.originalNode.nodeValue || '')
-      .join('')
+      .map((node) => node.originalNode.nodeValue || "")
+      .join("")
       .trim();
 
     if (!combinedText) {
@@ -328,7 +357,7 @@ export class DOMTreeSerializer {
     const combinedNode: SimplifiedNode = {
       originalNode: {
         ...textNodes[0].originalNode,
-        nodeValue: combinedText
+        nodeValue: combinedText,
       },
       children: [],
       shouldDisplay: true,
@@ -344,9 +373,9 @@ export class DOMTreeSerializer {
       nodeHash: textNodes[0].originalNode.elementHash || 0,
       interactiveElement: false,
       hasChildren: false,
-      xpath: '',
-      tagName: textNodes[0].originalNode.tag || '',
-      textContent: combinedText
+      xpath: "",
+      tagName: textNodes[0].originalNode.tag || "",
+      textContent: combinedText,
     };
 
     return [combinedNode];
@@ -375,7 +404,7 @@ export class DOMTreeSerializer {
     const originalNode = node.originalNode;
 
     // Only div and span can be simple containers
-    if (!['div', 'span'].includes(originalNode.tag?.toLowerCase() || '')) {
+    if (!["div", "span"].includes(originalNode.tag?.toLowerCase() || "")) {
       return false;
     }
 
@@ -404,7 +433,10 @@ export class DOMTreeSerializer {
   /**
    * Update bounding box filtering statistics
    */
-  private updateBoundingBoxFilteringStats(_stats: { filteredCount: number; retainedCount: number }): void {
+  private updateBoundingBoxFilteringStats(_stats: {
+    filteredCount: number;
+    retainedCount: number;
+  }): void {
     // Update internal tracking for stats calculation
     // This would be integrated into the main stats calculation
   }
@@ -412,7 +444,10 @@ export class DOMTreeSerializer {
   /**
    * Stage 5: Assign interactive indices
    */
-  private assignInteractiveIndices(root: SimplifiedNode, maxInteractiveElements: number): void {
+  private assignInteractiveIndices(
+    root: SimplifiedNode,
+    maxInteractiveElements: number
+  ): void {
     const interactiveNodes = this.findInteractiveNodes(root);
 
     // Sort by DOM order for consistent indexing
@@ -438,7 +473,9 @@ export class DOMTreeSerializer {
     const interactiveNodes: SimplifiedNode[] = [];
 
     // Check current node
-    const isInteractive = this.interactiveDetector.isInteractive(node.originalNode);
+    const isInteractive = this.interactiveDetector.isInteractive(
+      node.originalNode
+    );
     if (isInteractive && node.shouldDisplay) {
       interactiveNodes.push(node);
     }
@@ -469,14 +506,20 @@ export class DOMTreeSerializer {
   /**
    * Stage 6: Mark new elements for change detection
    */
-  private markNewElements(root: SimplifiedNode, previousState?: SerializedDOMState): void {
+  private markNewElements(
+    root: SimplifiedNode,
+    previousState?: SerializedDOMState
+  ): void {
     if (!previousState) {
       // First time - mark all nodes as new
       this.markAllAsNew(root);
       return;
     }
 
-    // Compare with previous state
+    // Build enhanced caches for comparison
+    this.buildCaches(root, previousState.root);
+
+    // Compare with previous state using enhanced change detection
     const previousNodeMap = this.buildNodeMap(previousState.root);
     this.compareWithPreviousState(root, previousNodeMap);
   }
@@ -508,62 +551,6 @@ export class DOMTreeSerializer {
 
     traverse(root);
     return nodeMap;
-  }
-
-  /**
-   * Compare current state with previous state
-   */
-  private compareWithPreviousState(
-    currentNode: SimplifiedNode,
-    previousNodeMap: Map<number, SimplifiedNode>
-  ): void {
-    const nodeId = currentNode.originalNode.nodeId;
-    const previousNode = previousNodeMap.get(nodeId);
-
-    if (!previousNode) {
-      // New node
-      currentNode.isNew = true;
-    } else if (!this.nodesEqual(currentNode, previousNode)) {
-      // Changed node
-      currentNode.isNew = true;
-    } else {
-      // Unchanged node
-      currentNode.isNew = false;
-    }
-
-    // Compare children
-    for (const child of currentNode.children) {
-      this.compareWithPreviousState(child, previousNodeMap);
-    }
-  }
-
-  /**
-   * Check if two nodes are equal for change detection
-   */
-  private nodesEqual(node1: SimplifiedNode, node2: SimplifiedNode): boolean {
-    // Compare basic properties
-    if (node1.originalNode.nodeValue !== node2.originalNode.nodeValue) {
-      return false;
-    }
-
-    // Compare attributes (simplified)
-    const attrs1 = node1.originalNode.attributes;
-    const attrs2 = node2.originalNode.attributes;
-
-    const keys1 = Object.keys(attrs1);
-    const keys2 = Object.keys(attrs2);
-
-    if (keys1.length !== keys2.length) {
-      return false;
-    }
-
-    for (const key of keys1) {
-      if (attrs1[key] !== attrs2[key]) {
-        return false;
-      }
-    }
-
-    return true;
   }
 
   /**
@@ -640,8 +627,285 @@ export class DOMTreeSerializer {
       newElements,
       occludedNodes,
       containedNodes,
-      compoundComponents
+      compoundComponents,
     };
+  }
+
+  /**
+   * Build enhanced caches for change detection optimization
+   */
+  private buildCaches(
+    currentRoot: SimplifiedNode,
+    _previousRoot: SimplifiedNode
+  ): void {
+    // Clear previous caches
+    this.nodeHashCache.clear();
+    this.layoutIndexMap.clear();
+    this.duplicateNodeMap.clear();
+
+    // Build layout index mapping for efficient lookups
+    let index = 0;
+    const traverseForLayout = (node: SimplifiedNode) => {
+      this.layoutIndexMap.set(node.originalNode.nodeId, index++);
+      for (const child of node.children) {
+        traverseForLayout(child);
+      }
+    };
+    traverseForLayout(currentRoot);
+
+    // Build hash cache and detect duplicates
+    const hashMap = new Map<string, number[]>();
+    const traverseForHash = (node: SimplifiedNode) => {
+      const hash = this.calculateNodeHash(node.originalNode);
+
+      // Store in hash cache
+      this.nodeHashCache.set(node.originalNode.nodeId, {
+        nodeId: node.originalNode.nodeId,
+        hash,
+        lastModified: Date.now(),
+      });
+
+      // Track duplicates
+      if (!hashMap.has(hash)) {
+        hashMap.set(hash, []);
+      }
+      hashMap.get(hash)!.push(node.originalNode.nodeId);
+
+      for (const child of node.children) {
+        traverseForHash(child);
+      }
+    };
+    traverseForHash(currentRoot);
+
+    // Store duplicate mappings
+    for (const [hash, nodeIds] of hashMap) {
+      if (nodeIds.length > 1) {
+        this.duplicateNodeMap.set(hash, nodeIds);
+      }
+    }
+  }
+
+  /**
+   * Calculate comprehensive hash for a node
+   */
+  private calculateNodeHash(node: EnhancedDOMTreeNode): string {
+    const hashComponents: string[] = [];
+
+    // Basic node properties
+    hashComponents.push(`type:${node.nodeType}`);
+    hashComponents.push(`tag:${node.tag || ""}`);
+    hashComponents.push(`value:${node.nodeValue || ""}`);
+
+    // Attributes (sorted for consistency)
+    if (node.attributes) {
+      const sortedKeys = Object.keys(node.attributes).sort();
+      for (const key of sortedKeys) {
+        hashComponents.push(`${key}:${node.attributes[key]}`);
+      }
+    }
+
+    // Computed styles that affect appearance
+    if (node.snapshotNode?.computedStyles) {
+      const styleKeys = [
+        "display",
+        "visibility",
+        "opacity",
+        "background-color",
+        "color",
+      ];
+      for (const key of styleKeys) {
+        const value = node.snapshotNode.computedStyles[key];
+        if (value !== undefined) {
+          hashComponents.push(`style:${key}:${value}`);
+        }
+      }
+    }
+
+    // Accessibility properties
+    if (node.axNode) {
+      if (node.axNode.role) hashComponents.push(`role:${node.axNode.role}`);
+      if (node.axNode.name) hashComponents.push(`name:${node.axNode.name}`);
+      if (node.axNode.description)
+        hashComponents.push(`desc:${node.axNode.description}`);
+
+      if (node.axNode.properties) {
+        for (const prop of node.axNode.properties) {
+          if (prop.name && prop.value !== undefined) {
+            hashComponents.push(`ax:${prop.name}:${prop.value}`);
+          }
+        }
+      }
+    }
+
+    // Compound component state
+    if (node._compoundChildren && node._compoundChildren.length > 0) {
+      hashComponents.push("compound:true");
+      for (const child of node._compoundChildren) {
+        hashComponents.push(`child:${child.role}:${child.name}`);
+      }
+    }
+
+    // Bounds information (affects layout)
+    if (node.snapshotNode?.bounds) {
+      const bounds = node.snapshotNode.bounds;
+      hashComponents.push(
+        `bounds:${bounds.x},${bounds.y},${bounds.width},${bounds.height}`
+      );
+    }
+
+    // Create final hash
+    const hashString = hashComponents.join("|");
+    return this.simpleHash(hashString);
+  }
+
+  /**
+   * Simple hash function for change detection
+   */
+  private simpleHash(str: string): string {
+    let hash = 0;
+    if (str.length === 0) return hash.toString();
+
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = (hash << 5) - hash + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+
+    return Math.abs(hash).toString(36);
+  }
+
+  /**
+   * Enhanced comparison with previous state using hashes and caches
+   */
+  private compareWithPreviousState(
+    currentNode: SimplifiedNode,
+    previousNodeMap: Map<number, SimplifiedNode>
+  ): void {
+    const nodeId = currentNode.originalNode.nodeId;
+    const previousNode = previousNodeMap.get(nodeId);
+    const currentNodeHash = this.nodeHashCache.get(nodeId);
+
+    if (!previousNode) {
+      // New node
+      currentNode.isNew = true;
+    } else if (!currentNodeHash) {
+      // No hash available - assume changed
+      currentNode.isNew = true;
+    } else {
+      // Compare using enhanced change detection
+      const changeResult = this.detectNodeChanges(
+        currentNode,
+        previousNode,
+        currentNodeHash.hash
+      );
+      currentNode.isNew = changeResult.isChanged;
+    }
+
+    // Compare children
+    for (const child of currentNode.children) {
+      this.compareWithPreviousState(child, previousNodeMap);
+    }
+  }
+
+  /**
+   * Enhanced change detection for individual nodes
+   */
+  private detectNodeChanges(
+    current: SimplifiedNode,
+    previous: SimplifiedNode,
+    currentHash: string
+  ): ChangeDetectionResult {
+    const changeDetails: string[] = [];
+
+    // Quick hash comparison first
+    const previousHash = this.nodeHashCache.get(
+      previous.originalNode.nodeId
+    )?.hash;
+    if (previousHash && previousHash === currentHash) {
+      return { isChanged: false, changeType: "unchanged", changeDetails: [] };
+    }
+
+    // Detailed comparison for debugging
+    const currentNode = current.originalNode;
+    const previousNode = previous.originalNode;
+
+    // Check text content changes
+    if (currentNode.nodeValue !== previousNode.nodeValue) {
+      changeDetails.push("text changed");
+    }
+
+    // Check attribute changes
+    const currentAttrs = currentNode.attributes || {};
+    const previousAttrs = previousNode.attributes || {};
+    const allKeys = new Set([
+      ...Object.keys(currentAttrs),
+      ...Object.keys(previousAttrs),
+    ]);
+
+    for (const key of allKeys) {
+      if (currentAttrs[key] !== previousAttrs[key]) {
+        changeDetails.push(`attribute ${key} changed`);
+      }
+    }
+
+    // Check compound component changes
+    const currentCompound = currentNode._compoundChildren || [];
+    const previousCompound = previousNode._compoundChildren || [];
+
+    if (currentCompound.length !== previousCompound.length) {
+      changeDetails.push("compound children count changed");
+    } else {
+      for (let i = 0; i < currentCompound.length; i++) {
+        const currChild = currentCompound[i];
+        const prevChild = previousCompound[i];
+
+        if (JSON.stringify(currChild) !== JSON.stringify(prevChild)) {
+          changeDetails.push(`compound child ${i} changed`);
+        }
+      }
+    }
+
+    // Check accessibility changes
+    if (
+      JSON.stringify(currentNode.axNode) !== JSON.stringify(previousNode.axNode)
+    ) {
+      changeDetails.push("accessibility properties changed");
+    }
+
+    const isChanged = changeDetails.length > 0;
+    const changeType = previous ? "modified" : "new";
+
+    return { isChanged, changeType, changeDetails };
+  }
+
+  /**
+   * Get duplicate nodes information (for debugging)
+   */
+  getDuplicateNodesInfo(): {
+    hash: string;
+    nodeIds: number[];
+    count: number;
+  }[] {
+    const result: { hash: string; nodeIds: number[]; count: number }[] = [];
+
+    for (const [hash, nodeIds] of this.duplicateNodeMap) {
+      result.push({
+        hash,
+        nodeIds: [...nodeIds],
+        count: nodeIds.length,
+      });
+    }
+
+    return result.sort((a, b) => b.count - a.count);
+  }
+
+  /**
+   * Clear all caches (useful for testing or memory management)
+   */
+  clearCaches(): void {
+    this.nodeHashCache.clear();
+    this.layoutIndexMap.clear();
+    this.duplicateNodeMap.clear();
   }
 
   /**
