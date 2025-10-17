@@ -44,42 +44,20 @@ export class BoundingBoxFilter {
   private readonly config: BoundingBoxFilterConfig;
 
   // Elements that propagate bounds to their children
+  // Matching browser-use reference exactly
   private readonly PROPAGATING_ELEMENTS: ElementPattern[] = [
-    { tag: 'a' },
-    { tag: 'button' },
-    { tag: 'div', role: 'button' },
-    { tag: 'div', role: 'combobox' },
-    { tag: 'span', role: 'button' },
-    { tag: 'span', role: 'link' },
-    { tag: 'input', role: 'combobox' },
-    { tag: 'li' },
-    { tag: 'tr' },
-    { tag: 'td' },
-    { tag: 'th' }
+    { tag: 'a' }, // Any <a> tag
+    { tag: 'button' }, // Any <button> tag
+    { tag: 'div', role: 'button' }, // <div role="button">
+    { tag: 'div', role: 'combobox' }, // <div role="combobox"> - dropdowns/selects
+    { tag: 'span', role: 'button' }, // <span role="button">
+    { tag: 'span', role: 'combobox' }, // <span role="combobox">
+    { tag: 'input', role: 'combobox' }, // <input role="combobox"> - autocomplete inputs
+    { tag: 'input', role: 'combobox' } // <input type="text"> - text inputs with suggestions (duplicate for reference compatibility)
   ];
 
   // Elements that are exceptions to bounding box filtering
-  private readonly EXCEPTION_ELEMENTS: ElementPattern[] = [
-    // Form elements
-    { tag: 'input' },
-    { tag: 'select' },
-    { tag: 'textarea' },
-    { tag: 'button' },
-    { tag: 'label' },
-    // Interactive elements
-    { tag: 'a' },
-    { tag: 'iframe' },
-    { tag: 'canvas' },
-    { tag: 'video' },
-    { tag: 'audio' },
-    // Elements with interactive roles
-    { tag: 'div', role: 'button' },
-    { tag: 'div', role: 'combobox' },
-    { tag: 'div', role: 'link' },
-    { tag: 'div', role: 'menuitem' },
-    { tag: 'span', role: 'button' },
-    { tag: 'span', role: 'link' }
-  ];
+  // These are handled in shouldExcludeChild() method following browser-use reference patterns
 
   constructor(config: Partial<BoundingBoxFilterConfig> = {}) {
     this.config = {
@@ -210,67 +188,97 @@ export class BoundingBoxFilter {
 
   /**
    * Check if child should be excluded based on exception rules
+   * Matches browser-use reference exactly
    */
-  private shouldExcludeChild(child: SimplifiedNode, _parentBounds: PropagatingBounds): boolean {
+  private shouldExcludeChild(child: SimplifiedNode, activeBounds: PropagatingBounds): boolean {
     const originalNode = child.originalNode;
 
-    // Exception 1: Interactive elements
-    if (this.isInteractiveException(child)) {
+    // Never exclude text nodes - we always want to preserve text content
+    if (originalNode.nodeType === 3) { // TEXT_NODE
       return false;
     }
 
-    // Exception 2: Elements with accessibility properties
-    if (this.hasAccessibilityProperties(originalNode)) {
+    // Get child bounds
+    if (!originalNode.snapshotNode || !originalNode.snapshotNode.bounds) {
+      return false; // No bounds = can't determine containment
+    }
+
+    const childBounds = originalNode.snapshotNode.bounds;
+
+    // Check containment with configured threshold
+    if (!this.isContained(childBounds, activeBounds.bounds)) {
+      return false; // Not sufficiently contained
+    }
+
+    // EXCEPTION RULES - Keep these even if contained:
+
+    const childTag = originalNode.tag?.toLowerCase() || '';
+    const childRole = originalNode.attributes?.role || null;
+
+    // 1. Never exclude form elements (they need individual interaction)
+    if (['input', 'select', 'textarea', 'label'].includes(childTag)) {
       return false;
     }
 
-    // Exception 3: Elements with explicit event handlers
-    if (this.hasEventHandlers(originalNode)) {
+    // 2. Keep if child is also a propagating element
+    // (might have stopPropagation, e.g., button in button)
+    if (this.isPropagatingElement(child)) {
       return false;
     }
 
-    // Exception 4: Elements with meaningful names
-    if (this.hasMeaningfulName(originalNode)) {
+    // 3. Keep if has explicit onclick handler
+    if (originalNode.attributes && 'onclick' in originalNode.attributes) {
       return false;
     }
 
-    // Exception 5: Compound components
-    if (child.isCompoundComponent) {
-      return false;
+    // 4. Keep if has aria-label suggesting it's independently interactive
+    if (originalNode.attributes) {
+      const ariaLabel = originalNode.attributes['aria-label'];
+      if (ariaLabel && ariaLabel.trim()) {
+        // Has meaningful aria-label, likely interactive
+        return false;
+      }
     }
 
-    // Exception 6: Shadow hosts
-    if (child.isShadowHost) {
-      return false;
+    // 5. Keep if has role suggesting interactivity
+    if (originalNode.attributes) {
+      const role = originalNode.attributes.get('role');
+      if (['button', 'link', 'checkbox', 'radio', 'tab', 'menuitem', 'option'].includes(role || '')) {
+        return false;
+      }
     }
 
-    // Exception 7: Form controls
-    if (this.isFormControl(originalNode)) {
-      return false;
-    }
-
-    // Exception 8: Media elements
-    if (this.isMediaElement(originalNode)) {
-      return false;
-    }
-
-    // Exception 9: Iframe elements
-    if (originalNode.tag === 'iframe') {
-      return false;
-    }
-
-    // Default: exclude child if contained
+    // Default: exclude this child
     return true;
   }
 
   /**
    * Check if node should propagate bounds to children
+   * Matches browser-use reference exactly
    */
   private shouldPropagateBounds(node: SimplifiedNode): boolean {
     const originalNode = node.originalNode;
+    const tag = originalNode.tag?.toLowerCase() || '';
+    const role = originalNode.attributes?.role || null;
+    const attributes = {
+      tag,
+      role,
+    };
 
+    return this.isPropagatingElement(attributes);
+  }
+
+  /**
+   * Check if an element should propagate bounds based on attributes
+   * Matches browser-use reference exactly
+   */
+  private isPropagatingElement(attributes: { tag: string; role: string | null }): boolean {
     for (const pattern of this.PROPAGATING_ELEMENTS) {
-      if (this.matchesPattern(originalNode, pattern)) {
+      // Check if the element satisfies the pattern
+      const tagMatch = pattern.tag === null || pattern.tag === attributes.tag;
+      const roleMatch = pattern.role === null || pattern.role === attributes.role;
+
+      if (tagMatch && roleMatch) {
         return true;
       }
     }

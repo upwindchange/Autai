@@ -281,45 +281,143 @@ export class CompoundComponentBuilder implements ICompoundComponentBuilder {
 
   /**
    * Build select element compound components
+   * Enhanced implementation following browser-use patterns
    */
   private buildSelectCompound(node: SimplifiedNode): void {
     const originalNode = node.originalNode;
 
-    // Extract options from children
-    const options: string[] = [];
-    const _optionValues: string[] = [];
+    // Enhanced option extraction with proper text/value handling
+    const extractedOptions = this.extractSelectOptions(originalNode);
 
-    for (const child of originalNode.children || []) {
-      if (child.tag === 'option') {
-        const text = child.nodeValue?.trim() || '';
-        const value = child.attributes.value || text;
-        if (text) {
-          options.push(text);
-          _optionValues.push(value);
-        }
-      }
+    if (!extractedOptions || extractedOptions.options.length === 0) {
+      return;
     }
 
-    // Detect value formats
-    const formatHint = this.detectOptionFormat(options, _optionValues);
+    const { options, values, formatHint } = extractedOptions;
 
-    const components = [
-      this.createButton(
-        originalNode.attributes.name || 'Select dropdown',
-        `${options.length} options available`,
-        undefined,
-        undefined,
-        {
-          options_count: options.length,
-          first_options: options.slice(0, 4),
-          format_hint: formatHint
-        }
-      )
-    ];
+    // Build comprehensive listbox component with options
+    const listboxComponent = this.createListBox('Options', options, values, formatHint);
+    const dropdownComponent = this.createButton('Dropdown Toggle', 'Open dropdown to select option');
+
+    const components = [dropdownComponent, listboxComponent];
 
     node.isCompoundComponent = true;
     node.hasCompoundChildren = true;
     node.originalNode._compoundChildren = components as unknown as Record<string, unknown>[];
+  }
+
+  /**
+   * Extract options from select element with enhanced parsing
+   * Matches browser-use reference implementation
+   */
+  private extractSelectOptions(selectNode: EnhancedDOMTreeNode): {
+    options: string[];
+    values: string[];
+    formatHint: string;
+  } | null {
+    if (!selectNode.children || selectNode.children.length === 0) {
+      return null;
+    }
+
+    const options: string[] = [];
+    const values: string[] = [];
+
+    // Recursive function to extract options including from optgroups
+    const extractOptionsRecursive = (node: EnhancedDOMTreeNode) => {
+      if (node.tag === 'option') {
+        // Get value attribute or fallback to text content
+        let value = '';
+        let text = '';
+
+        if (node.attributes?.value) {
+          value = node.attributes.value.trim();
+        }
+
+        // Extract text content from direct text nodes only (avoid duplication)
+        if (node.nodeValue) {
+          text = node.nodeValue.trim();
+        } else if (node.children) {
+          // Look for text nodes in children
+          for (const child of node.children) {
+            if (child.nodeType === 3 && child.nodeValue) { // TEXT_NODE
+              text += child.nodeValue.trim() + ' ';
+            }
+          }
+          text = text.trim();
+        }
+
+        // Use text as value if no explicit value
+        if (!value && text) {
+          value = text;
+        }
+
+        if (text || value) {
+          options.push(text);
+          values.push(value);
+        }
+      } else if (node.tag === 'optgroup') {
+        // Process optgroup children
+        if (node.children) {
+          for (const child of node.children) {
+            extractOptionsRecursive(child);
+          }
+        }
+      } else if (node.children) {
+        // Process other children that might contain options
+        for (const child of node.children) {
+          extractOptionsRecursive(child);
+        }
+      }
+    };
+
+    // Extract all options from select children
+    for (const child of selectNode.children) {
+      extractOptionsRecursive(child);
+    }
+
+    if (options.length === 0) {
+      return null;
+    }
+
+    // Enhanced format detection
+    const formatHint = this.detectOptionFormat(options, values);
+
+    return { options, values, formatHint };
+  }
+
+  /**
+   * Create a listbox component with options
+   */
+  private createListBox(
+    name: string,
+    options: string[],
+    values: string[],
+    formatHint: string
+  ): CompoundComponent {
+    // Prepare first 4 options for display (truncate if necessary)
+    const firstOptions = options.slice(0, 4).map((opt, idx) => {
+      const val = values[idx] || '';
+      const displayText = opt.length > 25 ? opt.substring(0, 25) + '...' : opt;
+
+      if (val && val !== opt) {
+        const displayVal = val.length > 10 ? val.substring(0, 10) + '...' : val;
+        return `${displayText} (${displayVal})`;
+      }
+      return displayText;
+    });
+
+    const listbox: CompoundComponent = {
+      role: 'listbox',
+      name,
+      options_count: options.length,
+      first_options: firstOptions
+    };
+
+    if (formatHint) {
+      listbox.format_hint = formatHint;
+    }
+
+    return listbox;
   }
 
   /**
@@ -428,45 +526,75 @@ export class CompoundComponentBuilder implements ICompoundComponentBuilder {
 
   /**
    * Detect format hint for option values
+   * Enhanced implementation following browser-use reference patterns
    */
-  private detectOptionFormat(options: string[], _values: string[]): string {
-    if (options.length === 0) return '';
+  private detectOptionFormat(options: string[], values: string[]): string {
+    if (options.length < 2) return '';
 
-    const samples = options.slice(0, 10); // Check first 10 options
+    const samples = Math.min(options.length, 10); // Check first 10 options
+    const optionSamples = options.slice(0, samples);
+    const valueSamples = values.slice(0, samples);
 
-    // Check for country codes (2-3 letters)
-    if (samples.every(opt => /^[A-Z]{2,3}$/.test(opt))) {
-      return 'Country codes';
+    // Check for country/state codes (2-3 uppercase letters)
+    if (optionSamples.every(opt => /^[A-Z]{2,3}$/.test(opt))) {
+      return 'Country/State codes';
     }
 
     // Check for years (4 digits)
-    if (samples.every(opt => /^\d{4}$/.test(opt))) {
+    if (optionSamples.every(opt => /^\d{4}$/.test(opt))) {
       return 'Years';
     }
 
-    // Check for dates
-    if (samples.every(opt => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(opt))) {
-      return 'Dates';
+    // Check for dates (various formats)
+    if (optionSamples.every(opt => /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(opt))) {
+      return 'Dates (MM/DD/YYYY)';
+    }
+    if (optionSamples.every(opt => /^\d{4}-\d{1,2}-\d{1,2}$/.test(opt))) {
+      return 'Dates (YYYY-MM-DD)';
     }
 
     // Check for emails
-    if (samples.every(opt => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(opt))) {
+    if (optionSamples.some(opt => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(opt))) {
       return 'Email addresses';
     }
 
+    // Check for dates or paths with separators
+    if (optionSamples.every(opt => /[\/\-]/.test(opt))) {
+      return 'Date/Path format';
+    }
+
     // Check for phone numbers
-    if (samples.every(opt => /^[\d\s\-+()]+$/.test(opt))) {
+    if (optionSamples.every(opt => /^[\d\s\-+()]+$/.test(opt))) {
       return 'Phone numbers';
     }
 
     // Check for numbers only
-    if (samples.every(opt => /^\d+$/.test(opt))) {
-      return 'Numbers';
+    if (optionSamples.every(opt => /^\d+$/.test(opt))) {
+      return 'Numeric values';
     }
 
     // Check for currency
-    if (samples.every(opt => /^[£€¥$]\s*\d+(\.\d{2})?$/.test(opt))) {
+    if (optionSamples.every(opt => /^[£€¥$]\s*\d+(\.\d{2})?$/.test(opt))) {
       return 'Currency';
+    }
+
+    // Check for URLs
+    if (optionSamples.every(opt => /^https?:\/\//.test(opt))) {
+      return 'URLs';
+    }
+
+    // Check for file extensions
+    if (optionSamples.every(opt => /\.[a-zA-Z0-9]+$/.test(opt))) {
+      const extensions = new Set(optionSamples.map(opt => opt.split('.').pop()?.toLowerCase()));
+      if (extensions.size === 1) {
+        return `${Array.from(extensions)[0]?.toUpperCase()} files`;
+      }
+      return 'File types';
+    }
+
+    // Check for time formats
+    if (optionSamples.every(opt => /^\d{1,2}:\d{2}(:\d{2})?\s*(AM|PM)?$/i.test(opt))) {
+      return 'Time values';
     }
 
     return '';

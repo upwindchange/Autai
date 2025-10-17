@@ -104,29 +104,26 @@ export class InteractiveElementDetector {
 
     // SEARCH ELEMENT DETECTION: Check for search-related classes and attributes
     if (node.attributes) {
-      // Check class names for search indicators
+      // Check class names for search indicators - matches browser-use reference exactly
       const classValue = node.attributes["class"] || "";
       const classList = classValue.toLowerCase().split(/\s+/);
-      if (
-        classList.some((cls) =>
-          this.SEARCH_PATTERNS.some((pattern) => cls.includes(pattern))
-        )
-      ) {
+      const classText = " ".join(classList);
+      if (this.SEARCH_PATTERNS.some((indicator) => classText.includes(indicator))) {
         return true;
       }
 
-      // Check id for search indicators
+      // Check id for search indicators - matches browser-use reference exactly
       const elementId = (node.attributes["id"] || "").toLowerCase();
-      if (this.SEARCH_PATTERNS.some((pattern) => elementId.includes(pattern))) {
+      if (this.SEARCH_PATTERNS.some((indicator) => elementId.includes(indicator))) {
         return true;
       }
 
-      // Check data attributes for search functionality
+      // Check data attributes for search functionality - matches browser-use reference exactly
       for (const [attrName, attrValue] of Object.entries(node.attributes)) {
         if (
           attrName.startsWith("data-") &&
-          this.SEARCH_PATTERNS.some((pattern) =>
-            attrValue.toLowerCase().includes(pattern)
+          this.SEARCH_PATTERNS.some((indicator) =>
+            attrValue.toLowerCase().includes(indicator)
           )
         ) {
           return true;

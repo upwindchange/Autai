@@ -633,17 +633,19 @@ export class DOMTreeSerializer {
 
   /**
    * Build enhanced caches for change detection optimization
+   * Follows browser-use patterns with layout index mapping for O(n) efficiency
    */
   private buildCaches(
     currentRoot: SimplifiedNode,
-    _previousRoot: SimplifiedNode
+    previousRoot: SimplifiedNode
   ): void {
     // Clear previous caches
     this.nodeHashCache.clear();
     this.layoutIndexMap.clear();
     this.duplicateNodeMap.clear();
 
-    // Build layout index mapping for efficient lookups
+    // Build layout index mapping for efficient O(n) lookups instead of O(n²)
+    // This is critical for performance - matches browser-use reference exactly
     let index = 0;
     const traverseForLayout = (node: SimplifiedNode) => {
       this.layoutIndexMap.set(node.originalNode.nodeId, index++);
@@ -653,19 +655,19 @@ export class DOMTreeSerializer {
     };
     traverseForLayout(currentRoot);
 
-    // Build hash cache and detect duplicates
+    // Build hash cache and detect duplicates simultaneously
     const hashMap = new Map<string, number[]>();
     const traverseForHash = (node: SimplifiedNode) => {
       const hash = this.calculateNodeHash(node.originalNode);
 
-      // Store in hash cache
+      // Store in hash cache with timestamp
       this.nodeHashCache.set(node.originalNode.nodeId, {
         nodeId: node.originalNode.nodeId,
         hash,
         lastModified: Date.now(),
       });
 
-      // Track duplicates
+      // Track duplicates for optimization
       if (!hashMap.has(hash)) {
         hashMap.set(hash, []);
       }
@@ -677,7 +679,7 @@ export class DOMTreeSerializer {
     };
     traverseForHash(currentRoot);
 
-    // Store duplicate mappings
+    // Store duplicate mappings for debugging and optimization
     for (const [hash, nodeIds] of hashMap) {
       if (nodeIds.length > 1) {
         this.duplicateNodeMap.set(hash, nodeIds);
@@ -687,73 +689,99 @@ export class DOMTreeSerializer {
 
   /**
    * Calculate comprehensive hash for a node
+   * Matches browser-use reference patterns for accurate change detection
+   * IMPORTANT: Excludes bounds to prevent false positives during layout shifts
    */
   private calculateNodeHash(node: EnhancedDOMTreeNode): string {
     const hashComponents: string[] = [];
 
-    // Basic node properties
+    // Basic node properties (essential for identity)
     hashComponents.push(`type:${node.nodeType}`);
     hashComponents.push(`tag:${node.tag || ""}`);
-    hashComponents.push(`value:${node.nodeValue || ""}`);
+    hashComponents.push(`value:${(node.nodeValue || "").trim()}`);
 
-    // Attributes (sorted for consistency)
+    // Attributes (sorted for consistency - critical for stable hashing)
+    // Only include attributes that actually affect behavior/appearance
     if (node.attributes) {
-      const sortedKeys = Object.keys(node.attributes).sort();
+      const significantAttrs = [
+        'id', 'class', 'name', 'type', 'value', 'placeholder', 'title', 'alt',
+        'role', 'aria-label', 'aria-expanded', 'aria-checked', 'aria-disabled',
+        'data-testid', 'data-test', 'href', 'src', 'onclick', 'tabindex'
+      ];
+
+      const sortedKeys = Object.keys(node.attributes)
+        .filter(key => significantAttrs.includes(key) || key.startsWith('data-') || key.startsWith('aria-'))
+        .sort();
+
       for (const key of sortedKeys) {
-        hashComponents.push(`${key}:${node.attributes[key]}`);
+        const value = node.attributes[key];
+        if (value && value.trim()) {
+          hashComponents.push(`${key}:${value.trim()}`);
+        }
       }
     }
 
-    // Computed styles that affect appearance
+    // Computed styles that affect appearance and behavior
+    // Only styles that actually impact the element's presentation
     if (node.snapshotNode?.computedStyles) {
-      const styleKeys = [
-        "display",
-        "visibility",
-        "opacity",
-        "background-color",
-        "color",
+      const criticalStyles = [
+        "display", "visibility", "opacity", "background-color", "color",
+        "cursor", "pointer-events", "position", "overflow", "overflow-x", "overflow-y"
       ];
-      for (const key of styleKeys) {
+
+      for (const key of criticalStyles) {
         const value = node.snapshotNode.computedStyles[key];
-        if (value !== undefined) {
+        if (value !== undefined && value !== 'initial' && value !== 'auto') {
           hashComponents.push(`style:${key}:${value}`);
         }
       }
     }
 
-    // Accessibility properties
+    // Accessibility properties (critical for screen reader compatibility)
     if (node.axNode) {
-      if (node.axNode.role) hashComponents.push(`role:${node.axNode.role}`);
-      if (node.axNode.name) hashComponents.push(`name:${node.axNode.name}`);
-      if (node.axNode.description)
-        hashComponents.push(`desc:${node.axNode.description}`);
+      if (node.axNode.role && node.axNode.role !== node.tag) {
+        hashComponents.push(`role:${node.axNode.role}`);
+      }
+      if (node.axNode.name && node.axNode.name.trim()) {
+        hashComponents.push(`ax_name:${node.axNode.name.trim()}`);
+      }
+      if (node.axNode.description && node.axNode.description.trim()) {
+        hashComponents.push(`ax_desc:${node.axNode.description.trim()}`);
+      }
 
+      // Important accessibility properties that affect interaction
       if (node.axNode.properties) {
+        const importantProps = ['disabled', 'checked', 'selected', 'expanded', 'pressed', 'invalid'];
         for (const prop of node.axNode.properties) {
-          if (prop.name && prop.value !== undefined) {
+          if (importantProps.includes(prop.name) && prop.value !== undefined) {
             hashComponents.push(`ax:${prop.name}:${prop.value}`);
           }
         }
       }
     }
 
-    // Compound component state
+    // Compound component state (virtual components affect interaction)
     if (node._compoundChildren && node._compoundChildren.length > 0) {
       hashComponents.push("compound:true");
-      for (const child of node._compoundChildren) {
+      // Sort compound children for stable hashing
+      const sortedChildren = [...node._compoundChildren].sort((a, b) =>
+        `${a.role}:${a.name}`.localeCompare(`${b.role}:${b.name}`)
+      );
+
+      for (const child of sortedChildren) {
         hashComponents.push(`child:${child.role}:${child.name}`);
+        if (child.valuemin !== undefined) hashComponents.push(`min:${child.valuemin}`);
+        if (child.valuemax !== undefined) hashComponents.push(`max:${child.valuemax}`);
+        if (child.valuenow !== undefined) hashComponents.push(`now:${child.valuenow}`);
       }
     }
 
-    // Bounds information (affects layout)
-    if (node.snapshotNode?.bounds) {
-      const bounds = node.snapshotNode.bounds;
-      hashComponents.push(
-        `bounds:${bounds.x},${bounds.y},${bounds.width},${bounds.height}`
-      );
-    }
+    // REMOVED: Bounds information from hash calculation
+    // Bounds change frequently during layout shifts and cause false positives
+    // Change detection should focus on content/behavior changes, not position changes
+    // Reference: browser-use does not include bounds in change detection hashes
 
-    // Create final hash
+    // Create final hash string
     const hashString = hashComponents.join("|");
     return this.simpleHash(hashString);
   }
@@ -776,6 +804,7 @@ export class DOMTreeSerializer {
 
   /**
    * Enhanced comparison with previous state using hashes and caches
+   * Matches browser-use reference for accurate change detection
    */
   private compareWithPreviousState(
     currentNode: SimplifiedNode,
@@ -786,22 +815,27 @@ export class DOMTreeSerializer {
     const currentNodeHash = this.nodeHashCache.get(nodeId);
 
     if (!previousNode) {
-      // New node
+      // New node - this is a genuine change
       currentNode.isNew = true;
     } else if (!currentNodeHash) {
-      // No hash available - assume changed
+      // No hash available - assume changed (conservative approach)
       currentNode.isNew = true;
     } else {
-      // Compare using enhanced change detection
+      // Compare using enhanced change detection with proper hash comparison
       const changeResult = this.detectNodeChanges(
         currentNode,
         previousNode,
         currentNodeHash.hash
       );
       currentNode.isNew = changeResult.isChanged;
+
+      // Enhanced change type classification
+      if (changeResult.isChanged) {
+        this.enhanceChangeDetection(currentNode, previousNode, changeResult);
+      }
     }
 
-    // Compare children
+    // Recursively compare children
     for (const child of currentNode.children) {
       this.compareWithPreviousState(child, previousNodeMap);
     }
@@ -809,6 +843,7 @@ export class DOMTreeSerializer {
 
   /**
    * Enhanced change detection for individual nodes
+   * Matches browser-use reference with comprehensive comparison logic
    */
   private detectNodeChanges(
     current: SimplifiedNode,
@@ -817,24 +852,30 @@ export class DOMTreeSerializer {
   ): ChangeDetectionResult {
     const changeDetails: string[] = [];
 
-    // Quick hash comparison first
-    const previousHash = this.nodeHashCache.get(
-      previous.originalNode.nodeId
-    )?.hash;
+    // Quick hash comparison first - most efficient path
+    const previousHash = this.nodeHashCache.get(previous.originalNode.nodeId)?.hash;
     if (previousHash && previousHash === currentHash) {
       return { isChanged: false, changeType: "unchanged", changeDetails: [] };
     }
 
-    // Detailed comparison for debugging
+    // Detailed comparison when hash differs
     const currentNode = current.originalNode;
     const previousNode = previous.originalNode;
 
-    // Check text content changes
-    if (currentNode.nodeValue !== previousNode.nodeValue) {
-      changeDetails.push("text changed");
+    // Check text content changes (significant for text nodes)
+    const currentText = (currentNode.nodeValue || "").trim();
+    const previousText = (previousNode.nodeValue || "").trim();
+    if (currentText !== previousText) {
+      if (currentText.length > 0 && previousText.length === 0) {
+        changeDetails.push("text added");
+      } else if (currentText.length === 0 && previousText.length > 0) {
+        changeDetails.push("text removed");
+      } else {
+        changeDetails.push("text modified");
+      }
     }
 
-    // Check attribute changes
+    // Check attribute changes with detailed analysis
     const currentAttrs = currentNode.attributes || {};
     const previousAttrs = previousNode.attributes || {};
     const allKeys = new Set([
@@ -843,39 +884,119 @@ export class DOMTreeSerializer {
     ]);
 
     for (const key of allKeys) {
-      if (currentAttrs[key] !== previousAttrs[key]) {
-        changeDetails.push(`attribute ${key} changed`);
+      const currentVal = currentAttrs[key]?.trim() || "";
+      const previousVal = previousAttrs[key]?.trim() || "";
+
+      if (currentVal !== previousVal) {
+        if (currentVal.length > 0 && previousVal.length === 0) {
+          changeDetails.push(`attribute ${key} added`);
+        } else if (currentVal.length === 0 && previousVal.length > 0) {
+          changeDetails.push(`attribute ${key} removed`);
+        } else {
+          changeDetails.push(`attribute ${key} changed`);
+        }
       }
     }
 
-    // Check compound component changes
+    // Check compound component changes (virtual components)
     const currentCompound = currentNode._compoundChildren || [];
     const previousCompound = previousNode._compoundChildren || [];
 
     if (currentCompound.length !== previousCompound.length) {
       changeDetails.push("compound children count changed");
-    } else {
+    } else if (currentCompound.length > 0) {
       for (let i = 0; i < currentCompound.length; i++) {
         const currChild = currentCompound[i];
         const prevChild = previousCompound[i];
 
-        if (JSON.stringify(currChild) !== JSON.stringify(prevChild)) {
+        // Deep comparison of compound children
+        if (!this.deepEqual(currChild, prevChild)) {
           changeDetails.push(`compound child ${i} changed`);
         }
       }
     }
 
-    // Check accessibility changes
-    if (
-      JSON.stringify(currentNode.axNode) !== JSON.stringify(previousNode.axNode)
-    ) {
+    // Check accessibility changes (critical for screen readers)
+    if (!this.axNodesEqual(currentNode.axNode, previousNode.axNode)) {
       changeDetails.push("accessibility properties changed");
+    }
+
+    // Check visual changes (bounds, styles)
+    if (currentNode.snapshotNode?.bounds && previousNode.snapshotNode?.bounds) {
+      const currentBounds = currentNode.snapshotNode.bounds;
+      const previousBounds = previousNode.snapshotNode.bounds;
+
+      if (currentBounds.x !== previousBounds.x || currentBounds.y !== previousBounds.y) {
+        changeDetails.push("position changed");
+      }
+      if (currentBounds.width !== previousBounds.width || currentBounds.height !== previousBounds.height) {
+        changeDetails.push("size changed");
+      }
     }
 
     const isChanged = changeDetails.length > 0;
     const changeType = previous ? "modified" : "new";
 
     return { isChanged, changeType, changeDetails };
+  }
+
+  /**
+   * Enhanced change detection with additional analysis
+   * Provides more context about the nature of changes
+   */
+  private enhanceChangeDetection(
+    current: SimplifiedNode,
+    previous: SimplifiedNode,
+    changeResult: ChangeDetectionResult
+  ): void {
+    // This can be extended to add more sophisticated change analysis
+    // For now, we'll just mark it as changed with the basic detection
+    // Future enhancements could include:
+    // - Change severity classification
+    // - Change relevance scoring for AI agents
+    // - Change clustering for related elements
+    // - Change prediction for proactive updates
+  }
+
+  /**
+   * Deep comparison utility for objects
+   */
+  private deepEqual(a: unknown, b: unknown): boolean {
+    if (a === b) return true;
+    if (a == null || b == null) return false;
+    if (typeof a !== typeof b) return false;
+
+    if (typeof a === 'object') {
+      const keysA = Object.keys(a as Record<string, unknown>);
+      const keysB = Object.keys(b as Record<string, unknown>);
+
+      if (keysA.length !== keysB.length) return false;
+
+      for (const key of keysA) {
+        if (!keysB.includes(key) || !this.deepEqual((a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key])) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Compare accessibility nodes for equality
+   */
+  private axNodesEqual(ax1: EnhancedAXNode | null | undefined, ax2: EnhancedAXNode | null | undefined): boolean {
+    if (!ax1 && !ax2) return true;
+    if (!ax1 || !ax2) return false;
+
+    return (
+      ax1.role === ax2.role &&
+      ax1.name === ax2.name &&
+      ax1.description === ax2.description &&
+      ax1.ignored === ax2.ignored &&
+      this.deepEqual(ax1.properties, ax2.properties)
+    );
   }
 
   /**

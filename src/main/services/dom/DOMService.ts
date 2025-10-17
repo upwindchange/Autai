@@ -180,6 +180,7 @@ export class DOMService implements IDOMService {
 
   /**
    * Get device pixel ratio from layout metrics
+   * Enhanced implementation following browser-use reference patterns
    */
   async getDevicePixelRatio(): Promise<number> {
     if (!this.isInitialized) {
@@ -191,30 +192,52 @@ export class DOMService implements IDOMService {
     }
 
     try {
-      this.logger.debug("Getting device pixel ratio");
+      this.logger.debug("Getting device pixel ratio with enhanced metrics");
 
       const layoutMetrics = (await this.sendCommand(
         "Page.getLayoutMetrics"
       )) as {
         visualViewport?: Record<string, number>;
         cssVisualViewport?: Record<string, number>;
+        layoutViewport?: Record<string, number>;
+        contentSize?: Record<string, number>;
       };
 
-      // Extract device pixel ratio from visual viewport
+      // Extract device pixel ratio from multiple sources for accuracy
       const visualViewport = layoutMetrics.visualViewport || {};
       const cssVisualViewport = layoutMetrics.cssVisualViewport || {};
+      const layoutViewport = layoutMetrics.layoutViewport || {};
 
-      // Calculate device pixel ratio
-      const deviceWidth =
-        visualViewport.clientWidth || cssVisualViewport.clientWidth || 1920;
-      const cssWidth =
-        cssVisualViewport.clientWidth || visualViewport.clientWidth || 1920;
-      const devicePixelRatio = deviceWidth / cssWidth;
+      // Primary method: Use CSS visual viewport device pixel ratio if available
+      if (cssVisualViewport.devicePixelRatio !== undefined) {
+        const dpr = cssVisualViewport.devicePixelRatio;
+        this.logger.debug(`Device pixel ratio from CSS viewport: ${dpr}`);
+        return Math.max(1.0, dpr); // Ensure minimum DPR of 1.0
+      }
 
-      this.logger.debug(`Device pixel ratio: ${devicePixelRatio}`);
-      return devicePixelRatio || 1.0;
-    } catch (_error) {
-      this.logger.warn("Failed to get device pixel ratio, using fallback: 1.0");
+      // Secondary method: Calculate from visual vs CSS viewport dimensions
+      const deviceWidth = visualViewport.clientWidth || cssVisualViewport.clientWidth || layoutViewport.clientWidth || 1920;
+      const cssWidth = cssVisualViewport.clientWidth || visualViewport.clientWidth || layoutViewport.clientWidth || 1920;
+      const deviceHeight = visualViewport.clientHeight || cssVisualViewport.clientHeight || layoutViewport.clientHeight || 1080;
+      const cssHeight = cssVisualViewport.clientHeight || visualViewport.clientHeight || layoutViewport.clientHeight || 1080;
+
+      // Calculate device pixel ratio using both width and height for accuracy
+      const dprWidth = deviceWidth / cssWidth;
+      const dprHeight = deviceHeight / cssHeight;
+      const calculatedDpr = (dprWidth + dprHeight) / 2; // Average of both calculations
+
+      const finalDpr = Math.max(1.0, Math.min(calculatedDpr, 4.0)); // Clamp between 1.0 and 4.0
+
+      this.logger.debug(
+        `Device pixel ratio calculated: ${finalDpr} (width: ${dprWidth}, height: ${dprHeight})`
+      );
+
+      return finalDpr;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      this.logger.warn(
+        `Failed to get device pixel ratio (${errorMessage}), using fallback: 1.0`
+      );
       return 1.0;
     }
   }
@@ -269,34 +292,69 @@ export class DOMService implements IDOMService {
   }
 
   /**
-   * Get DOM snapshot with computed styles
+   * Get DOM snapshot with enhanced computed styles
+   * Matches browser-use reference with comprehensive style collection
    */
   private async getDOMSnapshot(): Promise<DOMSnapshot> {
     try {
+      // Enhanced computed styles following browser-use reference
+      // Only include styles that are actually used in the analysis to prevent Chrome crashes
+      const computedStyles = [
+        // Core visibility styles
+        "display",
+        "visibility",
+        "opacity",
+        "background-color",
+        "color",
+
+        // Layout and positioning
+        "position",
+        "overflow",
+        "overflow-x",
+        "overflow-y",
+
+        // Interaction styles
+        "cursor",
+        "pointer-events",
+
+        // Additional important styles for interactivity detection
+        "z-index",
+        "transform",
+        "box-shadow",
+        "text-shadow",
+
+        // Form-related styles
+        "background",
+        "border",
+        "border-radius",
+        "outline"
+      ];
+
+      this.logger.debug(`Capturing DOM snapshot with ${computedStyles.length} computed styles`);
+
       const snapshot = await this.sendCommand("DOMSnapshot.captureSnapshot", {
-        computedStyles: [
-          "display",
-          "visibility",
-          "opacity",
-          "overflow",
-          "overflow-x",
-          "overflow-y",
-          "cursor",
-          "pointer-events",
-          "position",
-          "background-color",
-        ],
+        computedStyles,
         includePaintOrder: true,
         includeDOMRects: true,
         includeBlendedBackgroundColors: false,
         includeTextColorOpacities: false,
       });
 
-      return snapshot as DOMSnapshot;
-    } catch (_error) {
-      this.logger.warn(
-        "DOM snapshot capture failed, some features may be limited"
+      const snapshotResult = snapshot as DOMSnapshot;
+
+      this.logger.debug(
+        `DOM snapshot captured: ${snapshotResult.documents?.length || 0} documents, ` +
+        `${snapshotResult.strings?.length || 0} strings`
       );
+
+      return snapshotResult;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      this.logger.warn(
+        `DOM snapshot capture failed: ${errorMessage}. Some features may be limited`
+      );
+
+      // Return empty snapshot as fallback
       return { documents: [], strings: [] };
     }
   }

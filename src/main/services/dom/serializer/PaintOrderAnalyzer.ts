@@ -306,20 +306,14 @@ export class PaintOrderAnalyzer {
           continue;
         }
 
+        // Browser-use reference: No exception rules - only check transparency
         // Check transparency filtering (only if enabled)
         if (this.enableTransparencyFiltering && this.isTransparentNode(node)) {
           node.ignoredByPaintOrder = true;
           continue;
         }
 
-        // Check for exceptions that should never be filtered
-        if (this.isExceptionNode(node)) {
-          node.ignoredByPaintOrder = false;
-          rectsToAdd.push(bounds);
-          continue;
-        }
-
-        // Node is visible - add to union
+        // Node is visible - add to union (browser-use reference behavior)
         node.ignoredByPaintOrder = false;
         rectsToAdd.push(bounds);
       }
@@ -350,7 +344,7 @@ export class PaintOrderAnalyzer {
 
   /**
    * Check if node is transparent and should be filtered
-   * Matches the browser-use reference implementation exactly
+   * Enhanced implementation following browser-use reference exactly
    */
   private isTransparentNode(node: SimplifiedNode): boolean {
     const snapshotNode = node.originalNode.snapshotNode;
@@ -359,16 +353,18 @@ export class PaintOrderAnalyzer {
     const computedStyles = snapshotNode.computedStyles;
     if (!computedStyles) return false;
 
-    // Check for transparent background (exact match to reference)
+    // Check for transparent background (exact match to browser-use reference)
     const backgroundColor = computedStyles["background-color"];
     const hasTransparentBackground =
-      !backgroundColor || backgroundColor === "rgba(0, 0, 0, 0)";
+      !backgroundColor ||
+      backgroundColor === "rgba(0, 0, 0, 0)" ||
+      backgroundColor === "transparent";
 
-    // Check opacity threshold (exact match to reference)
+    // Check opacity threshold (exact match to reference - 0.8)
     const opacity = parseFloat(computedStyles.opacity || "1");
     const hasLowOpacity = opacity < this.opacityThreshold;
 
-    // Filter if transparent background OR low opacity
+    // Filter if transparent background OR low opacity (matching reference logic)
     if (hasTransparentBackground || hasLowOpacity) {
       return true;
     }
@@ -376,70 +372,9 @@ export class PaintOrderAnalyzer {
     return false;
   }
 
-  /**
-   * Check if node is an exception that should never be filtered
-   */
-  private isExceptionNode(node: SimplifiedNode): boolean {
-    const originalNode = node.originalNode;
-
-    // Interactive elements are exceptions
-    const { isInteractive } = this.isInteractiveNode(originalNode);
-    if (isInteractive) {
-      return true;
-    }
-
-    // Scrollable containers are exceptions
-    if (originalNode.isActuallyScrollable) {
-      return true;
-    }
-
-    // Elements with accessible name are exceptions
-    if (
-      originalNode.axNode?.name &&
-      originalNode.axNode.name.trim().length > 0
-    ) {
-      return true;
-    }
-
-    return false;
-  }
-
-  /**
-   * Quick interactivity check (simplified version for exceptions)
-   */
-  private isInteractiveNode(node: EnhancedDOMTreeNode): {
-    isInteractive: boolean;
-  } {
-    // Basic check for interactive attributes
-    if (
-      node.elementIndex !== null &&
-      node.elementIndex !== undefined &&
-      node.elementIndex >= 0
-    ) {
-      return { isInteractive: true };
-    }
-
-    // Check for interactive cursor
-    if (node.snapshotNode?.cursorStyle === "pointer") {
-      return { isInteractive: true };
-    }
-
-    // Check for interactive tags
-    const interactiveTags = ["button", "input", "select", "textarea", "a"];
-    if (node.tag && interactiveTags.includes(node.tag.toLowerCase())) {
-      return { isInteractive: true };
-    }
-
-    // Check for interactive ARIA role
-    if (node.axNode?.role) {
-      const interactiveRoles = ["button", "link", "menuitem", "option", "tab"];
-      if (interactiveRoles.includes(node.axNode.role.toLowerCase())) {
-        return { isInteractive: true };
-      }
-    }
-
-    return { isInteractive: false };
-  }
+  // Note: Exception methods removed to match browser-use reference exactly
+  // The reference implementation does not have comprehensive exception rules
+  // It only checks for transparency filtering, not interactive exceptions
 
   /**
    * Get paint order analysis statistics with enhanced tracking
