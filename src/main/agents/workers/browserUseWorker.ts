@@ -1,4 +1,4 @@
-import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import { createAgent, type ReactAgent } from "langchain";
 import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { complexLangchainModel } from "@agents/providers";
 import { PQueueManager } from "@agents/utils";
@@ -7,7 +7,6 @@ import { threadViewTools } from "@agents/tools/ThreadViewTools";
 import { type ChatRequest } from "@shared";
 import { type UIMessage } from "ai";
 import log from "electron-log/main";
-import type { Runnable } from "@langchain/core/runnables";
 import { sendAlert } from "@/utils";
 import { CallbackHandler } from "@langfuse/langchain";
 import { settingsService } from "@/services";
@@ -49,14 +48,14 @@ You should focus on browser view control and DOM analysis tasks, providing compr
 
 export class BrowserUseWorker {
   private logger = log.scope("BrowserUseWorker");
-  private agent: Runnable | null = null;
+  private agent: ReactAgent | null = null;
   public currentThreadId: string | null = null;
 
   constructor() {
     this.logger.info("BrowserUseWorker initialized");
   }
 
-  private async initializeAgent(): Promise<Runnable> {
+  private async initializeAgent(): Promise<ReactAgent> {
     if (this.agent) {
       return this.agent;
     }
@@ -75,10 +74,10 @@ export class BrowserUseWorker {
       });
 
       // Create the React agent using LangGraph
-      this.agent = createReactAgent({
-        llm: model,
+      this.agent = createAgent({
+        model,
         tools,
-        messageModifier: systemPrompt,
+        systemPrompt,
       });
 
       this.logger.info("LangChain React agent initialized successfully");
@@ -150,7 +149,7 @@ export class BrowserUseWorker {
         messages: langchainMessages.map((msg, index) => ({
           index,
           type: msg.constructor.name,
-          role: msg._getType(),
+          role: msg.type,
           contentLength: msg.content?.length || 0,
           contentPreview:
             (typeof msg.content === "string"
@@ -160,8 +159,7 @@ export class BrowserUseWorker {
         })),
       });
 
-      // Execute the agent with the correct input format
-      // The system prompt is handled by the messageModifier in createReactAgent
+      // Execute the agent with streaming support
       const input = { messages: langchainMessages };
 
       this.logger.debug("executing agent with input", {
@@ -170,17 +168,14 @@ export class BrowserUseWorker {
         langfuseEnabled: settings.langfuse.enabled,
       });
 
-      const result = await agent.invoke(
-        input,
-        langfuseHandler ? { callbacks: [langfuseHandler] } : {}
+      // Use LangChain's streaming directly
+      const stream = await agent.stream(
+        input
+        // , {...(langfuseHandler && { callbacks: [langfuseHandler] })},
       );
 
-      this.logger.debug("Agent execution completed", {
-        messagesCount: result.messages?.length || 0,
-      });
-
-      // Create a readable stream from the result
-      return this.createResultStream(result);
+      // Convert LangChain's AsyncIterable stream to ReadableStream
+      return this.convertToReadableStream(stream);
     } catch (error) {
       this.logger.error("Agent execution failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -257,7 +252,7 @@ export class BrowserUseWorker {
           contentLength: textContent.length,
         });
       } else if (message.role === "system") {
-        // System messages are handled by messageModifier, but convert to human message for safety
+        // System messages are handled by systemPrompt parameter, but convert to human message for safety
         langchainMessage = new HumanMessage(textContent);
         this.logger.warn("unexpected system message in conversion", {
           index,
@@ -285,35 +280,25 @@ export class BrowserUseWorker {
     return langchainMessages;
   }
 
-  private createResultStream(result: {
-    messages: Array<HumanMessage | AIMessage>;
-  }): ReadableStream {
+  private convertToReadableStream(
+    langchainStream: AsyncIterable<unknown>
+  ): ReadableStream {
     const encoder = new TextEncoder();
-    const stream = new ReadableStream({
-      start(controller) {
+
+    return new ReadableStream({
+      async start(controller) {
         try {
-          // Extract the final response from the agent result
-          const finalMessage = result.messages[result.messages.length - 1];
-          const content = finalMessage?.content || "No response generated";
-
-          // Send the result as a single chunk
-          const chunk = encoder.encode(
-            JSON.stringify({
-              type: "response",
-              content: content,
-              messages: result.messages,
-            }) + "\n"
-          );
-
-          controller.enqueue(chunk);
+          for await (const chunk of langchainStream) {
+            // Forward the chunk directly - let the consumer handle the format
+            const chunkData = encoder.encode(JSON.stringify(chunk) + "\n");
+            controller.enqueue(chunkData);
+          }
           controller.close();
         } catch (error) {
           controller.error(error);
         }
       },
     });
-
-    return stream;
   }
 
   // Utility method to get current queue status
