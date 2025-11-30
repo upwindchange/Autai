@@ -1,13 +1,13 @@
 "use client";
 
-import { useMessagePart } from "@assistant-ui/react";
+import { useAssistantState } from "@assistant-ui/react";
 import type { SyntaxHighlighterProps } from "@assistant-ui/react-markdown";
 import mermaid from "mermaid";
 import { FC, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
-import log from 'electron-log/renderer';
+import log from "electron-log/renderer";
 
-const logger = log.scope('MermaidDiagram');
+const logger = log.scope("MermaidDiagram");
 
 /**
  * Props for the MermaidDiagram component
@@ -49,7 +49,7 @@ export const MermaidDiagram: FC<MermaidDiagramProps> = ({
   const ref = useRef<HTMLPreElement>(null);
 
   // Detect when this code block is complete
-  const isComplete = useMessagePart((part) => {
+  const isComplete = useAssistantState(({ part }) => {
     if (part.type !== "text") return false;
 
     // Find the position of this code block
@@ -82,7 +82,13 @@ export const MermaidDiagram: FC<MermaidDiagramProps> = ({
   }, [isComplete, code]);
 
   return (
-    <pre ref={ref} className={cn("bg-muted rounded-b-lg p-2 text-center [&_svg]:mx-auto", className)}>
+    <pre
+      ref={ref}
+      className={cn(
+        "aui-mermaid-diagram rounded-b-lg bg-muted p-2 text-center [&_svg]:mx-auto",
+        className
+      )}
+    >
       Drawing diagram...
     </pre>
   );

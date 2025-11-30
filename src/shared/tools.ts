@@ -79,7 +79,7 @@ export function repairZodInput<T>(data: any, schema: z.ZodSchema<T>): T {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function recursiveRepairData(data: any, schema: z.ZodTypeAny): any {
+function recursiveRepairData(data: any, schema: z.ZodType): any {
   // Handle null/undefined
   if (data === null || data === undefined) {
     return data;
@@ -127,8 +127,7 @@ function recursiveRepairData(data: any, schema: z.ZodTypeAny): any {
 
     // Recursively repair each array element
     return data.map((item: unknown) =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      recursiveRepairData(item, (schema.def as any).type)
+      recursiveRepairData(item, schema.element)
     );
   }
 
@@ -150,8 +149,8 @@ function recursiveRepairData(data: any, schema: z.ZodTypeAny): any {
 
     const result: Record<string, unknown> = {};
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const shape = (schema.def as any).shape();
+    // Use the correct Zod API to get the shape
+    const shape = schema.shape;
 
     for (const [key, fieldSchema] of Object.entries(shape)) {
       result[key] = recursiveRepairData(data[key], fieldSchema as z.ZodTypeAny);
