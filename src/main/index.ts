@@ -14,6 +14,7 @@ import {
 } from "@/services";
 import { PQueueManager } from "@agents/utils";
 import { apiServer } from "@agents";
+import assistantServer from "./assistant/server";
 import { initializeTelemetry, shutdownTelemetry } from "@agents/utils";
 import { SettingsBridge } from "@/bridges/SettingsBridge";
 import { ThreadViewBridge } from "@/bridges/ThreadViewBridge";
@@ -157,6 +158,10 @@ app.whenReady().then(async () => {
 
   // Start API server
   apiServer.start();
+
+  // Start assistant server
+  logger.info("Starting assistant server...");
+  assistantServer.start();
   createWindow();
 });
 
@@ -231,6 +236,11 @@ app.on("before-quit", async (event) => {
     logger.info("Stopping API server...");
     apiServer.stop();
     logger.info("API server stopped");
+
+    // Stop assistant server
+    logger.info("Stopping assistant server...");
+    await assistantServer.stop();
+    logger.info("Assistant server stopped");
 
     // Shutdown PQueueManager
     logger.info("Shutting down PQueueManager...");

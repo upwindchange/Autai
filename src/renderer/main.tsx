@@ -12,16 +12,7 @@ import { AssistantChatContainer } from "@/components/ai-chat";
 import { SettingsProvider, SettingsView } from "@/components/settings";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useUiStore } from "@/stores/uiStore";
-import {
-  AssistantRuntimeProvider,
-  CompositeAttachmentAdapter,
-  SimpleImageAttachmentAdapter,
-  SimpleTextAttachmentAdapter,
-} from "@assistant-ui/react";
-import {
-  useChatRuntime,
-  AssistantChatTransport,
-} from "@assistant-ui/react-ai-sdk";
+import { LocalRuntimeProvider } from "@/aui-runtime/runtime-provider";
 import { AppHeader } from "@/components/app-header";
 import { useState } from "react";
 import { useThreadLifecycle } from "@/hooks/useThreadLifecycle";
@@ -127,23 +118,10 @@ function AppContent() {
  * Manages the sidebar, main content area, and AI chat interface.
  */
 function App() {
-  // Create runtime for the entire app using AI SDK v5 with useChatRuntime
-  const runtime = useChatRuntime({
-    transport: new AssistantChatTransport({
-      api: "http://localhost:3001/chat", // Custom API URL with forwarding
-    }),
-    adapters: {
-      attachments: new CompositeAttachmentAdapter([
-        new SimpleImageAttachmentAdapter(),
-        new SimpleTextAttachmentAdapter(),
-      ]),
-    },
-  });
-
   return (
-    <AssistantRuntimeProvider runtime={runtime}>
+    <LocalRuntimeProvider>
       <AppContent />
-    </AssistantRuntimeProvider>
+    </LocalRuntimeProvider>
   );
 }
 
