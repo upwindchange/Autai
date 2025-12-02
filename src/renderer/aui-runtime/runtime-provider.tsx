@@ -23,8 +23,7 @@ function AddToolComponent() {
       required: ["a", "b"],
     },
     execute: async ({ a, b }: { a: number; b: number }) => {
-      // For this POC, we'll just return the sum
-      // In a real implementation, this might call the backend or do the calculation here
+      console.log("this log shows that the add tool is really been executed");
       return { result: a + b };
     },
   });

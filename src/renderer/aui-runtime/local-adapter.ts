@@ -1,31 +1,29 @@
 import type {
   ChatModelAdapter,
-  ChatModelRunResult,
-  ModelContext,
-  ThreadMessage,
+  ChatModelRunOptions,
 } from "@assistant-ui/react";
 import log from "electron-log/renderer";
 
 const logger = log.scope("LocalChatAdapter");
 
 export const LocalChatAdapter: ChatModelAdapter = {
-  async *run({ messages, abortSignal, context }: { messages: readonly ThreadMessage[]; abortSignal: AbortSignal; context: ModelContext }) {
+  async *run({ messages, abortSignal, context }: ChatModelRunOptions) {
     try {
       logger.info("LocalChatAdapter starting:", {
         messagesCount: messages.length,
         lastMessage: messages[messages.length - 1]?.content,
         hasTools: !!context.tools,
         toolsCount: context.tools?.length || 0,
-        tools: context.tools
+        tools: context.tools,
       });
 
       // Prepare request body
       const requestBody = {
-        messages: messages.map(msg => ({
+        messages: messages.map((msg) => ({
           role: msg.role,
-          content: msg.content
+          content: msg.content,
         })),
-        tools: context.tools || []
+        tools: context.tools || [],
       };
 
       // Make request to our Express server
@@ -92,7 +90,6 @@ export const LocalChatAdapter: ChatModelAdapter = {
           reader.releaseLock();
         }
       }
-
     } catch (error) {
       if (error instanceof Error && error.name === "AbortError") {
         // User cancelled the request - this is normal
