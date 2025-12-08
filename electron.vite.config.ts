@@ -1,12 +1,11 @@
 import { resolve } from "path";
-import { defineConfig, externalizeDepsPlugin } from "electron-vite";
+import { defineConfig } from "electron-vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   main: {
     plugins: [
-      externalizeDepsPlugin(),
       {
         name: "watch-main-reload",
         closeBundle() {
@@ -19,6 +18,7 @@ export default defineConfig({
     build: {
       sourcemap: true,
       watch: process.env.NODE_ENV !== "production" ? {} : null,
+      externalizeDeps: true,
     },
     resolve: {
       alias: {
@@ -29,7 +29,9 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin()],
+    build: {
+      externalizeDeps: true,
+    },
     resolve: {
       alias: {
         "@shared": resolve("src/shared"),

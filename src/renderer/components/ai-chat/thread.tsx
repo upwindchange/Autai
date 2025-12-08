@@ -31,7 +31,6 @@ import {
 } from "@/components/ui/resizable";
 
 import { MarkdownText } from "@/components/assistant-ui/markdown-text";
-import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import {
   ComposerAddAttachment,
@@ -39,12 +38,6 @@ import {
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
 import { Reasoning, ReasoningGroup } from "@/components/assistant-ui/reasoning";
-import { TOOL_NAMES } from "@shared";
-import {
-  CalculatorTool,
-  AnswerTool,
-  DisplayErrorTool,
-} from "@/components/assistant-ui/tool-components";
 import { useUiStore } from "@/stores/uiStore";
 import { useViewVisibility } from "@/hooks/useViewVisibility";
 import log from "electron-log/renderer";
@@ -339,14 +332,6 @@ const AssistantMessage: FC = () => {
         <MessagePrimitive.Parts
           components={{
             Text: MarkdownText,
-            tools: {
-              by_name: {
-                [TOOL_NAMES.CALCULATE]: CalculatorTool,
-                [TOOL_NAMES.ANSWER]: AnswerTool,
-                [TOOL_NAMES.DISPLAY_ERROR]: DisplayErrorTool,
-              },
-              Fallback: ToolFallback,
-            },
           }}
         />
         <MessageError />
