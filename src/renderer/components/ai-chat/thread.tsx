@@ -331,6 +331,8 @@ const AssistantMessage: FC = () => {
       <div className="aui-assistant-message-content wrap-break-word mx-2 text-foreground leading-7">
         <MessagePrimitive.Parts
           components={{
+            Reasoning: Reasoning,
+            ReasoningGroup: ReasoningGroup,
             Text: MarkdownText,
           }}
         />
@@ -382,12 +384,7 @@ const UserMessage: FC = () => {
 
       <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
         <div className="aui-user-message-content wrap-break-word rounded-3xl bg-muted px-5 py-2.5 text-foreground">
-          <MessagePrimitive.Parts
-            components={{
-              Reasoning: Reasoning,
-              ReasoningGroup: ReasoningGroup,
-            }}
-          />
+          <MessagePrimitive.Parts />
         </div>
         <div className="aui-user-action-bar-wrapper -translate-x-full -translate-y-1/2 absolute top-1/2 left-0 pr-2">
           <UserActionBar />
