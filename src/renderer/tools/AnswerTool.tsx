@@ -1,21 +1,20 @@
-import { makeAssistantTool, tool } from "@assistant-ui/react";
-import { answerToolSchema } from "@shared/tools";
+import { makeAssistantToolUI } from "@assistant-ui/react";
 import { MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// Define the tool using imported schema
-const answerTool = tool({
-  description: "Provide the final answer with reasoning steps",
-  parameters: answerToolSchema,
-  execute: async ({ steps, answer }) => {
-    // This is a UI-only tool, but we need to define execute for completeness
-    return { steps, answer };
-  },
-});
+type AnswerToolArgs = {
+  steps: Array<{
+    calculation: string;
+    reasoning: string;
+  }>;
+  answer: string;
+};
 
-// Create the React component that registers the tool
-export const AnswerTool = makeAssistantTool({
-  ...answerTool,
+// Create the UI component for the answer tool
+export const AnswerTool = makeAssistantToolUI<
+  AnswerToolArgs,
+  string
+>({
   toolName: "answer",
 
   // Define the UI that will be shown when this tool runs

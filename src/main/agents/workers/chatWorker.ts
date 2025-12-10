@@ -9,6 +9,7 @@ import { repairToolCall } from "@agents/utils";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
 import { type ChatRequest } from "@shared";
+import { backendTools } from "@agents/tools";
 
 const systemPrompt = `You are a helpful AI assistant integrated into a web browser automation tool.
                      You can help users navigate web pages, answer questions about the current page content,
@@ -42,17 +43,17 @@ export class ChatWorker {
       ];
 
       // Add stop conditions for common tool patterns if available
-      if (tools && typeof tools === 'object') {
+      if (tools && typeof tools === "object") {
         const toolNames = Object.keys(tools);
 
         // Stop when answer/task completion tool is called
-        if (toolNames.includes('answer')) {
-          stopConditions.push(hasToolCall('answer'));
+        if (toolNames.includes("answer")) {
+          stopConditions.push(hasToolCall("answer"));
         }
 
         // Stop when error display tool is called
-        if (toolNames.includes('displayError')) {
-          stopConditions.push(hasToolCall('displayError'));
+        if (toolNames.includes("displayError")) {
+          stopConditions.push(hasToolCall("displayError"));
         }
       }
 
@@ -61,7 +62,7 @@ export class ChatWorker {
         messages: convertToModelMessages(messages),
         system: `${systemPrompt} ${system || ""}`,
         stopWhen: stopConditions,
-        tools: toolsToUse,
+        tools: backendTools,
         experimental_repairToolCall: repairToolCall,
         experimental_telemetry: {
           isEnabled: settingsService.settings.langfuse.enabled,
