@@ -24,7 +24,7 @@ export class ChatWorker {
 
   async handleChat(
     request: ChatRequest
-  ): Promise<StreamTextResult<Record<string, any>, any>> {
+  ): Promise<StreamTextResult<any, any>> {
     const { messages, system, threadId, tools } = request;
     this.logger.debug("request received", {
       messagesCount: messages?.length,
