@@ -14,7 +14,7 @@ type CalculatorToolResult = {
 // Create the UI component for the calculator tool
 export const CalculatorTool = makeAssistantToolUI<
   CalculatorToolArgs,
-  string
+  CalculatorToolResult
 >({
   toolName: "calculate",
 
@@ -24,20 +24,23 @@ export const CalculatorTool = makeAssistantToolUI<
     let resultObj: CalculatorToolResult | undefined;
     if (result) {
       try {
-        resultObj = typeof result === 'string'
-          ? JSON.parse(result) as CalculatorToolResult
-          : result as CalculatorToolResult;
+        resultObj =
+          typeof result === "string"
+            ? (JSON.parse(result) as CalculatorToolResult)
+            : (result as CalculatorToolResult);
       } catch (_error) {
         // If parsing fails, display error
-        resultObj = { error: 'Invalid result format' };
+        resultObj = { error: "Invalid result format" };
       }
     }
 
     return (
-      <div className={cn(
-        "my-2 rounded-lg border bg-card p-3",
-        status.type === "running" && "animate-pulse"
-      )}>
+      <div
+        className={cn(
+          "my-2 rounded-lg border bg-card p-3",
+          status.type === "running" && "animate-pulse"
+        )}
+      >
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
           <CalculatorIcon className="h-4 w-4" />
           <span className="font-medium">Calculator</span>

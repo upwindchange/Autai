@@ -11,10 +11,7 @@ type AnswerToolArgs = {
 };
 
 // Create the UI component for the answer tool
-export const AnswerTool = makeAssistantToolUI<
-  AnswerToolArgs,
-  string
->({
+export const AnswerTool = makeAssistantToolUI<AnswerToolArgs, string>({
   toolName: "answer",
 
   // Define the UI that will be shown when this tool runs
@@ -24,10 +21,12 @@ export const AnswerTool = makeAssistantToolUI<
     if (!steps || !answer) return null;
 
     return (
-      <div className={cn(
-        "my-4 rounded-lg border bg-accent/50 p-4",
-        status.type === "running" && "animate-pulse"
-      )}>
+      <div
+        className={cn(
+          "my-4 rounded-lg border bg-accent/50 p-4",
+          status.type === "running" && "animate-pulse"
+        )}
+      >
         <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
           <MessageSquare className="h-4 w-4" />
           <span className="font-medium">Solution Summary</span>

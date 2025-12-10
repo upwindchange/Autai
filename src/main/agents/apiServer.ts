@@ -1,6 +1,5 @@
 import express, { type Express } from "express";
 import cors from "cors";
-import { createUIMessageStreamResponse } from "ai";
 import { type Server } from "http";
 import { agentHandler } from "@agents";
 import log from "electron-log/main";
@@ -76,40 +75,18 @@ export class ApiServer {
             return;
           }
 
-          // Stream the response using createUIMessageStreamResponse
+          // Stream the response using pipeUIMessageStreamToResponse method
           this.logger.debug("Starting stream response...");
           try {
-            const stream = await agentHandler.handleChat({
+            const result = await agentHandler.handleChat({
               messages,
               system,
               tools,
               threadId: activeThreadId,
             });
 
-            const response = createUIMessageStreamResponse({ stream });
-
-            // Set headers from the Response object
-            response.headers.forEach((value, key) => {
-              res.setHeader(key, value);
-            });
-
-            // Pipe the stream to the Express response
-            const reader = response.body?.getReader();
-            if (!reader) {
-              throw new Error("No response body");
-            }
-
-            const sendChunk = async () => {
-              const { done, value } = await reader.read();
-              if (done) {
-                res.end();
-                return;
-              }
-              res.write(value);
-              await sendChunk();
-            };
-
-            await sendChunk();
+            // Pipe the stream result to the Express response
+            result.pipeUIMessageStreamToResponse(res);
           } catch (error) {
             this.logger.error("Error handling chat:", error);
             if (!res.headersSent) {

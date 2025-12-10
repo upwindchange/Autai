@@ -1,4 +1,4 @@
-import { type UIMessage, type ToolSet } from "ai";
+import { type UIMessage } from "ai";
 
 /**
  * Request structure for chat endpoints
@@ -6,6 +6,6 @@ import { type UIMessage, type ToolSet } from "ai";
 export interface ChatRequest {
   messages: UIMessage[];
   system?: string;
-  tools?: ToolSet;
+  tools?: any;
   threadId: string;
 }
