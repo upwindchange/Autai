@@ -12,7 +12,7 @@ import { AssistantChatContainer } from "@/components/ai-chat";
 import { SettingsProvider, SettingsView } from "@/components/settings";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useUiStore } from "@/stores/uiStore";
-import { CalculatorTool, AnswerTool } from "@/tools";
+import { CalculatorTool, CalculatorToolUI, AnswerTool, AnswerToolUI } from "@/tools";
 import {
   AssistantRuntimeProvider,
   CompositeAttachmentAdapter,
@@ -144,7 +144,9 @@ function App() {
   return (
     <AssistantRuntimeProvider runtime={runtime}>
       <CalculatorTool />
+      <CalculatorToolUI />
       <AnswerTool />
+      <AnswerToolUI />
       <AppContent />
     </AssistantRuntimeProvider>
   );

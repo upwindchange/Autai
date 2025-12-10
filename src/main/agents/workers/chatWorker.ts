@@ -3,12 +3,14 @@ import {
   convertToModelMessages,
   stepCountIs,
   hasToolCall,
+  type StreamTextResult,
 } from "ai";
 import { chatModel } from "@agents/providers";
 import { repairToolCall } from "@agents/utils";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
 import { type ChatRequest } from "@shared";
+import { frontendTools } from "@assistant-ui/react-ai-sdk";
 
 const systemPrompt = `You are a helpful AI assistant integrated into a web browser automation tool.
                      You can help users navigate web pages, answer questions about the current page content,
@@ -19,7 +21,9 @@ const systemPrompt = `You are a helpful AI assistant integrated into a web brows
 export class ChatWorker {
   private logger = log.scope("ChatWorker");
 
-  async handleChat(request: ChatRequest): Promise<ReadableStream> {
+  async handleChat(
+    request: ChatRequest
+  ): Promise<StreamTextResult<Record<string, any>, any>> {
     const { messages, system, threadId, tools } = request;
     this.logger.debug("request received", {
       messagesCount: messages?.length,
@@ -34,6 +38,7 @@ export class ChatWorker {
 
       // Use frontend tools if provided, otherwise no tools
       const toolsToUse = tools || {};
+      this.logger.debug(frontendTools(toolsToUse));
 
       // Configure stop conditions based on available tools
       const stopConditions = [
@@ -42,17 +47,17 @@ export class ChatWorker {
       ];
 
       // Add stop conditions for common tool patterns if available
-      if (tools && typeof tools === 'object') {
+      if (tools && typeof tools === "object") {
         const toolNames = Object.keys(tools);
 
         // Stop when answer/task completion tool is called
-        if (toolNames.includes('answer')) {
-          stopConditions.push(hasToolCall('answer'));
+        if (toolNames.includes("answer")) {
+          stopConditions.push(hasToolCall("answer"));
         }
 
         // Stop when error display tool is called
-        if (toolNames.includes('displayError')) {
-          stopConditions.push(hasToolCall('displayError'));
+        if (toolNames.includes("displayError")) {
+          stopConditions.push(hasToolCall("displayError"));
         }
       }
 
@@ -60,8 +65,10 @@ export class ChatWorker {
         model: await chatModel(),
         messages: convertToModelMessages(messages),
         system: `${systemPrompt} ${system || ""}`,
-        stopWhen: stopConditions,
-        tools: toolsToUse,
+        stopWhen: stepCountIs(20),
+        tools: {
+          ...frontendTools(toolsToUse),
+        },
         experimental_repairToolCall: repairToolCall,
         experimental_telemetry: {
           isEnabled: settingsService.settings.langfuse.enabled,
@@ -72,8 +79,8 @@ export class ChatWorker {
         },
       });
 
-      this.logger.debug("converting to ui message stream");
-      return result.toUIMessageStream();
+      this.logger.debug("returning stream text result");
+      return result;
     } catch (error) {
       this.logger.error("failed to create stream", {
         error,

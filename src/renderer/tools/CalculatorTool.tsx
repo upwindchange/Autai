@@ -1,4 +1,4 @@
-import { makeAssistantTool, tool } from "@assistant-ui/react";
+import { makeAssistantTool, tool, makeAssistantToolUI } from "@assistant-ui/react";
 import { calculateToolSchema } from "@shared/tools";
 import { evaluate } from "mathjs";
 import { CalculatorIcon } from "lucide-react";
@@ -20,12 +20,18 @@ const calculateTool = tool({
   },
 });
 
-// Create the React component that registers the tool
+// Register the tool
 export const CalculatorTool = makeAssistantTool({
   ...calculateTool,
   toolName: "calculate",
+});
 
-  // Define the UI that will be shown when this tool runs
+// Create the UI separately
+export const CalculatorToolUI = makeAssistantToolUI<
+  { expression: string },
+  { result?: number; error?: string }
+>({
+  toolName: "calculate",
   render: ({ args, status, result }) => {
     return (
       <div className={cn(

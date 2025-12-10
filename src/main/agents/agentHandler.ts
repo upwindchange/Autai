@@ -1,4 +1,4 @@
-import { type UIMessage } from "ai";
+import { type UIMessage, type StreamTextResult } from "ai";
 import { simpleLangchainModel } from "@agents/providers";
 import { ChatWorker, BrowserUseWorker } from "@agents/workers";
 import { sendAlert } from "@/utils";
@@ -18,7 +18,7 @@ export class AgentHandler {
     this.browserUseWorker = new BrowserUseWorker();
   }
 
-  async handleChat(request: ChatRequest): Promise<ReadableStream> {
+  async handleChat(request: ChatRequest): Promise<StreamTextResult<Record<string, any>, any>> {
     const { messages } = request;
 
     this.logger.debug("making worker decision", {
@@ -32,13 +32,14 @@ export class AgentHandler {
     this.logger.info("routing to worker", { workerType });
 
     // Route to appropriate worker based on LLM decision
-    switch (workerType) {
-      case "browser-use":
-        return await this.browserUseWorker.handleChat(request);
-      case "chat":
-      default:
-        return await this.chatWorker.handleChat(request);
-    }
+    // switch (workerType) {
+    //   case "browser-use":
+    //     return await this.browserUseWorker.handleChat(request);
+    //   case "chat":
+    //   default:
+    //     return await this.chatWorker.handleChat(request);
+    // }
+    return await this.chatWorker.handleChat(request);
   }
 
   private async decideWorkerType(

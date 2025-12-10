@@ -1,4 +1,4 @@
-import { makeAssistantTool, tool } from "@assistant-ui/react";
+import { makeAssistantTool, tool, makeAssistantToolUI } from "@assistant-ui/react";
 import { answerToolSchema } from "@shared/tools";
 import { MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,12 +13,18 @@ const answerTool = tool({
   },
 });
 
-// Create the React component that registers the tool
+// Register the tool
 export const AnswerTool = makeAssistantTool({
   ...answerTool,
   toolName: "answer",
+});
 
-  // Define the UI that will be shown when this tool runs
+// Create the UI separately
+export const AnswerToolUI = makeAssistantToolUI<
+  { steps: Array<{ calculation: string; reasoning: string }>; answer: string },
+  { steps: Array<{ calculation: string; reasoning: string }>; answer: string }
+>({
+  toolName: "answer",
   render: ({ args, status }) => {
     const { steps, answer } = args;
 
