@@ -21,7 +21,8 @@ export class AgentHandler {
 
   async handleChat(
     request: ChatRequest
-  ): Promise<StreamTextResult<Record<string, any>, any>> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ): Promise<StreamTextResult<any, any>> {
     const { messages } = request;
 
     this.logger.debug("making worker decision", {

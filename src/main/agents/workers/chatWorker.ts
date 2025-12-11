@@ -24,6 +24,7 @@ export class ChatWorker {
 
   async handleChat(
     request: ChatRequest
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ): Promise<StreamTextResult<any, any>> {
     const { messages, system, threadId, tools } = request;
     this.logger.debug("request received", {
