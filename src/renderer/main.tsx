@@ -13,6 +13,7 @@ import { SettingsProvider, SettingsView } from "@/components/settings";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useUiStore } from "@/stores/uiStore";
 import { CalculatorTool, AnswerTool } from "@/tools";
+// import { CalculatorTool, AnswerTool, ApprovalTool } from "@/tools";
 import {
   AssistantRuntimeProvider,
   CompositeAttachmentAdapter,
@@ -145,6 +146,7 @@ function App() {
     <AssistantRuntimeProvider runtime={runtime}>
       <CalculatorTool />
       <AnswerTool />
+      {/* <ApprovalTool /> */}
       <AppContent />
     </AssistantRuntimeProvider>
   );

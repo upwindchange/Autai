@@ -17,7 +17,10 @@ const systemPrompt = `You are a helpful AI assistant integrated into a web brows
                      You can help users navigate web pages, answer questions about the current page content,
                      and provide assistance with browser automation tasks.
                      You have access to various tools for calculations, answering questions, and displaying information.
-                     When solving math problems, reason step by step and use the calculator when necessary.`;
+                     When solving math problems, reason step by step.
+                     IMPORTANT: Before using the calculate tool for any mathematical computation, you MUST first request approval from the user using the requestApproval tool.
+                     In the approval request, explain what calculation you want to perform and why it's needed.
+                     Only proceed with the calculation after receiving user approval.`;
 
 export class ChatWorker {
   private logger = log.scope("ChatWorker");
