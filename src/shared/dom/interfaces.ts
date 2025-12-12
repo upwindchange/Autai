@@ -3,11 +3,8 @@
  * Simplified implementation following browser-use patterns with minimal abstraction
  */
 
-import type { Debugger, WebContents } from "electron";
 import type {
-  CurrentPageTargets,
   EnhancedDOMTreeNode,
-  ViewportInfo,
   SerializedDOMState,
   SimplifiedNode,
   SerializationConfig,
@@ -15,43 +12,10 @@ import type {
   SerializationStats,
   InteractiveDetectionResult,
   PaintOrderStats,
-  BoundingBoxFilterStats
+  BoundingBoxFilterStats,
 } from "./types";
 
 export interface IDOMService {
-  /**
-   * Get the webContents instance
-   */
-  getWebContents(): WebContents;
-
-  /**
-   * Send a CDP command
-   */
-  sendCommand<T = unknown>(
-    method: string,
-    params?: unknown
-  ): Promise<T>;
-
-  /**
-   * Get the underlying debugger (for advanced usage)
-   */
-  getDebugger(): Debugger;
-
-  /**
-   * Attach the debugger to the webContents
-   */
-  attach(protocolVersion?: string): Promise<void>;
-
-  /**
-   * Detach the debugger from the webContents
-   */
-  detach(): Promise<void>;
-
-  /**
-   * Check if debugger is attached
-   */
-  isAttached(): boolean;
-
   /**
    * Get enhanced DOM tree with integrated CDP data
    */
@@ -72,9 +36,7 @@ export interface IDOMService {
   /**
    * Get DOM tree with change detection for efficient updates
    */
-  getDOMTreeWithChangeDetection(
-    previousState?: SerializedDOMState
-  ): Promise<{
+  getDOMTreeWithChangeDetection(previousState?: SerializedDOMState): Promise<{
     domTree: EnhancedDOMTreeNode;
     serializedState?: SerializedDOMState;
     hasChanges: boolean;
@@ -87,11 +49,6 @@ export interface IDOMService {
   initialize(): Promise<void>;
 
   /**
-   * Check if the service is ready
-   */
-  isReady(): boolean;
-
-  /**
    * Get service status information
    */
   getStatus(): {
@@ -101,30 +58,9 @@ export interface IDOMService {
   };
 
   /**
-   * Get viewport information
+   * Get previous serialized state for change detection
    */
-  getViewportInfo(): Promise<ViewportInfo>;
-
-  /**
-   * Get frame tree
-   */
-  getFrameTree(): Promise<{
-    frameTree: {
-      frame: {
-        id: string;
-        url: string;
-        name?: string;
-        securityOrigin?: string;
-      };
-      childFrames?: unknown[];
-      parent?: unknown;
-    };
-  }>;
-
-  /**
-   * Get targets for current page
-   */
-  getTargetsForPage(targetId?: string): Promise<CurrentPageTargets>;
+  getPreviousState(): SerializedDOMState | undefined;
 
   /**
    * Cleanup resources
@@ -150,12 +86,12 @@ export interface IInteractiveElementDetector {
     accessibility: {
       role?: string;
       name?: string;
-      properties?: Array<{name: string; value: unknown}>;
+      properties?: Array<{ name: string; value: unknown }>;
     };
     visual: {
       cursor?: string;
       isVisible?: boolean;
-      bounds?: {width: number; height: number};
+      bounds?: { width: number; height: number };
     };
     detection: InteractiveDetectionResult;
   };
@@ -193,12 +129,14 @@ export interface IBoundingBoxFilter {
   /**
    * Configure filtering parameters
    */
-  updateConfig(config: Partial<{
-    containmentThreshold: number;
-    enableSizeFiltering: boolean;
-    minElementSize: number;
-    maxElementSize: number;
-  }>): void;
+  updateConfig(
+    config: Partial<{
+      containmentThreshold: number;
+      enableSizeFiltering: boolean;
+      minElementSize: number;
+      maxElementSize: number;
+    }>
+  ): void;
 }
 
 /**

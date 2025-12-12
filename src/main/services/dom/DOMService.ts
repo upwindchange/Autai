@@ -1,125 +1,69 @@
 /**
- * Simplified DOM Service - Direct CDP integration following browser-use patterns
- *
- * Minimal abstraction with direct CDP access and simple timeout handling
+ * Direct CDP integration for DOM manipulation and analysis
  */
 
 import type { WebContents } from "electron";
 import log from "electron-log/main";
+import type { Protocol as CDP } from "devtools-protocol";
 
 import type {
   IDOMService,
   EnhancedDOMTreeNode,
   TargetAllTrees,
-  DOMSnapshot,
   SerializedDOMState,
   SerializationConfig,
   SerializationTiming,
   SerializationStats,
-  DOMDocument,
-  AXNode,
   EnhancedSnapshotNode,
-  DOMRect,
+  BoundsObject,
 } from "@shared/dom";
-import { DOMTreeSerializer } from "./serializer/DOMTreeSerializer";
+import { DOMTreeSerializer } from "@/services/dom/serializer/DOMTreeSerializer";
+import {
+  sendCDPCommand,
+  attachDebugger,
+  detachDebugger,
+  isDebuggerAttached,
+} from "@/services/dom/utils/DOMUtils";
 
 export class DOMService implements IDOMService {
   private webContents: WebContents;
   private logger = log.scope("DOMService");
-  private serializer: DOMTreeSerializer;
+  public serializer: DOMTreeSerializer;
   private previousState?: SerializedDOMState;
 
   constructor(webContents: WebContents) {
     this.webContents = webContents;
-    this.serializer = new DOMTreeSerializer();
-    this.logger.info("DOMService initialized - direct CDP integration");
+    this.serializer = new DOMTreeSerializer(webContents);
+    this.logger.info("DOMService initialized - DOM analysis only");
   }
 
-  /**
-   * Send CDP command with simple timeout
-   */
-  async sendCommand<T = unknown>(method: string, params?: unknown): Promise<T> {
-    return new Promise<T>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error(`Command ${method} timed out after 10s`));
-      }, 10000);
-
-      this.webContents.debugger.sendCommand(method, params);
-
-      const handleResponse = (
-        _event: unknown,
-        responseMethod: string,
-        responseParams: unknown
-      ) => {
-        if (responseMethod === method || responseMethod.includes("error")) {
-          clearTimeout(timeout);
-          this.webContents.debugger.removeAllListeners("message");
-
-          if (responseMethod.includes("error")) {
-            reject(new Error(`Command ${method} failed`));
-          } else {
-            resolve(responseParams as T);
-          }
-        }
-      };
-
-      this.webContents.debugger.on("message", handleResponse);
-    });
-  }
-
-  /**
-   * Attach debugger
-   */
-  async attach(): Promise<void> {
-    try {
-      this.webContents.debugger.attach("1.3");
-      this.logger.info("Debugger attached");
-    } catch (error) {
-      this.logger.error(`Failed to attach debugger: ${error}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Detach debugger
-   */
-  async detach(): Promise<void> {
-    try {
-      this.webContents.debugger.detach();
-      this.logger.info("Debugger detached");
-    } catch (error) {
-      this.logger.error(`Failed to detach debugger: ${error}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Check if debugger is attached
-   */
-  isAttached(): boolean {
-    return this.webContents.debugger.isAttached();
-  }
-
-  /**
-   * Get enhanced DOM tree
-   */
   async getDOMTree(): Promise<EnhancedDOMTreeNode> {
-    if (!this.isAttached()) {
+    if (!isDebuggerAttached(this.webContents)) {
       throw new Error("Debugger not attached - call initialize() first");
     }
 
     try {
       this.logger.debug("Getting DOM tree");
 
-      // Get all CDP data
+      await sendCDPCommand(
+        this.webContents,
+        "DOM.enable",
+        undefined,
+        this.logger
+      );
+      this.logger.debug("DOM agent enabled successfully");
+
       const trees = await this.getAllTrees();
 
-      // Build enhanced tree directly
+      this.logger.debug(
+        `CDP Snapshot processed: ${trees.snapshot ? "available" : "missing"}`
+      );
+
+      this.logger.debug("Building enhanced DOM tree from CDP data");
       const enhancedTree = this.buildEnhancedDOMTree(trees);
 
-      this.logger.info(
-        `DOM tree built with ${this.countNodes(enhancedTree)} nodes`
-      );
+      const nodeCount = this.countNodes(enhancedTree);
+      this.logger.info(`DOM tree built successfully with ${nodeCount} nodes`);
       return enhancedTree;
     } catch (error) {
       this.logger.error(`Failed to get DOM tree: ${error}`);
@@ -134,35 +78,47 @@ export class DOMService implements IDOMService {
     try {
       this.logger.debug("Collecting CDP data");
 
-      // Get DOM data in parallel
+      // Get DOM data in parallel with correct CDP typing
       const [domTree, snapshot, axTree] = await Promise.allSettled([
-        this.sendCommand("DOM.getDocument", { depth: -1, pierce: true }),
-        this.sendCommand("DOMSnapshot.captureSnapshot", {
-          computedStyles: [
-            "display",
-            "visibility",
-            "opacity",
-            "cursor",
-            "position",
-          ],
-          includePaintOrder: true,
-          includeDOMRects: true,
-          includeBlendedBackgroundColors: false,
-          includeTextColorOpacities: false,
-        }),
-        this.sendCommand("Accessibility.getFullAXTree"),
+        sendCDPCommand<CDP.DOM.GetDocumentResponse>(
+          this.webContents,
+          "DOM.getDocument",
+          {
+            depth: -1,
+            pierce: true,
+          },
+          this.logger
+        ),
+        sendCDPCommand<CDP.DOMSnapshot.CaptureSnapshotResponse>(
+          this.webContents,
+          "DOMSnapshot.captureSnapshot",
+          {
+            computedStyles: [
+              "display",
+              "visibility",
+              "opacity",
+              "cursor",
+              "position",
+            ],
+            includePaintOrder: true,
+            includeDOMRects: true,
+            includeBlendedBackgroundColors: false,
+            includeTextColorOpacities: false,
+          },
+          this.logger
+        ),
+        sendCDPCommand<CDP.Accessibility.GetFullAXTreeResponse>(
+          this.webContents,
+          "Accessibility.getFullAXTree",
+          undefined,
+          this.logger
+        ),
       ]);
 
       return {
-        snapshot:
-          snapshot.status === "fulfilled"
-            ? (snapshot.value as DOMSnapshot)
-            : { documents: [], strings: [] },
-        domTree: domTree.status === "fulfilled" ? (domTree.value as DOMDocument) : null,
-        axTree:
-          axTree.status === "fulfilled"
-            ? { nodes: (axTree.value as { nodes: AXNode[] }).nodes || [] }
-            : { nodes: [] },
+        snapshot: snapshot.status === "fulfilled" ? snapshot.value : null,
+        domTree: domTree.status === "fulfilled" ? domTree.value : null,
+        axTree: axTree.status === "fulfilled" ? axTree.value : { nodes: [] },
         devicePixelRatio: 1.0, // Simplified - use basic scaling
         cdpTiming: { cdp_calls_total: 0 },
       };
@@ -178,8 +134,14 @@ export class DOMService implements IDOMService {
   private buildEnhancedDOMTree(trees: TargetAllTrees): EnhancedDOMTreeNode {
     const { snapshot, domTree, axTree } = trees;
 
+    this.logger.debug("Building enhanced DOM tree", {
+      hasDomTree: !!domTree,
+      hasSnapshot: !!snapshot,
+      axTreeNodes: axTree?.nodes?.length || 0,
+    });
+
     // Build lookups
-    const axTreeLookup: Record<number, AXNode> = {};
+    const axTreeLookup: Record<number, CDP.Accessibility.AXNode> = {};
     for (const axNode of axTree.nodes) {
       if (axNode.backendDOMNodeId) {
         axTreeLookup[axNode.backendDOMNodeId] = axNode;
@@ -187,6 +149,14 @@ export class DOMService implements IDOMService {
     }
 
     const snapshotLookup = this.buildSnapshotLookup(snapshot, 1.0);
+    this.logger.debug(
+      `DOM Service: snapshotLookup created with ${
+        Object.keys(snapshotLookup).length
+      } entries`
+    );
+    this.logger.debug(
+      `DOM Service: snapshot has ${snapshot?.documents?.length || 0} documents`
+    );
     const nodeLookup: Record<number, EnhancedDOMTreeNode> = {};
 
     // Build enhanced tree
@@ -203,56 +173,106 @@ export class DOMService implements IDOMService {
   }
 
   /**
-   * Build snapshot lookup (simplified)
+   * Build snapshot lookup using actual DOMSnapshot.captureSnapshot response structure
    */
   private buildSnapshotLookup(
-    snapshot: DOMSnapshot,
+    snapshot: CDP.DOMSnapshot.CaptureSnapshotResponse | null,
     _devicePixelRatio: number
   ): Record<number, EnhancedSnapshotNode> {
     const lookup: Record<number, EnhancedSnapshotNode> = {};
 
-    if (!snapshot.documents?.[0]) return lookup;
+    if (!snapshot || !snapshot.documents || snapshot.documents.length === 0) {
+      return lookup;
+    }
 
-    const { nodeTree, layout } = snapshot.documents[0];
-    if (!nodeTree?.backendNodeId || !layout?.nodeIndex) return lookup;
+    const doc = snapshot.documents[0];
+    const { layout, nodes } = doc;
 
-    for (let i = 0; i < nodeTree.backendNodeId.length; i++) {
-      const nodeId = nodeTree.backendNodeId[i];
-      const isClickable = nodeTree.isClickable?.index?.includes(i) || false;
+    if (
+      !layout ||
+      !nodes ||
+      !layout.nodeIndex ||
+      !layout.bounds ||
+      !nodes.backendNodeId
+    ) {
+      return lookup;
+    }
 
-      let bounds: DOMRect | null = null;
-      let computedStyles: Record<string, string> | null = null;
+    // Build lookup from layout.nodeIndex correlating with nodes.backendNodeId
+    for (let i = 0; i < layout.nodeIndex.length; i++) {
+      const nodeArrayIndex = layout.nodeIndex[i];
 
-      const layoutIdx = layout.nodeIndex.indexOf(i);
-      if (
-        layoutIdx >= 0 &&
-        layout.bounds &&
-        layout.bounds[layoutIdx]?.length >= 4
-      ) {
-        const boundsData = layout.bounds[layoutIdx];
-        const [x, y, w, h] = boundsData;
-        bounds = {
-          x,
-          y,
-          width: w,
-          height: h,
-          x1: x,
-          y1: y,
-          x2: x + w,
-          y2: y + h,
-          area: w * h,
-          toDict: function() { return { x: this.x, y: this.y, width: this.width, height: this.height }; }
-        };
-        if (layout.styles?.[layoutIdx]) {
-          computedStyles = {};
-        }
+      // Ensure the nodeArrayIndex is valid
+      if (nodeArrayIndex >= nodes.backendNodeId.length) {
+        this.logger.warn(
+          `Skipping layout index ${i}: nodeArrayIndex ${nodeArrayIndex} exceeds nodes.backendNodeId length ${nodes.backendNodeId.length}`
+        );
+        continue;
       }
 
-      lookup[nodeId] = {
-        bounds,
-        computedStyles,
-        isClickable,
-      };
+      const backendNodeId = nodes.backendNodeId[nodeArrayIndex];
+
+      // Extract bounds from layout.bounds array
+      // From diagnostic logs, the bounds appear to be individual x,y,width,height values
+      // Each layout entry should have its own bounds object in the bounds array
+      // The bounds array length equals nodeIndex length, so it's 1:1 mapping
+      if (i < layout.bounds.length) {
+        // Based on diagnostic logs, it seems each entry in bounds array is a complete bounds object
+        // Let's handle different possible structures:
+        let bounds: CDP.DOM.Rect;
+
+        if (Array.isArray(layout.bounds[i])) {
+          // If bounds[i] is an array with 4+ values [x,y,width,height,...]
+          const boundsArray = layout.bounds[i];
+          if (boundsArray.length >= 4) {
+            bounds = {
+              x: boundsArray[0],
+              y: boundsArray[1],
+              width: boundsArray[2],
+              height: boundsArray[3],
+            };
+          } else {
+            // Invalid bounds array, skip
+            this.logger.warn(
+              `Skipping layout index ${i}: bounds array has insufficient length ${boundsArray.length}`
+            );
+            continue;
+          }
+        } else if (
+          typeof layout.bounds[i] === "object" &&
+          layout.bounds[i] !== null
+        ) {
+          // If bounds[i] is an object with x,y,width,height properties
+          const boundsObj = layout.bounds[i] as unknown as BoundsObject;
+          bounds = {
+            x: boundsObj.x || 0,
+            y: boundsObj.y || 0,
+            width: boundsObj.width || 0,
+            height: boundsObj.height || 0,
+          };
+        } else {
+          // Invalid bounds structure, skip
+          this.logger.warn(
+            `Skipping layout index ${i}: bounds has invalid type ${typeof layout
+              .bounds[i]}`
+          );
+          continue;
+        }
+
+        // Get isClickable if available
+        const isClickable = nodes.isClickable?.[nodeArrayIndex] || false;
+
+        // Store in lookup
+        lookup[backendNodeId] = {
+          bounds,
+          computedStyles: null, // Not available in this structure
+          isClickable,
+        };
+      } else {
+        this.logger.warn(
+          `Skipping layout index ${i}: bounds index ${i} exceeds bounds.length ${layout.bounds.length}`
+        );
+      }
     }
 
     return lookup;
@@ -262,12 +282,21 @@ export class DOMService implements IDOMService {
    * Construct enhanced node (simplified)
    */
   private constructEnhancedNode(
-    node: DOMDocument['root'],
-    axTreeLookup: Record<number, AXNode>,
+    node: CDP.DOM.Node,
+    axTreeLookup: Record<number, CDP.Accessibility.AXNode>,
     snapshotLookup: Record<number, EnhancedSnapshotNode>,
     nodeLookup: Record<number, EnhancedDOMTreeNode>,
     targetId: string
   ): EnhancedDOMTreeNode {
+    // Validate node
+    if (!node || typeof node.nodeId === "undefined") {
+      this.logger.error(
+        "Invalid node provided to constructEnhancedNode:",
+        node
+      );
+      throw new Error("Invalid node: nodeId is undefined");
+    }
+
     // Check if already processed
     if (nodeLookup[node.nodeId]) {
       return nodeLookup[node.nodeId];
@@ -291,33 +320,21 @@ export class DOMService implements IDOMService {
       backendNodeId: node.backendNodeId,
       nodeType: node.nodeType,
       nodeName: node.nodeName,
+      localName: node.localName,
       nodeValue: node.nodeValue || "",
       attributes,
-      isScrollable: node.isScrollable || false,
-      isVisible: undefined, // Will be calculated later
+      isScrollable: false, // Will be calculated from snapshot data if available
+      isVisible: true, // Will be calculated later
       absolutePosition: snapshotData?.bounds || null,
       targetId,
-      frameId: node.frameId || null,
+      frameId: null, // DOMNode doesn't have frameId in official types
       sessionId: null,
-      shadowRootType: node.shadowRootType || null,
+      shadowRootType: null, // Will be set if this is a shadow root
       shadowRoots: [],
-      parentNode: undefined,
+      parentNode: null,
       childrenNodes: [],
       contentDocument: null,
-      axNode: axNode
-        ? {
-            axNodeId: axNode.nodeId,
-            ignored: axNode.ignored,
-            role: axNode.role?.value || null,
-            name: axNode.name?.value || null,
-            description: axNode.description?.value || null,
-            properties: axNode.properties?.map(prop => ({
-              name: prop.name,
-              value: prop.value?.value ?? null
-            })) || null,
-            childIds: axNode.childIds || null,
-          }
-        : null,
+      axNode: axNode || null,
       snapshotNode: snapshotData,
       elementIndex: null,
       _compoundChildren: [],
@@ -327,7 +344,7 @@ export class DOMService implements IDOMService {
       get tag() {
         return this.nodeName.toLowerCase();
       },
-      get children() {
+      get actualChildren() {
         return this.childrenNodes || [];
       },
       get childrenAndShadowRoots() {
@@ -336,7 +353,7 @@ export class DOMService implements IDOMService {
         return children;
       },
       get parent() {
-        return this.parentNode || null;
+        return this.parentNode;
       },
       get isActuallyScrollable() {
         return this.isScrollable || false;
@@ -352,9 +369,6 @@ export class DOMService implements IDOMService {
       get elementHash() {
         return 0;
       },
-      get xpath() {
-        return "";
-      },
     };
 
     // Store in lookup
@@ -364,8 +378,14 @@ export class DOMService implements IDOMService {
     if (node.children && Array.isArray(node.children)) {
       enhancedNode.childrenNodes = [];
       for (const child of node.children) {
+        // Validate child before processing - child should be a DOM node directly
+        if (!child || typeof child.nodeId === "undefined") {
+          this.logger.warn("Skipping invalid child node:", child);
+          continue;
+        }
+
         const childNode = this.constructEnhancedNode(
-          child.root,
+          child,
           axTreeLookup,
           snapshotLookup,
           nodeLookup,
@@ -401,12 +421,13 @@ export class DOMService implements IDOMService {
     return count;
   }
 
+  
   /**
    * Initialize the DOM service
    */
   async initialize(): Promise<void> {
     try {
-      await this.attach();
+      await attachDebugger(this.webContents, this.logger);
       this.logger.info("DOMService initialized");
     } catch (error) {
       this.logger.error("Failed to initialize DOMService:", error);
@@ -419,78 +440,12 @@ export class DOMService implements IDOMService {
    */
   async destroy(): Promise<void> {
     try {
-      await this.detach();
+      await detachDebugger(this.webContents, this.logger);
       this.previousState = undefined;
       this.logger.info("DOMService destroyed");
     } catch (error) {
       this.logger.error("Error during DOMService destruction:", error);
     }
-  }
-
-  /**
-   * Get the underlying debugger (for advanced usage)
-   */
-  getDebugger() {
-    return this.webContents.debugger;
-  }
-
-  /**
-   * Get the webContents instance
-   */
-  getWebContents(): WebContents {
-    return this.webContents;
-  }
-
-  /**
-   * Get viewport information (simplified)
-   */
-  async getViewportInfo() {
-    return {
-      width: 1920,
-      height: 1080,
-      devicePixelRatio: 1.0,
-      scrollX: 0,
-      scrollY: 0,
-    };
-  }
-
-  /**
-   * Get frame tree (simplified)
-   */
-  async getFrameTree() {
-    return {
-      frameTree: {
-        frame: {
-          id: "default",
-          url: "",
-          name: "",
-          securityOrigin: "",
-        },
-      },
-    };
-  }
-
-  /**
-   * Get targets for current page (simplified)
-   */
-  async getTargetsForPage() {
-    return {
-      pageSession: {
-        targetId: "default",
-        type: "page",
-        title: "",
-        url: "",
-        attached: true,
-      },
-      iframeSessions: [],
-    };
-  }
-
-  /**
-   * Check if the service is ready
-   */
-  isReady(): boolean {
-    return this.isAttached();
   }
 
   /**
@@ -504,7 +459,7 @@ export class DOMService implements IDOMService {
     timing: SerializationTiming;
     stats: SerializationStats;
   }> {
-    if (!this.isAttached()) {
+    if (!isDebuggerAttached(this.webContents)) {
       throw new Error("Debugger not attached - call initialize() first");
     }
 
@@ -523,20 +478,13 @@ export class DOMService implements IDOMService {
         `DOM tree serialized: ${result.stats.interactiveElements} interactive elements`
       );
 
-      // Convert timing to expected format
-      const convertedTiming: SerializationTiming = {
-        total: result.timing.serialize_dom_tree_total,
-        createSimplifiedTree: 0,
-        paintOrderFiltering: 0,
-        optimizeTreeStructure: 0,
-        boundingBoxFiltering: 0,
-        assignInteractiveIndices: 0,
-        markNewElements: 0,
-      };
+      // Use timing from result directly (already in correct format)
+      const convertedTiming: SerializationTiming = result.timing;
 
       return {
-        ...result,
+        serializedState: result.serializedState,
         timing: convertedTiming,
+        stats: result.stats,
       };
     } catch (error) {
       this.logger.error(`Failed to serialize DOM tree: ${error}`);
@@ -555,17 +503,38 @@ export class DOMService implements IDOMService {
     hasChanges: boolean;
     changeCount: number;
   }> {
-    if (!this.isAttached()) {
+    if (!isDebuggerAttached(this.webContents)) {
       throw new Error("Debugger not attached - call initialize() first");
     }
 
     try {
+      this.logger.debug("Starting change detection", {
+        hasPreviousState: !!previousState,
+        previousStateSelectorMapSize: previousState?.selectorMap
+          ? Object.keys(previousState.selectorMap).length
+          : 0,
+        serviceStateSelectorMapSize: this.previousState?.selectorMap
+          ? Object.keys(this.previousState.selectorMap).length
+          : 0,
+      });
+
       const domTree = await this.getDOMTree();
 
       if (!previousState) {
         const serializedResult = await this.serializer.serializeDOMTree(
           domTree
         );
+        // Update service state for next comparison
+        this.previousState = serializedResult.serializedState;
+
+        this.logger.info("First run state updated successfully", {
+          newSelectorMapSize: Object.keys(
+            serializedResult.serializedState.selectorMap
+          ).length,
+          changeCount: serializedResult.stats.totalNodes,
+          hasChanges: true,
+        });
+
         return {
           domTree,
           serializedState: serializedResult.serializedState,
@@ -581,6 +550,17 @@ export class DOMService implements IDOMService {
       const changeCount = serializedResult.stats.newElements;
       const hasChanges = changeCount > 0;
 
+      // Update service state for next comparison - only on success
+      this.previousState = serializedResult.serializedState;
+
+      this.logger.info("State updated successfully", {
+        newSelectorMapSize: Object.keys(
+          serializedResult.serializedState.selectorMap
+        ).length,
+        changeCount,
+        hasChanges,
+      });
+
       return {
         domTree,
         serializedState: serializedResult.serializedState,
@@ -591,6 +571,7 @@ export class DOMService implements IDOMService {
       this.logger.error(
         `Failed to get DOM tree with change detection: ${error}`
       );
+      // Don't update this.previousState on error
       throw error;
     }
   }
@@ -601,7 +582,7 @@ export class DOMService implements IDOMService {
   getStatus() {
     return {
       isInitialized: true,
-      isAttached: this.isAttached(),
+      isAttached: isDebuggerAttached(this.webContents),
       webContentsId: this.webContents.id,
     };
   }

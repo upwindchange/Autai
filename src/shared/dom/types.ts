@@ -1,65 +1,10 @@
 /**
- * Core DOM types for CDP infrastructure
+ * DOM types using official devtools-protocol definitions
  */
 
-export interface DOMRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  x1: number;
-  y1: number;
-  x2: number;
-  y2: number;
-  area: number;
+import type { Protocol as CDP } from "devtools-protocol";
 
-  /**
-   * Convert to dictionary format
-   */
-  toDict(): Record<string, number>;
-}
-
-
-// ===== PHASE 2: Enhanced DOM Analysis Types =====
-
-/**
- * Enhanced snapshot node from DOMSnapshot data
- */
-export interface EnhancedSnapshotNode {
-  isClickable?: boolean;
-  cursorStyle?: string;
-  bounds?: DOMRect | null;
-  clientRects?: DOMRect | null;
-  scrollRects?: DOMRect | null;
-  computedStyles?: Record<string, string> | null;
-  paintOrder?: number;
-  stackingContexts?: number;
-}
-
-/**
- * Enhanced accessibility node
- */
-export interface EnhancedAXNode {
-  axNodeId: string;
-  ignored: boolean;
-  role?: string | null;
-  name?: string | null;
-  description?: string | null;
-  properties?: EnhancedAXProperty[] | null;
-  childIds?: string[] | null;
-}
-
-/**
- * Enhanced accessibility property
- */
-export interface EnhancedAXProperty {
-  name: string;
-  value: string | boolean | null;
-}
-
-/**
- * Node types from DOM specification
- */
+// Node types from DOM specification
 export enum NodeType {
   ELEMENT_NODE = 1,
   ATTRIBUTE_NODE = 2,
@@ -75,136 +20,15 @@ export enum NodeType {
   NOTATION_NODE = 12,
 }
 
-/**
- * Enhanced DOM tree node integrating CDP data
- */
-export interface EnhancedDOMTreeNode {
-  // Basic DOM properties
-  nodeId: number;
-  backendNodeId: number;
-  nodeType: NodeType;
-  nodeName: string;
-  nodeValue: string;
-  attributes: Record<string, string>;
-
-  // Layout and visibility
-  isScrollable?: boolean | null;
-  isVisible?: boolean | null;
-  absolutePosition?: DOMRect | null;
-
-  // Frame information
-  targetId: string;
-  frameId?: string | null;
-  sessionId?: string | null;
-  contentDocument?: EnhancedDOMTreeNode | null;
-
-  // Shadow DOM
-  shadowRootType?: string | null;
-  shadowRoots?: EnhancedDOMTreeNode[] | null;
-
-  // Navigation
-  parentNode?: EnhancedDOMTreeNode | null;
-  childrenNodes?: EnhancedDOMTreeNode[] | null;
-
-  // Accessibility data
-  axNode?: EnhancedAXNode | null;
-
-  // Snapshot data
-  snapshotNode?: EnhancedSnapshotNode | null;
-
-  // Interactive element index
-  elementIndex?: number | null;
-
-  // Compound control information
-  _compoundChildren?: Record<string, unknown>[];
-
-  // UUID for identification
-  uuid?: string;
-
-  // Helper properties
-  tag?: string; // Lowercase tag name
-  xpath?: string; // Generated XPath
-
-  // Methods
-  get children(): EnhancedDOMTreeNode[];
-  get childrenAndShadowRoots(): EnhancedDOMTreeNode[];
-  get parent(): EnhancedDOMTreeNode | null;
-  get isActuallyScrollable(): boolean;
-  get shouldShowScrollInfo(): boolean;
-  get scrollInfo(): Record<string, unknown> | null;
-  get elementHash(): number;
-}
-
-/**
- * Target information from CDP
- */
-interface TargetInfo {
-  targetId: string;
-  type: string;
-  title: string;
-  url: string;
-  attached: boolean;
-}
-
-/**
- * Target information for current page
- */
-export interface CurrentPageTargets {
-  pageSession: TargetInfo;
-  iframeSessions: TargetInfo[];
-}
-
-/**
- * DOM document structure from CDP
- */
-export interface DOMDocument {
-  root: {
-    nodeId: number;
-    backendNodeId: number;
-    nodeType: number;
-    nodeName: string;
-    nodeValue: string;
-    attributes?: string[];
-    children?: DOMDocument[];
-    shadowRoots?: DOMDocument[];
-    contentDocument?: DOMDocument;
-    frameId?: string;
-    isScrollable?: boolean;
-    shadowRootType?: string;
-  };
-}
-
-/**
- * Accessibility node from CDP
- */
-export interface AXNode {
-  nodeId: string;
-  backendDOMNodeId?: number;
-  ignored: boolean;
-  role?: { value: string };
-  name?: { value: string };
-  description?: { value: string };
-  properties?: Array<{
-    name: string;
-    value: { value?: string | boolean };
-  }>;
-  childIds?: string[];
-}
-
-/**
- * Complete tree data for a target
- */
+// Complete tree data for a target using official types
 export interface TargetAllTrees {
-  snapshot: DOMSnapshot;
-  domTree: DOMDocument | null;
-  axTree: { nodes: AXNode[] };
+  snapshot: CDP.DOMSnapshot.CaptureSnapshotResponse | null;
+  domTree: CDP.DOM.GetDocumentResponse | null;
+  axTree: CDP.Accessibility.GetFullAXTreeResponse;
   devicePixelRatio: number;
   cdpTiming: Record<string, number>;
 }
 
-/**
- * Viewport information
- */
 export interface ViewportInfo {
   width: number;
   height: number;
@@ -213,41 +37,101 @@ export interface ViewportInfo {
   scrollY: number;
 }
 
-
-/**
- * DOM snapshot return data structure
- */
-export interface DOMSnapshot {
-  documents: {
-    nodeTree: {
-      backendNodeId?: number[];
-      isClickable?: { index: number[] };
-    };
-    layout: {
-      nodeIndex?: number[];
-      bounds?: number[][];
-      styles?: number[][];
-      paintOrders?: number[];
-      clientRects?: number[][];
-      scrollRects?: number[][];
-      stackingContexts?: { index: number[] };
-    };
-    frameId?: string;
-    url?: string;
-  }[];
-  strings: string[];
+interface TargetInfo {
+  targetId: string;
+  type: string;
+  title: string;
+  url: string;
+  attached: boolean;
 }
 
-/**
- * Accessibility tree structure
- */
-export interface AXTree {
-  nodes: EnhancedAXNode[];
+export interface CurrentPageTargets {
+  pageSession: TargetInfo;
+  iframeSessions: TargetInfo[];
 }
 
-/**
- * Propagating bounds information for bounding box filtering
- */
+// Enhanced snapshot node - extends official DOMSnapshot.DOMNode with additional properties
+export interface EnhancedSnapshotNode
+  extends Partial<CDP.DOMSnapshot.LayoutTreeNode> {
+  isClickable?: boolean;
+  cursorStyle?: string;
+  bounds?: CDP.DOM.Rect | null;
+  clientRects?: CDP.DOM.Rect | null;
+  scrollRects?: CDP.DOM.Rect | null;
+  computedStyles?: Record<string, string> | null;
+  paintOrder?: number;
+  stackingContexts?: number;
+}
+
+// Enhanced DOM tree node - extends official DOM.Node with app-specific properties
+export interface EnhancedDOMTreeNode
+  extends Omit<
+    CDP.DOM.Node,
+    | "children"
+    | "attributes"
+    | "frameId"
+    | "shadowRootType"
+    | "contentDocument"
+    | "shadowRoots"
+    | "backendNodeId"
+  > {
+  // Override children with enhanced type
+  children?: EnhancedDOMTreeNode[];
+
+  // Override attributes with computed object instead of string array
+  attributes: Record<string, string>;
+
+  // Additional computed properties not in official CDP
+  isScrollable?: boolean;
+  isVisible?: boolean;
+  absolutePosition: CDP.DOM.Rect | null;
+
+  // Frame information (custom for app logic)
+  targetId: string;
+  frameId?: string | null;
+  sessionId?: string | null;
+  contentDocument?: EnhancedDOMTreeNode | null;
+
+  // Shadow DOM (using official types)
+  shadowRootType?: CDP.DOM.ShadowRootType | null;
+  shadowRoots?: EnhancedDOMTreeNode[] | null;
+
+  // Navigation (custom for app logic)
+  parentNode: EnhancedDOMTreeNode | null;
+  childrenNodes?: EnhancedDOMTreeNode[] | null;
+
+  // Accessibility data (using official CDP interface)
+  axNode: CDP.Accessibility.AXNode | null;
+
+  // Snapshot data (using enhanced interface for app logic)
+  snapshotNode?: EnhancedSnapshotNode | null;
+
+  // Interactive element index (custom for app logic)
+  elementIndex?: number | null;
+
+  // Compound control information (custom for app logic)
+  _compoundChildren?: Record<string, unknown>[];
+
+  // UUID for identification (custom for app logic)
+  uuid?: string;
+
+  // Backend node ID from Chrome DevTools Protocol for stable identification
+  backendNodeId?: number;
+
+  // Helper properties (custom for app logic)
+  tag?: string;
+
+  // Methods (custom for app logic)
+  get actualChildren(): EnhancedDOMTreeNode[];
+  get childrenAndShadowRoots(): EnhancedDOMTreeNode[];
+  get parent(): EnhancedDOMTreeNode | null;
+  get isActuallyScrollable(): boolean;
+  get shouldShowScrollInfo(): boolean;
+  get scrollInfo(): Record<string, unknown> | null;
+  get elementHash(): number;
+}
+
+// Rest are ONLY custom for app logic - no official CDP equivalents
 export interface PropagatingBounds {
   x: number;
   y: number;
@@ -256,16 +140,10 @@ export interface PropagatingBounds {
   node: SimplifiedNode;
 }
 
-/**
- * DOM selector map for element mapping and interaction
- */
 export type DOMSelectorMap = Record<number, EnhancedDOMTreeNode>;
 
-/**
- * Compound component virtual element
- */
 export interface CompoundComponent {
-  role: 'spinbutton' | 'slider' | 'button' | 'textbox' | 'listbox' | 'combobox';
+  role: "spinbutton" | "slider" | "button" | "textbox" | "listbox" | "combobox";
   name: string;
   description?: string;
   valuemin?: number;
@@ -278,34 +156,36 @@ export interface CompoundComponent {
   formats?: string;
 }
 
-/**
- * Serialization configuration options
- */
 export interface SerializationConfig {
   enablePaintOrderFiltering: boolean;
   enableBoundingBoxFiltering: boolean;
-  enableCompoundComponents: boolean;
   opacityThreshold: number;
   containmentThreshold: number;
   maxInteractiveElements: number;
+  highlightInteractiveElements?: boolean;
+
+  // Bounding box specific configuration
+  boundingBoxConfig?: {
+    minIconSize: number;
+    maxIconSize: number;
+    minIframeWidth: number;
+    minIframeHeight: number;
+    enableSizeFiltering: boolean;
+    enablePropagationFiltering: boolean;
+  };
 }
 
-/**
- * Serialization timing information
- */
 export interface SerializationTiming {
   total: number;
   createSimplifiedTree: number;
   paintOrderFiltering: number;
   optimizeTreeStructure: number;
   boundingBoxFiltering: number;
+  highlighting: number;
   assignInteractiveIndices: number;
   markNewElements: number;
 }
 
-/**
- * Serialization statistics
- */
 export interface SerializationStats {
   totalNodes: number;
   simplifiedNodes: number;
@@ -314,12 +194,9 @@ export interface SerializationStats {
   newElements: number;
   occludedNodes: number;
   containedNodes: number;
-  compoundComponents: number;
+  sizeFilteredNodes: number;
 }
 
-/**
- * Serialized DOM state for LLM consumption
- */
 export interface SerializedDOMState {
   root: SimplifiedNode;
   selectorMap: DOMSelectorMap;
@@ -327,15 +204,9 @@ export interface SerializedDOMState {
   stats?: SerializationStats;
   config?: SerializationConfig;
 
-  /**
-   * Generate LLM-friendly representation of the DOM
-   */
-  llm_representation?(): string;
+  llm_representation?(): Promise<string>;
 }
 
-/**
- * Simplified node for serialization
- */
 export interface SimplifiedNode {
   originalNode: EnhancedDOMTreeNode;
   children: SimplifiedNode[];
@@ -344,6 +215,8 @@ export interface SimplifiedNode {
   isNew: boolean;
   ignoredByPaintOrder: boolean;
   excludedByParent: boolean;
+  excludedByBoundingBox?: boolean;
+  exclusionReason?: "size_filtered" | "contained" | string;
   isShadowHost: boolean;
   isCompoundComponent: boolean;
 
@@ -356,23 +229,37 @@ export interface SimplifiedNode {
   // Helper properties (required for object creation)
   interactiveElement: boolean;
   hasChildren: boolean;
-  xpath: string;
   tagName: string;
   textContent: string;
 }
 
-/**
- * Interactive element detection result
- */
+export interface ScrollInfo {
+  scrollWidth: number;
+  clientWidth: number;
+  scrollLeft: number;
+  scrollHeight: number;
+  clientHeight: number;
+  scrollTop: number;
+}
+
+export interface BoundsObject {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface CDPProperty {
+  type: string;
+  value: unknown;
+}
+
 export interface InteractiveDetectionResult {
   isInteractive: boolean;
   score: number;
   detectionLayers: string[];
 }
 
-/**
- * Paint order filtering statistics
- */
 export interface PaintOrderStats {
   totalNodes: number;
   visibleNodes: number;
@@ -381,9 +268,6 @@ export interface PaintOrderStats {
   unionRectCount: number;
 }
 
-/**
- * Bounding box filtering statistics
- */
 export interface BoundingBoxFilterStats {
   totalNodes: number;
   excludedNodes: number;
@@ -392,10 +276,6 @@ export interface BoundingBoxFilterStats {
   sizeFiltered: number;
 }
 
-
-/**
- * Element pattern for matching
- */
 export interface ElementPattern {
   tag: string;
   role?: string;
@@ -404,9 +284,6 @@ export interface ElementPattern {
   idPattern?: string;
 }
 
-/**
- * Performance metrics for serialization
- */
 export interface SerializationMetrics {
   cdpTiming: Record<string, number>;
   serializationTiming: SerializationTiming;
@@ -420,4 +297,21 @@ export interface SerializationMetrics {
     filteringEfficiency: number;
     cacheHitRate: number;
   };
+}
+
+export interface IncrementalDetectionResult {
+  success: boolean;
+  hasChanges: boolean;
+  changeCount: number;
+  newElementsCount: number;
+  timestamp: number;
+  error?: string;
+}
+
+export interface LLMRepresentationResult {
+  success: boolean;
+  representation: string;
+  stats?: SerializationStats;
+  timestamp: number;
+  error?: string;
 }
