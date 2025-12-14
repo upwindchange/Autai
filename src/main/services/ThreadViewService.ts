@@ -3,6 +3,7 @@ import { EventEmitter } from "events";
 import type { ThreadId, ViewId, ThreadViewState } from "@shared";
 import { getIndexScript } from "@/scripts/indexLoader";
 import { DOMService } from "./dom";
+import { ElementInteractionService } from "./interaction/ElementInteractionService";
 import log from "electron-log/main";
 
 interface ViewMetadata {
@@ -23,6 +24,7 @@ export class ThreadViewService extends EventEmitter {
   private views = new Map<ViewId, WebContentsView>();
   private viewMetadata = new Map<ViewId, ViewMetadata>();
   private domServices = new Map<ViewId, DOMService>();
+  private interactionServices = new Map<ViewId, ElementInteractionService>();
   private viewBounds: Rectangle = { x: 0, y: 0, width: 1920, height: 1080 };
   private threadStates = new Map<ThreadId, ThreadViewState>();
   public activeThreadId: ThreadId | null = null;
@@ -169,6 +171,12 @@ export class ThreadViewService extends EventEmitter {
     const domService = new DOMService(webView.webContents);
     this.domServices.set(viewId, domService);
 
+    // Create and store ElementInteractionService for this view
+    const interactionService = new ElementInteractionService(webView.webContents);
+    this.interactionServices.set(viewId, interactionService);
+    await interactionService.initialize();
+    this.logger.info(`ElementInteractionService initialized for view ${viewId}`);
+
     if (bounds) {
       this.viewBounds = bounds;
     }
@@ -228,6 +236,21 @@ export class ThreadViewService extends EventEmitter {
       this.views.delete(viewId);
       this.viewMetadata.delete(viewId);
       return;
+    }
+
+    // Cleanup interaction service
+    try {
+      const interactionService = this.interactionServices.get(viewId);
+      if (interactionService) {
+        await interactionService.destroy();
+        this.interactionServices.delete(viewId);
+        this.logger.debug(`ElementInteractionService destroyed for view ${viewId}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error cleaning up interaction service for view ${viewId}:`,
+        error
+      );
     }
 
     try {
@@ -394,6 +417,10 @@ export class ThreadViewService extends EventEmitter {
     return this.domServices.get(viewId) || null;
   }
 
+  getInteractionService(viewId: ViewId): ElementInteractionService | null {
+    return this.interactionServices.get(viewId) || null;
+  }
+
   getActiveViewForThread(threadId: ThreadId): ViewId | null {
     const state = this.threadStates.get(threadId);
     return state?.activeViewId || null;
@@ -485,6 +512,7 @@ export class ThreadViewService extends EventEmitter {
       this.views.clear();
       this.viewMetadata.clear();
       this.domServices.clear();
+      this.interactionServices.clear();
       this.threadStates.clear();
       this.removeAllListeners();
       this.activeThreadId = null;
