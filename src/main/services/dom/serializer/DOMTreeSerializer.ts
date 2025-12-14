@@ -163,7 +163,6 @@ export class DOMTreeSerializer {
     const optimizeStart = Date.now();
     applyTreeOptimization(simplifiedRoot);
     timings.optimizeTreeStructure = Date.now() - optimizeStart;
-    const stats = this.calculateStats(simplifiedRoot);
 
     // Apply bounding box filtering as standalone stage
     const boundingBoxStart = Date.now();
@@ -173,6 +172,14 @@ export class DOMTreeSerializer {
       this.webContents
     );
     timings.boundingBoxFiltering = Date.now() - boundingBoxStart;
+
+    // Build selector map and mark new elements from filtered tree
+    const selectorMapStart = Date.now();
+    await this.buildSelectorMapFromFilteredTree(simplifiedRoot);
+    timings.markNewElements = Date.now() - selectorMapStart;
+
+    // Calculate stats after marking new elements
+    const stats = this.calculateStats(simplifiedRoot);
 
     // Apply highlighting stage
     const highlightingStart = Date.now();
@@ -297,18 +304,45 @@ export class DOMTreeSerializer {
       if (shouldMakeInteractive) {
         simplified.interactiveIndex = this.interactiveCounter++;
         simplified.interactiveElement = true;
-
-        // Add to selector map using backendNodeId for stable identification
-        if (node.backendNodeId) {
-          this._selectorMap[node.backendNodeId] = node;
-        }
       }
     }
-
-    // Mark as new based on comparison with previous state
-    simplified.isNew = this.isNewElement(node);
-
     return simplified;
+  }
+
+  /**
+   * Build selector map from the filtered tree and mark new elements
+   * This ensures change detection only considers nodes that survived all filtering stages
+   * Populates selectorMap with ALL interactive elements (not just new ones)
+   */
+  private async buildSelectorMapFromFilteredTree(
+    root: SimplifiedNode
+  ): Promise<void> {
+    const traverse = async (node: SimplifiedNode): Promise<void> => {
+      // Skip nodes that were filtered out
+      if (node.ignoredByPaintOrder || node.excludedByBoundingBox) {
+        return;
+      }
+
+      // Only process interactive elements that have the original node
+      if (node.interactiveElement && node.originalNode?.backendNodeId) {
+        // Check if this element existed in previous state
+        node.isNew = this.isNewElement(node.originalNode);
+
+        // Add ALL interactive elements to selector map (not just new ones)
+        // This ensures selectorMap contains all interactive elements for proper comparison
+        this._selectorMap[node.originalNode.backendNodeId] =
+          node.originalNode;
+      }
+
+      // Process children
+      if (node.children && node.children.length > 0) {
+        for (const child of node.children) {
+          await traverse(child);
+        }
+      }
+    };
+
+    await traverse(root);
   }
 
   /**
@@ -350,7 +384,8 @@ export class DOMTreeSerializer {
           {
             nodeId: node.originalNode.nodeId,
             name: "style",
-            value: "outline: 3px solid #FF6B6B !important; outline-offset: 2px !important;",
+            value:
+              "outline: 3px solid #FF6B6B !important; outline-offset: 2px !important;",
           },
           this.logger
         );
@@ -884,7 +919,10 @@ export class DOMTreeSerializer {
     const depthStr = "\t".repeat(depth);
     let nextDepth = depth;
 
-    if (node.originalNode.tag && node.originalNode.nodeType !== NodeType.TEXT_NODE) {
+    if (
+      node.originalNode.tag &&
+      node.originalNode.nodeType !== NodeType.TEXT_NODE
+    ) {
       // Skip displaying nodes marked as shouldDisplay=false
       if (!node.shouldDisplay) {
         const childTexts: string[] = [];

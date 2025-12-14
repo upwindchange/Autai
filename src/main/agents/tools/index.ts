@@ -2,9 +2,13 @@ import { tool } from "ai";
 import { z } from "zod";
 import { evaluate } from "mathjs";
 import { interactiveTools } from "./InteractiveTools";
+import { domTools } from "./DOMTools";
+import { threadViewTools } from "./ThreadViewTools";
 
 export const backendTools = {
   ...interactiveTools,
+  ...domTools,
+  ...threadViewTools,
   calculate: tool({
     description: "Evaluate mathematical expressions using mathjs",
     inputSchema: z.object({
