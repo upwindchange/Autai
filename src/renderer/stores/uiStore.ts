@@ -5,46 +5,47 @@ import { subscribeWithSelector } from "zustand/middleware";
 export type SettingsSection = "providers" | "models" | "development" | "about";
 
 interface UiState {
-  // Settings visibility
-  showSettings: boolean;
-  toggleSettings: () => void;
-  setShowSettings: (show: boolean) => void;
-  
-  // Settings navigation
-  activeSettingsSection: SettingsSection;
-  setActiveSettingsSection: (section: SettingsSection) => void;
+	// Settings visibility
+	showSettings: boolean;
+	toggleSettings: () => void;
+	setShowSettings: (show: boolean) => void;
 
-  // Container management
-  containerRef: HTMLDivElement | null;
-  containerBounds: Rectangle | null;
-  setContainerRef: (ref: HTMLDivElement | null) => void;
-  setContainerBounds: (bounds: Rectangle | null) => void;
+	// Settings navigation
+	activeSettingsSection: SettingsSection;
+	setActiveSettingsSection: (section: SettingsSection) => void;
+
+	// Container management
+	containerRef: HTMLDivElement | null;
+	containerBounds: Rectangle | null;
+	setContainerRef: (ref: HTMLDivElement | null) => void;
+	setContainerBounds: (bounds: Rectangle | null) => void;
 }
 
 export const useUiStore = create<UiState>()(
-  subscribeWithSelector((set) => ({
-    // Settings state
-    showSettings: false,
-    toggleSettings: () =>
-      set((state) => ({ showSettings: !state.showSettings })),
-    setShowSettings: (show) => set({ showSettings: show }),
-    
-    // Settings navigation
-    activeSettingsSection: "providers",
-    setActiveSettingsSection: (section) => set({ activeSettingsSection: section }),
+	subscribeWithSelector((set) => ({
+		// Settings state
+		showSettings: false,
+		toggleSettings: () =>
+			set((state) => ({ showSettings: !state.showSettings })),
+		setShowSettings: (show) => set({ showSettings: show }),
 
-    // Container state
-    containerRef: null,
-    containerBounds: null,
-    setContainerRef: (ref) => set({ containerRef: ref }),
-    setContainerBounds: (bounds) => {
-      set({ containerBounds: bounds });
-      if (bounds) {
-        // Set visibility (now using send since it's one-way)
-        window.ipcRenderer.send("threadview:setBounds", {
-          bounds,
-        });
-      }
-    },
-  }))
+		// Settings navigation
+		activeSettingsSection: "providers",
+		setActiveSettingsSection: (section) =>
+			set({ activeSettingsSection: section }),
+
+		// Container state
+		containerRef: null,
+		containerBounds: null,
+		setContainerRef: (ref) => set({ containerRef: ref }),
+		setContainerBounds: (bounds) => {
+			set({ containerBounds: bounds });
+			if (bounds) {
+				// Set visibility (now using send since it's one-way)
+				window.ipcRenderer.send("threadview:setBounds", {
+					bounds,
+				});
+			}
+		},
+	})),
 );

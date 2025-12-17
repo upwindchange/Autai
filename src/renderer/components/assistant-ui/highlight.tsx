@@ -9,8 +9,11 @@ import { cn } from "@/lib/utils";
 /**
  * Props for the Highlight component
  */
-export type HighlightProps = Pick<AUIProps, "node" | "components" | "language" | "code"> & {
-  className?: string;
+export type HighlightProps = Pick<
+	AUIProps,
+	"node" | "components" | "language" | "code"
+> & {
+	className?: string;
 };
 
 /**
@@ -26,37 +29,38 @@ export type HighlightProps = Pick<AUIProps, "node" | "components" | "language" |
  * });
  */
 export const Highlight: FC<HighlightProps> = ({
-  code,
-  language,
-  className,
-  node: _node,
-  components: _components,
-  ...props
+	code,
+	language,
+	className,
+	node: _node,
+	components: _components,
+	...props
 }) => {
-  const BASE_STYLES = "[&_pre]:overflow-x-auto [&_pre]:rounded-b-lg [&_pre]:bg-black [&_pre]:p-4 [&_pre]:text-white";
+	const BASE_STYLES =
+		"[&_pre]:overflow-x-auto [&_pre]:rounded-b-lg [&_pre]:bg-black [&_pre]:p-4 [&_pre]:text-white";
 
-  // Use provided language if available, otherwise let highlight.js auto-detect
-  // If language is provided but unknown, highlight.js will handle it gracefully
-  const effectiveLanguage = language || "plaintext";
+	// Use provided language if available, otherwise let highlight.js auto-detect
+	// If language is provided but unknown, highlight.js will handle it gracefully
+	const effectiveLanguage = language || "plaintext";
 
-  return (
-    <ReactSyntaxHighlighter
-      {...props}
-      language={effectiveLanguage}
-      style={atomOneDark}
-      className={cn(BASE_STYLES, className)}
-      PreTag="pre"
-      showLineNumbers={false}
-      customStyle={{
-        margin: 0,
-        padding: "1rem",
-        background: "black",
-        borderRadius: "0 0 0.5rem 0.5rem",
-      }}
-    >
-      {code.trim()}
-    </ReactSyntaxHighlighter>
-  );
+	return (
+		<ReactSyntaxHighlighter
+			{...props}
+			language={effectiveLanguage}
+			style={atomOneDark}
+			className={cn(BASE_STYLES, className)}
+			PreTag="pre"
+			showLineNumbers={false}
+			customStyle={{
+				margin: 0,
+				padding: "1rem",
+				background: "black",
+				borderRadius: "0 0 0.5rem 0.5rem",
+			}}
+		>
+			{code.trim()}
+		</ReactSyntaxHighlighter>
+	);
 };
 
 Highlight.displayName = "Highlight";

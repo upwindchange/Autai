@@ -2,11 +2,11 @@ import { Thread } from "@/components/ai-chat";
 import type { FC } from "react";
 
 interface AssistantChatContainerProps {
-  showSplitView?: boolean;
+	showSplitView?: boolean;
 }
 
 export const AssistantChatContainer: FC<AssistantChatContainerProps> = ({
-  showSplitView = false,
+	showSplitView = false,
 }) => {
-  return <Thread showSplitView={showSplitView} />;
+	return <Thread showSplitView={showSplitView} />;
 };

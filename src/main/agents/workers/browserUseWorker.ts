@@ -1,9 +1,9 @@
 import log from "electron-log/main";
 
 export class BrowserUseWorker {
-  private logger = log.scope("BrowserUseWorker");
+	private logger = log.scope("BrowserUseWorker");
 
-  constructor() {
-    this.logger.info("BrowserUseWorker initialized");
-  }
+	constructor() {
+		this.logger.info("BrowserUseWorker initialized");
+	}
 }

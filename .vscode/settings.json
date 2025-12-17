@@ -3,8 +3,8 @@
     "editor.formatOnSave": true,
     "editor.formatOnPaste": true,
     "editor.formatOnType": true,
-    "typescript.tsdk": "node_modules/typescript/lib",
-    "typescript.tsc.autoDetect": "off",
+    "editor.defaultFormatter": "prettier.prettier-vscode",
+    "editor.tabSize": 2,
     "json.schemas": [
         {
             "fileMatch": [
@@ -23,4 +23,7 @@
     "eslint.execArgv": [
         "--experimental-strip-types"
     ],
+    "[json]": {
+        "editor.defaultFormatter": "prettier.prettier-vscode"
+    },
 }

@@ -3,8 +3,8 @@ import { electronAPI } from "@electron-toolkit/preload";
 
 // Define window extensions for TypeScript
 interface ExtendedWindow extends Window {
-  ipcRenderer?: typeof electronAPI.ipcRenderer;
-  electron?: typeof electronAPI;
+	ipcRenderer?: typeof electronAPI.ipcRenderer;
+	electron?: typeof electronAPI;
 }
 
 /**
@@ -13,56 +13,56 @@ interface ExtendedWindow extends Window {
  * This requires sandbox: false in BrowserWindow configuration.
  */
 if (process.contextIsolated) {
-  try {
-    // Expose the electron API with a custom name to match existing code
-    contextBridge.exposeInMainWorld("ipcRenderer", electronAPI.ipcRenderer);
-    // Also expose the full electron API for additional functionality
-    contextBridge.exposeInMainWorld("electron", electronAPI);
-  } catch (error) {
-    console.error("Failed to expose APIs:", error);
-  }
+	try {
+		// Expose the electron API with a custom name to match existing code
+		contextBridge.exposeInMainWorld("ipcRenderer", electronAPI.ipcRenderer);
+		// Also expose the full electron API for additional functionality
+		contextBridge.exposeInMainWorld("electron", electronAPI);
+	} catch (error) {
+		console.error("Failed to expose APIs:", error);
+	}
 } else {
-  // Cast window to ExtendedWindow to add our custom properties
-  const extWindow = window as ExtendedWindow;
-  extWindow.ipcRenderer = electronAPI.ipcRenderer;
-  extWindow.electron = electronAPI;
+	// Cast window to ExtendedWindow to add our custom properties
+	const extWindow = window as ExtendedWindow;
+	extWindow.ipcRenderer = electronAPI.ipcRenderer;
+	extWindow.electron = electronAPI;
 }
 
 /**
  * Waits for the DOM to be ready before executing code
  */
 function domReady(
-  condition: DocumentReadyState[] = ["complete", "interactive"]
+	condition: DocumentReadyState[] = ["complete", "interactive"],
 ) {
-  return new Promise((resolve) => {
-    if (condition.includes(document.readyState)) {
-      resolve(true);
-    } else {
-      document.addEventListener("readystatechange", () => {
-        if (condition.includes(document.readyState)) {
-          resolve(true);
-        }
-      });
-    }
-  });
+	return new Promise((resolve) => {
+		if (condition.includes(document.readyState)) {
+			resolve(true);
+		} else {
+			document.addEventListener("readystatechange", () => {
+				if (condition.includes(document.readyState)) {
+					resolve(true);
+				}
+			});
+		}
+	});
 }
 
 /**
  * Safe DOM manipulation helpers that prevent duplicate operations
  */
 const safeDOM = {
-  append(parent: HTMLElement, child: HTMLElement) {
-    if (!Array.from(parent.children).find((e) => e === child)) {
-      return parent.appendChild(child);
-    }
-    return null;
-  },
-  remove(parent: HTMLElement, child: HTMLElement) {
-    if (Array.from(parent.children).find((e) => e === child)) {
-      return parent.removeChild(child);
-    }
-    return null;
-  },
+	append(parent: HTMLElement, child: HTMLElement) {
+		if (!Array.from(parent.children).find((e) => e === child)) {
+			return parent.appendChild(child);
+		}
+		return null;
+	},
+	remove(parent: HTMLElement, child: HTMLElement) {
+		if (Array.from(parent.children).find((e) => e === child)) {
+			return parent.removeChild(child);
+		}
+		return null;
+	},
 };
 
 /**
@@ -73,8 +73,8 @@ const safeDOM = {
  * - https://matejkustec.github.io/SpinThatShit
  */
 function useLoading() {
-  const className = `loaders-css__square-spin`;
-  const styleContent = `
+	const className = `loaders-css__square-spin`;
+	const styleContent = `
 @keyframes square-spin {
   25% { transform: perspective(100px) rotateX(180deg) rotateY(0); }
   50% { transform: perspective(100px) rotateX(180deg) rotateY(180deg); }
@@ -101,24 +101,24 @@ function useLoading() {
   z-index: 9;
 }
     `;
-  const oStyle = document.createElement("style");
-  const oDiv = document.createElement("div");
+	const oStyle = document.createElement("style");
+	const oDiv = document.createElement("div");
 
-  oStyle.id = "app-loading-style";
-  oStyle.innerHTML = styleContent;
-  oDiv.className = "app-loading-wrap";
-  oDiv.innerHTML = `<div class="${className}"><div></div></div>`;
+	oStyle.id = "app-loading-style";
+	oStyle.innerHTML = styleContent;
+	oDiv.className = "app-loading-wrap";
+	oDiv.innerHTML = `<div class="${className}"><div></div></div>`;
 
-  return {
-    appendLoading() {
-      safeDOM.append(document.head, oStyle);
-      safeDOM.append(document.body, oDiv);
-    },
-    removeLoading() {
-      safeDOM.remove(document.head, oStyle);
-      safeDOM.remove(document.body, oDiv);
-    },
-  };
+	return {
+		appendLoading() {
+			safeDOM.append(document.head, oStyle);
+			safeDOM.append(document.body, oDiv);
+		},
+		removeLoading() {
+			safeDOM.remove(document.head, oStyle);
+			safeDOM.remove(document.body, oDiv);
+		},
+	};
 }
 
 // ----------------------------------------------------------------------
@@ -127,9 +127,9 @@ const { appendLoading, removeLoading } = useLoading();
 domReady().then(appendLoading);
 
 window.onmessage = (ev) => {
-  if (ev.data.payload === "removeLoading") {
-    removeLoading();
-  }
+	if (ev.data.payload === "removeLoading") {
+		removeLoading();
+	}
 };
 
 setTimeout(removeLoading, 4999);

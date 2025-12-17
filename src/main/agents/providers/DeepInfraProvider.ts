@@ -10,81 +10,81 @@ import { sendAlert } from "@/utils/messageUtils";
  * Supports state-of-the-art models through DeepInfra including Llama 3, Mixtral, Qwen, etc.
  */
 export class DeepInfraProvider extends BaseProvider {
-  protected declare readonly config: DeepInfraProviderConfig;
+	declare protected readonly config: DeepInfraProviderConfig;
 
-  constructor(config: DeepInfraProviderConfig) {
-    super(config);
-  }
+	constructor(config: DeepInfraProviderConfig) {
+		super(config);
+	}
 
-  /**
-   * Validates the DeepInfra provider configuration
-   * TypeScript ensures the provider type is correct via discriminated union
-   */
-  protected validateConfig(): void {
-    super.validateConfig();
-    // TypeScript ensures this.config is DeepInfraProviderConfig
-  }
+	/**
+	 * Validates the DeepInfra provider configuration
+	 * TypeScript ensures the provider type is correct via discriminated union
+	 */
+	protected validateConfig(): void {
+		super.validateConfig();
+		// TypeScript ensures this.config is DeepInfraProviderConfig
+	}
 
-  /**
-   * Creates a language model instance for the DeepInfra provider
-   * @param modelName - The name of the model to use (e.g., "meta-llama/Meta-Llama-3.1-70B-Instruct")
-   * @returns Promise resolving to a LanguageModel instance
-   */
-  async createLanguageModel(modelName: string): Promise<LanguageModel> {
-    if (!this.isConfigured()) {
-      sendAlert(
-        "Provider Not Configured",
-        `Provider "${this.config.name}" is missing API key. Please configure it in settings.`
-      );
-      throw new Error(
-        `Provider ${this.config.name} is not properly configured. API key is required.`
-      );
-    }
+	/**
+	 * Creates a language model instance for the DeepInfra provider
+	 * @param modelName - The name of the model to use (e.g., "meta-llama/Meta-Llama-3.1-70B-Instruct")
+	 * @returns Promise resolving to a LanguageModel instance
+	 */
+	async createLanguageModel(modelName: string): Promise<LanguageModel> {
+		if (!this.isConfigured()) {
+			sendAlert(
+				"Provider Not Configured",
+				`Provider "${this.config.name}" is missing API key. Please configure it in settings.`,
+			);
+			throw new Error(
+				`Provider ${this.config.name} is not properly configured. API key is required.`,
+			);
+		}
 
-    // Create the DeepInfra provider
-    const providerOptions: DeepInfraProviderSettings = {
-      apiKey: this.config.apiKey,
-    };
+		// Create the DeepInfra provider
+		const providerOptions: DeepInfraProviderSettings = {
+			apiKey: this.config.apiKey,
+		};
 
-    if (this.config.apiUrl) {
-      providerOptions.baseURL = this.config.apiUrl;
-    }
+		if (this.config.apiUrl) {
+			providerOptions.baseURL = this.config.apiUrl;
+		}
 
-    const provider = createDeepInfra(providerOptions);
+		const provider = createDeepInfra(providerOptions);
 
-    // Return the provider with the specified model
-    return provider(modelName);
-  }
+		// Return the provider with the specified model
+		return provider(modelName);
+	}
 
-  /**
-   * Creates a LangChain model instance for the DeepInfra provider
-   * @param modelName - The name of the model to use
-   * @returns BaseChatModel instance configured with DeepInfra settings
-   */
-  createLangchainModel(modelName: string): ChatDeepInfra {
-    if (!this.isConfigured()) {
-      sendAlert(
-        "Provider Not Configured",
-        `Provider "${this.config.name}" is missing API key. Please configure it in settings.`
-      );
-      throw new Error(
-        `Provider ${this.config.name} is not properly configured. API key is required.`
-      );
-    }
+	/**
+	 * Creates a LangChain model instance for the DeepInfra provider
+	 * @param modelName - The name of the model to use
+	 * @returns BaseChatModel instance configured with DeepInfra settings
+	 */
+	createLangchainModel(modelName: string): ChatDeepInfra {
+		if (!this.isConfigured()) {
+			sendAlert(
+				"Provider Not Configured",
+				`Provider "${this.config.name}" is missing API key. Please configure it in settings.`,
+			);
+			throw new Error(
+				`Provider ${this.config.name} is not properly configured. API key is required.`,
+			);
+		}
 
-    // Create the LangChain ChatDeepInfra model
-    return new ChatDeepInfra({
-      apiKey: this.config.apiKey,
-      model: modelName,
-      temperature: 0,
-    });
-  }
+		// Create the LangChain ChatDeepInfra model
+		return new ChatDeepInfra({
+			apiKey: this.config.apiKey,
+			model: modelName,
+			temperature: 0,
+		});
+	}
 
-  /**
-   * Checks if the provider is properly configured with required credentials
-   * @returns true if API key is configured, false otherwise
-   */
-  isConfigured(): boolean {
-    return !!(this.config.apiKey && this.config.apiKey.trim().length > 0);
-  }
+	/**
+	 * Checks if the provider is properly configured with required credentials
+	 * @returns true if API key is configured, false otherwise
+	 */
+	isConfigured(): boolean {
+		return !!(this.config.apiKey && this.config.apiKey.trim().length > 0);
+	}
 }

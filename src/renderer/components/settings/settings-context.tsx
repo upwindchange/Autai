@@ -1,153 +1,156 @@
 import {
-  createContext,
-  useContext,
-  useState,
-  useEffect,
-  ReactNode,
+	createContext,
+	useContext,
+	useState,
+	useEffect,
+	ReactNode,
 } from "react";
 import { SettingsContextType } from "./types";
 import type { SettingsState, ProviderConfig } from "@shared";
 import { getDefaultSettings } from "@shared";
-import log from 'electron-log/renderer';
+import log from "electron-log/renderer";
 
-const logger = log.scope('SettingsContext');
+const logger = log.scope("SettingsContext");
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
 
 export function useSettings() {
-  const context = useContext(SettingsContext);
-  if (!context) {
-    throw new Error("useSettings must be used within a SettingsProvider");
-  }
-  return context;
+	const context = useContext(SettingsContext);
+	if (!context) {
+		throw new Error("useSettings must be used within a SettingsProvider");
+	}
+	return context;
 }
 
 interface SettingsProviderProps {
-  children: ReactNode;
+	children: ReactNode;
 }
 
 export function SettingsProvider({ children }: SettingsProviderProps) {
-  const [settings, setSettings] = useState<SettingsState>(getDefaultSettings());
-  const [isLoading, setIsLoading] = useState(true);
+	const [settings, setSettings] = useState<SettingsState>(getDefaultSettings());
+	const [isLoading, setIsLoading] = useState(true);
 
-  // Load settings on mount
-  useEffect(() => {
-    loadSettings();
-  }, []);
+	// Load settings on mount
+	useEffect(() => {
+		loadSettings();
+	}, []);
 
-  const loadSettings = async () => {
-    try {
-      const loadedSettings = await window.ipcRenderer.invoke("settings:load");
-      setSettings(loadedSettings);
-    } catch (error) {
-      logger.error("failed to load settings", error);
-      // Create default settings if none exists
-      setSettings(getDefaultSettings());
-    } finally {
-      setIsLoading(false);
-    }
-  };
+	const loadSettings = async () => {
+		try {
+			const loadedSettings = await window.ipcRenderer.invoke("settings:load");
+			setSettings(loadedSettings);
+		} catch (error) {
+			logger.error("failed to load settings", error);
+			// Create default settings if none exists
+			setSettings(getDefaultSettings());
+		} finally {
+			setIsLoading(false);
+		}
+	};
 
-  const updateSettings = async (newSettings: SettingsState) => {
-    // Check if log level changed
-    if (newSettings.logLevel && newSettings.logLevel !== settings.logLevel) {
-      // Apply log level change immediately
-      await window.ipcRenderer.invoke("settings:updateLogLevel", newSettings.logLevel);
-    }
-    setSettings(newSettings);
-    await window.ipcRenderer.invoke("settings:save", newSettings);
-  };
+	const updateSettings = async (newSettings: SettingsState) => {
+		// Check if log level changed
+		if (newSettings.logLevel && newSettings.logLevel !== settings.logLevel) {
+			// Apply log level change immediately
+			await window.ipcRenderer.invoke(
+				"settings:updateLogLevel",
+				newSettings.logLevel,
+			);
+		}
+		setSettings(newSettings);
+		await window.ipcRenderer.invoke("settings:save", newSettings);
+	};
 
-  const addProvider = async (provider: ProviderConfig) => {
-    const newSettings = {
-      ...settings,
-      providers: [...settings.providers, provider],
-    };
-    await updateSettings(newSettings);
-  };
+	const addProvider = async (provider: ProviderConfig) => {
+		const newSettings = {
+			...settings,
+			providers: [...settings.providers, provider],
+		};
+		await updateSettings(newSettings);
+	};
 
-  const updateProvider = async (
-    id: string,
-    updates: Partial<ProviderConfig>
-  ) => {
-    const newSettings = {
-      ...settings,
-      providers: settings.providers.map((p) => {
-        if (p.id !== id) return p;
-        
-        // Type-safe spread for all provider types
-        return { ...p, ...updates };
-      }),
-    };
-    await updateSettings(newSettings);
-  };
+	const updateProvider = async (
+		id: string,
+		updates: Partial<ProviderConfig>,
+	) => {
+		const newSettings = {
+			...settings,
+			providers: settings.providers.map((p) => {
+				if (p.id !== id) return p;
 
-  const removeProvider = async (id: string) => {
-    // Prevent removing all providers
-    if (settings.providers.length <= 1) return;
+				// Type-safe spread for all provider types
+				return { ...p, ...updates };
+			}),
+		};
+		await updateSettings(newSettings);
+	};
 
-    const newSettings = {
-      ...settings,
-      providers: settings.providers.filter((p) => p.id !== id),
-    };
+	const removeProvider = async (id: string) => {
+		// Prevent removing all providers
+		if (settings.providers.length <= 1) return;
 
-    // If we're removing a provider that's used in model configurations, reset those configurations to defaults
-    const updatedModelConfigurations = { ...settings.modelConfigurations };
-    if (settings.modelConfigurations.simple.providerId === id) {
-      const firstProvider = newSettings.providers[0];
-      if (firstProvider) {
-        updatedModelConfigurations.simple = {
-          providerId: firstProvider.id,
-          providerName: firstProvider.name,
-          modelName: "gpt-3.5-turbo",
-          supportsAdvancedUsage: true,
-        };
-      }
-    }
-    if (settings.modelConfigurations.complex.providerId === id) {
-      const firstProvider = newSettings.providers[0];
-      if (firstProvider) {
-        updatedModelConfigurations.complex = {
-          providerId: firstProvider.id,
-          providerName: firstProvider.name,
-          modelName: "gpt-4",
-          supportsAdvancedUsage: true,
-        };
-      }
-    }
+		const newSettings = {
+			...settings,
+			providers: settings.providers.filter((p) => p.id !== id),
+		};
 
-    newSettings.modelConfigurations = updatedModelConfigurations;
+		// If we're removing a provider that's used in model configurations, reset those configurations to defaults
+		const updatedModelConfigurations = { ...settings.modelConfigurations };
+		if (settings.modelConfigurations.simple.providerId === id) {
+			const firstProvider = newSettings.providers[0];
+			if (firstProvider) {
+				updatedModelConfigurations.simple = {
+					providerId: firstProvider.id,
+					providerName: firstProvider.name,
+					modelName: "gpt-3.5-turbo",
+					supportsAdvancedUsage: true,
+				};
+			}
+		}
+		if (settings.modelConfigurations.complex.providerId === id) {
+			const firstProvider = newSettings.providers[0];
+			if (firstProvider) {
+				updatedModelConfigurations.complex = {
+					providerId: firstProvider.id,
+					providerName: firstProvider.name,
+					modelName: "gpt-4",
+					supportsAdvancedUsage: true,
+				};
+			}
+		}
 
-    await updateSettings(newSettings);
-  };
+		newSettings.modelConfigurations = updatedModelConfigurations;
 
-  const updateModelConfiguration = async (
-    modelType: "simple" | "complex",
-    config: { providerId: string; modelName: string }
-  ) => {
-    const newSettings = {
-      ...settings,
-      modelConfigurations: {
-        ...settings.modelConfigurations,
-        [modelType]: config,
-      },
-    };
-    await updateSettings(newSettings);
-  };
+		await updateSettings(newSettings);
+	};
 
-  return (
-    <SettingsContext.Provider
-      value={{
-        settings,
-        updateSettings,
-        addProvider,
-        updateProvider,
-        removeProvider,
-        updateModelConfiguration,
-        isLoading,
-      }}
-    >
-      {children}
-    </SettingsContext.Provider>
-  );
+	const updateModelConfiguration = async (
+		modelType: "simple" | "complex",
+		config: { providerId: string; modelName: string },
+	) => {
+		const newSettings = {
+			...settings,
+			modelConfigurations: {
+				...settings.modelConfigurations,
+				[modelType]: config,
+			},
+		};
+		await updateSettings(newSettings);
+	};
+
+	return (
+		<SettingsContext.Provider
+			value={{
+				settings,
+				updateSettings,
+				addProvider,
+				updateProvider,
+				removeProvider,
+				updateModelConfiguration,
+				isLoading,
+			}}
+		>
+			{children}
+		</SettingsContext.Provider>
+	);
 }

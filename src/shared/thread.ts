@@ -11,9 +11,9 @@ export type ViewId = string;
 
 // Thread-view state for tracking relationships
 export const ThreadViewStateSchema = z.object({
-  threadId: z.string().min(1),
-  viewIds: z.array(z.string()),
-  activeViewId: z.string().nullable(),
+	threadId: z.string().min(1),
+	viewIds: z.array(z.string()),
+	activeViewId: z.string().nullable(),
 });
 
 export type ThreadViewState = z.infer<typeof ThreadViewStateSchema>;

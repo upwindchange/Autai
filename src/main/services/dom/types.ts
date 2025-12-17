@@ -3,6 +3,6 @@
  */
 
 // Re-export shared types for convenience
-export * from '@shared/dom/types';
-export * from '@shared/dom/interfaces';
-export * from '@shared/dom/enums';
+export * from "@shared/dom/types";
+export * from "@shared/dom/interfaces";
+export * from "@shared/dom/enums";

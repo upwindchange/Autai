@@ -14,12 +14,12 @@ type SidebarLeftProps = ComponentProps<typeof Sidebar>;
  * Left sidebar component that manages AI conversation threads.
  */
 export function SidebarLeft(props: SidebarLeftProps) {
-  return (
-    <Sidebar className="border-r-0" {...props}>
-      <SidebarContent>
-        <ThreadList />
-        <NavSecondary className="mt-auto" />
-      </SidebarContent>
-    </Sidebar>
-  );
+	return (
+		<Sidebar className="border-r-0" {...props}>
+			<SidebarContent>
+				<ThreadList />
+				<NavSecondary className="mt-auto" />
+			</SidebarContent>
+		</Sidebar>
+	);
 }

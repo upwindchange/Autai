@@ -3,8 +3,8 @@
  * Based on browser-use implementation patterns
  */
 
-export type MouseButton = 'left' | 'right' | 'middle';
-export type ModifierType = 'Alt' | 'Control' | 'Meta' | 'Shift';
+export type MouseButton = "left" | "right" | "middle";
+export type ModifierType = "Alt" | "Control" | "Meta" | "Shift";
 
 export interface ClickOptions {
 	/**
@@ -103,7 +103,7 @@ export interface ClickResult {
 	/**
 	 * Which method was used for coordinate resolution
 	 */
-	method?: 'contentQuads' | 'boxModel' | 'boundingRect' | 'javascript';
+	method?: "contentQuads" | "boxModel" | "boundingRect" | "javascript";
 
 	/**
 	 * Time taken for the entire click operation in milliseconds
@@ -152,7 +152,7 @@ export interface FillResult {
 	/**
 	 * Which method was used for the final typing operation
 	 */
-	method?: 'cdp' | 'javascript';
+	method?: "cdp" | "javascript";
 
 	/**
 	 * Time taken for the entire fill operation in milliseconds
@@ -223,7 +223,7 @@ export interface SelectOptionResult {
 	/**
 	 * Which method was used for the selection
 	 */
-	method?: 'cdp' | 'javascript';
+	method?: "cdp" | "javascript";
 
 	/**
 	 * Time taken for the entire selection operation in milliseconds
@@ -257,7 +257,7 @@ export interface HoverResult {
 	/**
 	 * Which method was used for coordinate resolution
 	 */
-	method?: 'contentQuads' | 'boxModel' | 'boundingRect' | 'javascript';
+	method?: "contentQuads" | "boxModel" | "boundingRect" | "javascript";
 
 	/**
 	 * Time taken for the entire hover operation in milliseconds
@@ -328,7 +328,7 @@ export interface DragResult {
 	/**
 	 * Method used for coordinate resolution
 	 */
-	method?: 'contentQuads' | 'boxModel' | 'boundingRect' | 'javascript';
+	method?: "contentQuads" | "boxModel" | "boundingRect" | "javascript";
 
 	/**
 	 * Time taken for the entire drag operation in milliseconds
@@ -529,7 +529,7 @@ export interface ScrollOptions {
 	/**
 	 * Scroll direction - down for positive, up for negative
 	 */
-	direction?: 'up' | 'down';
+	direction?: "up" | "down";
 
 	/**
 	 * Number of pages to scroll (supports fractional values like 0.5 for half page)
