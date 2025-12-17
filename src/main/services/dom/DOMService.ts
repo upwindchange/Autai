@@ -11,9 +11,6 @@ import type {
   EnhancedDOMTreeNode,
   TargetAllTrees,
   SerializedDOMState,
-  SerializationConfig,
-  SerializationTiming,
-  SerializationStats,
   EnhancedSnapshotNode,
   BoundsObject,
 } from "@shared/dom";
@@ -29,7 +26,7 @@ export class DOMService implements IDOMService {
   private webContents: WebContents;
   private logger = log.scope("DOMService");
   public serializer: DOMTreeSerializer;
-  private previousState?: SerializedDOMState;
+  public simplifiedDOMState?: SerializedDOMState;
 
   constructor(webContents: WebContents) {
     this.webContents = webContents;
@@ -37,7 +34,36 @@ export class DOMService implements IDOMService {
     this.logger.info("DOMService initialized - DOM analysis only");
   }
 
-  async getDOMTree(): Promise<EnhancedDOMTreeNode> {
+  /**
+   * Initialize the DOM service
+   */
+  async initialize(): Promise<void> {
+    try {
+      await attachDebugger(this.webContents, this.logger);
+      this.logger.info("DOMService initialized");
+    } catch (error) {
+      this.logger.error("Failed to initialize DOMService:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Cleanup resources
+   */
+  async destroy(): Promise<void> {
+    try {
+      await detachDebugger(this.webContents, this.logger);
+      this.simplifiedDOMState = undefined;
+      this.logger.info("DOMService destroyed");
+    } catch (error) {
+      this.logger.error("Error during DOMService destruction:", error);
+    }
+  }
+
+  /**
+   * Get enhanced DOM tree with integrated CDP data
+   */
+  private async getAdvancedDOMTree(): Promise<EnhancedDOMTreeNode> {
     if (!isDebuggerAttached(this.webContents)) {
       throw new Error("Debugger not attached - call initialize() first");
     }
@@ -60,7 +86,7 @@ export class DOMService implements IDOMService {
       );
 
       this.logger.debug("Building enhanced DOM tree from CDP data");
-      const enhancedTree = this.buildEnhancedDOMTree(trees);
+      const enhancedTree = this.buildAdvancedDOMTree(trees);
 
       const nodeCount = this.countNodes(enhancedTree);
       this.logger.info(`DOM tree built successfully with ${nodeCount} nodes`);
@@ -131,7 +157,7 @@ export class DOMService implements IDOMService {
   /**
    * Build enhanced DOM tree from CDP data (simplified DOMTreeBuilder merge)
    */
-  private buildEnhancedDOMTree(trees: TargetAllTrees): EnhancedDOMTreeNode {
+  private buildAdvancedDOMTree(trees: TargetAllTrees): EnhancedDOMTreeNode {
     const { snapshot, domTree, axTree } = trees;
 
     this.logger.debug("Building enhanced DOM tree", {
@@ -163,7 +189,7 @@ export class DOMService implements IDOMService {
     if (!domTree) {
       throw new Error("DOM tree is null - cannot build enhanced tree");
     }
-    return this.constructEnhancedNode(
+    return this.buildAdvancedNode(
       domTree.root,
       axTreeLookup,
       snapshotLookup,
@@ -281,7 +307,7 @@ export class DOMService implements IDOMService {
   /**
    * Construct enhanced node (simplified)
    */
-  private constructEnhancedNode(
+  private buildAdvancedNode(
     node: CDP.DOM.Node,
     axTreeLookup: Record<number, CDP.Accessibility.AXNode>,
     snapshotLookup: Record<number, EnhancedSnapshotNode>,
@@ -384,7 +410,7 @@ export class DOMService implements IDOMService {
           continue;
         }
 
-        const childNode = this.constructEnhancedNode(
+        const childNode = this.buildAdvancedNode(
           child,
           axTreeLookup,
           snapshotLookup,
@@ -421,151 +447,49 @@ export class DOMService implements IDOMService {
     return count;
   }
 
-  
   /**
-   * Initialize the DOM service
+   * Get DOM tree with change detection.
+   * This method returns the current DOM tree with change analysis.
+   * @param keepPreviousState - If true, don't update this.previousState. If false (default), update to new state.
    */
-  async initialize(): Promise<void> {
-    try {
-      await attachDebugger(this.webContents, this.logger);
-      this.logger.info("DOMService initialized");
-    } catch (error) {
-      this.logger.error("Failed to initialize DOMService:", error);
-      throw error;
-    }
-  }
-
-  /**
-   * Cleanup resources
-   */
-  async destroy(): Promise<void> {
-    try {
-      await detachDebugger(this.webContents, this.logger);
-      this.previousState = undefined;
-      this.logger.info("DOMService destroyed");
-    } catch (error) {
-      this.logger.error("Error during DOMService destruction:", error);
-    }
-  }
-
-  /**
-   * Get serialized DOM tree optimized for LLM consumption
-   */
-  async getSerializedDOMTree(
-    previousState?: SerializedDOMState,
-    config?: Partial<SerializationConfig>
-  ): Promise<{
-    serializedState: SerializedDOMState;
-    timing: SerializationTiming;
-    stats: SerializationStats;
-  }> {
-    if (!isDebuggerAttached(this.webContents)) {
-      throw new Error("Debugger not attached - call initialize() first");
-    }
-
-    try {
-      this.logger.debug("Getting serialized DOM tree");
-
-      const domTree = await this.getDOMTree();
-      const result = await this.serializer.serializeDOMTree(
-        domTree,
-        previousState,
-        config
-      );
-
-      this.previousState = result.serializedState;
-      this.logger.info(
-        `DOM tree serialized: ${result.stats.interactiveElements} interactive elements`
-      );
-
-      // Use timing from result directly (already in correct format)
-      const convertedTiming: SerializationTiming = result.timing;
-
-      return {
-        serializedState: result.serializedState,
-        timing: convertedTiming,
-        stats: result.stats,
-      };
-    } catch (error) {
-      this.logger.error(`Failed to serialize DOM tree: ${error}`);
-      throw error;
-    }
-  }
-
-  /**
-   * Get DOM tree with change detection
-   */
-  async getDOMTreeWithChangeDetection(
-    previousState?: SerializedDOMState
-  ): Promise<{
-    domTree: EnhancedDOMTreeNode;
-    serializedState?: SerializedDOMState;
-    hasChanges: boolean;
-    changeCount: number;
-  }> {
+  async buildSimplifiedDOMTree(keepPreviousState: boolean = false) {
     if (!isDebuggerAttached(this.webContents)) {
       throw new Error("Debugger not attached - call initialize() first");
     }
 
     try {
       this.logger.debug("Starting change detection", {
-        hasPreviousState: !!previousState,
-        previousStateSelectorMapSize: previousState?.selectorMap
-          ? Object.keys(previousState.selectorMap).length
-          : 0,
-        serviceStateSelectorMapSize: this.previousState?.selectorMap
-          ? Object.keys(this.previousState.selectorMap).length
+        keepPreviousState,
+        hasCurrentState: !!this.simplifiedDOMState,
+        currentStateSelectorMapSize: this.simplifiedDOMState?.selectorMap
+          ? Object.keys(this.simplifiedDOMState.selectorMap).length
           : 0,
       });
 
-      const domTree = await this.getDOMTree();
+      const advancedDOMTree = await this.getAdvancedDOMTree();
 
-      if (!previousState) {
-        const serializedResult = await this.serializer.serializeDOMTree(
-          domTree
-        );
-        // Update service state for next comparison
-        this.previousState = serializedResult.serializedState;
+      // Always use the internal previousState for comparison
+      const simplifiedDOMState = await this.serializer.simplifyDOMTree(
+        advancedDOMTree,
+        this.simplifiedDOMState
+      );
 
-        this.logger.info("First run state updated successfully", {
-          newSelectorMapSize: Object.keys(
-            serializedResult.serializedState.selectorMap
-          ).length,
-          changeCount: serializedResult.stats.totalNodes,
-          hasChanges: true,
-        });
-
-        return {
-          domTree,
-          serializedState: serializedResult.serializedState,
-          hasChanges: true,
-          changeCount: serializedResult.stats.totalNodes,
-        };
+      // Only update internal state if keepPreviousState is false
+      if (!keepPreviousState) {
+        this.simplifiedDOMState = simplifiedDOMState;
       }
 
-      const serializedResult = await this.serializer.serializeDOMTree(
-        domTree,
-        previousState
-      );
-      const changeCount = serializedResult.stats.newElements;
-      const hasChanges = changeCount > 0;
-
-      // Update service state for next comparison - only on success
-      this.previousState = serializedResult.serializedState;
-
-      this.logger.info("State updated successfully", {
-        newSelectorMapSize: Object.keys(
-          serializedResult.serializedState.selectorMap
-        ).length,
-        changeCount,
-        hasChanges,
+      this.logger.info("DOM tree analysis complete", {
+        newNodesCount: simplifiedDOMState.stats.newSimplifiedNodesCount,
+        totalNodesCountChange:
+          simplifiedDOMState.stats.simplifiedNodesCountChange,
+        stateUpdated: !keepPreviousState,
+        newSelectorMapSize: Object.keys(simplifiedDOMState.selectorMap).length,
       });
-
       return {
-        domTree,
-        serializedState: serializedResult.serializedState,
-        hasChanges,
-        changeCount,
+        newNodesCount: simplifiedDOMState.stats.newSimplifiedNodesCount,
+        totalNodesCountChange:
+          simplifiedDOMState.stats.simplifiedNodesCountChange,
       };
     } catch (error) {
       this.logger.error(
@@ -585,12 +509,5 @@ export class DOMService implements IDOMService {
       isAttached: isDebuggerAttached(this.webContents),
       webContentsId: this.webContents.id,
     };
-  }
-
-  /**
-   * Get previous serialized state for change detection
-   */
-  getPreviousState(): SerializedDOMState | undefined {
-    return this.previousState;
   }
 }

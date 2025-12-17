@@ -16,6 +16,7 @@ import type {
   ScrollInfo,
 } from "@shared/dom";
 import { NodeType } from "@shared/dom";
+import type { IDOMTreeSerializer } from "@shared/dom";
 import type { WebContents } from "electron";
 import log from "electron-log/main";
 
@@ -73,7 +74,7 @@ interface CompoundChild {
 /**
  * Unified DOM Tree Serializer
  */
-export class DOMTreeSerializer {
+export class DOMTreeSerializer implements IDOMTreeSerializer {
   private config: SerializationConfig;
   private interactiveCounter = 1;
   private interactiveDetector: InteractiveElementDetector;
@@ -107,15 +108,11 @@ export class DOMTreeSerializer {
   /**
    * Serialize DOM tree - single pass processing
    */
-  async serializeDOMTree(
+  async simplifyDOMTree(
     rootNode: EnhancedDOMTreeNode,
     previousState?: SerializedDOMState,
     _config?: Partial<SerializationConfig>
-  ): Promise<{
-    serializedState: SerializedDOMState;
-    timing: SerializationTiming;
-    stats: SerializationStats;
-  }> {
+  ): Promise<SerializedDOMState> {
     const startTime = Date.now();
     const timings: SerializationTiming = {
       total: 0,
@@ -147,7 +144,7 @@ export class DOMTreeSerializer {
 
     // Single-pass serialization with on-the-fly highlighting
     const createSimplifiedTreeStart = Date.now();
-    const simplifiedRoot = await this.createSimplifiedNode(rootNode);
+    const simplifiedRoot = await this.buildSimplifiedNode(rootNode);
     timings.createSimplifiedTree = Date.now() - createSimplifiedTreeStart;
 
     if (!simplifiedRoot) {
@@ -179,7 +176,10 @@ export class DOMTreeSerializer {
     timings.markNewElements = Date.now() - selectorMapStart;
 
     // Calculate stats after marking new elements
-    const stats = this.calculateStats(simplifiedRoot);
+    const stats = this.calculateStats(
+      simplifiedRoot,
+      previousState?.stats.simplifiedNodesCount
+    );
 
     // Apply highlighting stage
     const highlightingStart = Date.now();
@@ -192,7 +192,7 @@ export class DOMTreeSerializer {
     // Log final caching statistics
     this.logger.info("DOM Tree Serialization - Final Stats", {
       interactiveElementsFound: stats.interactiveElements,
-      newElementsDetected: stats.newElements,
+      newElementsDetected: stats.newSimplifiedNodesCount,
       selectorMapSize: Object.keys(this._selectorMap).length,
       clickableCacheSize: this._clickableCache.size,
       totalTime: timings.total,
@@ -201,22 +201,20 @@ export class DOMTreeSerializer {
           ? `Cache contains ${this._clickableCache.size} cached interactive detections`
           : "No cache hits in this run",
     });
+    const flattenedDOM = await this.flattenSimplifiedDOMTree(simplifiedRoot);
 
     return {
-      serializedState: {
-        root: simplifiedRoot,
-        selectorMap: this._selectorMap,
-        timing: timings,
-      },
-      timing: timings,
+      flattenedDOM,
       stats,
+      root: simplifiedRoot,
+      selectorMap: this._selectorMap,
     };
   }
 
   /**
    * Create simplified node (single pass with on-the-fly highlighting)
    */
-  private async createSimplifiedNode(
+  private async buildSimplifiedNode(
     node: EnhancedDOMTreeNode
   ): Promise<SimplifiedNode | null> {
     // Skip certain tags
@@ -261,7 +259,7 @@ export class DOMTreeSerializer {
     // Process children
     if (node.actualChildren) {
       for (const child of node.actualChildren) {
-        const simplifiedChild = await this.createSimplifiedNode(child);
+        const simplifiedChild = await this.buildSimplifiedNode(child);
         if (simplifiedChild) {
           simplified.children.push(simplifiedChild);
         }
@@ -271,7 +269,7 @@ export class DOMTreeSerializer {
     // Process shadow roots
     if (node.shadowRoots) {
       for (const shadowRoot of node.shadowRoots) {
-        const simplifiedShadow = await this.createSimplifiedNode(shadowRoot);
+        const simplifiedShadow = await this.buildSimplifiedNode(shadowRoot);
         if (simplifiedShadow) {
           simplified.children.push(simplifiedShadow);
         }
@@ -330,8 +328,7 @@ export class DOMTreeSerializer {
 
         // Add ALL interactive elements to selector map (not just new ones)
         // This ensures selectorMap contains all interactive elements for proper comparison
-        this._selectorMap[node.originalNode.backendNodeId] =
-          node.originalNode;
+        this._selectorMap[node.originalNode.backendNodeId] = node.originalNode;
       }
 
       // Process children
@@ -493,16 +490,19 @@ export class DOMTreeSerializer {
   /**
    * Calculate serialization statistics
    */
-  private calculateStats(root: SimplifiedNode): SerializationStats {
-    let totalNodes = 0;
+  private calculateStats(
+    root: SimplifiedNode,
+    previousSimplifiedNodesCount?: number
+  ): SerializationStats {
+    let simplifiedNodesCount = 0;
     let interactiveElements = 0;
-    let newElements = 0;
+    let newSimplifiedNodesCount = 0;
     let occludedNodes = 0;
     let containedNodes = 0;
     let sizeFilteredNodes = 0;
 
     const traverse = (node: SimplifiedNode) => {
-      totalNodes++;
+      simplifiedNodesCount++;
 
       if (node.ignoredByPaintOrder) {
         occludedNodes++;
@@ -525,7 +525,7 @@ export class DOMTreeSerializer {
       }
 
       if (node.isNew) {
-        newElements++;
+        newSimplifiedNodesCount++;
       }
 
       for (const child of node.children) {
@@ -535,12 +535,17 @@ export class DOMTreeSerializer {
 
     traverse(root);
 
+    // Calculate simplified nodes change
+    const simplifiedNodesCountChange =
+      simplifiedNodesCount - (previousSimplifiedNodesCount || 0);
+
     return {
-      totalNodes,
-      simplifiedNodes: totalNodes,
+      timestamp: Date.now(),
+      simplifiedNodesCount,
+      simplifiedNodesCountChange,
+      newSimplifiedNodesCount,
       filteredNodes: occludedNodes + containedNodes + sizeFilteredNodes,
       interactiveElements,
-      newElements,
       occludedNodes,
       containedNodes,
       sizeFilteredNodes,
@@ -867,8 +872,8 @@ export class DOMTreeSerializer {
    * @param node - The SimplifiedNode to generate representation for
    * @returns Promise<string> - LLM-friendly string representation
    */
-  async generateLLMRepresentation(node: SimplifiedNode): Promise<string> {
-    return await DOMTreeSerializer.serializeTree(node, [
+  async flattenSimplifiedDOMTree(node: SimplifiedNode): Promise<string> {
+    return await DOMTreeSerializer.flattenTree(node, [
       "role",
       "aria-label",
       "placeholder",
@@ -890,8 +895,8 @@ export class DOMTreeSerializer {
   /**
    * Static serialize tree method - main browser-use compatibility
    */
-  static async serializeTree(
-    node: SimplifiedNode | null,
+  static async flattenTree(
+    node: SimplifiedNode,
     includeAttributes: string[],
     depth: number = 0
   ): Promise<string> {
@@ -903,7 +908,7 @@ export class DOMTreeSerializer {
     if (node.excludedByParent) {
       const childTexts: string[] = [];
       for (const child of node.children) {
-        const childText = await this.serializeTree(
+        const childText = await this.flattenTree(
           child,
           includeAttributes,
           depth
@@ -927,7 +932,7 @@ export class DOMTreeSerializer {
       if (!node.shouldDisplay) {
         const childTexts: string[] = [];
         for (const child of node.children) {
-          const childText = await this.serializeTree(
+          const childText = await this.flattenTree(
             child,
             includeAttributes,
             depth
@@ -979,7 +984,7 @@ export class DOMTreeSerializer {
       if (node.ignoredByPaintOrder || node.excludedByBoundingBox) {
         // Process children but skip this element entirely
         for (const child of node.children) {
-          const childText = await DOMTreeSerializer.serializeTree(
+          const childText = await DOMTreeSerializer.flattenTree(
             child,
             includeAttributes,
             depth
@@ -1095,7 +1100,7 @@ export class DOMTreeSerializer {
 
     // Process children
     for (const child of node.children) {
-      const childText = await this.serializeTree(
+      const childText = await this.flattenTree(
         child,
         includeAttributes,
         nextDepth
@@ -1106,12 +1111,5 @@ export class DOMTreeSerializer {
     }
 
     return formattedText.join("\n");
-  }
-
-  /**
-   * Get current configuration
-   */
-  getConfig(): SerializationConfig {
-    return this.config;
   }
 }

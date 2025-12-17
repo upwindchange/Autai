@@ -8,8 +8,6 @@ import type {
   SerializedDOMState,
   SimplifiedNode,
   SerializationConfig,
-  SerializationTiming,
-  SerializationStats,
   InteractiveDetectionResult,
   PaintOrderStats,
   BoundingBoxFilterStats,
@@ -17,31 +15,11 @@ import type {
 
 export interface IDOMService {
   /**
-   * Get enhanced DOM tree with integrated CDP data
+   * Get DOM tree with change detection.
+   * This method returns the current DOM tree with change analysis.
+   * @param keepPreviousState - If true, don't update this.previousState. If false (default), update to new state.
    */
-  getDOMTree(targetId?: string): Promise<EnhancedDOMTreeNode>;
-
-  /**
-   * Get serialized DOM tree optimized for LLM consumption
-   */
-  getSerializedDOMTree(
-    previousState?: SerializedDOMState,
-    config?: Partial<SerializationConfig>
-  ): Promise<{
-    serializedState: SerializedDOMState;
-    timing: SerializationTiming;
-    stats: SerializationStats;
-  }>;
-
-  /**
-   * Get DOM tree with change detection for efficient updates
-   */
-  getDOMTreeWithChangeDetection(previousState?: SerializedDOMState): Promise<{
-    domTree: EnhancedDOMTreeNode;
-    serializedState?: SerializedDOMState;
-    hasChanges: boolean;
-    changeCount: number;
-  }>;
+  buildSimplifiedDOMTree(keepPreviousState?: boolean);
 
   /**
    * Initialize the DOM service
@@ -56,11 +34,6 @@ export interface IDOMService {
     isAttached: boolean;
     webContentsId: number;
   };
-
-  /**
-   * Get previous serialized state for change detection
-   */
-  getPreviousState(): SerializedDOMState | undefined;
 
   /**
    * Cleanup resources
@@ -144,17 +117,18 @@ export interface IBoundingBoxFilter {
  */
 export interface IDOMTreeSerializer {
   /**
-   * Main serialization method
+   * Simplify DOM tree - main serialization method
    */
-  serializeDOMTree(
+  simplifyDOMTree(
     rootNode: EnhancedDOMTreeNode,
     previousState?: SerializedDOMState,
     config?: Partial<SerializationConfig>
-  ): Promise<{
-    serializedState: SerializedDOMState;
-    timing: SerializationTiming;
-    stats: SerializationStats;
-  }>;
+  ): Promise<SerializedDOMState>;
+
+  /**
+   * Generate LLM representation for a SimplifiedNode
+   */
+  flattenSimplifiedDOMTree(node: SimplifiedNode): Promise<string>;
 }
 
 /**

@@ -12,7 +12,9 @@ export class ViewControlService {
     this.logger.info("ViewControlService initialized");
   }
 
-  static getInstance(threadViewService?: ThreadViewService): ViewControlService {
+  static getInstance(
+    threadViewService?: ThreadViewService
+  ): ViewControlService {
     if (!ViewControlService.instance) {
       if (!threadViewService) {
         throw new Error(
@@ -30,12 +32,13 @@ export class ViewControlService {
 
   static destroyInstance(): void {
     if (ViewControlService.instance) {
-      ViewControlService.instance.logger.info("Destroying ViewControlService instance");
+      ViewControlService.instance.logger.info(
+        "Destroying ViewControlService instance"
+      );
       ViewControlService.instance = null;
     }
   }
 
-  
   /**
    * Navigates a view to a URL
    */
@@ -48,6 +51,7 @@ export class ViewControlService {
       throw new Error(error);
     }
 
+    this.threadViewService.updateViewTimestamp(viewId);
     await view.webContents.loadURL(url);
     this.logger.info("Navigation successful", { viewId, url });
     return `Successfully navigated view ${viewId} to ${url}`;
@@ -65,6 +69,7 @@ export class ViewControlService {
       throw new Error(error);
     }
 
+    this.threadViewService.updateViewTimestamp(viewId);
     view.webContents.reload();
     this.logger.info("Refresh successful", { viewId });
     return `Successfully refreshed view ${viewId}`;
@@ -83,6 +88,7 @@ export class ViewControlService {
     }
 
     if (view.webContents.navigationHistory.canGoBack()) {
+      this.threadViewService.updateViewTimestamp(viewId);
       view.webContents.navigationHistory.goBack();
       this.logger.info("Go back successful", { viewId });
       return `Successfully went back in view ${viewId}`;
@@ -105,6 +111,7 @@ export class ViewControlService {
     }
 
     if (view.webContents.navigationHistory.canGoForward()) {
+      this.threadViewService.updateViewTimestamp(viewId);
       view.webContents.navigationHistory.goForward();
       this.logger.info("Go forward successful", { viewId });
       return `Successfully went forward in view ${viewId}`;

@@ -76,6 +76,9 @@ export const clickElementTool = tool({
           timeout,
         };
 
+        // Record timestamp before the operation
+        threadViewService.updateViewTimestamp(viewId);
+
         return await interactionService.clickElement(backendNodeId, options);
       },
       {
@@ -119,6 +122,9 @@ export const fillElementTool = tool({
           clear,
           keystrokeDelay,
         };
+
+        // Record timestamp before the operation
+        threadViewService.updateViewTimestamp(viewId);
 
         return await interactionService.fillElement(backendNodeId, options);
       },
@@ -166,6 +172,9 @@ export const selectOptionTool = tool({
           timeout,
         };
 
+        // Record timestamp before the operation
+        threadViewService.updateViewTimestamp(viewId);
+
         return await interactionService.selectOption(backendNodeId, options);
       },
       {
@@ -203,6 +212,9 @@ export const hoverElementTool = tool({
         const options: HoverOptions = {
           timeout,
         };
+
+        // Record timestamp before the operation
+        threadViewService.updateViewTimestamp(viewId);
 
         return await interactionService.hoverElement(backendNodeId, options);
       },
@@ -253,6 +265,9 @@ export const dragToElementTool = tool({
           target: target as Position | number,
           targetPosition,
         };
+
+        // Record timestamp before the operation
+        threadViewService.updateViewTimestamp(viewId);
 
         return await interactionService.dragToElement(
           sourceBackendNodeId,
@@ -310,6 +325,9 @@ export const scrollPagesTool = tool({
           smooth,
         };
 
+        // Record timestamp before the operation
+        threadViewService.updateViewTimestamp(viewId);
+
         return await interactionService.scrollPages(options);
       },
       {
@@ -354,6 +372,9 @@ export const scrollAtCoordinateTool = tool({
           deltaX,
           deltaY,
         };
+
+        // Record timestamp before the operation
+        threadViewService.updateViewTimestamp(viewId);
 
         return await interactionService.scrollAtCoordinate(options);
       },

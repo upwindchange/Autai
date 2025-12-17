@@ -1,7 +1,6 @@
 import { WebContentsView, BrowserWindow, Rectangle } from "electron";
 import { EventEmitter } from "events";
 import type { ThreadId, ViewId, ThreadViewState } from "@shared";
-import { getIndexScript } from "@/scripts/indexLoader";
 import { DOMService } from "./dom";
 import { ElementInteractionService } from "./interaction/ElementInteractionService";
 import log from "electron-log/main";
@@ -11,6 +10,7 @@ interface ViewMetadata {
   threadId: ThreadId;
   url: string;
   backendVisibility: boolean;
+  timestamp: number;
 }
 
 interface CreateViewOptions {
@@ -165,17 +165,25 @@ export class ThreadViewService extends EventEmitter {
       threadId,
       url,
       backendVisibility: true, // Default to visible from backend
+      timestamp: Date.now(),
     });
 
     // Create and store DomService for this view
     const domService = new DOMService(webView.webContents);
     this.domServices.set(viewId, domService);
 
+    // Initialize DOMService to attach debugger
+    await domService.initialize();
+
     // Create and store ElementInteractionService for this view
-    const interactionService = new ElementInteractionService(webView.webContents);
+    const interactionService = new ElementInteractionService(
+      webView.webContents
+    );
     this.interactionServices.set(viewId, interactionService);
     await interactionService.initialize();
-    this.logger.info(`ElementInteractionService initialized for view ${viewId}`);
+    this.logger.info(
+      `ElementInteractionService initialized for view ${viewId}`
+    );
 
     if (bounds) {
       this.viewBounds = bounds;
@@ -204,20 +212,17 @@ export class ThreadViewService extends EventEmitter {
     await webView.webContents.loadFile("resources/welcome.html");
     this.logger.debug("welcome page loaded");
 
-    // Page load completion - inject scripts
-    webView.webContents.once("did-finish-load", async () => {
+    // Page load completion - build DOM tree (no script injection needed)
+    webView.webContents.on("did-finish-load", async () => {
       try {
-        // Inject index.js script wrapped in IIFE
-        const indexScript = getIndexScript();
-        const wrappedIndexScript = `
-          (function() {
-            window.buildDomTree = ${indexScript};
-          })();
-        `;
-        await webView.webContents.executeJavaScript(wrappedIndexScript);
-        this.logger.debug(`Successfully injected scripts for view ${viewId}`);
+        // Wait for dynamic content to load
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        // Build simplified DOM tree with fresh state
+        await domService.buildSimplifiedDOMTree(false);
+        this.logger.debug(`DOM tree built for view ${viewId}`);
       } catch (error) {
-        this.logger.error("Failed to inject scripts:", error);
+        this.logger.error("Failed to build DOM tree on page load:", error);
       }
     });
 
@@ -244,7 +249,9 @@ export class ThreadViewService extends EventEmitter {
       if (interactionService) {
         await interactionService.destroy();
         this.interactionServices.delete(viewId);
-        this.logger.debug(`ElementInteractionService destroyed for view ${viewId}`);
+        this.logger.debug(
+          `ElementInteractionService destroyed for view ${viewId}`
+        );
       }
     } catch (error) {
       this.logger.error(
@@ -450,6 +457,14 @@ export class ThreadViewService extends EventEmitter {
 
   getViewMetadata(viewId: ViewId): ViewMetadata | null {
     return this.viewMetadata.get(viewId) || null;
+  }
+
+  updateViewTimestamp(viewId: ViewId): void {
+    const metadata = this.viewMetadata.get(viewId);
+    if (metadata) {
+      metadata.timestamp = Date.now();
+      this.viewMetadata.set(viewId, metadata);
+    }
   }
 
   // ===================

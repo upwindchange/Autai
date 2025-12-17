@@ -187,24 +187,22 @@ export interface SerializationTiming {
 }
 
 export interface SerializationStats {
-  totalNodes: number;
-  simplifiedNodes: number;
-  filteredNodes: number;
+  timestamp: number;
+  simplifiedNodesCount: number;
+  simplifiedNodesCountChange: number;
+  newSimplifiedNodesCount: number;
   interactiveElements: number;
-  newElements: number;
+  filteredNodes: number;
   occludedNodes: number;
   containedNodes: number;
   sizeFilteredNodes: number;
 }
 
 export interface SerializedDOMState {
+  flattenedDOM: string;
+  stats: SerializationStats;
   root: SimplifiedNode;
   selectorMap: DOMSelectorMap;
-  timing?: SerializationTiming;
-  stats?: SerializationStats;
-  config?: SerializationConfig;
-
-  llm_representation?(): Promise<string>;
 }
 
 export interface SimplifiedNode {
