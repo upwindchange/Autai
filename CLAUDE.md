@@ -67,7 +67,7 @@ src/
     ├── ipc.ts         # IPC communication types
     ├── logger.ts      # Logging types
     ├── settings.ts    # Settings types
-    ├── thread.ts      # Thread management types
+    ├── session.ts     # Browser session management types
     └── tools.ts       # Tool-related types
 reference/             # Several projects for reference
 ```
@@ -111,9 +111,6 @@ reference/             # Several projects for reference
 - `reference/langchainjs`: langchain.js project
   - Documentation in `reference/langchainjs/docs`
   - Examples in `reference/langchainjs/examples`
-- `reference/langgraphjs`: langchain.js project
-  - Documentation in `reference/langgraphjs/docs`
-  - Examples in `reference/langgraphjs/examples`
 - `reference/assitant-ui`: Assistant UI React Component Library.
   - Source code in `reference/assitant-ui/packages`
   - Documentation in `reference/assitant-ui/apps/docs/content/docs`
