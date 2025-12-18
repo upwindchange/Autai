@@ -3,12 +3,12 @@ import { z } from "zod";
 import { evaluate } from "mathjs";
 import { interactiveTools } from "./InteractiveTools";
 import { domTools } from "./DOMTools";
-import { threadViewTools } from "./ThreadViewTools";
+import { sessionTabTools } from "./SessionTabTools";
 
 export const backendTools = {
 	...interactiveTools,
 	...domTools,
-	...threadViewTools,
+	...sessionTabTools,
 	calculate: tool({
 		description: "Evaluate mathematical expressions using mathjs",
 		inputSchema: z.object({

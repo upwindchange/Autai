@@ -26,7 +26,7 @@ import {
 } from "@assistant-ui/react-ai-sdk";
 import { AppHeader } from "@/components/app-header";
 import { useState } from "react";
-import { useSessionLifecycle } from "@/hooks/useThreadLifecycle";
+import { useSessionLifecycle } from "@/hooks";
 
 import "./index.css";
 import "./demos/ipc";

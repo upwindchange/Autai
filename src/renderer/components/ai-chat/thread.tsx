@@ -23,7 +23,6 @@ import {
 import type { FC } from "react";
 
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
 	ResizablePanelGroup,
 	ResizablePanel,
@@ -39,7 +38,7 @@ import {
 } from "@/components/assistant-ui/attachment";
 import { Reasoning, ReasoningGroup } from "@/components/assistant-ui/reasoning";
 import { useUiStore } from "@/stores/uiStore";
-import { useViewVisibility } from "@/hooks/useViewVisibility";
+import { useTabVisibility } from "@/hooks";
 import log from "electron-log/renderer";
 import { cn } from "@/lib/utils";
 
@@ -54,7 +53,7 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
 	const { setContainerRef, setContainerBounds } = useUiStore();
 
 	// Sync view visibility with container state
-	useViewVisibility();
+	useTabVisibility();
 
 	useEffect(() => {
 		logger.debug("component mounted", {
@@ -108,12 +107,11 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
 		>
 			{showSplitView ?
 				<ResizablePanelGroup direction="horizontal" className="flex-1">
-					<ResizablePanel defaultSize={50} minSize={30}>
-						<ScrollArea className="h-full">
-							<ThreadPrimitive.Viewport
-								turnAnchor="top"
-								className="aui-thread-viewport relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
-							>
+					<ResizablePanel defaultSize={50} minSize={30} className="h-full">
+						<ThreadPrimitive.Viewport
+							turnAnchor="top"
+							className="aui-thread-viewport relative flex h-full flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
+						>
 								<ThreadPrimitive.If empty>
 									<ThreadWelcome />
 								</ThreadPrimitive.If>
@@ -126,12 +124,11 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
 									}}
 								/>
 
-								<ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mx-auto mt-4 flex w-full max-w-(--thread-max-width) flex-col gap-4 overflow-visible rounded-t-3xl bg-background pb-4 md:pb-6">
+								<ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mx-auto mt-auto flex w-full max-w-(--thread-max-width) flex-col gap-4 overflow-visible rounded-t-3xl bg-background pb-4 md:pb-6">
 									<ThreadScrollToBottom />
 									<Composer />
 								</ThreadPrimitive.ViewportFooter>
 							</ThreadPrimitive.Viewport>
-						</ScrollArea>
 					</ResizablePanel>
 					<ResizableHandle withHandle />
 					<ResizablePanel defaultSize={50} minSize={30}>
@@ -159,7 +156,7 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
 						}}
 					/>
 
-					<ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mx-auto mt-4 flex w-full max-w-(--thread-max-width) flex-col gap-4 overflow-visible rounded-t-3xl bg-background pb-4 md:pb-6">
+					<ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mx-auto mt-auto flex w-full max-w-(--thread-max-width) flex-col gap-4 overflow-visible rounded-t-3xl bg-background/95 backdrop-blur-sm pb-4 md:pb-6 border-t border-border/50 z-10">
 						<ThreadScrollToBottom />
 						<Composer />
 					</ThreadPrimitive.ViewportFooter>
@@ -286,7 +283,7 @@ const ComposerAction: FC = () => {
 						type="submit"
 						variant="default"
 						size="icon"
-						className="aui-composer-send size-[34px] rounded-full p-1"
+						className="aui-composer-send size-8.5 rounded-full p-1"
 						aria-label="Send message"
 					>
 						<ArrowUpIcon className="aui-composer-send-icon size-5" />
@@ -300,7 +297,7 @@ const ComposerAction: FC = () => {
 						type="button"
 						variant="default"
 						size="icon"
-						className="aui-composer-cancel size-[34px] rounded-full border border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90"
+						className="aui-composer-cancel size-8.5 rounded-full border border-muted-foreground/60 hover:bg-primary/75 dark:border-muted-foreground/90"
 						aria-label="Stop generating"
 					>
 						<Square className="aui-composer-cancel-icon size-3.5 fill-white dark:fill-black" />
@@ -416,7 +413,7 @@ const EditComposer: FC = () => {
 		<MessagePrimitive.Root className="aui-edit-composer-wrapper mx-auto flex w-full max-w-(--thread-max-width) flex-col gap-4 px-2">
 			<ComposerPrimitive.Root className="aui-edit-composer-root ml-auto flex w-full max-w-7/8 flex-col rounded-xl bg-muted">
 				<ComposerPrimitive.Input
-					className="aui-edit-composer-input flex min-h-[60px] w-full resize-none bg-transparent p-4 text-foreground outline-none"
+					className="aui-edit-composer-input flex min-h-15 w-full resize-none bg-transparent p-4 text-foreground outline-none"
 					autoFocus
 				/>
 
