@@ -7,7 +7,7 @@
 
 import { tool } from "ai";
 import { z } from "zod";
-import { ThreadViewService } from "@/services";
+import { SessionTabService } from "@/services";
 import { PQueueManager } from "@agents/utils";
 import log from "electron-log/main";
 
@@ -30,15 +30,15 @@ export const getDOMTreeTool = tool({
 	execute: async ({ viewId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const threadViewService = ThreadViewService.getInstance();
-				const domService = threadViewService.getDomService(viewId);
+				const sessionTabService = SessionTabService.getInstance();
+				const domService = sessionTabService.getDomService(viewId);
 
 				if (!domService) {
 					throw new Error(`DOM service not found for view ${viewId}`);
 				}
 				const stats = domService.simplifiedDOMState?.stats;
 				const changeTime =
-					threadViewService.getViewMetadata(viewId)?.timestamp || 0;
+					sessionTabService.getTabMetadata(viewId)?.timestamp || 0;
 				const detectTime = stats?.timestamp || 0;
 				let response = {};
 				// Get DOM tree with change detection and update internal state (default)
@@ -91,8 +91,8 @@ export const getFlattenDOMTool = tool({
 	execute: async ({ viewId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const threadViewService = ThreadViewService.getInstance();
-				const domService = threadViewService.getDomService(viewId);
+				const sessionTabService = SessionTabService.getInstance();
+				const domService = sessionTabService.getDomService(viewId);
 
 				if (!domService) {
 					throw new Error(`DOM service not found for view ${viewId}`);

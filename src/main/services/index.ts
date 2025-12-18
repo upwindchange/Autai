@@ -1,4 +1,4 @@
 export { settingsService } from "./settingsService";
-export { ThreadViewService } from "./ThreadViewService";
+export { SessionTabService } from "./SessionTabService";
 export { ViewControlService } from "./ViewControlService";
 export { DOMService } from "./dom";

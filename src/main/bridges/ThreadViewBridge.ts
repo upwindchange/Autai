@@ -1,49 +1,49 @@
 import { BaseBridge } from "@/bridges/BaseBridge";
-import { ThreadViewService } from "@/services";
-import type { ThreadId, ViewId } from "@shared";
+import { SessionTabService } from "@/services";
+import type { SessionId, TabId } from "@shared";
 import { Rectangle } from "electron";
 
 export class ThreadViewBridge extends BaseBridge {
-	constructor(private threadViewService: ThreadViewService) {
+	constructor(private sessionTabService: SessionTabService) {
 		super();
 	}
 
 	setupHandlers(): void {
 		// Thread lifecycle handlers (one-way, no response needed)
-		this.on<ThreadId>("threadview:created", async (_, threadId) => {
-			await this.threadViewService.createThread(threadId);
+		this.on<SessionId>("sessiontab:created", async (_, threadId) => {
+			await this.sessionTabService.createSession(threadId);
 		});
 
-		this.on<ThreadId>("threadview:switched", async (_, threadId) => {
-			await this.threadViewService.switchThread(threadId);
+		this.on<SessionId>("sessiontab:switched", async (_, threadId) => {
+			await this.sessionTabService.switchSession(threadId);
 		});
 
-		this.on<ThreadId>("threadview:deleted", async (_, threadId) => {
-			await this.threadViewService.deleteThread(threadId);
+		this.on<SessionId>("sessiontab:deleted", async (_, threadId) => {
+			await this.sessionTabService.deleteSession(threadId);
 		});
 
 		// Thread query handlers (need response)
-		this.handle<ThreadId, { success: boolean; data?: ViewId | null }>(
-			"threadview:getActiveView",
+		this.handle<SessionId, { success: boolean; data?: TabId | null }>(
+			"sessiontab:getActiveTab",
 			async (_, threadId) => {
-				const viewId = this.threadViewService.getActiveViewForThread(threadId);
+				const viewId = this.sessionTabService.getActiveTabForSession(threadId);
 				return { success: true, data: viewId };
 			},
 		);
 
 		// View visibility handlers (one-way, no response needed)
-		this.on<{ viewId: ViewId; isVisible: boolean }>(
-			"threadview:setVisibility",
+		this.on<{ viewId: TabId; isVisible: boolean }>(
+			"sessiontab:setVisibility",
 			async (_, { isVisible }) => {
-				await this.threadViewService.setFrontendVisibility(isVisible);
+				await this.sessionTabService.setFrontendVisibility(isVisible);
 			},
 		);
 
 		// View bounds handlers (one-way, no response needed)
 		this.on<{ bounds: Rectangle }>(
-			"threadview:setBounds",
+			"sessiontab:setBounds",
 			async (_, { bounds }) => {
-				await this.threadViewService.setBounds(bounds);
+				await this.sessionTabService.setBounds(bounds);
 			},
 		);
 	}

@@ -29,7 +29,7 @@ export class ChatWorker {
 		request: ChatRequest,
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	): Promise<StreamTextResult<any, any>> {
-		const { messages, system, threadId, tools } = request;
+		const { messages, system, sessionId: threadId, tools } = request;
 		this.logger.debug("request received", {
 			messagesCount: messages?.length,
 			hasSystem: !!system,

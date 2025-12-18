@@ -7,5 +7,5 @@ export interface ChatRequest {
 	messages: UIMessage[];
 	system?: string;
 	tools?: any;
-	threadId: string;
+	sessionId: string;
 }

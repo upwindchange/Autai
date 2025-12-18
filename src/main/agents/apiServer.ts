@@ -4,7 +4,7 @@ import { type Server } from "http";
 import { agentHandler } from "@agents";
 import log from "electron-log/main";
 import type { ChatRequest } from "@shared";
-import { ThreadViewService } from "@/services/ThreadViewService";
+import { SessionTabService } from "@/services";
 import { sendAlert } from "@/utils";
 
 export class ApiServer {
@@ -54,23 +54,23 @@ export class ApiServer {
 						hasTools: !!tools,
 					});
 
-					// Get current active thread ID from ThreadViewService
-					const threadViewService = ThreadViewService.getInstance();
-					const activeThreadId = threadViewService.activeThreadId;
+					// Get current active session ID from SessionTabService
+					const sessionTabService = SessionTabService.getInstance();
+					const activeSessionId = sessionTabService.activeSessionId;
 
-					this.logger.debug("Thread context", {
-						activeThreadId,
-						hasActiveThread: !!activeThreadId,
+					this.logger.debug("session context", {
+						activeSessionId,
+						hasActiveSession: !!activeSessionId,
 					});
 
-					// Ensure we have an active thread ID - this should always exist when a chat starts
-					if (!activeThreadId) {
+					// Ensure we have an active session ID - this should always exist when a chat starts
+					if (!activeSessionId) {
 						this.logger.error(
-							"No active thread found when chat request was made",
+							"No active session found when chat request was made",
 						);
 						sendAlert(
 							"Chat Error",
-							"No active thread found. Please start a new chat session.",
+							"No active session found. Please start a new chat session.",
 						);
 						return;
 					}
@@ -82,7 +82,7 @@ export class ApiServer {
 							messages,
 							system,
 							tools,
-							threadId: activeThreadId,
+							sessionId: activeSessionId,
 						});
 
 						// Pipe the stream result to the Express response

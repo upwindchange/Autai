@@ -9,7 +9,7 @@ import type { LogLevel } from "@shared";
 import { update } from "./update";
 import {
 	settingsService,
-	ThreadViewService,
+	SessionTabService,
 	ViewControlService,
 } from "@/services";
 import { PQueueManager } from "@agents/utils";
@@ -55,7 +55,7 @@ if (!app.requestSingleInstanceLock()) {
 
 let win: BrowserWindow | null = null;
 let settingsBridge: SettingsBridge | null = null;
-let threadViewService: ThreadViewService | null = null;
+let sessionTabService: SessionTabService | null = null;
 let threadViewBridge: ThreadViewBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
@@ -88,11 +88,11 @@ async function createWindow() {
 	/**
 	 * Initialize core services
 	 */
-	// Initialize ThreadViewService singleton
-	threadViewService = ThreadViewService.getInstance(win);
+	// Initialize SessionTabService singleton
+	sessionTabService = SessionTabService.getInstance(win);
 
 	// Initialize ViewControlService singleton
-	ViewControlService.getInstance(threadViewService);
+	ViewControlService.getInstance(sessionTabService);
 
 	// Initialize PQueueManager for all agent operations
 	PQueueManager.getInstance({
@@ -105,7 +105,7 @@ async function createWindow() {
 	settingsBridge = new SettingsBridge();
 	settingsBridge.setupHandlers();
 
-	threadViewBridge = new ThreadViewBridge(threadViewService);
+	threadViewBridge = new ThreadViewBridge(sessionTabService);
 	threadViewBridge.setupHandlers();
 
 	/**
@@ -205,11 +205,11 @@ app.on("before-quit", async (event) => {
 
 	try {
 		// Clean up all services and bridges
-		if (threadViewService) {
-			logger.debug("Destroying threadViewService...");
-			await threadViewService.destroy();
-			threadViewService = null;
-			logger.debug("threadViewService destroyed");
+		if (sessionTabService) {
+			logger.debug("Destroying sessionTabService...");
+			await sessionTabService.destroy();
+			sessionTabService = null;
+			logger.debug("sessionTabService destroyed");
 		}
 
 		if (threadViewBridge) {

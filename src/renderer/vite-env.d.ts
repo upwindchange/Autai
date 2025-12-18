@@ -35,7 +35,7 @@ declare global {
 
 			// Thread operations
 			invoke(
-				channel: "threadview:getActiveView",
+				channel: "sessiontab:getActiveTab",
 				threadId: string,
 			): Promise<{ success: boolean; data?: string | null }>;
 
@@ -63,16 +63,16 @@ declare global {
 			send(channel: string, ...args: unknown[]): void;
 
 			// Thread operations
-			send(channel: "threadview:created", threadId: string): void;
-			send(channel: "threadview:switched", threadId: string): void;
-			send(channel: "threadview:deleted", threadId: string): void;
+			send(channel: "sessiontab:created", threadId: string): void;
+			send(channel: "sessiontab:switched", threadId: string): void;
+			send(channel: "sessiontab:deleted", threadId: string): void;
 
 			// View operations
 			send(
-				channel: "threadview:setVisibility",
+				channel: "sessiontab:setVisibility",
 				args: { isVisible: boolean },
 			): void;
-			send(channel: "threadview:setBounds", args: { bounds: Rectangle }): void;
+			send(channel: "sessiontab:setBounds", args: { bounds: Rectangle }): void;
 
 			// Error handling events
 			on(

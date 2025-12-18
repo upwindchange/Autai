@@ -1,20 +1,20 @@
 import { useEffect } from "react";
-import { useAssistantRuntime } from "@assistant-ui/react";
+import { useAssistantState } from "@assistant-ui/react";
 import { useUiStore } from "@/stores/uiStore";
 import log from "electron-log/renderer";
 
-const logger = log.scope("useViewVisibility");
+const logger = log.scope("useTabVisibility");
 
 /**
- * Hook that syncs container mount/unmount state with view visibility.
- * When the container is mounted (split view active), the current thread's active view is made visible.
- * When unmounted, the view is hidden.
+ * Hook that syncs container mount/unmount state with tab visibility.
+ * When the container is mounted (split tab active), the current thread's active tab is made visible.
+ * When unmounted, the tab is hidden.
  *
- * The backend handles view switching between threads via threadview:switched events.
+ * The backend handles tab switching between threads via sessiontab:switched events.
  */
-export function useViewVisibility() {
+export function useTabVisibility() {
 	const { containerRef, containerBounds } = useUiStore();
-	const runtime = useAssistantRuntime();
+	const mainTabId = useAssistantState(({ threads }) => threads.mainThreadId);
 
 	useEffect(() => {
 		const updateVisibility = async (isVisible: boolean) => {
@@ -26,14 +26,14 @@ export function useViewVisibility() {
 			// if (containerBounds) {
 			//   logger.debug('sending bounds ipc', { containerBounds });
 			//   // Set visibility (now using send since it's one-way)
-			//   window.ipcRenderer.send("threadview:setBounds", {
+			//   window.ipcRenderer.send("sessiontab:setBounds", {
 			//     bounds: containerBounds,
 			//   });
 			// }
 
 			logger.debug("sending visibility ipc", { isVisible });
 			// Set visibility (now using send since it's one-way)
-			window.ipcRenderer.send("threadview:setVisibility", {
+			window.ipcRenderer.send("sessiontab:setVisibility", {
 				isVisible,
 			});
 		};
@@ -44,10 +44,10 @@ export function useViewVisibility() {
 		});
 		updateVisibility(!!containerRef);
 
-		// Cleanup function - hide view when hook unmounts
+		// Cleanup function - hide tab when hook unmounts
 		return () => {
-			logger.debug("cleaning up, hiding view");
+			logger.debug("cleaning up, hiding tab");
 			updateVisibility(false);
 		};
-	}, [containerRef, runtime.threads.mainItem]);
+	}, [containerRef, mainTabId]);
 }

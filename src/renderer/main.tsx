@@ -26,7 +26,7 @@ import {
 } from "@assistant-ui/react-ai-sdk";
 import { AppHeader } from "@/components/app-header";
 import { useState } from "react";
-import { useThreadLifecycle } from "@/hooks/useThreadLifecycle";
+import { useSessionLifecycle } from "@/hooks/useThreadLifecycle";
 
 import "./index.css";
 import "./demos/ipc";
@@ -97,7 +97,7 @@ function AppContent() {
 	const [showSplitView, setShowSplitView] = useState(false);
 
 	// Initialize thread lifecycle management
-	useThreadLifecycle();
+	useSessionLifecycle();
 
 	return (
 		<SettingsProvider>

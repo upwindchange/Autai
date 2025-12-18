@@ -1,6 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
-import { ThreadViewService } from "@/services";
+import { SessionTabService } from "@/services";
 import { PQueueManager } from "@agents/utils";
 import type {
 	ClickOptions,
@@ -62,9 +62,9 @@ export const clickElementTool = tool({
 	}) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const threadViewService = ThreadViewService.getInstance();
+				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					threadViewService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(viewId);
 				if (!interactionService) {
 					throw new Error(`Interaction service not found for view ${viewId}`);
 				}
@@ -77,7 +77,7 @@ export const clickElementTool = tool({
 				};
 
 				// Record timestamp before the operation
-				threadViewService.updateViewTimestamp(viewId);
+				sessionTabService.updateTabTimestamp(viewId);
 
 				return await interactionService.clickElement(backendNodeId, options);
 			},
@@ -110,9 +110,9 @@ export const fillElementTool = tool({
 	execute: async ({ viewId, backendNodeId, value, clear, keystrokeDelay }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const threadViewService = ThreadViewService.getInstance();
+				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					threadViewService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(viewId);
 				if (!interactionService) {
 					throw new Error(`Interaction service not found for view ${viewId}`);
 				}
@@ -124,7 +124,7 @@ export const fillElementTool = tool({
 				};
 
 				// Record timestamp before the operation
-				threadViewService.updateViewTimestamp(viewId);
+				sessionTabService.updateTabTimestamp(viewId);
 
 				return await interactionService.fillElement(backendNodeId, options);
 			},
@@ -159,9 +159,9 @@ export const selectOptionTool = tool({
 	execute: async ({ viewId, backendNodeId, values, clear, timeout }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const threadViewService = ThreadViewService.getInstance();
+				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					threadViewService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(viewId);
 				if (!interactionService) {
 					throw new Error(`Interaction service not found for view ${viewId}`);
 				}
@@ -173,7 +173,7 @@ export const selectOptionTool = tool({
 				};
 
 				// Record timestamp before the operation
-				threadViewService.updateViewTimestamp(viewId);
+				sessionTabService.updateTabTimestamp(viewId);
 
 				return await interactionService.selectOption(backendNodeId, options);
 			},
@@ -202,9 +202,9 @@ export const hoverElementTool = tool({
 	execute: async ({ viewId, backendNodeId, timeout }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const threadViewService = ThreadViewService.getInstance();
+				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					threadViewService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(viewId);
 				if (!interactionService) {
 					throw new Error(`Interaction service not found for view ${viewId}`);
 				}
@@ -214,7 +214,7 @@ export const hoverElementTool = tool({
 				};
 
 				// Record timestamp before the operation
-				threadViewService.updateViewTimestamp(viewId);
+				sessionTabService.updateTabTimestamp(viewId);
 
 				return await interactionService.hoverElement(backendNodeId, options);
 			},
@@ -254,9 +254,9 @@ export const dragToElementTool = tool({
 	execute: async ({ viewId, sourceBackendNodeId, target, targetPosition }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const threadViewService = ThreadViewService.getInstance();
+				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					threadViewService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(viewId);
 				if (!interactionService) {
 					throw new Error(`Interaction service not found for view ${viewId}`);
 				}
@@ -267,7 +267,7 @@ export const dragToElementTool = tool({
 				};
 
 				// Record timestamp before the operation
-				threadViewService.updateViewTimestamp(viewId);
+				sessionTabService.updateTabTimestamp(viewId);
 
 				return await interactionService.dragToElement(
 					sourceBackendNodeId,
@@ -311,9 +311,9 @@ export const scrollPagesTool = tool({
 	execute: async ({ viewId, direction, pages, scrollDelay, smooth }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const threadViewService = ThreadViewService.getInstance();
+				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					threadViewService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(viewId);
 				if (!interactionService) {
 					throw new Error(`Interaction service not found for view ${viewId}`);
 				}
@@ -326,7 +326,7 @@ export const scrollPagesTool = tool({
 				};
 
 				// Record timestamp before the operation
-				threadViewService.updateViewTimestamp(viewId);
+				sessionTabService.updateTabTimestamp(viewId);
 
 				return await interactionService.scrollPages(options);
 			},
@@ -359,9 +359,9 @@ export const scrollAtCoordinateTool = tool({
 	execute: async ({ viewId, x, y, deltaX, deltaY }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const threadViewService = ThreadViewService.getInstance();
+				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					threadViewService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(viewId);
 				if (!interactionService) {
 					throw new Error(`Interaction service not found for view ${viewId}`);
 				}
@@ -374,7 +374,7 @@ export const scrollAtCoordinateTool = tool({
 				};
 
 				// Record timestamp before the operation
-				threadViewService.updateViewTimestamp(viewId);
+				sessionTabService.updateTabTimestamp(viewId);
 
 				return await interactionService.scrollAtCoordinate(options);
 			},
@@ -397,9 +397,9 @@ export const getAttributeTool = tool({
 	execute: async ({ viewId, backendNodeId, attributeName }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const threadViewService = ThreadViewService.getInstance();
+				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					threadViewService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(viewId);
 				if (!interactionService) {
 					throw new Error(`Interaction service not found for view ${viewId}`);
 				}
@@ -437,9 +437,9 @@ export const evaluateTool = tool({
 	execute: async ({ viewId, backendNodeId, expression, args }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const threadViewService = ThreadViewService.getInstance();
+				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					threadViewService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(viewId);
 				if (!interactionService) {
 					throw new Error(`Interaction service not found for view ${viewId}`);
 				}
@@ -468,9 +468,9 @@ export const getBasicInfoTool = tool({
 	execute: async ({ viewId, backendNodeId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const threadViewService = ThreadViewService.getInstance();
+				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					threadViewService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(viewId);
 				if (!interactionService) {
 					throw new Error(`Interaction service not found for view ${viewId}`);
 				}

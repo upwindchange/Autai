@@ -42,7 +42,7 @@ export const useUiStore = create<UiState>()(
 			set({ containerBounds: bounds });
 			if (bounds) {
 				// Set visibility (now using send since it's one-way)
-				window.ipcRenderer.send("threadview:setBounds", {
+				window.ipcRenderer.send("sessiontab:setBounds", {
 					bounds,
 				});
 			}
