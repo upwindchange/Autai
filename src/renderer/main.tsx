@@ -12,13 +12,13 @@ import { AssistantChatContainer } from "@/components/ai-chat";
 import { SettingsProvider, SettingsView } from "@/components/settings";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useUiStore } from "@/stores/uiStore";
-import { CalculatorTool, AnswerTool } from "@/tools";
-// import { CalculatorTool, AnswerTool, ApprovalTool } from "@/tools";
+import { CalculatorTool, AnswerTool, ApprovalTool } from "@/tools";
 import {
 	AssistantRuntimeProvider,
 	CompositeAttachmentAdapter,
 	SimpleImageAttachmentAdapter,
 	SimpleTextAttachmentAdapter,
+	WebSpeechSynthesisAdapter,
 } from "@assistant-ui/react";
 import {
 	useChatRuntime,
@@ -27,6 +27,7 @@ import {
 import { AppHeader } from "@/components/app-header";
 import { useState } from "react";
 import { useSessionLifecycle } from "@/hooks";
+import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 
 import "./index.css";
 import "./demos/ipc";
@@ -131,10 +132,12 @@ function AppContent() {
 function App() {
 	// Create runtime for the entire app using AI SDK v5 with useChatRuntime
 	const runtime = useChatRuntime({
+		sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
 		transport: new AssistantChatTransport({
 			api: "http://localhost:3001/chat", // Custom API URL with forwarding
 		}),
 		adapters: {
+			speech: new WebSpeechSynthesisAdapter(),
 			attachments: new CompositeAttachmentAdapter([
 				new SimpleImageAttachmentAdapter(),
 				new SimpleTextAttachmentAdapter(),

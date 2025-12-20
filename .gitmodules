@@ -25,3 +25,6 @@
 [submodule "reference/langchain-docs"]
 	path = reference/langchain-docs
 	url = https://github.com/langchain-ai/docs
+[submodule "reference/langgraphjs"]
+	path = reference/langgraphjs
+	url = git@github.com:langchain-ai/langgraphjs.git

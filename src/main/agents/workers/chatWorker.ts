@@ -10,7 +10,6 @@ import { repairToolCall } from "@agents/utils";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
 import { type ChatRequest } from "@shared";
-import { backendTools } from "@agents/tools";
 import { frontendTools } from "@assistant-ui/react-ai-sdk";
 
 const systemPrompt = `You are a helpful AI assistant integrated into a web browser automation tool.
@@ -29,11 +28,11 @@ export class ChatWorker {
 		request: ChatRequest,
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	): Promise<StreamTextResult<any, any>> {
-		const { messages, system, sessionId: threadId, tools } = request;
+		const { messages, system, sessionId, tools } = request;
 		this.logger.debug("request received", {
 			messagesCount: messages?.length,
 			hasSystem: !!system,
-			threadId,
+			sessionId: sessionId,
 			hasTools: !!tools,
 			toolCount: tools ? Object.keys(tools).length : 0,
 		});
@@ -70,13 +69,13 @@ export class ChatWorker {
 				messages: convertToModelMessages(messages),
 				system: `${systemPrompt} ${system || ""}`,
 				stopWhen: stopConditions,
-				tools: { ...frontendTools(toolsToUse), ...backendTools },
+				tools: frontendTools(toolsToUse),
 				experimental_repairToolCall: repairToolCall,
 				experimental_telemetry: {
 					isEnabled: settingsService.settings.langfuse.enabled,
 					functionId: "chat-worker",
 					metadata: {
-						langfuseTraceId: threadId,
+						langfuseTraceId: sessionId,
 					},
 				},
 			});

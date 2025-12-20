@@ -47,7 +47,8 @@ export class ApiServer {
 			) => {
 				try {
 					const { messages, system, tools } = req.body;
-
+					this.logger.silly(req.body);
+					this.logger.silly(req.headers);
 					this.logger.info("Chat request received", {
 						messagesCount: messages?.length,
 						hasSystem: !!system,

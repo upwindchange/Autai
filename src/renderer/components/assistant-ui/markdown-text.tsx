@@ -14,16 +14,51 @@ import { CheckIcon, CopyIcon } from "lucide-react";
 
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { cn } from "@/lib/utils";
+import { SyntaxHighlighter } from "./shiki-highlighter";
+import remarkMath from "remark-math";
+import rehypeKatex from "rehype-katex";
 
 const MarkdownTextImpl = () => {
 	return (
 		<MarkdownTextPrimitive
-			remarkPlugins={[remarkGfm]}
+			remarkPlugins={[remarkGfm, remarkMath]}
+			rehypePlugins={[rehypeKatex]}
+			preprocess={normalizeCustomMathTags}
 			className="aui-md"
 			components={defaultComponents}
 		/>
 	);
 };
+
+// Your LaTeX preprocessing function
+function normalizeCustomMathTags(input: string): string {
+	return (
+		input
+			// Convert [/math]...[/math] to $$...$$
+			.replace(
+				/\[\/math\]([\s\S]*?)\[\/math\]/g,
+				(_, content) => `$$${content.trim()}$$`,
+			)
+
+			// Convert [/inline]...[/inline] to $...$
+			.replace(
+				/\[\/inline\]([\s\S]*?)\[\/inline\]/g,
+				(_, content) => `$${content.trim()}$`,
+			)
+
+			// Convert \( ... \) to $...$ (inline math) - handles both single and double backslashes
+			.replace(
+				/\\{1,2}\(([\s\S]*?)\\{1,2}\)/g,
+				(_, content) => `$${content.trim()}$`,
+			)
+
+			// Convert \[ ... \] to $$...$$ (block math) - handles both single and double backslashes
+			.replace(
+				/\\{1,2}\[([\s\S]*?)\\{1,2}\]/g,
+				(_, content) => `$$${content.trim()}$$`,
+			)
+	);
+}
 
 export const MarkdownText = memo(MarkdownTextImpl);
 
@@ -67,6 +102,7 @@ const useCopyToClipboard = ({
 };
 
 const defaultComponents = memoizeMarkdownComponents({
+	SyntaxHighlighter: SyntaxHighlighter,
 	h1: ({ className, ...props }) => (
 		<h1
 			className={cn(

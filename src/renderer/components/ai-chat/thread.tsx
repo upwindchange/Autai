@@ -2,6 +2,7 @@ import { useRef, useEffect } from "react";
 import {
 	ArrowDownIcon,
 	ArrowUpIcon,
+	AudioLinesIcon,
 	CheckIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
@@ -9,10 +10,12 @@ import {
 	PencilIcon,
 	RefreshCwIcon,
 	Square,
+	StopCircleIcon,
 } from "lucide-react";
 
 import {
 	ActionBarPrimitive,
+	AssistantIf,
 	BranchPickerPrimitive,
 	ComposerPrimitive,
 	ErrorPrimitive,
@@ -20,7 +23,7 @@ import {
 	ThreadPrimitive,
 } from "@assistant-ui/react";
 
-import type { FC } from "react";
+import type { FC, PropsWithChildren } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -112,23 +115,23 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
 							turnAnchor="top"
 							className="aui-thread-viewport relative flex h-full flex-col overflow-x-auto overflow-y-scroll scroll-smooth px-4 pt-4"
 						>
-								<ThreadPrimitive.If empty>
-									<ThreadWelcome />
-								</ThreadPrimitive.If>
+							<ThreadPrimitive.If empty>
+								<ThreadWelcome />
+							</ThreadPrimitive.If>
 
-								<ThreadPrimitive.Messages
-									components={{
-										UserMessage,
-										EditComposer,
-										AssistantMessage,
-									}}
-								/>
+							<ThreadPrimitive.Messages
+								components={{
+									UserMessage,
+									EditComposer,
+									AssistantMessage,
+								}}
+							/>
 
-								<ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mx-auto mt-auto flex w-full max-w-(--thread-max-width) flex-col gap-4 overflow-visible rounded-t-3xl bg-background pb-4 md:pb-6">
-									<ThreadScrollToBottom />
-									<Composer />
-								</ThreadPrimitive.ViewportFooter>
-							</ThreadPrimitive.Viewport>
+							<ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mx-auto mt-auto flex w-full max-w-(--thread-max-width) flex-col gap-4 overflow-visible rounded-t-3xl bg-background pb-4 md:pb-6">
+								<ThreadScrollToBottom />
+								<Composer />
+							</ThreadPrimitive.ViewportFooter>
+						</ThreadPrimitive.Viewport>
 					</ResizablePanel>
 					<ResizableHandle withHandle />
 					<ResizablePanel defaultSize={50} minSize={30}>
@@ -317,6 +320,20 @@ const MessageError: FC = () => {
 		</MessagePrimitive.Error>
 	);
 };
+const ToolGroup: FC<
+	PropsWithChildren<{ startIndex: number; endIndex: number }>
+> = ({ startIndex, endIndex, children }) => {
+	const toolCount = endIndex - startIndex + 1;
+
+	return (
+		<details className="my-2">
+			<summary className="cursor-pointer font-medium">
+				{toolCount} tool {toolCount === 1 ? "call" : "calls"}
+			</summary>
+			<div className="space-y-2 pl-4">{children}</div>
+		</details>
+	);
+};
 
 const AssistantMessage: FC = () => {
 	return (
@@ -327,8 +344,9 @@ const AssistantMessage: FC = () => {
 			<div className="aui-assistant-message-content wrap-break-word mx-2 text-foreground leading-7">
 				<MessagePrimitive.Parts
 					components={{
-						Reasoning: Reasoning,
-						ReasoningGroup: ReasoningGroup,
+						ToolGroup,
+						Reasoning,
+						ReasoningGroup,
 						Text: MarkdownText,
 					}}
 				/>
@@ -351,6 +369,20 @@ const AssistantActionBar: FC = () => {
 			autohideFloat="single-branch"
 			className="aui-assistant-action-bar-root -ml-1 col-start-3 row-start-2 flex gap-1 text-muted-foreground data-floating:absolute data-floating:rounded-md data-floating:border data-floating:bg-background data-floating:p-1 data-floating:shadow-sm"
 		>
+			<AssistantIf condition={({ message }) => message.speech == null}>
+				<ActionBarPrimitive.Speak asChild>
+					<TooltipIconButton tooltip="Read aloud">
+						<AudioLinesIcon />
+					</TooltipIconButton>
+				</ActionBarPrimitive.Speak>
+			</AssistantIf>
+			<AssistantIf condition={({ message }) => message.speech != null}>
+				<ActionBarPrimitive.StopSpeaking asChild>
+					<TooltipIconButton tooltip="Stop">
+						<StopCircleIcon />
+					</TooltipIconButton>
+				</ActionBarPrimitive.StopSpeaking>
+			</AssistantIf>
 			<ActionBarPrimitive.Copy asChild>
 				<TooltipIconButton tooltip="Copy">
 					<MessagePrimitive.If copied>

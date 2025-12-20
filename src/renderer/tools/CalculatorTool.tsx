@@ -1,39 +1,27 @@
-import { makeAssistantToolUI } from "@assistant-ui/react";
+import { makeAssistantTool, tool } from "@assistant-ui/react";
+import { calculateToolSchema } from "@shared/tools";
+import { evaluate } from "mathjs";
 import { CalculatorIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-type CalculatorToolArgs = {
-	expression: string;
-};
-
-type CalculatorToolResult = {
-	result?: number;
-	error?: string;
-};
-
-// Create the UI component for the calculator tool
-export const CalculatorTool = makeAssistantToolUI<
-	CalculatorToolArgs,
-	CalculatorToolResult
->({
+// Register the tool
+export const CalculatorTool = makeAssistantTool({
 	toolName: "calculate",
-
-	// Define the UI that will be shown when this tool runs
-	render: ({ args, status, result }) => {
-		// Result might be a JSON string or already parsed object
-		let resultObj: CalculatorToolResult | undefined;
-		if (result) {
+	...tool({
+		description: "Evaluate mathematical expressions using mathjs",
+		parameters: calculateToolSchema,
+		execute: async ({ expression }) => {
 			try {
-				resultObj =
-					typeof result === "string" ?
-						(JSON.parse(result) as CalculatorToolResult)
-					:	(result as CalculatorToolResult);
-			} catch (_error) {
-				// If parsing fails, display error
-				resultObj = { error: "Invalid result format" };
+				const result = evaluate(expression);
+				return { result: Number(result) };
+			} catch (error) {
+				return {
+					error: error instanceof Error ? error.message : String(error),
+				};
 			}
-		}
-
+		},
+	}),
+	render: ({ args, status, result }) => {
 		return (
 			<div
 				className={cn(
@@ -47,13 +35,13 @@ export const CalculatorTool = makeAssistantToolUI<
 				</div>
 				<div className="space-y-2">
 					<div className="font-mono text-sm">{args.expression}</div>
-					{resultObj && (
+					{result && (
 						<div className="flex items-center gap-2">
 							<span className="text-muted-foreground">=</span>
 							<span className="font-mono font-semibold text-sm">
-								{resultObj.error ?
-									<span className="text-destructive">{resultObj.error}</span>
-								:	resultObj.result?.toLocaleString()}
+								{result.error ?
+									<span className="text-destructive">{result.error}</span>
+								:	result.result?.toLocaleString()}
 							</span>
 						</div>
 					)}
