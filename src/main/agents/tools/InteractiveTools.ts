@@ -27,7 +27,7 @@ import type {
 // Click Element Tool
 export const clickElementTool = tool(
 	async ({
-		viewId,
+		tabId,
 		backendNodeId,
 		button = "left",
 		clickCount = 1,
@@ -38,9 +38,9 @@ export const clickElementTool = tool(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					sessionTabService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(tabId);
 				if (!interactionService) {
-					throw new Error(`Interaction service not found for view ${viewId}`);
+					throw new Error(`Interaction service not found for tab ${tabId}`);
 				}
 
 				const options: ClickOptions = {
@@ -51,7 +51,7 @@ export const clickElementTool = tool(
 				};
 
 				// Record timestamp before the operation
-				sessionTabService.updateTabTimestamp(viewId);
+				sessionTabService.updateTabTimestamp(tabId);
 
 				return await interactionService.clickElement(backendNodeId, options);
 			},
@@ -65,7 +65,7 @@ export const clickElementTool = tool(
 		name: "clickElementTool",
 		description: "Click on an element using its backend node ID",
 		schema: z.object({
-			viewId: z.string().describe("The ID of the view containing the element"),
+			tabId: z.string().describe("The ID of the tab containing the element"),
 			backendNodeId: z
 				.number()
 				.describe("Backend node ID of the element to click"),
@@ -92,7 +92,7 @@ export const clickElementTool = tool(
 // Fill Element Tool
 export const fillElementTool = tool(
 	async ({
-		viewId,
+		tabId,
 		backendNodeId,
 		value,
 		clear = true,
@@ -102,9 +102,9 @@ export const fillElementTool = tool(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					sessionTabService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(tabId);
 				if (!interactionService) {
-					throw new Error(`Interaction service not found for view ${viewId}`);
+					throw new Error(`Interaction service not found for tab ${tabId}`);
 				}
 
 				const options: FillOptions = {
@@ -114,7 +114,7 @@ export const fillElementTool = tool(
 				};
 
 				// Record timestamp before the operation
-				sessionTabService.updateTabTimestamp(viewId);
+				sessionTabService.updateTabTimestamp(tabId);
 
 				return await interactionService.fillElement(backendNodeId, options);
 			},
@@ -128,7 +128,7 @@ export const fillElementTool = tool(
 		name: "fillElementTool",
 		description: "Fill an input element with text using human-like typing",
 		schema: z.object({
-			viewId: z.string().describe("The ID of the view containing the element"),
+			tabId: z.string().describe("The ID of the tab containing the element"),
 			backendNodeId: z
 				.number()
 				.describe("Backend node ID of the input element"),
@@ -147,14 +147,14 @@ export const fillElementTool = tool(
 
 // Select Option Tool
 export const selectOptionTool = tool(
-	async ({ viewId, backendNodeId, values, clear = true, timeout = 5000 }) => {
+	async ({ tabId, backendNodeId, values, clear = true, timeout = 5000 }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					sessionTabService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(tabId);
 				if (!interactionService) {
-					throw new Error(`Interaction service not found for view ${viewId}`);
+					throw new Error(`Interaction service not found for tab ${tabId}`);
 				}
 
 				const options: SelectOptionOptions = {
@@ -164,7 +164,7 @@ export const selectOptionTool = tool(
 				};
 
 				// Record timestamp before the operation
-				sessionTabService.updateTabTimestamp(viewId);
+				sessionTabService.updateTabTimestamp(tabId);
 
 				return await interactionService.selectOption(backendNodeId, options);
 			},
@@ -178,7 +178,7 @@ export const selectOptionTool = tool(
 		name: "selectOptionTool",
 		description: "Select option(s) in a select element by value or text",
 		schema: z.object({
-			viewId: z.string().describe("The ID of the view containing the element"),
+			tabId: z.string().describe("The ID of the tab containing the element"),
 			backendNodeId: z
 				.number()
 				.describe("Backend node ID of the select element"),
@@ -196,14 +196,14 @@ export const selectOptionTool = tool(
 
 // Hover Element Tool
 export const hoverElementTool = tool(
-	async ({ viewId, backendNodeId, timeout = 3000 }) => {
+	async ({ tabId, backendNodeId, timeout = 3000 }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					sessionTabService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(tabId);
 				if (!interactionService) {
-					throw new Error(`Interaction service not found for view ${viewId}`);
+					throw new Error(`Interaction service not found for tab ${tabId}`);
 				}
 
 				const options: HoverOptions = {
@@ -211,7 +211,7 @@ export const hoverElementTool = tool(
 				};
 
 				// Record timestamp before the operation
-				sessionTabService.updateTabTimestamp(viewId);
+				sessionTabService.updateTabTimestamp(tabId);
 
 				return await interactionService.hoverElement(backendNodeId, options);
 			},
@@ -225,7 +225,7 @@ export const hoverElementTool = tool(
 		name: "hoverElementTool",
 		description: "Hover over an element using its backend node ID",
 		schema: z.object({
-			viewId: z.string().describe("The ID of the view containing the element"),
+			tabId: z.string().describe("The ID of the tab containing the element"),
 			backendNodeId: z
 				.number()
 				.describe("Backend node ID of the element to hover"),
@@ -236,14 +236,14 @@ export const hoverElementTool = tool(
 
 // Drag to Element Tool
 export const dragToElementTool = tool(
-	async ({ viewId, sourceBackendNodeId, target, targetPosition }) => {
+	async ({ tabId, sourceBackendNodeId, target, targetPosition }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					sessionTabService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(tabId);
 				if (!interactionService) {
-					throw new Error(`Interaction service not found for view ${viewId}`);
+					throw new Error(`Interaction service not found for tab ${tabId}`);
 				}
 
 				const options: DragOptions = {
@@ -252,7 +252,7 @@ export const dragToElementTool = tool(
 				};
 
 				// Record timestamp before the operation
-				sessionTabService.updateTabTimestamp(viewId);
+				sessionTabService.updateTabTimestamp(tabId);
 
 				return await interactionService.dragToElement(
 					sourceBackendNodeId,
@@ -269,7 +269,7 @@ export const dragToElementTool = tool(
 		name: "dragToElementTool",
 		description: "Drag from one element to another position or element",
 		schema: z.object({
-			viewId: z.string().describe("The ID of the view containing the elements"),
+			tabId: z.string().describe("The ID of the tab containing the elements"),
 			sourceBackendNodeId: z
 				.number()
 				.describe("Backend node ID of the source element"),
@@ -296,7 +296,7 @@ export const dragToElementTool = tool(
 // Scroll Pages Tool
 export const scrollPagesTool = tool(
 	async ({
-		viewId,
+		tabId,
 		direction = "down",
 		pages = 1.0,
 		scrollDelay = 300,
@@ -306,9 +306,9 @@ export const scrollPagesTool = tool(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					sessionTabService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(tabId);
 				if (!interactionService) {
-					throw new Error(`Interaction service not found for view ${viewId}`);
+					throw new Error(`Interaction service not found for tab ${tabId}`);
 				}
 
 				const options: ScrollOptions = {
@@ -319,7 +319,7 @@ export const scrollPagesTool = tool(
 				};
 
 				// Record timestamp before the operation
-				sessionTabService.updateTabTimestamp(viewId);
+				sessionTabService.updateTabTimestamp(tabId);
 
 				return await interactionService.scrollPages(options);
 			},
@@ -333,7 +333,7 @@ export const scrollPagesTool = tool(
 		name: "scrollPagesTool",
 		description: "Scroll the page by number of pages",
 		schema: z.object({
-			viewId: z.string().describe("The ID of the view to scroll"),
+			tabId: z.string().describe("The ID of the tab to scroll"),
 			direction: z
 				.enum(["up", "down"])
 				.optional()
@@ -356,14 +356,14 @@ export const scrollPagesTool = tool(
 
 // Scroll at Coordinate Tool
 export const scrollAtCoordinateTool = tool(
-	async ({ viewId, x, y, deltaX = 0, deltaY = 0 }) => {
+	async ({ tabId, x, y, deltaX = 0, deltaY = 0 }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					sessionTabService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(tabId);
 				if (!interactionService) {
-					throw new Error(`Interaction service not found for view ${viewId}`);
+					throw new Error(`Interaction service not found for tab ${tabId}`);
 				}
 
 				const options: ScrollAtCoordinateOptions = {
@@ -374,7 +374,7 @@ export const scrollAtCoordinateTool = tool(
 				};
 
 				// Record timestamp before the operation
-				sessionTabService.updateTabTimestamp(viewId);
+				sessionTabService.updateTabTimestamp(tabId);
 
 				return await interactionService.scrollAtCoordinate(options);
 			},
@@ -388,7 +388,7 @@ export const scrollAtCoordinateTool = tool(
 		name: "scrollAtCoordinateTool",
 		description: "Scroll at specific coordinates with delta values",
 		schema: z.object({
-			viewId: z.string().describe("The ID of the view to scroll"),
+			tabId: z.string().describe("The ID of the tab to scroll"),
 			x: z.number().describe("X coordinate relative to viewport"),
 			y: z.number().describe("Y coordinate relative to viewport"),
 			deltaX: z
@@ -405,14 +405,14 @@ export const scrollAtCoordinateTool = tool(
 
 // Get Attribute Tool
 export const getAttributeTool = tool(
-	async ({ viewId, backendNodeId, attributeName }) => {
+	async ({ tabId, backendNodeId, attributeName }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					sessionTabService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(tabId);
 				if (!interactionService) {
-					throw new Error(`Interaction service not found for view ${viewId}`);
+					throw new Error(`Interaction service not found for tab ${tabId}`);
 				}
 
 				return await interactionService.getAttribute(
@@ -430,7 +430,7 @@ export const getAttributeTool = tool(
 		name: "getAttributeTool",
 		description: "Get an attribute value from an element",
 		schema: z.object({
-			viewId: z.string().describe("The ID of the view containing the element"),
+			tabId: z.string().describe("The ID of the tab containing the element"),
 			backendNodeId: z.number().describe("Backend node ID of the element"),
 			attributeName: z.string().describe("Name of the attribute to retrieve"),
 		}),
@@ -439,14 +439,14 @@ export const getAttributeTool = tool(
 
 // Evaluate Tool
 export const evaluateTool = tool(
-	async ({ viewId, backendNodeId, expression, args = [] }) => {
+	async ({ tabId, backendNodeId, expression, args = [] }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					sessionTabService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(tabId);
 				if (!interactionService) {
-					throw new Error(`Interaction service not found for view ${viewId}`);
+					throw new Error(`Interaction service not found for tab ${tabId}`);
 				}
 
 				return await interactionService.evaluate(
@@ -465,7 +465,7 @@ export const evaluateTool = tool(
 		name: "evaluateTool",
 		description: "Evaluate JavaScript expression on an element",
 		schema: z.object({
-			viewId: z.string().describe("The ID of the view containing the element"),
+			tabId: z.string().describe("The ID of the tab containing the element"),
 			backendNodeId: z.number().describe("Backend node ID of the element"),
 			expression: z
 				.string()
@@ -482,14 +482,14 @@ export const evaluateTool = tool(
 
 // Get Basic Info Tool
 export const getBasicInfoTool = tool(
-	async ({ viewId, backendNodeId }) => {
+	async ({ tabId, backendNodeId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
 				const interactionService =
-					sessionTabService.getInteractionService(viewId);
+					sessionTabService.getInteractionService(tabId);
 				if (!interactionService) {
-					throw new Error(`Interaction service not found for view ${viewId}`);
+					throw new Error(`Interaction service not found for tab ${tabId}`);
 				}
 
 				return await interactionService.getBasicInfo(backendNodeId);
@@ -504,7 +504,7 @@ export const getBasicInfoTool = tool(
 		name: "getBasicInfoTool",
 		description: "Get comprehensive information about an element",
 		schema: z.object({
-			viewId: z.string().describe("The ID of the view containing the element"),
+			tabId: z.string().describe("The ID of the tab containing the element"),
 			backendNodeId: z.number().describe("Backend node ID of the element"),
 		}),
 	},

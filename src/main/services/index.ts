@@ -1,4 +1,4 @@
 export { settingsService } from "./settingsService";
 export { SessionTabService } from "./SessionTabService";
-export { ViewControlService } from "./ViewControlService";
+export { TabControlService } from "./TabControlService";
 export { DOMService } from "./dom";

@@ -10,7 +10,7 @@ import { update } from "./update";
 import {
 	settingsService,
 	SessionTabService,
-	ViewControlService,
+	TabControlService,
 } from "@/services";
 import { PQueueManager } from "@agents/utils";
 import { apiServer } from "@agents";
@@ -92,7 +92,7 @@ async function createWindow() {
 	sessionTabService = SessionTabService.getInstance(win);
 
 	// Initialize ViewControlService singleton
-	ViewControlService.getInstance(sessionTabService);
+	TabControlService.getInstance(sessionTabService);
 
 	// Initialize PQueueManager for all agent operations
 	PQueueManager.getInstance({
@@ -227,7 +227,7 @@ app.on("before-quit", async (event) => {
 		}
 
 		// Clean up ViewControlService singleton
-		ViewControlService.destroyInstance();
+		TabControlService.destroyInstance();
 
 		// Stop API server
 		logger.info("Stopping API server...");

@@ -1,15 +1,15 @@
 import { tool } from "langchain";
 import { z } from "zod";
-import { ViewControlService } from "@/services";
+import { TabControlService } from "@/services";
 import { PQueueManager } from "@agents/utils";
 
 // Navigate tool
 export const navigateTool = tool(
-	async ({ viewId, url }) => {
+	async ({ tabId, url }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const viewControlService = ViewControlService.getInstance();
-				return await viewControlService.navigateTo(viewId, url);
+				const tabControlService = TabControlService.getInstance();
+				return await tabControlService.navigateTo(tabId, url);
 			},
 			{
 				timeout: 30000,
@@ -19,9 +19,9 @@ export const navigateTool = tool(
 	},
 	{
 		name: "navigateTool",
-		description: "Navigate a browser view to a specific URL",
+		description: "Navigate a browser tab to a specific URL",
 		schema: z.object({
-			viewId: z.string().describe("The ID of the view to navigate"),
+			tabId: z.string().describe("The ID of the tab to navigate"),
 			url: z.url().describe("The URL to navigate to (must be a valid URL)"),
 		}),
 	},
@@ -29,11 +29,11 @@ export const navigateTool = tool(
 
 // Refresh tool
 export const refreshTool = tool(
-	async ({ viewId }) => {
+	async ({ tabId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const viewControlService = ViewControlService.getInstance();
-				return await viewControlService.refresh(viewId);
+				const tabControlService = TabControlService.getInstance();
+				return await tabControlService.refresh(tabId);
 			},
 			{
 				timeout: 30000,
@@ -43,20 +43,20 @@ export const refreshTool = tool(
 	},
 	{
 		name: "refreshTool",
-		description: "Refresh the current page in a browser view",
+		description: "Refresh the current page in a browser tab",
 		schema: z.object({
-			viewId: z.string().describe("The ID of the view to refresh"),
+			tabId: z.string().describe("The ID of the tab to refresh"),
 		}),
 	},
 );
 
 // Go back tool
 export const goBackTool = tool(
-	async ({ viewId }) => {
+	async ({ tabId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const viewControlService = ViewControlService.getInstance();
-				return await viewControlService.goBack(viewId);
+				const tabControlService = TabControlService.getInstance();
+				return await tabControlService.goBack(tabId);
 			},
 			{
 				timeout: 30000,
@@ -66,20 +66,20 @@ export const goBackTool = tool(
 	},
 	{
 		name: "goBackTool",
-		description: "Navigate back in the browser history of a view",
+		description: "Navigate back in the browser history of a tab",
 		schema: z.object({
-			viewId: z.string().describe("The ID of the view to navigate back"),
+			tabId: z.string().describe("The ID of the tab to navigate back"),
 		}),
 	},
 );
 
 // Go forward tool
 export const goForwardTool = tool(
-	async ({ viewId }) => {
+	async ({ tabId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
-				const viewControlService = ViewControlService.getInstance();
-				return await viewControlService.goForward(viewId);
+				const tabControlService = TabControlService.getInstance();
+				return await tabControlService.goForward(tabId);
 			},
 			{
 				timeout: 30000,
@@ -89,20 +89,20 @@ export const goForwardTool = tool(
 	},
 	{
 		name: "goForwardTool",
-		description: "Navigate forward in the browser history of a view",
+		description: "Navigate forward in the browser history of a tab",
 		schema: z.object({
-			viewId: z.string().describe("The ID of the view to navigate forward"),
+			tabId: z.string().describe("The ID of the tab to navigate forward"),
 		}),
 	},
 );
 
 // Export all tools as a ToolSet for AI SDK
-export const viewControlTools = [
+export const tabControlTools = [
 	navigateTool,
 	refreshTool,
 	goBackTool,
 	goForwardTool,
-] as const;
+];
 
 // Type definitions for tool results
 export type NavigateToolResult = string;
@@ -111,7 +111,7 @@ export type GoBackToolResult = string;
 export type GoForwardToolResult = string;
 
 // Tool names enum for type safety
-export enum ViewControlToolNames {
+export enum TabControlToolNames {
 	NAVIGATE = "navigateTool",
 	REFRESH = "refreshTool",
 	GO_BACK = "goBackTool",
