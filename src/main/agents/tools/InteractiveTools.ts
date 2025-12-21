@@ -1,4 +1,4 @@
-import { tool } from "ai";
+import { tool } from "langchain";
 import { z } from "zod";
 import { SessionTabService } from "@/services";
 import { PQueueManager } from "@agents/utils";
@@ -25,40 +25,14 @@ import type {
 } from "@shared/dom/interaction";
 
 // Click Element Tool
-export const clickElementTool = tool({
-	description: "Click on an element using its backend node ID",
-	inputSchema: z.object({
-		viewId: z.string().describe("The ID of the view containing the element"),
-		backendNodeId: z
-			.number()
-			.describe("Backend node ID of the element to click"),
-		button: z
-			.enum(["left", "right", "middle"])
-			.optional()
-			.default("left")
-			.describe("Mouse button (default: left)"),
-		clickCount: z
-			.number()
-			.optional()
-			.default(1)
-			.describe("Number of times to click (default: 1)"),
-		modifiers: z
-			.array(z.enum(["Alt", "Control", "Meta", "Shift"]))
-			.optional()
-			.describe("Modifier keys to hold"),
-		timeout: z
-			.number()
-			.optional()
-			.default(5000)
-			.describe("Timeout in milliseconds (default: 5000)"),
-	}),
-	execute: async ({
+export const clickElementTool = tool(
+	async ({
 		viewId,
 		backendNodeId,
-		button,
-		clickCount,
+		button = "left",
+		clickCount = 1,
 		modifiers,
-		timeout,
+		timeout = 5000,
 	}) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
@@ -87,27 +61,43 @@ export const clickElementTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "clickElementTool",
+		description: "Click on an element using its backend node ID",
+		schema: z.object({
+			viewId: z.string().describe("The ID of the view containing the element"),
+			backendNodeId: z
+				.number()
+				.describe("Backend node ID of the element to click"),
+			button: z
+				.enum(["left", "right", "middle"])
+				.optional()
+				.describe("Mouse button (default: left)"),
+			clickCount: z
+				.number()
+				.optional()
+				.describe("Number of times to click (default: 1)"),
+			modifiers: z
+				.array(z.enum(["Alt", "Control", "Meta", "Shift"]))
+				.optional()
+				.describe("Modifier keys to hold"),
+			timeout: z
+				.number()
+				.optional()
+				.describe("Timeout in milliseconds (default: 5000)"),
+		}),
+	},
+);
 
 // Fill Element Tool
-export const fillElementTool = tool({
-	description: "Fill an input element with text using human-like typing",
-	inputSchema: z.object({
-		viewId: z.string().describe("The ID of the view containing the element"),
-		backendNodeId: z.number().describe("Backend node ID of the input element"),
-		value: z.string().describe("Text to fill in the input"),
-		clear: z
-			.boolean()
-			.optional()
-			.default(true)
-			.describe("Clear existing text before typing (default: true)"),
-		keystrokeDelay: z
-			.number()
-			.optional()
-			.default(18)
-			.describe("Delay between keystrokes in ms (default: 18)"),
-	}),
-	execute: async ({ viewId, backendNodeId, value, clear, keystrokeDelay }) => {
+export const fillElementTool = tool(
+	async ({
+		viewId,
+		backendNodeId,
+		value,
+		clear = true,
+		keystrokeDelay = 18,
+	}) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -134,29 +124,30 @@ export const fillElementTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "fillElementTool",
+		description: "Fill an input element with text using human-like typing",
+		schema: z.object({
+			viewId: z.string().describe("The ID of the view containing the element"),
+			backendNodeId: z
+				.number()
+				.describe("Backend node ID of the input element"),
+			value: z.string().describe("Text to fill in the input"),
+			clear: z
+				.boolean()
+				.optional()
+				.describe("Clear existing text before typing (default: true)"),
+			keystrokeDelay: z
+				.number()
+				.optional()
+				.describe("Delay between keystrokes in ms (default: 18)"),
+		}),
+	},
+);
 
 // Select Option Tool
-export const selectOptionTool = tool({
-	description: "Select option(s) in a select element by value or text",
-	inputSchema: z.object({
-		viewId: z.string().describe("The ID of the view containing the element"),
-		backendNodeId: z.number().describe("Backend node ID of the select element"),
-		values: z
-			.union([z.string(), z.array(z.string())])
-			.describe("Single value or array of values to select"),
-		clear: z
-			.boolean()
-			.optional()
-			.default(true)
-			.describe("Clear existing selections (default: true)"),
-		timeout: z
-			.number()
-			.optional()
-			.default(5000)
-			.describe("Timeout in ms (default: 5000)"),
-	}),
-	execute: async ({ viewId, backendNodeId, values, clear, timeout }) => {
+export const selectOptionTool = tool(
+	async ({ viewId, backendNodeId, values, clear = true, timeout = 5000 }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -183,23 +174,29 @@ export const selectOptionTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "selectOptionTool",
+		description: "Select option(s) in a select element by value or text",
+		schema: z.object({
+			viewId: z.string().describe("The ID of the view containing the element"),
+			backendNodeId: z
+				.number()
+				.describe("Backend node ID of the select element"),
+			values: z
+				.union([z.string(), z.array(z.string())])
+				.describe("Single value or array of values to select"),
+			clear: z
+				.boolean()
+				.optional()
+				.describe("Clear existing selections (default: true)"),
+			timeout: z.number().optional().describe("Timeout in ms (default: 5000)"),
+		}),
+	},
+);
 
 // Hover Element Tool
-export const hoverElementTool = tool({
-	description: "Hover over an element using its backend node ID",
-	inputSchema: z.object({
-		viewId: z.string().describe("The ID of the view containing the element"),
-		backendNodeId: z
-			.number()
-			.describe("Backend node ID of the element to hover"),
-		timeout: z
-			.number()
-			.optional()
-			.default(3000)
-			.describe("Timeout in ms (default: 3000)"),
-	}),
-	execute: async ({ viewId, backendNodeId, timeout }) => {
+export const hoverElementTool = tool(
+	async ({ viewId, backendNodeId, timeout = 3000 }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -224,34 +221,22 @@ export const hoverElementTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "hoverElementTool",
+		description: "Hover over an element using its backend node ID",
+		schema: z.object({
+			viewId: z.string().describe("The ID of the view containing the element"),
+			backendNodeId: z
+				.number()
+				.describe("Backend node ID of the element to hover"),
+			timeout: z.number().optional().describe("Timeout in ms (default: 3000)"),
+		}),
+	},
+);
 
 // Drag to Element Tool
-export const dragToElementTool = tool({
-	description: "Drag from one element to another position or element",
-	inputSchema: z.object({
-		viewId: z.string().describe("The ID of the view containing the elements"),
-		sourceBackendNodeId: z
-			.number()
-			.describe("Backend node ID of the source element"),
-		target: z
-			.union([
-				z.object({
-					x: z.number(),
-					y: z.number(),
-				}),
-				z.number(),
-			])
-			.describe("Target position or backend node ID of target element"),
-		targetPosition: z
-			.object({
-				x: z.number(),
-				y: z.number(),
-			})
-			.optional()
-			.describe("Relative position when target is an element"),
-	}),
-	execute: async ({ viewId, sourceBackendNodeId, target, targetPosition }) => {
+export const dragToElementTool = tool(
+	async ({ viewId, sourceBackendNodeId, target, targetPosition }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -280,35 +265,43 @@ export const dragToElementTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "dragToElementTool",
+		description: "Drag from one element to another position or element",
+		schema: z.object({
+			viewId: z.string().describe("The ID of the view containing the elements"),
+			sourceBackendNodeId: z
+				.number()
+				.describe("Backend node ID of the source element"),
+			target: z
+				.union([
+					z.object({
+						x: z.number(),
+						y: z.number(),
+					}),
+					z.number(),
+				])
+				.describe("Target position or backend node ID of target element"),
+			targetPosition: z
+				.object({
+					x: z.number(),
+					y: z.number(),
+				})
+				.optional()
+				.describe("Relative position when target is an element"),
+		}),
+	},
+);
 
 // Scroll Pages Tool
-export const scrollPagesTool = tool({
-	description: "Scroll the page by number of pages",
-	inputSchema: z.object({
-		viewId: z.string().describe("The ID of the view to scroll"),
-		direction: z
-			.enum(["up", "down"])
-			.optional()
-			.default("down")
-			.describe("Scroll direction (default: down)"),
-		pages: z
-			.number()
-			.optional()
-			.default(1.0)
-			.describe("Number of pages to scroll (default: 1.0)"),
-		scrollDelay: z
-			.number()
-			.optional()
-			.default(300)
-			.describe("Delay between scrolls in ms (default: 300)"),
-		smooth: z
-			.boolean()
-			.optional()
-			.default(true)
-			.describe("Whether to scroll smoothly (default: true)"),
-	}),
-	execute: async ({ viewId, direction, pages, scrollDelay, smooth }) => {
+export const scrollPagesTool = tool(
+	async ({
+		viewId,
+		direction = "down",
+		pages = 1.0,
+		scrollDelay = 300,
+		smooth = true,
+	}) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -336,27 +329,34 @@ export const scrollPagesTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "scrollPagesTool",
+		description: "Scroll the page by number of pages",
+		schema: z.object({
+			viewId: z.string().describe("The ID of the view to scroll"),
+			direction: z
+				.enum(["up", "down"])
+				.optional()
+				.describe("Scroll direction (default: down)"),
+			pages: z
+				.number()
+				.optional()
+				.describe("Number of pages to scroll (default: 1.0)"),
+			scrollDelay: z
+				.number()
+				.optional()
+				.describe("Delay between scrolls in ms (default: 300)"),
+			smooth: z
+				.boolean()
+				.optional()
+				.describe("Whether to scroll smoothly (default: true)"),
+		}),
+	},
+);
 
 // Scroll at Coordinate Tool
-export const scrollAtCoordinateTool = tool({
-	description: "Scroll at specific coordinates with delta values",
-	inputSchema: z.object({
-		viewId: z.string().describe("The ID of the view to scroll"),
-		x: z.number().describe("X coordinate relative to viewport"),
-		y: z.number().describe("Y coordinate relative to viewport"),
-		deltaX: z
-			.number()
-			.optional()
-			.default(0)
-			.describe("Horizontal scroll delta (default: 0)"),
-		deltaY: z
-			.number()
-			.optional()
-			.default(0)
-			.describe("Vertical scroll delta (default: 0)"),
-	}),
-	execute: async ({ viewId, x, y, deltaX, deltaY }) => {
+export const scrollAtCoordinateTool = tool(
+	async ({ viewId, x, y, deltaX = 0, deltaY = 0 }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -384,17 +384,28 @@ export const scrollAtCoordinateTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "scrollAtCoordinateTool",
+		description: "Scroll at specific coordinates with delta values",
+		schema: z.object({
+			viewId: z.string().describe("The ID of the view to scroll"),
+			x: z.number().describe("X coordinate relative to viewport"),
+			y: z.number().describe("Y coordinate relative to viewport"),
+			deltaX: z
+				.number()
+				.optional()
+				.describe("Horizontal scroll delta (default: 0)"),
+			deltaY: z
+				.number()
+				.optional()
+				.describe("Vertical scroll delta (default: 0)"),
+		}),
+	},
+);
 
 // Get Attribute Tool
-export const getAttributeTool = tool({
-	description: "Get an attribute value from an element",
-	inputSchema: z.object({
-		viewId: z.string().describe("The ID of the view containing the element"),
-		backendNodeId: z.number().describe("Backend node ID of the element"),
-		attributeName: z.string().describe("Name of the attribute to retrieve"),
-	}),
-	execute: async ({ viewId, backendNodeId, attributeName }) => {
+export const getAttributeTool = tool(
+	async ({ viewId, backendNodeId, attributeName }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -415,26 +426,20 @@ export const getAttributeTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "getAttributeTool",
+		description: "Get an attribute value from an element",
+		schema: z.object({
+			viewId: z.string().describe("The ID of the view containing the element"),
+			backendNodeId: z.number().describe("Backend node ID of the element"),
+			attributeName: z.string().describe("Name of the attribute to retrieve"),
+		}),
+	},
+);
 
 // Evaluate Tool
-export const evaluateTool = tool({
-	description: "Evaluate JavaScript expression on an element",
-	inputSchema: z.object({
-		viewId: z.string().describe("The ID of the view containing the element"),
-		backendNodeId: z.number().describe("Backend node ID of the element"),
-		expression: z
-			.string()
-			.describe(
-				"JavaScript expression in arrow function format: (args) => { ... }",
-			),
-		args: z
-			.array(z.any())
-			.optional()
-			.default([])
-			.describe("Arguments to pass to the function"),
-	}),
-	execute: async ({ viewId, backendNodeId, expression, args }) => {
+export const evaluateTool = tool(
+	async ({ viewId, backendNodeId, expression, args = [] }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -456,16 +461,28 @@ export const evaluateTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "evaluateTool",
+		description: "Evaluate JavaScript expression on an element",
+		schema: z.object({
+			viewId: z.string().describe("The ID of the view containing the element"),
+			backendNodeId: z.number().describe("Backend node ID of the element"),
+			expression: z
+				.string()
+				.describe(
+					"JavaScript expression in arrow function format: (args) => { ... }",
+				),
+			args: z
+				.array(z.any())
+				.optional()
+				.describe("Arguments to pass to the function (default: [])"),
+		}),
+	},
+);
 
 // Get Basic Info Tool
-export const getBasicInfoTool = tool({
-	description: "Get comprehensive information about an element",
-	inputSchema: z.object({
-		viewId: z.string().describe("The ID of the view containing the element"),
-		backendNodeId: z.number().describe("Backend node ID of the element"),
-	}),
-	execute: async ({ viewId, backendNodeId }) => {
+export const getBasicInfoTool = tool(
+	async ({ viewId, backendNodeId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -483,7 +500,15 @@ export const getBasicInfoTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "getBasicInfoTool",
+		description: "Get comprehensive information about an element",
+		schema: z.object({
+			viewId: z.string().describe("The ID of the view containing the element"),
+			backendNodeId: z.number().describe("Backend node ID of the element"),
+		}),
+	},
+);
 
 // Export all tools as a ToolSet for AI SDK
 export const interactiveTools = {

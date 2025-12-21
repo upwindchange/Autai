@@ -5,7 +5,7 @@
  * following the established pattern in the codebase
  */
 
-import { tool } from "ai";
+import { tool } from "langchain";
 import { z } from "zod";
 import { SessionTabService } from "@/services";
 import { PQueueManager } from "@agents/utils";
@@ -23,11 +23,8 @@ const getFlattenDOMSchema = z.object({
 });
 
 // Tool implementation: Get DOM Tree
-export const getDOMTreeTool = tool({
-	description:
-		"Extract DOM tree with intelligent change detection to identify if the page has changed since last analysis",
-	inputSchema: getDOMTreeSchema,
-	execute: async ({ viewId }) => {
+export const getDOMTreeTool = tool(
+	async ({ viewId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -81,14 +78,17 @@ export const getDOMTreeTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "getDOMTreeTool",
+		description:
+			"Extract DOM tree with intelligent change detection to identify if the page has changed since last analysis",
+		schema: getDOMTreeSchema,
+	},
+);
 
 // Tool implementation: Generate LLM Representation
-export const getFlattenDOMTool = tool({
-	description:
-		"Generate an LLM-optimized textual representation of the DOM tree root node",
-	inputSchema: getFlattenDOMSchema,
-	execute: async ({ viewId }) => {
+export const getFlattenDOMTool = tool(
+	async ({ viewId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -116,7 +116,13 @@ export const getFlattenDOMTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "getFlattenDOMTool",
+		description:
+			"Generate an LLM-optimized textual representation of the DOM tree root node",
+		schema: getFlattenDOMSchema,
+	},
+);
 
 // Helper functions
 

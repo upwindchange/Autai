@@ -28,3 +28,9 @@
 [submodule "reference/langgraphjs"]
 	path = reference/langgraphjs
 	url = git@github.com:langchain-ai/langgraphjs.git
+[submodule "reference/pglite"]
+	path = reference/pglite
+	url = git@github.com:electric-sql/pglite.git
+[submodule "reference/tool-ui"]
+	path = reference/tool-ui
+	url = git@github.com:assistant-ui/tool-ui.git

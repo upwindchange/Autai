@@ -1,4 +1,4 @@
-import { tool } from "ai";
+import { tool } from "langchain";
 import { z } from "zod";
 import { SessionTabService } from "@/services";
 import { PQueueManager } from "@agents/utils";
@@ -33,11 +33,8 @@ const getCurrentSessionContextSchema = z.object({
 });
 
 // List all sessions tool
-export const listSessionsTool = tool({
-	description:
-		"Get all available sessions with their tab counts and active tabs",
-	inputSchema: listSessionsSchema,
-	execute: async () => {
+export const listSessionsTool = tool(
+	async () => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -71,13 +68,17 @@ export const listSessionsTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "listSessionsTool",
+		description:
+			"Get all available sessions with their tab counts and active tabs",
+		schema: listSessionsSchema,
+	},
+);
 
 // Get session tabs tool
-export const getSessionTabsTool = tool({
-	description: "Get all tabs for a specific session including their metadata",
-	inputSchema: getSessionTabsSchema,
-	execute: async ({ sessionId }) => {
+export const getSessionTabsTool = tool(
+	async ({ sessionId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -110,13 +111,16 @@ export const getSessionTabsTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "getSessionTabsTool",
+		description: "Get all tabs for a specific session including their metadata",
+		schema: getSessionTabsSchema,
+	},
+);
 
 // Get tab info tool
-export const getTabInfoTool = tool({
-	description: "Get detailed information about a specific tab",
-	inputSchema: getTabInfoSchema,
-	execute: async ({ tabId }) => {
+export const getTabInfoTool = tool(
+	async ({ tabId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -159,13 +163,16 @@ export const getTabInfoTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "getTabInfoTool",
+		description: "Get detailed information about a specific tab",
+		schema: getTabInfoSchema,
+	},
+);
 
 // Create tab tool
-export const createTabTool = tool({
-	description: "Create a new tab for a specific session with optional URL",
-	inputSchema: createTabSchema,
-	execute: async ({ sessionId, url }) => {
+export const createTabTool = tool(
+	async ({ sessionId, url }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -221,13 +228,16 @@ export const createTabTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "createTabTool",
+		description: "Create a new tab for a specific session with optional URL",
+		schema: createTabSchema,
+	},
+);
 
 // Get current session context tool
-export const getCurrentSessionContextTool = tool({
-	description: "Get information about a session context including its tabs",
-	inputSchema: getCurrentSessionContextSchema,
-	execute: async ({ sessionId }) => {
+export const getCurrentSessionContextTool = tool(
+	async ({ sessionId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -274,7 +284,12 @@ export const getCurrentSessionContextTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "getCurrentSessionContextTool",
+		description: "Get information about a session context including its tabs",
+		schema: getCurrentSessionContextSchema,
+	},
+);
 
 // Export all tools as a ToolSet for AI SDK
 export const sessionTabTools = {

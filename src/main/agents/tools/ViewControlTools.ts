@@ -1,16 +1,11 @@
-import { tool } from "ai";
+import { tool } from "langchain";
 import { z } from "zod";
 import { ViewControlService } from "@/services";
 import { PQueueManager } from "@agents/utils";
 
 // Navigate tool
-export const navigateTool = tool({
-	description: "Navigate a browser view to a specific URL",
-	inputSchema: z.object({
-		viewId: z.string().describe("The ID of the view to navigate"),
-		url: z.url().describe("The URL to navigate to (must be a valid URL)"),
-	}),
-	execute: async ({ viewId, url }) => {
+export const navigateTool = tool(
+	async ({ viewId, url }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const viewControlService = ViewControlService.getInstance();
@@ -22,15 +17,19 @@ export const navigateTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "navigateTool",
+		description: "Navigate a browser view to a specific URL",
+		schema: z.object({
+			viewId: z.string().describe("The ID of the view to navigate"),
+			url: z.url().describe("The URL to navigate to (must be a valid URL)"),
+		}),
+	},
+);
 
 // Refresh tool
-export const refreshTool = tool({
-	description: "Refresh the current page in a browser view",
-	inputSchema: z.object({
-		viewId: z.string().describe("The ID of the view to refresh"),
-	}),
-	execute: async ({ viewId }) => {
+export const refreshTool = tool(
+	async ({ viewId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const viewControlService = ViewControlService.getInstance();
@@ -42,15 +41,18 @@ export const refreshTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "refreshTool",
+		description: "Refresh the current page in a browser view",
+		schema: z.object({
+			viewId: z.string().describe("The ID of the view to refresh"),
+		}),
+	},
+);
 
 // Go back tool
-export const goBackTool = tool({
-	description: "Navigate back in the browser history of a view",
-	inputSchema: z.object({
-		viewId: z.string().describe("The ID of the view to navigate back"),
-	}),
-	execute: async ({ viewId }) => {
+export const goBackTool = tool(
+	async ({ viewId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const viewControlService = ViewControlService.getInstance();
@@ -62,15 +64,18 @@ export const goBackTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "goBackTool",
+		description: "Navigate back in the browser history of a view",
+		schema: z.object({
+			viewId: z.string().describe("The ID of the view to navigate back"),
+		}),
+	},
+);
 
 // Go forward tool
-export const goForwardTool = tool({
-	description: "Navigate forward in the browser history of a view",
-	inputSchema: z.object({
-		viewId: z.string().describe("The ID of the view to navigate forward"),
-	}),
-	execute: async ({ viewId }) => {
+export const goForwardTool = tool(
+	async ({ viewId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const viewControlService = ViewControlService.getInstance();
@@ -82,7 +87,14 @@ export const goForwardTool = tool({
 			},
 		);
 	},
-});
+	{
+		name: "goForwardTool",
+		description: "Navigate forward in the browser history of a view",
+		schema: z.object({
+			viewId: z.string().describe("The ID of the view to navigate forward"),
+		}),
+	},
+);
 
 // Export all tools as a ToolSet for AI SDK
 export const viewControlTools = [
