@@ -8,17 +8,19 @@ Autai is an "Automatic AI Agent Driven Browser" - a desktop application built wi
 
 ## Key Commands
 
-**IMPORTANT**: Do not run any command, ask the user to run it.
+**IMPORTANT**:
+
+1. Do not run any pnpm command, ask the user to run it.
+2. This project does not use npm, npx. It uses pnpm and pnpm dlx.
+3. All files uses tab `\t` to indent, not spaces.
 
 ```bash
 # Development
 pnpm dev          # Start development server with hot reload
 pnpm build        # Build production app
-pnpm test         # Run tests with Vitest
+pnpm tsc          # tsc compiler error check
 pnpm lint         # Run ESLint checks
-
-# Building & Packaging
-pnpm build
+pnpm format       # Run prettier formatter
 ```
 
 ## Architecture
@@ -39,7 +41,7 @@ pnpm build
 
 ### Directory Structure
 
-```
+```text
 src/
 ├── main/              # Main process code
 │   ├── agents/        # AI agent implementation
@@ -100,7 +102,7 @@ reference/             # Several projects for reference
    the infomation are listed in this section below.
 2. If you cannot find information in the list below, you will NOT be able to find them online either.
 3. Preferred sequence of looking up: example -> docs -> api reference -> source code.
-4. Do not look for information from web unless you absolutely have to.
+4. Do not look for information from web.
 
 - `reference/ai`: AI SDK reference.
   - Source code in `reference/ai/packages/ai/src`
