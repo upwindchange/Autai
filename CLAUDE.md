@@ -33,10 +33,11 @@ pnpm format       # Run prettier formatter
 
 ### Core Services
 
-- **BrowserViewService**: Manages browser view instances and navigation
-- **DomService**: Analyzes and manipulates DOM elements in webviews
+- **TabControlService**: Manages browser tab navigation
+- **SessionTabService**: Manages AI session, tabs for each session and their lifecycle
+- **ElementInteractionService**: Interact with DOM elements in webviews
+- **DomService**: Analyzes DOM elements in webviews and prepare llm friendly flatten DOM
 - **SettingsService**: Manages application settings and providers
-- **ThreadViewManager**: Manages AI thread views and their lifecycle
 - **Agent API Server**: Express server for AI agent communication
 
 ### Directory Structure

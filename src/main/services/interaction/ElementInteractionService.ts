@@ -1570,7 +1570,7 @@ export class ElementInteractionService {
 			let targetX: number, targetY: number;
 
 			if (typeof options.target === "number") {
-				// Target is backendNodeId
+				// Target is backendNodeId - drag to center of element
 				const targetBox = await this.getBoundingBox(options.target);
 				if (!targetBox) {
 					throw new Error(
@@ -1578,15 +1578,10 @@ export class ElementInteractionService {
 					);
 				}
 
-				if (options.targetPosition) {
-					targetX = targetBox.x + options.targetPosition.x;
-					targetY = targetBox.y + options.targetPosition.y;
-				} else {
-					targetX = targetBox.x + targetBox.width / 2;
-					targetY = targetBox.y + targetBox.height / 2;
-				}
+				targetX = targetBox.x + targetBox.width / 2;
+				targetY = targetBox.y + targetBox.height / 2;
 			} else {
-				// Target is Position
+				// Target is Position {x, y}
 				targetX = options.target.x;
 				targetY = options.target.y;
 			}

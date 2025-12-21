@@ -294,14 +294,11 @@ export interface OptionElement {
 
 export interface DragOptions {
 	/**
-	 * Target can be a Position or an Element backendNodeId
+	 * Target can be a Position {x, y} or an Element backendNodeId
+	 * - If Position: drag to exact coordinates
+	 * - If number: drag to center of element with that backendNodeId
 	 */
 	target: Position | number;
-
-	/**
-	 * Optional relative position offset when target is an Element (default: center)
-	 */
-	targetPosition?: Position;
 }
 
 export interface DragResult {
@@ -605,3 +602,47 @@ export interface ScrollResult {
 	 */
 	error?: string;
 }
+
+// Interactive tool result interfaces with DOM refresh support
+export interface InteractiveToolResult {
+	/**
+	 * Whether the operation was successful
+	 */
+	success: boolean;
+
+	/**
+	 * Error message if operation failed
+	 */
+	error?: string;
+
+	/**
+	 * View ID for which the operation was performed
+	 */
+	viewId: string;
+
+	/**
+	 * Number of new DOM nodes detected after refresh
+	 */
+	newNodesCount?: number;
+
+	/**
+	 * Total change in DOM node count after refresh
+	 */
+	totalNodesCountChange?: number;
+}
+
+// Extended result types for interactive tools with refresh data
+export interface ClickElementToolResult
+	extends ClickResult, InteractiveToolResult {}
+export interface FillElementToolResult
+	extends FillResult, InteractiveToolResult {}
+export interface SelectOptionToolResult
+	extends SelectOptionResult, InteractiveToolResult {}
+export interface HoverElementToolResult
+	extends HoverResult, InteractiveToolResult {}
+export interface DragToElementToolResult
+	extends DragResult, InteractiveToolResult {}
+export interface ScrollPagesToolResult
+	extends ScrollResult, InteractiveToolResult {}
+export interface ScrollAtCoordinateToolResult
+	extends ScrollResult, InteractiveToolResult {}

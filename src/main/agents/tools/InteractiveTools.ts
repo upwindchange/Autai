@@ -19,21 +19,12 @@ import type {
 	ScrollOptions,
 	ScrollAtCoordinateOptions,
 	ScrollResult,
-	MouseButton,
-	ModifierType,
 	Position,
 } from "@shared/dom/interaction";
 
 // Click Element Tool
 export const clickElementTool = tool(
-	async ({
-		tabId,
-		backendNodeId,
-		button = "left",
-		clickCount = 1,
-		modifiers,
-		timeout = 5000,
-	}) => {
+	async ({ tabId, backendNodeId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -43,17 +34,53 @@ export const clickElementTool = tool(
 					throw new Error(`Interaction service not found for tab ${tabId}`);
 				}
 
+				// Simple left click options
 				const options: ClickOptions = {
-					button: button as MouseButton,
-					clickCount,
-					modifiers: modifiers as ModifierType[],
-					timeout,
+					button: "left",
+					clickCount: 1,
 				};
 
 				// Record timestamp before the operation
 				sessionTabService.updateTabTimestamp(tabId);
 
-				return await interactionService.clickElement(backendNodeId, options);
+				// Execute original click operation
+				const clickResult = await interactionService.clickElement(
+					backendNodeId,
+					options,
+				);
+
+				// Add automatic DOM refresh
+				if (clickResult.success) {
+					try {
+						// Wait for DOM changes to settle
+						await new Promise((resolve) => setTimeout(resolve, 1000));
+
+						// Get DOM service and refresh
+						const domService = sessionTabService.getDomService(tabId);
+						if (domService) {
+							const { newNodesCount, totalNodesCountChange } =
+								await domService.buildSimplifiedDOMTree();
+
+							// Return combined result
+							return {
+								...clickResult,
+								tabId,
+								newNodesCount,
+								totalNodesCountChange,
+							};
+						}
+					} catch (refreshError) {
+						console.warn(`DOM refresh failed for tab ${tabId}:`, refreshError);
+					}
+				}
+
+				// Return result without refresh data
+				return {
+					...clickResult,
+					tabId,
+					newNodesCount: 0,
+					totalNodesCountChange: 0,
+				};
 			},
 			{
 				timeout: 60000,
@@ -69,22 +96,6 @@ export const clickElementTool = tool(
 			backendNodeId: z
 				.number()
 				.describe("Backend node ID of the element to click"),
-			button: z
-				.enum(["left", "right", "middle"])
-				.optional()
-				.describe("Mouse button (default: left)"),
-			clickCount: z
-				.number()
-				.optional()
-				.describe("Number of times to click (default: 1)"),
-			modifiers: z
-				.array(z.enum(["Alt", "Control", "Meta", "Shift"]))
-				.optional()
-				.describe("Modifier keys to hold"),
-			timeout: z
-				.number()
-				.optional()
-				.describe("Timeout in milliseconds (default: 5000)"),
 		}),
 	},
 );
@@ -116,7 +127,44 @@ export const fillElementTool = tool(
 				// Record timestamp before the operation
 				sessionTabService.updateTabTimestamp(tabId);
 
-				return await interactionService.fillElement(backendNodeId, options);
+				// Execute original fill operation
+				const fillResult = await interactionService.fillElement(
+					backendNodeId,
+					options,
+				);
+
+				// Add automatic DOM refresh
+				if (fillResult.success) {
+					try {
+						// Wait for DOM changes to settle
+						await new Promise((resolve) => setTimeout(resolve, 500));
+
+						// Get DOM service and refresh
+						const domService = sessionTabService.getDomService(tabId);
+						if (domService) {
+							const { newNodesCount, totalNodesCountChange } =
+								await domService.buildSimplifiedDOMTree();
+
+							// Return combined result
+							return {
+								...fillResult,
+								tabId,
+								newNodesCount,
+								totalNodesCountChange,
+							};
+						}
+					} catch (refreshError) {
+						console.warn(`DOM refresh failed for tab ${tabId}:`, refreshError);
+					}
+				}
+
+				// Return result without refresh data
+				return {
+					...fillResult,
+					tabId,
+					newNodesCount: 0,
+					totalNodesCountChange: 0,
+				};
 			},
 			{
 				timeout: 60000,
@@ -166,7 +214,44 @@ export const selectOptionTool = tool(
 				// Record timestamp before the operation
 				sessionTabService.updateTabTimestamp(tabId);
 
-				return await interactionService.selectOption(backendNodeId, options);
+				// Execute original select option operation
+				const selectResult = await interactionService.selectOption(
+					backendNodeId,
+					options,
+				);
+
+				// Add automatic DOM refresh
+				if (selectResult.success) {
+					try {
+						// Wait for DOM changes to settle
+						await new Promise((resolve) => setTimeout(resolve, 800));
+
+						// Get DOM service and refresh
+						const domService = sessionTabService.getDomService(tabId);
+						if (domService) {
+							const { newNodesCount, totalNodesCountChange } =
+								await domService.buildSimplifiedDOMTree();
+
+							// Return combined result
+							return {
+								...selectResult,
+								tabId,
+								newNodesCount,
+								totalNodesCountChange,
+							};
+						}
+					} catch (refreshError) {
+						console.warn(`DOM refresh failed for tab ${tabId}:`, refreshError);
+					}
+				}
+
+				// Return result without refresh data
+				return {
+					...selectResult,
+					tabId,
+					newNodesCount: 0,
+					totalNodesCountChange: 0,
+				};
 			},
 			{
 				timeout: 60000,
@@ -213,7 +298,44 @@ export const hoverElementTool = tool(
 				// Record timestamp before the operation
 				sessionTabService.updateTabTimestamp(tabId);
 
-				return await interactionService.hoverElement(backendNodeId, options);
+				// Execute original hover operation
+				const hoverResult = await interactionService.hoverElement(
+					backendNodeId,
+					options,
+				);
+
+				// Add automatic DOM refresh
+				if (hoverResult.success) {
+					try {
+						// Wait for DOM changes to settle
+						await new Promise((resolve) => setTimeout(resolve, 300));
+
+						// Get DOM service and refresh
+						const domService = sessionTabService.getDomService(tabId);
+						if (domService) {
+							const { newNodesCount, totalNodesCountChange } =
+								await domService.buildSimplifiedDOMTree();
+
+							// Return combined result
+							return {
+								...hoverResult,
+								tabId,
+								newNodesCount,
+								totalNodesCountChange,
+							};
+						}
+					} catch (refreshError) {
+						console.warn(`DOM refresh failed for tab ${tabId}:`, refreshError);
+					}
+				}
+
+				// Return result without refresh data
+				return {
+					...hoverResult,
+					tabId,
+					newNodesCount: 0,
+					totalNodesCountChange: 0,
+				};
 			},
 			{
 				timeout: 60000,
@@ -236,7 +358,7 @@ export const hoverElementTool = tool(
 
 // Drag to Element Tool
 export const dragToElementTool = tool(
-	async ({ tabId, sourceBackendNodeId, target, targetPosition }) => {
+	async ({ tabId, sourceBackendNodeId, target }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -248,16 +370,49 @@ export const dragToElementTool = tool(
 
 				const options: DragOptions = {
 					target: target as Position | number,
-					targetPosition,
 				};
 
 				// Record timestamp before the operation
 				sessionTabService.updateTabTimestamp(tabId);
 
-				return await interactionService.dragToElement(
+				// Execute original drag operation
+				const dragResult = await interactionService.dragToElement(
 					sourceBackendNodeId,
 					options,
 				);
+
+				// Add automatic DOM refresh
+				if (dragResult.success) {
+					try {
+						// Wait for DOM changes to settle
+						await new Promise((resolve) => setTimeout(resolve, 1200));
+
+						// Get DOM service and refresh
+						const domService = sessionTabService.getDomService(tabId);
+						if (domService) {
+							const { newNodesCount, totalNodesCountChange } =
+								await domService.buildSimplifiedDOMTree();
+
+							// Return combined result
+							return {
+								...dragResult,
+								tabId,
+								newNodesCount,
+								totalNodesCountChange,
+							};
+						}
+					} catch (refreshError) {
+						console.warn(`DOM refresh failed for tab ${tabId}:`, refreshError);
+					}
+				}
+
+				// Return result without refresh data
+				return {
+					...dragResult,
+					tabId,
+					newNodesCount: 0,
+					totalNodesCountChange: 0,
+				};
 			},
 			{
 				timeout: 60000,
@@ -267,7 +422,7 @@ export const dragToElementTool = tool(
 	},
 	{
 		name: "dragToElementTool",
-		description: "Drag from one element to another position or element",
+		description: "Drag from one element to a target position or element",
 		schema: z.object({
 			tabId: z.string().describe("The ID of the tab containing the elements"),
 			sourceBackendNodeId: z
@@ -281,14 +436,9 @@ export const dragToElementTool = tool(
 					}),
 					z.number(),
 				])
-				.describe("Target position or backend node ID of target element"),
-			targetPosition: z
-				.object({
-					x: z.number(),
-					y: z.number(),
-				})
-				.optional()
-				.describe("Relative position when target is an element"),
+				.describe(
+					"Target position {x, y} or backend node ID of target element",
+				),
 		}),
 	},
 );
@@ -321,7 +471,41 @@ export const scrollPagesTool = tool(
 				// Record timestamp before the operation
 				sessionTabService.updateTabTimestamp(tabId);
 
-				return await interactionService.scrollPages(options);
+				// Execute original scroll operation
+				const scrollResult = await interactionService.scrollPages(options);
+
+				// Add automatic DOM refresh
+				if (scrollResult.success) {
+					try {
+						// Wait for DOM changes to settle
+						await new Promise((resolve) => setTimeout(resolve, 400));
+
+						// Get DOM service and refresh
+						const domService = sessionTabService.getDomService(tabId);
+						if (domService) {
+							const { newNodesCount, totalNodesCountChange } =
+								await domService.buildSimplifiedDOMTree();
+
+							// Return combined result
+							return {
+								...scrollResult,
+								tabId,
+								newNodesCount,
+								totalNodesCountChange,
+							};
+						}
+					} catch (refreshError) {
+						console.warn(`DOM refresh failed for tab ${tabId}:`, refreshError);
+					}
+				}
+
+				// Return result without refresh data
+				return {
+					...scrollResult,
+					tabId,
+					newNodesCount: 0,
+					totalNodesCountChange: 0,
+				};
 			},
 			{
 				timeout: 60000,
@@ -376,7 +560,42 @@ export const scrollAtCoordinateTool = tool(
 				// Record timestamp before the operation
 				sessionTabService.updateTabTimestamp(tabId);
 
-				return await interactionService.scrollAtCoordinate(options);
+				// Execute original scroll operation
+				const scrollResult =
+					await interactionService.scrollAtCoordinate(options);
+
+				// Add automatic DOM refresh
+				if (scrollResult.success) {
+					try {
+						// Wait for DOM changes to settle
+						await new Promise((resolve) => setTimeout(resolve, 400));
+
+						// Get DOM service and refresh
+						const domService = sessionTabService.getDomService(tabId);
+						if (domService) {
+							const { newNodesCount, totalNodesCountChange } =
+								await domService.buildSimplifiedDOMTree();
+
+							// Return combined result
+							return {
+								...scrollResult,
+								tabId,
+								newNodesCount,
+								totalNodesCountChange,
+							};
+						}
+					} catch (refreshError) {
+						console.warn(`DOM refresh failed for tab ${tabId}:`, refreshError);
+					}
+				}
+
+				// Return result without refresh data
+				return {
+					...scrollResult,
+					tabId,
+					newNodesCount: 0,
+					totalNodesCountChange: 0,
+				};
 			},
 			{
 				timeout: 60000,
@@ -524,14 +743,49 @@ export const interactiveTools = {
 	get_basic_info: getBasicInfoTool,
 } as const;
 
-// Type definitions for tool results
-export type ClickElementToolResult = ClickResult;
-export type FillElementToolResult = FillResult;
-export type SelectOptionToolResult = SelectOptionResult;
-export type HoverElementToolResult = HoverResult;
-export type DragToElementToolResult = DragResult;
-export type ScrollPagesToolResult = ScrollResult;
-export type ScrollAtCoordinateToolResult = ScrollResult;
+// Type definitions for tool results with refresh support
+export type ClickElementToolResult = ClickResult & {
+	tabId: string;
+	newNodesCount?: number;
+	totalNodesCountChange?: number;
+};
+
+export type FillElementToolResult = FillResult & {
+	tabId: string;
+	newNodesCount?: number;
+	totalNodesCountChange?: number;
+};
+
+export type SelectOptionToolResult = SelectOptionResult & {
+	tabId: string;
+	newNodesCount?: number;
+	totalNodesCountChange?: number;
+};
+
+export type HoverElementToolResult = HoverResult & {
+	tabId: string;
+	newNodesCount?: number;
+	totalNodesCountChange?: number;
+};
+
+export type DragToElementToolResult = DragResult & {
+	tabId: string;
+	newNodesCount?: number;
+	totalNodesCountChange?: number;
+};
+
+export type ScrollPagesToolResult = ScrollResult & {
+	tabId: string;
+	newNodesCount?: number;
+	totalNodesCountChange?: number;
+};
+
+export type ScrollAtCoordinateToolResult = ScrollResult & {
+	tabId: string;
+	newNodesCount?: number;
+	totalNodesCountChange?: number;
+};
+
 export type GetAttributeToolResult = GetAttributeResult;
 export type EvaluateToolResult = EvaluateResult;
 export type GetBasicInfoToolResult = GetBasicInfoResult;

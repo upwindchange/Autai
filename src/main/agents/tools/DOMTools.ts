@@ -31,7 +31,15 @@ export const getDOMTreeTool = tool(
 				const domService = sessionTabService.getDomService(viewId);
 
 				if (!domService) {
-					throw new Error(`DOM service not found for view ${viewId}`);
+					return JSON.stringify(
+						{
+							viewId,
+							error:
+								"Error: DOM service not found. Please ensure the browser tab is still active.",
+						},
+						null,
+						2,
+					);
 				}
 				const stats = domService.simplifiedDOMState?.stats;
 				const changeTime =
@@ -95,7 +103,12 @@ export const getFlattenDOMTool = tool(
 				const domService = sessionTabService.getDomService(viewId);
 
 				if (!domService) {
-					throw new Error(`DOM service not found for view ${viewId}`);
+					const response = {
+						viewId,
+						representation:
+							"Error: DOM service not found. Please ensure the browser tab is still active.",
+					};
+					return JSON.stringify(response, null, 2);
 				}
 
 				// Generate representation using the root node
