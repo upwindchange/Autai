@@ -1,2 +1,2 @@
 export { ChatWorker } from "./chatWorker";
-export { BrowserUseWorker } from "./browserUseWorker";
+export { BrowserUseWorker } from "./browser";
