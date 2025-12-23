@@ -3,7 +3,7 @@ import {
 	convertToModelMessages,
 	stepCountIs,
 	hasToolCall,
-	type StreamTextResult,
+	UIMessageChunk,
 } from "ai";
 import { chatModel } from "@agents/providers";
 import { repairToolCall } from "@agents/utils";
@@ -27,7 +27,7 @@ export class ChatWorker {
 	async handleChat(
 		request: ChatRequest,
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	): Promise<StreamTextResult<any, any>> {
+	): Promise<ReadableStream<UIMessageChunk>> {
 		const { messages, system, sessionId, tools } = request;
 		this.logger.debug("request received", {
 			messagesCount: messages?.length,
@@ -66,7 +66,7 @@ export class ChatWorker {
 
 			const result = streamText({
 				model: await chatModel(),
-				messages: convertToModelMessages(messages),
+				messages: await convertToModelMessages(messages),
 				system: `${systemPrompt} ${system || ""}`,
 				stopWhen: stopConditions,
 				tools: frontendTools(toolsToUse),
@@ -81,7 +81,8 @@ export class ChatWorker {
 			});
 
 			this.logger.debug("returning stream text result");
-			return result;
+			// Convert StreamTextResult to ReadableStream for consistency
+			return result.toUIMessageStream();
 		} catch (error) {
 			this.logger.error("failed to create stream", {
 				error,

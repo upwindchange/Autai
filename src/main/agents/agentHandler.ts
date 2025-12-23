@@ -1,4 +1,4 @@
-import { type UIMessage, type StreamTextResult } from "ai";
+import { UIMessageChunk, type UIMessage } from "ai";
 import { simpleLangchainModel } from "@agents/providers";
 import { ChatWorker, BrowserUseWorker } from "@agents/workers";
 import { sendAlert } from "@/utils";
@@ -21,7 +21,7 @@ export class AgentHandler {
 	async handleChat(
 		request: ChatRequest,
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	): Promise<StreamTextResult<any, any>> {
+	): Promise<ReadableStream<UIMessageChunk>> {
 		const { messages } = request;
 
 		this.logger.debug("making worker decision", {

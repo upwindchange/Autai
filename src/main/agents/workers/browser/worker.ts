@@ -2,7 +2,7 @@ import { ChatRequest } from "@shared";
 import { toBaseMessages, toUIMessageStream } from "@ai-sdk/langchain";
 import log from "electron-log/main";
 import { complexLangchainModel } from "@/agents/providers";
-import { createUIMessageStreamResponse } from "ai";
+import { UIMessageChunk } from "ai";
 
 export class BrowserUseWorker {
 	private logger = log.scope("BrowserUseWorker");
@@ -11,7 +11,9 @@ export class BrowserUseWorker {
 		this.logger.info("BrowserUseWorker initialized");
 	}
 
-	async handleChat(request: ChatRequest) {
+	async handleChat(
+		request: ChatRequest,
+	): Promise<ReadableStream<UIMessageChunk>> {
 		const { messages, system, sessionId, tools } = request;
 		this.logger.debug("request received", {
 			messagesCount: messages?.length,
@@ -26,8 +28,6 @@ export class BrowserUseWorker {
 		const langchainMessages = await toBaseMessages(messages);
 
 		const stream = await model.stream(langchainMessages);
-		return createUIMessageStreamResponse({
-			stream: toUIMessageStream(stream),
-		});
+		return toUIMessageStream(stream);
 	}
 }

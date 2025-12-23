@@ -6,6 +6,7 @@ import log from "electron-log/main";
 import type { ChatRequest } from "@shared";
 import { SessionTabService } from "@/services";
 import { sendAlert } from "@/utils";
+import { pipeUIMessageStreamToResponse } from "ai";
 
 export class ApiServer {
 	private app: Express;
@@ -43,7 +44,7 @@ export class ApiServer {
 					Record<string, unknown>,
 					ChatRequest & { id: string }
 				>,
-				res,
+				response,
 			) => {
 				try {
 					const { messages, system, tools } = req.body;
@@ -79,7 +80,7 @@ export class ApiServer {
 					// Stream the response using pipeUIMessageStreamToResponse method
 					this.logger.debug("Starting stream response...");
 					try {
-						const result = await agentHandler.handleChat({
+						const stream = await agentHandler.handleChat({
 							messages,
 							system,
 							tools,
@@ -87,17 +88,17 @@ export class ApiServer {
 						});
 
 						// Pipe the stream result to the Express response
-						result.pipeUIMessageStreamToResponse(res);
+						pipeUIMessageStreamToResponse({ response, stream });
 					} catch (error) {
 						this.logger.error("Error handling chat:", error);
-						if (!res.headersSent) {
+						if (!response.headersSent) {
 							if (
 								error instanceof Error &&
 								error.message === "API key not configured"
 							) {
-								res.status(400).json({ error: "API key not configured" });
+								response.status(400).json({ error: "API key not configured" });
 							} else {
-								res.status(500).json({ error: "Internal server error" });
+								response.status(500).json({ error: "Internal server error" });
 							}
 						}
 					}
