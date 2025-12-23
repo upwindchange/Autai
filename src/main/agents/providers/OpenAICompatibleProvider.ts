@@ -30,7 +30,7 @@ export class OpenAICompatibleProvider extends BaseProvider {
 	 * @param modelName - The name of the model to use (e.g., "gpt-4", "gpt-3.5-turbo")
 	 * @returns Promise resolving to a LanguageModel instance
 	 */
-	async createLanguageModel(modelName: string): Promise<LanguageModel> {
+	createLanguageModel(modelName: string): LanguageModel {
 		if (!this.isConfigured()) {
 			sendAlert(
 				"Provider Not Configured",

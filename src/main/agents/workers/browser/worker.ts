@@ -23,7 +23,7 @@ export class BrowserUseWorker {
 			toolCount: tools ? Object.keys(tools).length : 0,
 		});
 
-		const model = await complexLangchainModel();
+		const model = complexLangchainModel;
 
 		const langchainMessages = await toBaseMessages(messages);
 

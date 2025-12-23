@@ -29,7 +29,7 @@ export class AnthropicProvider extends BaseProvider {
 	 * @param modelName - The name of the model to use (e.g., "claude-3-opus-20240229")
 	 * @returns Promise resolving to a LanguageModel instance
 	 */
-	async createLanguageModel(modelName: string): Promise<LanguageModel> {
+	createLanguageModel(modelName: string): LanguageModel {
 		if (!this.isConfigured()) {
 			sendAlert(
 				"Provider Not Configured",

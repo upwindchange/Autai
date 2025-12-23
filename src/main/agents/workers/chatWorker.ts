@@ -65,7 +65,7 @@ export class ChatWorker {
 			}
 
 			const result = streamText({
-				model: await chatModel(),
+				model: chatModel,
 				messages: await convertToModelMessages(messages),
 				system: `${systemPrompt} ${system || ""}`,
 				stopWhen: stopConditions,

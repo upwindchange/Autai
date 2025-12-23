@@ -19,7 +19,7 @@ export abstract class BaseProvider {
 	 * @param modelName - The name of the model to create
 	 * @returns Promise resolving to a LanguageModel instance
 	 */
-	abstract createLanguageModel(modelName: string): Promise<LanguageModel>;
+	abstract createLanguageModel(modelName: string): LanguageModel;
 
 	/**
 	 * Creates a LangChain model instance with the specified model name

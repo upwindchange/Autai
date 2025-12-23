@@ -30,7 +30,7 @@ export class DeepInfraProvider extends BaseProvider {
 	 * @param modelName - The name of the model to use (e.g., "meta-llama/Meta-Llama-3.1-70B-Instruct")
 	 * @returns Promise resolving to a LanguageModel instance
 	 */
-	async createLanguageModel(modelName: string): Promise<LanguageModel> {
+	createLanguageModel(modelName: string): LanguageModel {
 		if (!this.isConfigured()) {
 			sendAlert(
 				"Provider Not Configured",

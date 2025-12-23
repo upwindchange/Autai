@@ -30,9 +30,9 @@ export function createProvider(config: ProviderConfig): BaseProvider {
  * @param modelType - The type of model to use ('chat', 'simple' or 'complex')
  * @returns LanguageModel instance
  */
-async function createModel(
+function createModel(
 	modelType: "chat" | "simple" | "complex" = "simple",
-): Promise<LanguageModel> {
+): LanguageModel {
 	// Get settings
 	const settings = settingsService.settings;
 	if (!settings || !settings.providers || settings.providers.length === 0) {
@@ -78,7 +78,7 @@ async function createModel(
 	const provider: BaseProvider = createProvider(providerConfig);
 
 	// Create and return the language model
-	return await provider.createLanguageModel(modelConfig.modelName);
+	return provider.createLanguageModel(modelConfig.modelName);
 }
 
 /**
@@ -86,7 +86,7 @@ async function createModel(
  * @param modelType - The type of model to use ('chat', 'simple' or 'complex')
  * @returns LangChain model instance
  */
-async function createLangchainModel(
+function createLangchainModel(
 	modelType: "chat" | "simple" | "complex" = "simple",
 ) {
 	// Get settings
@@ -138,10 +138,10 @@ async function createLangchainModel(
 }
 
 // Export chat model, simple model and complex model as lazy-loaded functions
-export const chatModel = () => createModel("chat");
-export const simpleModel = () => createModel("simple");
-export const complexModel = () => createModel("complex");
+export const chatModel = createModel("chat");
+export const simpleModel = createModel("simple");
+export const complexModel = createModel("complex");
 
 // Export LangChain model functions
-export const simpleLangchainModel = () => createLangchainModel("simple");
-export const complexLangchainModel = () => createLangchainModel("complex");
+export const simpleLangchainModel = createLangchainModel("simple");
+export const complexLangchainModel = createLangchainModel("complex");
