@@ -1,11 +1,15 @@
-import { Annotation, StateGraph } from "@langchain/langgraph";
+import {
+	Annotation,
+	MessagesAnnotation,
+	StateGraph,
+} from "@langchain/langgraph";
 
-// Graph state
-export const StateAnnotation = Annotation.Root({
-	joke: Annotation<string>,
-	topic: Annotation<string>,
-	feedback: Annotation<string>,
-	funnyOrNot: Annotation<string>,
+const BrowserUseState = Annotation.Root({
+	...MessagesAnnotation.spec,
+	mode: Annotation<string>,
 });
 
-export const graph_builder = new StateGraph(StateAnnotation);
+// Extract the state type for function signatures
+export type BrowserUseStateType = typeof BrowserUseState.State;
+
+export const graph_builder = new StateGraph(BrowserUseState);

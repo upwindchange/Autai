@@ -1,8 +1,8 @@
 import { ChatRequest } from "@shared";
 import { toBaseMessages, toUIMessageStream } from "@ai-sdk/langchain";
 import log from "electron-log/main";
-import { complexLangchainModel } from "@/agents/providers";
 import { UIMessageChunk } from "ai";
+import { browserUseWorkflow } from "./graph";
 
 export class BrowserUseWorker {
 	private logger = log.scope("BrowserUseWorker");
@@ -23,11 +23,11 @@ export class BrowserUseWorker {
 			toolCount: tools ? Object.keys(tools).length : 0,
 		});
 
-		const model = complexLangchainModel;
-
 		const langchainMessages = await toBaseMessages(messages);
 
-		const stream = await model.stream(langchainMessages);
+		const stream = await browserUseWorkflow.stream({
+			messages: langchainMessages,
+		});
 		return toUIMessageStream(stream);
 	}
 }
