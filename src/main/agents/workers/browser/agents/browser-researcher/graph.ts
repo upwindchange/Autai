@@ -1,4 +1,4 @@
-import { START, END, Send } from "@langchain/langgraph";
+import { START, END } from "@langchain/langgraph";
 import {
 	BrowserResearcherStateType,
 	BrowserResearcherState,
@@ -7,21 +7,6 @@ import {
 import { searchPlannerNode } from "./nodes/search-planner";
 import { pageWorkerNode } from "./nodes/page-worker";
 import { synthesizerNode } from "./nodes/synthesizer";
-
-// Conditional edge: Assign workers to parallelize page processing
-function assignWorkers(state: typeof BrowserResearcherState.State): Send[] {
-	// Spawn a worker for each search result
-	// Each worker will create its own tab and process the page independently
-	return state.searchResults.map((result) => {
-		return new Send("page-worker", {
-			url: result.url,
-			sessionId: state.sessionId,
-			researchTopic: state.researchTopic,
-			messages: state.messages,
-			// Note: tabId will be created by the page-worker node
-		});
-	});
-}
 
 // Conditional edge: Check if all workers have completed before synthesizing
 function shouldContinueToSynthesizer(
@@ -42,7 +27,7 @@ function shouldContinueToSynthesizer(
 // Build the browser researcher graph
 export const browserResearcherGraph = graph_builder
 	.addNode("search-planner", searchPlannerNode, {
-		ends: ["assign-workers"],
+		ends: ["page-worker"], // goto can contain Send objects targeting page-worker
 	})
 	.addNode("page-worker", pageWorkerNode, {
 		ends: ["synthesizer", END],
@@ -51,7 +36,6 @@ export const browserResearcherGraph = graph_builder
 		ends: [END],
 	})
 	.addEdge(START, "search-planner")
-	.addConditionalEdges("search-planner", assignWorkers, ["page-worker"])
 	.addConditionalEdges("page-worker", shouldContinueToSynthesizer, [
 		"synthesizer",
 		END,

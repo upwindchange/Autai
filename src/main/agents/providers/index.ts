@@ -137,11 +137,32 @@ function createLangchainModel(
 	return provider.createLangchainModel(modelConfig.modelName);
 }
 
-// Export chat model, simple model and complex model as lazy-loaded functions
-export const chatModel = createModel("chat");
-export const simpleModel = createModel("simple");
-export const complexModel = createModel("complex");
+// Export model functions that create models on demand (lazy initialization)
+export function getChatModel() {
+	return createModel("chat");
+}
+export function getSimpleModel() {
+	return createModel("simple");
+}
+export function getComplexModel() {
+	return createModel("complex");
+}
 
-// Export LangChain model functions
-export const simpleLangchainModel = createLangchainModel("simple");
-export const complexLangchainModel = createLangchainModel("complex");
+// Export LangChain model functions that create models on demand
+export function getSimpleLangchainModel() {
+	return createLangchainModel("simple");
+}
+export function getComplexLangchainModel() {
+	return createLangchainModel("complex");
+}
+
+// Backward compatibility: export as getters
+export const chatModel = new Proxy({}, { get: () => getChatModel() });
+export const simpleModel = new Proxy({}, { get: () => getSimpleModel() });
+export const complexModel = new Proxy({}, { get: () => getComplexModel() });
+export const simpleLangchainModel = new Proxy({}, {
+	get: () => getSimpleLangchainModel(),
+});
+export const complexLangchainModel = new Proxy({}, {
+	get: () => getComplexLangchainModel(),
+});

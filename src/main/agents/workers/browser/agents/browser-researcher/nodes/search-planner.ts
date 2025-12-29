@@ -1,8 +1,8 @@
 import { SystemMessage } from "@langchain/core/messages";
-import { BrowserResearcherStateType } from "../state";
+import { BrowserResearcherStateType, PageWorkerStateType } from "../state";
 import { complexLangchainModel } from "@/agents/providers";
 import { createAgent, toolStrategy } from "langchain";
-import { Command } from "@langchain/langgraph";
+import { Command, Send } from "@langchain/langgraph";
 import { z } from "zod";
 import { createTabTool } from "@/agents/tools/SessionTabTools";
 import { navigateTool } from "@/agents/tools/TabControlTools";
@@ -54,11 +54,23 @@ Now search DuckDuckGo and extract the search results.`,
 	});
 
 	const response = await agent.invoke({ messages: state.messages });
+	const searchResults = response.structuredResponse.searchResults;
+
+	// Create Send objects for each search result to spawn parallel workers
+	const workerCommands: Send[] = searchResults.map((result) => {
+		return new Send("page-worker", {
+			url: result.url,
+			sessionId: state.sessionId,
+			researchTopic: state.researchTopic,
+			messages: state.messages,
+		} as PageWorkerStateType);
+	});
 
 	return new Command({
 		update: {
-			searchResults: response.structuredResponse.searchResults,
+			searchResults: searchResults,
 		},
-		goto: "assign-workers",
+		// Send array of Send objects to spawn parallel workers
+		goto: workerCommands,
 	});
 }
