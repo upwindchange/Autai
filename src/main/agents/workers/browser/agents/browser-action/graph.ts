@@ -1,4 +1,4 @@
-import { START } from "@langchain/langgraph";
+import { START, END } from "@langchain/langgraph";
 import { graph_builder, BrowserActionStateType } from "./state";
 import { browserActionPlannerNode } from "./nodes/planner";
 import { browserActionTaskExecutorNode } from "./nodes/task-executor";
@@ -6,7 +6,9 @@ import { browserActionExecutorNode } from "./nodes/action-executor";
 
 // Build the browser-action workflow graph
 export const browserActionGraph = graph_builder
-	.addNode("planner", browserActionPlannerNode)
+	.addNode("planner", browserActionPlannerNode, {
+		ends: ["task-executor"],
+	})
 	.addNode("task-executor", browserActionTaskExecutorNode, {
 		ends: ["action-executor", END],
 	})
@@ -14,7 +16,6 @@ export const browserActionGraph = graph_builder
 		ends: ["task-executor"],
 	})
 	.addEdge(START, "planner")
-	.addEdge("planner", "task-executor")
 	.compile();
 
 export async function browserActionNode(state: BrowserActionStateType) {
