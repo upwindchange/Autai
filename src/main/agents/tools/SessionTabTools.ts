@@ -292,13 +292,13 @@ export const getCurrentSessionContextTool = tool(
 );
 
 // Export all tools as a ToolSet for AI SDK
-export const sessionTabTools = {
-	list_sessions: listSessionsTool,
-	get_session_tabs: getSessionTabsTool,
-	get_tab_info: getTabInfoTool,
-	create_tab: createTabTool,
-	get_current_session_context: getCurrentSessionContextTool,
-} as const;
+export const sessionTabTools = [
+	listSessionsTool,
+	getSessionTabsTool,
+	getTabInfoTool,
+	createTabTool,
+	getCurrentSessionContextTool,
+];
 
 // Type definitions for tool results
 export type ListSessionsResult = string;

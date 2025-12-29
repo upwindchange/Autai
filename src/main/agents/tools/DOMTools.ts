@@ -140,10 +140,10 @@ export const getFlattenDOMTool = tool(
 // Helper functions
 
 // Export all tools as a ToolSet for AI SDK
-export const domTools = {
-	get_dom_tree: getDOMTreeTool,
-	generate_llm_representation: getFlattenDOMTool,
-} as const;
+export const domTools = [
+	getDOMTreeTool,
+	getFlattenDOMTool,
+];
 
 // Type definitions for tool results
 export type GetDOMTreeToolResult = string;

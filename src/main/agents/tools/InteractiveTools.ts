@@ -730,18 +730,18 @@ export const getBasicInfoTool = tool(
 );
 
 // Export all tools as a ToolSet for AI SDK
-export const interactiveTools = {
-	click_element: clickElementTool,
-	fill_element: fillElementTool,
-	select_option: selectOptionTool,
-	hover_element: hoverElementTool,
-	drag_to_element: dragToElementTool,
-	scroll_pages: scrollPagesTool,
-	scroll_at_coordinate: scrollAtCoordinateTool,
-	get_attribute: getAttributeTool,
-	evaluate: evaluateTool,
-	get_basic_info: getBasicInfoTool,
-} as const;
+export const interactiveTools = [
+	clickElementTool,
+	fillElementTool,
+	selectOptionTool,
+	hoverElementTool,
+	dragToElementTool,
+	scrollPagesTool,
+	scrollAtCoordinateTool,
+	getAttributeTool,
+	evaluateTool,
+	getBasicInfoTool,
+];
 
 // Type definitions for tool results with refresh support
 export type ClickElementToolResult = ClickResult & {

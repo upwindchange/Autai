@@ -1,19 +1,24 @@
 import { START } from "@langchain/langgraph";
 import { graph_builder, BrowserActionStateType } from "./state";
+import { browserActionPlannerNode } from "./nodes/planner";
+import { browserActionTaskExecutorNode } from "./nodes/task-executor";
+import { browserActionExecutorNode } from "./nodes/action-executor";
 
-// Subgraph
-const subgraphBuilder = graph_builder
-	.addNode("subgraphNode1", (state) => {
-		return { bar: "hi! " + state.mode };
+// Build the browser-action workflow graph
+export const browserActionGraph = graph_builder
+	.addNode("planner", browserActionPlannerNode)
+	.addNode("task-executor", browserActionTaskExecutorNode, {
+		ends: ["action-executor", END],
 	})
-	.addEdge(START, "subgraphNode1");
-
-const subgraph = subgraphBuilder.compile();
+	.addNode("action-executor", browserActionExecutorNode, {
+		ends: ["task-executor"],
+	})
+	.addEdge(START, "planner")
+	.addEdge("planner", "task-executor")
+	.compile();
 
 export async function browserActionNode(state: BrowserActionStateType) {
-	subgraph.invoke({ messages: state.messages });
+	const response = await browserActionGraph.invoke(state);
 
-	const response = await subgraph.invoke({ messages: state.messages });
-
-	return { response: response.response };
+	return response;
 }

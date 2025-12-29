@@ -1,5 +1,5 @@
 import { START } from "@langchain/langgraph";
-import { graph_builder, BrowserReaderStateType } from "./state";
+import { graph_builder, BrowserResearcherStateType } from "./state";
 
 // Subgraph
 const subgraphBuilder = graph_builder
@@ -10,7 +10,7 @@ const subgraphBuilder = graph_builder
 
 const subgraph = subgraphBuilder.compile();
 
-export async function browserReaderNode(state: BrowserReaderStateType) {
+export async function BrowserResearcherNode(state: BrowserResearcherStateType) {
 	subgraph.invoke({ messages: state.messages });
 
 	const response = await subgraph.invoke({ messages: state.messages });

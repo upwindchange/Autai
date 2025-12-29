@@ -4,13 +4,13 @@ import {
 	StateGraph,
 } from "@langchain/langgraph";
 
-const BrowserReaderState = Annotation.Root({
+const BrowserResearcherState = Annotation.Root({
 	...MessagesAnnotation.spec,
 	mode: Annotation<string>,
 	response: Annotation<string>,
 });
 
 // Extract the state type for function signatures
-export type BrowserReaderStateType = typeof BrowserReaderState.State;
+export type BrowserResearcherStateType = typeof BrowserResearcherState.State;
 
-export const graph_builder = new StateGraph(BrowserReaderState);
+export const graph_builder = new StateGraph(BrowserResearcherState);

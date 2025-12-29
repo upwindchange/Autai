@@ -1,2 +1,2 @@
-export { browserReaderNode } from "./browser-reader";
+export { BrowserResearcherNode } from "./browser-researcher";
 export { browserActionNode } from "./browser-action";
