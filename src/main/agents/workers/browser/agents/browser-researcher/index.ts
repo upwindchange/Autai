@@ -1,1 +1,1 @@
-export { BrowserResearcherNode } from "./graph";
+export { browserResearcherNode as BrowserResearcherNode } from "./graph";

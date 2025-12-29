@@ -15,25 +15,25 @@ const logger = log.scope("DOMTools");
 
 // Input schemas
 const getDOMTreeSchema = z.object({
-	viewId: z.string().describe("The ID of the view to analyze"),
+	tabId: z.string().describe("The ID of the tab to analyze"),
 });
 
 const getFlattenDOMSchema = z.object({
-	viewId: z.string().describe("The ID of the view to analyze"),
+	tabId: z.string().describe("The ID of the tab to analyze"),
 });
 
 // Tool implementation: Get DOM Tree
 export const getDOMTreeTool = tool(
-	async ({ viewId }) => {
+	async ({ tabId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
-				const domService = sessionTabService.getDomService(viewId);
+				const domService = sessionTabService.getDomService(tabId);
 
 				if (!domService) {
 					return JSON.stringify(
 						{
-							viewId,
+							tabId,
 							error:
 								"Error: DOM service not found. Please ensure the browser tab is still active.",
 						},
@@ -43,13 +43,13 @@ export const getDOMTreeTool = tool(
 				}
 				const stats = domService.simplifiedDOMState?.stats;
 				const changeTime =
-					sessionTabService.getTabMetadata(viewId)?.timestamp || 0;
+					sessionTabService.getTabMetadata(tabId)?.timestamp || 0;
 				const detectTime = stats?.timestamp || 0;
 				let response = {};
 				// Get DOM tree with change detection and update internal state (default)
 				if (detectTime > changeTime) {
 					response = {
-						viewId,
+						tabId,
 						newNodesCount: stats?.newSimplifiedNodesCount || 0,
 						totalNodesCountChange: stats?.simplifiedNodesCountChange || 0,
 					};
@@ -62,7 +62,7 @@ export const getDOMTreeTool = tool(
 						(newState?.stats.timestamp || 0) > changeTime
 					) {
 						response = {
-							viewId,
+							tabId,
 							newNodesCount: newState?.stats?.newSimplifiedNodesCount || 0,
 							totalNodesCountChange:
 								newState?.stats?.simplifiedNodesCountChange || 0,
@@ -71,7 +71,7 @@ export const getDOMTreeTool = tool(
 						const { newNodesCount, totalNodesCountChange } =
 							await domService.buildSimplifiedDOMTree();
 						response = {
-							viewId,
+							tabId,
 							newNodesCount,
 							totalNodesCountChange,
 						};
@@ -96,15 +96,15 @@ export const getDOMTreeTool = tool(
 
 // Tool implementation: Generate LLM Representation
 export const getFlattenDOMTool = tool(
-	async ({ viewId }) => {
+	async ({ tabId }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
-				const domService = sessionTabService.getDomService(viewId);
+				const domService = sessionTabService.getDomService(tabId);
 
 				if (!domService) {
 					const response = {
-						viewId,
+						tabId,
 						representation:
 							"Error: DOM service not found. Please ensure the browser tab is still active.",
 					};
@@ -117,7 +117,7 @@ export const getFlattenDOMTool = tool(
 					"No DOM tree available";
 
 				const response = {
-					viewId,
+					tabId,
 					representation,
 				};
 
@@ -140,10 +140,7 @@ export const getFlattenDOMTool = tool(
 // Helper functions
 
 // Export all tools as a ToolSet for AI SDK
-export const domTools = [
-	getDOMTreeTool,
-	getFlattenDOMTool,
-];
+export const domTools = [getDOMTreeTool, getFlattenDOMTool];
 
 // Type definitions for tool results
 export type GetDOMTreeToolResult = string;

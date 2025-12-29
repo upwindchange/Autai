@@ -64,13 +64,13 @@ export class AgentHandler {
 				mode: z.enum(["chat", "browser-use"]),
 			});
 
-			// Get the LangChain model
-			const model = await simpleLangchainModel();
-
 			// Create structured output model with function calling
-			const structuredLlm = model.withStructuredOutput(workerDecisionSchema, {
-				method: "functionCalling",
-			});
+			const structuredLlm = simpleLangchainModel.withStructuredOutput(
+				workerDecisionSchema,
+				{
+					method: "functionCalling",
+				},
+			);
 
 			// Create system message
 			const systemMessage = new SystemMessage(
