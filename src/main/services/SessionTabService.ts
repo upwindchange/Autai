@@ -182,7 +182,6 @@ export class SessionTabService extends EventEmitter {
 		// Create and store ElementInteractionService for this tab
 		const interactionService = new ElementInteractionService(tab.webContents);
 		this.interactionServices.set(tabId, interactionService);
-		await interactionService.initialize();
 		this.logger.info(`ElementInteractionService initialized for tab ${tabId}`);
 
 		if (bounds) {

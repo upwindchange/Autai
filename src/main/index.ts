@@ -108,6 +108,12 @@ async function createWindow() {
 	threadViewBridge = new ThreadViewBridge(sessionTabService);
 	threadViewBridge.setupHandlers();
 
+	// Create initial default session so activeTab is never null
+	// This ensures bounds/visibility updates always have a tab to target
+	const defaultSessionId = "default-session";
+	await sessionTabService.createSession(defaultSessionId);
+	logger.info(`Default session ${defaultSessionId} created on startup`);
+
 	/**
 	 * Force external links to open in default browser
 	 */

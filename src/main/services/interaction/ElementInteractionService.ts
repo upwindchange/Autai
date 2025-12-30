@@ -64,22 +64,6 @@ export class ElementInteractionService {
 	}
 
 	/**
-	 * Initialize the ElementInteractionService with debugger attachment
-	 */
-	async initialize(): Promise<void> {
-		try {
-			await attachDebugger(this.webContents, this.logger);
-			this.logger.info("ElementInteractionService initialized");
-		} catch (error) {
-			this.logger.error(
-				"Failed to initialize ElementInteractionService:",
-				error,
-			);
-			throw error;
-		}
-	}
-
-	/**
 	 * Cleanup resources and detach debugger
 	 */
 	async destroy(): Promise<void> {
