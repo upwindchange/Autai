@@ -16,7 +16,7 @@ import { PQueueManager } from "@agents/utils";
 import { apiServer } from "@agents";
 import { initializeTelemetry, shutdownTelemetry } from "@agents/utils";
 import { SettingsBridge } from "@/bridges/SettingsBridge";
-import { ThreadViewBridge } from "@/bridges/ThreadViewBridge";
+import { SessionTabBridge } from "@/bridges/ThreadViewBridge";
 
 // const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -56,7 +56,7 @@ if (!app.requestSingleInstanceLock()) {
 let win: BrowserWindow | null = null;
 let settingsBridge: SettingsBridge | null = null;
 let sessionTabService: SessionTabService | null = null;
-let threadViewBridge: ThreadViewBridge | null = null;
+let sessionTabBridge: SessionTabBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
 
@@ -105,8 +105,8 @@ async function createWindow() {
 	settingsBridge = new SettingsBridge();
 	settingsBridge.setupHandlers();
 
-	threadViewBridge = new ThreadViewBridge(sessionTabService);
-	threadViewBridge.setupHandlers();
+	sessionTabBridge = new SessionTabBridge(sessionTabService);
+	sessionTabBridge.setupHandlers();
 
 	// Create initial default session so activeTab is never null
 	// This ensures bounds/visibility updates always have a tab to target
@@ -218,10 +218,10 @@ app.on("before-quit", async (event) => {
 			logger.debug("sessionTabService destroyed");
 		}
 
-		if (threadViewBridge) {
+		if (sessionTabBridge) {
 			logger.debug("Destroying threadViewBridge...");
-			threadViewBridge.destroy();
-			threadViewBridge = null;
+			sessionTabBridge.destroy();
+			sessionTabBridge = null;
 			logger.debug("threadViewBridge destroyed");
 		}
 

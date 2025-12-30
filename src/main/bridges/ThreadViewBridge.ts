@@ -3,7 +3,7 @@ import { SessionTabService } from "@/services";
 import type { SessionId, TabId } from "@shared";
 import { Rectangle } from "electron";
 
-export class ThreadViewBridge extends BaseBridge {
+export class SessionTabBridge extends BaseBridge {
 	constructor(private sessionTabService: SessionTabService) {
 		super();
 	}
