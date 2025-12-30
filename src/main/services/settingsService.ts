@@ -1,11 +1,13 @@
 import { app } from "electron";
 import * as fs from "fs/promises";
 import * as path from "path";
-import { generateText, generateObject, LanguageModel } from "ai";
+import { generateText } from "ai";
 import { createProvider } from "@agents/providers";
 import { sendSuccess, sendAlert, sendInfo } from "@/utils/messageUtils";
 import { z } from "zod";
 import log from "electron-log/main";
+import { simpleLangchainModel } from "@agents/providers";
+import { createAgent, toolStrategy } from "langchain";
 import type {
 	SettingsState,
 	TestConnectionConfig,
@@ -131,15 +133,14 @@ class SettingsService {
 
 			// Create provider instance
 			const provider = createProvider(baseConfig as ProviderConfig);
-			const languageModel = await provider.createLanguageModel(config.model);
+			const languageModel = provider.createLanguageModel(config.model);
 
 			// Try a simple completion to test the connection
 			this.logger.debug("testing basic connection with Hi prompt");
 			const response = await generateText({
 				model: languageModel,
-				prompt: "Hi",
+				prompt: "reply only one word",
 				temperature: 0,
-				maxOutputTokens: 20,
 			});
 
 			if (response && response.text) {
@@ -153,10 +154,6 @@ class SettingsService {
 					"Connection Successful",
 					`${config.model} connected successfully! API is working correctly.`,
 				);
-
-				// Now test advanced capabilities
-				this.logger.debug("testing advanced capabilities with enum generation");
-				await this.validateModelCapabilities(languageModel, config);
 			} else {
 				this.logger.error("basic connection test failed - no response");
 				sendAlert(
@@ -171,62 +168,6 @@ class SettingsService {
 			sendAlert(
 				"Connection Failed",
 				`${config.model} connection failed: ${errorMessage}`,
-			);
-		}
-	}
-
-	private async validateModelCapabilities(
-		languageModel: LanguageModel,
-		config: TestConnectionConfig,
-	): Promise<void> {
-		try {
-			const { object } = await generateObject({
-				model: languageModel,
-				schema: z.object({
-					mode: z.enum(["JHERfcgPFc", "TjWwVanGcn"]),
-				}),
-				experimental_telemetry: {
-					isEnabled: this._settings.langfuse.enabled,
-					functionId: "test-connection-validate-capabilities",
-				},
-				prompt: "Generate one of the provided enum values",
-			});
-
-			this.logger.debug("enum generation result", { object });
-
-			// Validate the returned value is one of our expected strings using Zod
-			const validValues = z.enum(["JHERfcgPFc", "TjWwVanGcn"]);
-			const result = validValues.safeParse(object.mode);
-
-			if (!result.success) {
-				this.logger.error("enum validation failed", {
-					object,
-					validationError: result.error,
-				});
-
-				// Enum validation failed - show capability alert
-				const providerName = config.name || config.id;
-				const modelName = config.model;
-
-				sendAlert(
-					"Model capability alert",
-					`AI model "${modelName}" from provider "${providerName}" is unable to process advanced requests. Browser automation and AI agent features will be disabled. Tool usage may fail. Please configure a model that supports advanced capabilities for optimal experience.`,
-				);
-			} else {
-				this.logger.info("enum validation successful", { object });
-			}
-		} catch (error) {
-			const errorMessage =
-				error instanceof Error ? error.message : "Unknown error";
-			this.logger.error("enum generation failed", { error: errorMessage });
-
-			// Exception during enum generation - show capability alert
-			const providerName = config.name || config.id;
-			const modelName = config.model;
-
-			sendAlert(
-				"Model capability alert",
-				`AI model "${modelName}" from provider "${providerName}" is unable to process advanced requests. Browser automation and AI agent features will be disabled. Tool usage may fail. Please configure a model that supports advanced capabilities for optimal experience.`,
 			);
 		}
 	}

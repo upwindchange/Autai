@@ -5,7 +5,7 @@ import {
 	Plan,
 	PlanItemSchema,
 } from "../state";
-import { simpleLangchainModel } from "@/agents/providers";
+import { complexLangchainModel } from "@/agents/providers";
 import { createAgent, toolStrategy } from "langchain";
 import { Command, END } from "@langchain/langgraph";
 import { z } from "zod";
@@ -155,7 +155,7 @@ async function generateSubtaskPlan(
 	messages: BrowserActionStateType["messages"],
 ): Promise<{ subtask_plan: Plan }> {
 	const agent = createAgent({
-		model: simpleLangchainModel,
+		model: complexLangchainModel(),
 		responseFormat: toolStrategy(z.object({ subtask_plan: PlanSchema })),
 		systemPrompt,
 	});

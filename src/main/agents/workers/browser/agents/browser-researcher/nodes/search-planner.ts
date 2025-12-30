@@ -47,7 +47,7 @@ Now search DuckDuckGo and extract the search results.`,
 	});
 
 	const agent = createAgent({
-		model: complexLangchainModel,
+		model: complexLangchainModel(),
 		tools: [createTabTool, navigateTool, getFlattenDOMTool],
 		responseFormat: toolStrategy(SearchResultSchema),
 		systemPrompt,

@@ -89,7 +89,7 @@ Now create the research report.`,
 	});
 
 	const agent = createAgent({
-		model: complexLangchainModel,
+		model: complexLangchainModel(),
 		responseFormat: toolStrategy(ReportSchema),
 		systemPrompt,
 	});

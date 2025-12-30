@@ -6,6 +6,7 @@ import { OpenAICompatibleProvider } from "@agents/providers/OpenAICompatibleProv
 import { AnthropicProvider } from "@agents/providers/AnthropicProvider";
 import { DeepInfraProvider } from "@agents/providers/DeepInfraProvider";
 import { sendAlert } from "@/utils/messageUtils";
+import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 /**
  * Creates a provider instance based on the configuration type
@@ -137,32 +138,45 @@ function createLangchainModel(
 	return provider.createLangchainModel(modelConfig.modelName);
 }
 
-// Export model functions that create models on demand (lazy initialization)
-export function getChatModel() {
-	return createModel("chat");
-}
-export function getSimpleModel() {
-	return createModel("simple");
-}
-export function getComplexModel() {
-	return createModel("complex");
-}
+// Singleton instances (created on first access)
+let _chatModel: LanguageModel | null = null;
+let _simpleModel: LanguageModel | null = null;
+let _complexModel: LanguageModel | null = null;
+let _simpleLangchainModel: BaseChatModel | null = null;
+let _complexLangchainModel: BaseChatModel | null = null;
 
-// Export LangChain model functions that create models on demand
-export function getSimpleLangchainModel() {
-	return createLangchainModel("simple");
-}
-export function getComplexLangchainModel() {
-	return createLangchainModel("complex");
-}
+// Export arrow functions with singleton pattern
+export const chatModel = (): LanguageModel => {
+	if (!_chatModel) {
+		_chatModel = createModel("chat");
+	}
+	return _chatModel;
+};
 
-// Backward compatibility: export as getters
-export const chatModel = new Proxy({}, { get: () => getChatModel() });
-export const simpleModel = new Proxy({}, { get: () => getSimpleModel() });
-export const complexModel = new Proxy({}, { get: () => getComplexModel() });
-export const simpleLangchainModel = new Proxy({}, {
-	get: () => getSimpleLangchainModel(),
-});
-export const complexLangchainModel = new Proxy({}, {
-	get: () => getComplexLangchainModel(),
-});
+export const simpleModel = (): LanguageModel => {
+	if (!_simpleModel) {
+		_simpleModel = createModel("simple");
+	}
+	return _simpleModel;
+};
+
+export const complexModel = (): LanguageModel => {
+	if (!_complexModel) {
+		_complexModel = createModel("complex");
+	}
+	return _complexModel;
+};
+
+export const simpleLangchainModel = () => {
+	if (!_simpleLangchainModel) {
+		_simpleLangchainModel = createLangchainModel("simple");
+	}
+	return _simpleLangchainModel;
+};
+
+export const complexLangchainModel = () => {
+	if (!_complexLangchainModel) {
+		_complexLangchainModel = createLangchainModel("complex");
+	}
+	return _complexLangchainModel;
+};

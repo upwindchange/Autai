@@ -1,12 +1,13 @@
 import { UIMessageChunk, type UIMessage } from "ai";
-import { simpleLangchainModel } from "@agents/providers";
+import { complexLangchainModel } from "@agents/providers";
 import { ChatWorker, BrowserUseWorker } from "@agents/workers";
 import { sendAlert } from "@/utils";
 import { settingsService } from "@/services";
 import { type ChatRequest } from "@shared";
 import log from "electron-log/main";
 import { z } from "zod";
-import { HumanMessage, SystemMessage } from "@langchain/core/messages";
+import { HumanMessage } from "@langchain/core/messages";
+import { createAgent, toolStrategy } from "langchain";
 
 export class AgentHandler {
 	private chatWorker: ChatWorker;
@@ -61,20 +62,17 @@ export class AgentHandler {
 
 			// Define the schema for structured output
 			const workerDecisionSchema = z.object({
-				mode: z.enum(["chat", "browser-use"]),
+				mode: z
+					.enum(["chat", "browser-use"])
+					.describe("Only 'chat' or 'browser-use' are allowed"),
 			});
 
-			// Create structured output model with function calling
-			const structuredLlm = simpleLangchainModel.withStructuredOutput(
-				workerDecisionSchema,
-				{
-					method: "functionCalling",
-				},
-			);
-
-			// Create system message
-			const systemMessage = new SystemMessage(
-				"You are an expert at determining whether a user's request requires browser" +
+			// Create agent with structured output using tool strategy
+			const agent = createAgent({
+				model: complexLangchainModel(),
+				responseFormat: toolStrategy(workerDecisionSchema),
+				systemPrompt:
+					"You are an expert at determining whether a user's request requires browser" +
 					" automation capabilities or can be handled with a standard chat response.\n\n" +
 					'Choose "browser-use" when the user wants to:\n' +
 					"- Navigate websites or web pages\n" +
@@ -90,7 +88,7 @@ export class AgentHandler {
 					"- Get explanations or creative content\n" +
 					"- Discuss topics or concepts\n" +
 					"- Anything that can be answered without browsing the web",
-			);
+			});
 
 			// Create human message with the conversation
 			const humanMessage = new HumanMessage(
@@ -99,13 +97,16 @@ export class AgentHandler {
 					`${JSON.stringify(messages, null, 2)}`,
 			);
 
-			// Invoke the structured model
-			const result = await structuredLlm.invoke([systemMessage, humanMessage]);
+			// Invoke the agent
+			const result = await agent.invoke({
+				messages: [humanMessage],
+			});
 
 			this.logger.debug("worker decision made", { workerType: result });
+			this.logger.debug(result.structuredResponse);
 
 			// Validate the returned value is one of our expected types
-			const workerType = result.mode;
+			const workerType = result.structuredResponse.mode;
 			if (workerType !== "chat" && workerType !== "browser-use") {
 				this.logger.error("invalid worker type", { workerType });
 				return "chat"; // default fallback

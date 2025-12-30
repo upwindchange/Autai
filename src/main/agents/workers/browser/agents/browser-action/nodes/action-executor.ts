@@ -1,6 +1,6 @@
 import { SystemMessage } from "@langchain/core/messages";
 import { BrowserActionStateType } from "../state";
-import { simpleLangchainModel } from "@/agents/providers";
+import { complexLangchainModel } from "@/agents/providers";
 import { createAgent, toolStrategy } from "langchain";
 import { Command } from "@langchain/langgraph";
 import { z } from "zod";
@@ -93,14 +93,10 @@ Now execute the actions needed to accomplish this subtask.`,
 	);
 
 	// Combine all tools - getFlattenDOMTool first for priority
-	const allTools = [
-		getFlattenDOMTool,
-		...interactiveTools,
-		...tabControlTools,
-	];
+	const allTools = [getFlattenDOMTool, ...interactiveTools, ...tabControlTools];
 
 	const agent = createAgent({
-		model: simpleLangchainModel,
+		model: complexLangchainModel(),
 		tools: allTools,
 		responseFormat: toolStrategy(
 			z.object({
@@ -112,13 +108,17 @@ Now execute the actions needed to accomplish this subtask.`,
 					.describe("Whether the subtask was completed successfully or failed"),
 				actions_taken: z
 					.array(z.string())
-					.describe("List of actions executed (e.g., 'Clicked submit button', 'Filled email field')"),
+					.describe(
+						"List of actions executed (e.g., 'Clicked submit button', 'Filled email field')",
+					),
 				current_status: z
 					.string()
 					.describe("Brief description of the current page/state"),
 				result_explanation: z
 					.string()
-					.describe("Explanation of success/failure based on getFlattenDOMTool result and previous tool call results"),
+					.describe(
+						"Explanation of success/failure based on getFlattenDOMTool result and previous tool call results",
+					),
 			}),
 		),
 		systemPrompt,
@@ -130,7 +130,8 @@ Now execute the actions needed to accomplish this subtask.`,
 	const updatedSubtaskPlan = [...(state.subtask_plan || [])];
 	updatedSubtaskPlan[firstPendingSubtaskIndex] = {
 		...updatedSubtaskPlan[firstPendingSubtaskIndex],
-		status: response.structuredResponse.subtask_success ? "completed" : "failed",
+		status:
+			response.structuredResponse.subtask_success ? "completed" : "failed",
 		results: [
 			...(updatedSubtaskPlan[firstPendingSubtaskIndex].results || []),
 			response.structuredResponse.result_explanation,
@@ -152,7 +153,8 @@ Now execute the actions needed to accomplish this subtask.`,
 	// If successful and more subtasks pending, continue executing
 	// If all subtasks completed, go back to task-executor
 	const hasMorePendingSubtasks = updatedSubtaskPlan.some(
-		(subtask, idx) => idx > firstPendingSubtaskIndex && subtask.status === "pending",
+		(subtask, idx) =>
+			idx > firstPendingSubtaskIndex && subtask.status === "pending",
 	);
 
 	return new Command({

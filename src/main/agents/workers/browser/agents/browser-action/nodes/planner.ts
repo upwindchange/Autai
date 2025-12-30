@@ -1,6 +1,6 @@
 import { SystemMessage } from "@langchain/core/messages";
 import { BrowserActionStateType, PlanSchema } from "../state";
-import { simpleLangchainModel } from "@/agents/providers";
+import { complexLangchainModel } from "@/agents/providers";
 import { createAgent, toolStrategy } from "langchain";
 import { Command } from "@langchain/langgraph";
 import z from "zod";
@@ -36,7 +36,7 @@ Now create the execution plan.`,
 	);
 
 	const agent = createAgent({
-		model: simpleLangchainModel,
+		model: complexLangchainModel(),
 		responseFormat: toolStrategy(z.object({ task_plan: PlanSchema })),
 		systemPrompt,
 	});

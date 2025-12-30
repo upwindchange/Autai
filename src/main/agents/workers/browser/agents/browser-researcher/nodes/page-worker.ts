@@ -60,7 +60,7 @@ Now extract and summarize the relevant content.`,
 	});
 
 	const agent = createAgent({
-		model: complexLangchainModel,
+		model: complexLangchainModel(),
 		tools: [
 			createTabTool,
 			navigateTool,

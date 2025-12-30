@@ -1,6 +1,6 @@
 import { SystemMessage } from "@langchain/core/messages";
 import { BrowserUseStateType, BrowserModeSchema } from "./state";
-import { simpleLangchainModel } from "@/agents/providers";
+import { complexLangchainModel } from "@/agents/providers";
 import { createAgent, toolStrategy } from "langchain";
 import z from "zod";
 
@@ -13,10 +13,8 @@ export async function browserUseRouterNode(state: BrowserUseStateType) {
 Based on the user's message, choose the appropriate mode.`);
 
 	const agent = createAgent({
-		model: simpleLangchainModel,
-		responseFormat: toolStrategy(
-			z.object({ mode: BrowserModeSchema }),
-		),
+		model: complexLangchainModel(),
+		responseFormat: toolStrategy(z.object({ mode: BrowserModeSchema })),
 		systemPrompt,
 	});
 
