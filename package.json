@@ -29,7 +29,7 @@
     "@ai-sdk/deepinfra": "^1.0.29",
     "@ai-sdk/openai": "^2.0.80",
     "@ai-sdk/openai-compatible": "^1.0.28",
-    "@ai-sdk/react": "^2.0.109",
+    "@ai-sdk/react": "^3.0.5",
     "@assistant-ui/react": "0.11.47",
     "@assistant-ui/react-ai-sdk": "^1.1.16",
     "@assistant-ui/react-markdown": "^0.11.6",
