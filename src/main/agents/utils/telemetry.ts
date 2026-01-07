@@ -22,7 +22,6 @@ export function initializeTelemetry(): void {
 		}
 
 		const { publicKey, secretKey, host } = settings.langfuse;
-		logger.info(publicKey, secretKey, host);
 
 		if (!publicKey || !secretKey || !host) {
 			logger.warn(
@@ -37,11 +36,11 @@ export function initializeTelemetry(): void {
 
 		// Create the span processor
 		langfuseSpanProcessor = new LangfuseSpanProcessor({
-			// shouldExportSpan,
+			shouldExportSpan,
 			publicKey: publicKey,
 			secretKey: secretKey,
 			baseUrl: host, // Default to cloud if not specified
-			// environment: process.env.NODE_ENV ?? "development", // Default to development if not specified
+			environment: process.env.NODE_ENV ?? "development", // Default to development if not specified
 		});
 
 		// Create and configure the tracer provider
