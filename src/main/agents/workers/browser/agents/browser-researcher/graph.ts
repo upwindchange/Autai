@@ -1,12 +1,12 @@
 import { START, END } from "@langchain/langgraph";
 import {
-	BrowserResearcherStateType,
 	BrowserResearcherState,
 	graph_builder,
 } from "./state";
 import { searchPlannerNode } from "./nodes/search-planner";
 import { pageWorkerNode } from "./nodes/page-worker";
 import { synthesizerNode } from "./nodes/synthesizer";
+import type { BrowserUseStateType } from "../../state";
 
 // Conditional edge: Check if all workers have completed before synthesizing
 function shouldContinueToSynthesizer(
@@ -43,7 +43,10 @@ export const browserResearcherGraph = graph_builder
 	.compile();
 
 // Main entry point for the browser researcher agent
-export async function browserResearcherNode(state: BrowserResearcherStateType) {
-	const response = await browserResearcherGraph.invoke(state);
+export async function browserResearcherNode(state: BrowserUseStateType) {
+	const response = await browserResearcherGraph.invoke({
+		messages: state.messages,
+		sessionId: state.sessionId,
+	});
 	return response;
 }

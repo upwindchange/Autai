@@ -40,6 +40,7 @@ export type Plan = z.infer<typeof PlanSchema>;
 const BrowserActionState = Annotation.Root({
 	...MessagesAnnotation.spec,
 	mode: Annotation<string>,
+	sessionId: Annotation<string>,
 	task_plan: Annotation<Plan>,
 	current_task_index: Annotation<number>,
 	subtask_plan: Annotation<Plan>,

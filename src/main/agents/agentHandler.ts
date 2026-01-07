@@ -64,7 +64,9 @@ export class AgentHandler {
 			const workerDecisionSchema = z.object({
 				mode: z
 					.enum(["chat", "browser-use"])
-					.describe("Only 'chat' or 'browser-use' are allowed"),
+					.describe(
+						"output one enum of string literal either 'chat' or 'browser-use'",
+					),
 			});
 
 			// Create agent with structured output using tool strategy

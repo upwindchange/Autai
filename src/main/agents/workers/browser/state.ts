@@ -15,6 +15,7 @@ export type BrowserMode = z.infer<typeof BrowserModeSchema>;
 const BrowserUseState = Annotation.Root({
 	...MessagesAnnotation.spec,
 	mode: Annotation<BrowserMode>,
+	sessionId: Annotation<string>,
 });
 
 // Extract the state type for function signatures

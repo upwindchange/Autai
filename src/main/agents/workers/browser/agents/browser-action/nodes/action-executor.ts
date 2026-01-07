@@ -6,6 +6,7 @@ import { Command } from "@langchain/langgraph";
 import { z } from "zod";
 import { interactiveTools } from "@/agents/tools/InteractiveTools";
 import { tabControlTools } from "@/agents/tools/TabControlTools";
+import { getSessionTabsTool } from "@/agents/tools/SessionTabTools";
 import { getFlattenDOMTool } from "@/agents/tools/DOMTools";
 
 export async function browserActionExecutorNode(
@@ -43,8 +44,12 @@ ${subtaskContext}
 ## All Subtasks Context
 ${allSubtasksContext}
 
+## Browser Session ID
+${state.sessionId}
+
 ## Your Capabilities
 You have access to tools for:
+- Analyze current session and tab: getSessionTabsTool, you can get current tabID from this tool
 - Interactive elements: click, fill, select, hover, drag
 - Page navigation: navigate, refresh, go back, go forward
 - Page scrolling: scroll by pages or at coordinates
@@ -93,7 +98,12 @@ Now execute the actions needed to accomplish this subtask.`,
 	);
 
 	// Combine all tools - getFlattenDOMTool first for priority
-	const allTools = [getFlattenDOMTool, ...interactiveTools, ...tabControlTools];
+	const allTools = [
+		getFlattenDOMTool,
+		getSessionTabsTool,
+		...interactiveTools,
+		...tabControlTools,
+	];
 
 	const agent = createAgent({
 		model: complexLangchainModel(),

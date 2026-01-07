@@ -12,10 +12,12 @@ const BrowserResearcherState = Annotation.Root({
 	sessionId: Annotation<string>,
 	researchTopic: Annotation<string>,
 	searchResults: Annotation<Array<{url: string; title: string}>>,
-	pageSummaries: Annotation<Array<{url: string; summary: string}>>({
-		reducer: (a, b) => a.concat(b), // Accumulate parallel results
-		default: () => [],
-	}),
+	pageSummaries: Annotation<Array<{url: string; summary: string}>>(
+		{
+			reducer: (a, b) => a.concat(b), // Accumulate parallel results
+			default: () => [],
+		},
+	),
 	processedUrls: Annotation<string[]>({
 		reducer: (a, b) => a.concat(b),
 		default: () => [],
