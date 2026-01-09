@@ -19,6 +19,12 @@ interface UiState {
 	containerBounds: Rectangle | null;
 	setContainerRef: (ref: HTMLDivElement | null) => void;
 	setContainerBounds: (bounds: Rectangle | null) => void;
+
+	// Browser toggle state
+	useBrowser: boolean;
+	webSearch: boolean;
+	setUseBrowser: (useBrowser: boolean) => void;
+	setWebSearch: (webSearch: boolean) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -47,5 +53,21 @@ export const useUiStore = create<UiState>()(
 				});
 			}
 		},
+
+		// Browser toggle state
+		useBrowser: false,
+		webSearch: false,
+		setUseBrowser: (useBrowser) =>
+			set((state) => ({
+				useBrowser,
+				// Mutually exclusive: if useBrowser is true, webSearch must be false
+				webSearch: useBrowser ? false : state.webSearch,
+			})),
+		setWebSearch: (webSearch) =>
+			set((state) => ({
+				webSearch,
+				// Mutually exclusive: if webSearch is true, useBrowser must be false
+				useBrowser: webSearch ? false : state.useBrowser,
+			})),
 	})),
 );

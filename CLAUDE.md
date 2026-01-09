@@ -81,12 +81,12 @@ reference/             # Several projects for reference
 
 - Strict mode enabled
 - Path aliases configuration:
-  - **Main process**: 
+  - **Main process**:
     - `@/` and `@/*` for imports from `src/main/`
     - `@agents` and `@agents/*` for agent-related imports
-  - **Renderer process**: 
+  - **Renderer process**:
     - `@/*` for imports from `src/renderer/`
-  - **Shared**: 
+  - **Shared**:
     - `@shared` and `@shared/*` for shared type imports from `src/shared/`
 - All IPC channels must be properly typed
 
@@ -121,7 +121,6 @@ reference/             # Several projects for reference
   - Source code in `reference/assitant-ui/packages`
   - Documentation in `reference/assitant-ui/apps/docs/content/docs`
   - Design pattern and examples in `reference/assitant-ui/examples`
-    - For this project, we will only use `reference/assitant-ui/examples/with-ai-sdk`
 - `reference/browser-use`: Browser-use project
   - Source code in `reference/browser-use`
   - Documentation in `reference/browser-use/docs`

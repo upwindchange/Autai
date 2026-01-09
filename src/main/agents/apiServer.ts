@@ -1,21 +1,25 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import { type Server } from "http";
-import { agentHandler } from "@agents";
-import log from "electron-log/main";
+import { ChatWorker, BrowserUseWorker } from "@agents/workers";
 import type { ChatRequest } from "@shared";
 import { SessionTabService } from "@/services";
 import { sendAlert } from "@/utils";
-import { pipeUIMessageStreamToResponse } from "ai";
+import { pipeUIMessageStreamToResponse, UIMessageChunk } from "ai";
+import log from "electron-log/main";
 
 export class ApiServer {
 	private app: Express;
 	private server: Server | null = null;
 	private port: number = 3001;
 	private logger = log.scope("ApiServer");
+	private chatWorker: ChatWorker;
+	private browserUseWorker: BrowserUseWorker;
 
 	constructor() {
 		this.app = express();
+		this.chatWorker = new ChatWorker();
+		this.browserUseWorker = new BrowserUseWorker();
 		this.setupMiddleware();
 		this.setupRoutes();
 	}
@@ -47,13 +51,13 @@ export class ApiServer {
 				response,
 			) => {
 				try {
-					const { messages, system, tools } = req.body;
-					this.logger.silly(req.body);
-					this.logger.silly(req.headers);
+					const { messages, system, tools, metadata } = req.body;
 					this.logger.info("Chat request received", {
 						messagesCount: messages?.length,
 						hasSystem: !!system,
 						hasTools: !!tools,
+						useBrowser: metadata.useBrowser,
+						webSearch: metadata.webSearch,
 					});
 
 					// Get current active session ID from SessionTabService
@@ -80,12 +84,37 @@ export class ApiServer {
 					// Stream the response using pipeUIMessageStreamToResponse method
 					this.logger.debug("Starting stream response...");
 					try {
-						const stream = await agentHandler.handleChat({
+						const request: ChatRequest = {
 							messages,
 							system,
 							tools,
 							sessionId: activeSessionId,
+							metadata,
+						};
+
+						// Route to appropriate worker based on metadata
+						this.logger.debug("making worker decision", {
+							messagesCount: messages?.length,
+							firstMessageRole: messages?.[0]?.role,
+							useBrowser: metadata.useBrowser,
+							webSearch: metadata.webSearch,
 						});
+
+						let stream: ReadableStream<UIMessageChunk>;
+						if (metadata.useBrowser || metadata.webSearch) {
+							this.logger.info("browser mode enabled, using browser-use worker", {
+								useBrowser: metadata.useBrowser,
+								webSearch: metadata.webSearch,
+							});
+							stream = await this.browserUseWorker.handleChat(
+								request,
+								metadata.useBrowser,
+								metadata.webSearch,
+							);
+						} else {
+							this.logger.info("using chat worker");
+							stream = await this.chatWorker.handleChat(request);
+						}
 
 						// Pipe the stream result to the Express response
 						pipeUIMessageStreamToResponse({ response, stream });

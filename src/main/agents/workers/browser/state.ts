@@ -16,6 +16,8 @@ const BrowserUseState = Annotation.Root({
 	...MessagesAnnotation.spec,
 	mode: Annotation<BrowserMode>,
 	sessionId: Annotation<string>,
+	useBrowser: Annotation<boolean>,
+	webSearch: Annotation<boolean>,
 });
 
 // Extract the state type for function signatures

@@ -135,6 +135,22 @@ function App() {
 		sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
 		transport: new AssistantChatTransport({
 			api: "http://localhost:3001/chat", // Custom API URL with forwarding
+			prepareSendMessagesRequest: async (options) => {
+				// Get useBrowser and webSearch state from store
+				const { useBrowser, webSearch } = useUiStore.getState();
+
+				// Add metadata to the request body
+				return {
+					...options,
+					body: {
+						...options.body,
+						metadata: {
+							useBrowser,
+							webSearch,
+						},
+					},
+				};
+			},
 		}),
 		adapters: {
 			speech: new WebSpeechSynthesisAdapter(),

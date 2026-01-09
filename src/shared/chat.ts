@@ -8,4 +8,8 @@ export interface ChatRequest {
 	system?: string;
 	tools?: any;
 	sessionId: string;
+	metadata: {
+		useBrowser: boolean;
+		webSearch: boolean;
+	};
 }

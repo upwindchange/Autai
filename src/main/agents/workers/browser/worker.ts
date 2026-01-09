@@ -14,6 +14,8 @@ export class BrowserUseWorker {
 
 	async handleChat(
 		request: ChatRequest,
+		useBrowser: boolean,
+		webSearch: boolean,
 	): Promise<ReadableStream<UIMessageChunk>> {
 		const { messages, system, sessionId, tools } = request;
 
@@ -29,6 +31,8 @@ export class BrowserUseWorker {
 			sessionId: sessionId,
 			hasTools: !!tools,
 			toolCount: tools ? Object.keys(tools).length : 0,
+			useBrowser,
+			webSearch,
 		});
 
 		const langchainMessages = await toBaseMessages(messages);
@@ -37,6 +41,8 @@ export class BrowserUseWorker {
 			{
 				messages: langchainMessages,
 				sessionId,
+				useBrowser,
+				webSearch,
 			},
 			{
 				callbacks: [langfuseHandler],

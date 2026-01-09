@@ -7,10 +7,12 @@ import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	CopyIcon,
+	Globe,
 	PencilIcon,
 	RefreshCwIcon,
 	Square,
 	StopCircleIcon,
+	Search,
 } from "lucide-react";
 
 import {
@@ -274,9 +276,49 @@ const Composer: FC = () => {
 };
 
 const ComposerAction: FC = () => {
+	const { useBrowser, webSearch, setUseBrowser, setWebSearch } = useUiStore();
+
 	return (
 		<div className="aui-composer-action-wrapper relative mx-1 mt-2 mb-2 flex items-center justify-between">
-			<ComposerAddAttachment />
+			<div className="flex items-center gap-1">
+				<ComposerAddAttachment />
+
+				{/* Use Browser toggle */}
+				<TooltipIconButton
+					tooltip={useBrowser ? "Browser enabled" : "Enable browser"}
+					variant="ghost"
+					className={cn(
+						"size-8.5",
+						useBrowser && "bg-muted hover:bg-muted",
+					)}
+					onClick={() => setUseBrowser(!useBrowser)}
+				>
+					<Globe
+						className={cn(
+							"size-5",
+							useBrowser && "text-blue-500",
+						)}
+					/>
+				</TooltipIconButton>
+
+				{/* Web Search toggle */}
+				<TooltipIconButton
+					tooltip={webSearch ? "Web search enabled" : "Enable web search"}
+					variant="ghost"
+					className={cn(
+						"size-8.5",
+						webSearch && "bg-muted hover:bg-muted",
+					)}
+					onClick={() => setWebSearch(!webSearch)}
+				>
+					<Search
+						className={cn(
+							"size-5",
+							webSearch && "text-blue-500",
+						)}
+					/>
+				</TooltipIconButton>
+			</div>
 
 			<ThreadPrimitive.If running={false}>
 				<ComposerPrimitive.Send asChild>
