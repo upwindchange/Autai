@@ -2,10 +2,13 @@ import express, { type Express } from "express";
 import cors from "cors";
 import { type Server } from "http";
 import { ChatWorker, BrowserUseWorker } from "@agents/workers";
-import type { ChatRequest } from "@shared";
 import { SessionTabService } from "@/services";
 import { sendAlert } from "@/utils";
-import { pipeUIMessageStreamToResponse, UIMessageChunk } from "ai";
+import {
+	pipeUIMessageStreamToResponse,
+	type UIMessage,
+	type JSONSchema7,
+} from "ai";
 import log from "electron-log/main";
 
 export class ApiServer {
@@ -46,37 +49,45 @@ export class ApiServer {
 				req: express.Request<
 					Record<string, never>,
 					Record<string, unknown>,
-					ChatRequest & { id: string }
+					{
+						id: string;
+						messages: UIMessage[];
+						system?: string;
+						tools?: unknown;
+					}
 				>,
 				response,
 			) => {
 				try {
-					const { messages, system, tools, metadata } = req.body;
+					const { messages, system, tools } = req.body;
+
+					// Read metadata from headers instead of body
+					const useBrowser = req.headers["x-use-browser"] === "true";
+					const webSearch = req.headers["x-web-search"] === "true";
+
+					// Get sessionId from headers, fallback to SessionTabService
+					const sessionTabService = SessionTabService.getInstance();
+					const sessionId =
+						(req.headers["x-session-id"] as string | undefined) ??
+						sessionTabService.activeSessionId;
+
 					this.logger.info("Chat request received", {
 						messagesCount: messages?.length,
 						hasSystem: !!system,
 						hasTools: !!tools,
-						useBrowser: metadata.useBrowser,
-						webSearch: metadata.webSearch,
+						useBrowser,
+						webSearch,
+						sessionId,
 					});
 
-					// Get current active session ID from SessionTabService
-					const sessionTabService = SessionTabService.getInstance();
-					const activeSessionId = sessionTabService.activeSessionId;
-
-					this.logger.debug("session context", {
-						activeSessionId,
-						hasActiveSession: !!activeSessionId,
-					});
-
-					// Ensure we have an active session ID - this should always exist when a chat starts
-					if (!activeSessionId) {
+					// Ensure we have a session ID
+					if (!sessionId) {
 						this.logger.error(
-							"No active session found when chat request was made",
+							"No session ID available from headers or SessionTabService",
 						);
 						sendAlert(
 							"Chat Error",
-							"No active session found. Please start a new chat session.",
+							"No session ID found. Please start a new chat session.",
 						);
 						return;
 					}
@@ -84,40 +95,47 @@ export class ApiServer {
 					// Stream the response using pipeUIMessageStreamToResponse method
 					this.logger.debug("Starting stream response...");
 					try {
-						const request: ChatRequest = {
-							messages,
-							system,
-							tools,
-							sessionId: activeSessionId,
-							metadata,
-						};
-
+						this.logger.info(messages);
 						// Route to appropriate worker based on metadata
 						this.logger.debug("making worker decision", {
 							messagesCount: messages?.length,
-							firstMessageRole: messages?.[0]?.role,
-							useBrowser: metadata.useBrowser,
-							webSearch: metadata.webSearch,
+							firstMessageRole: (messages?.[0] as { role?: string })?.role,
+							useBrowser,
+							webSearch,
 						});
 
-						let stream: ReadableStream<UIMessageChunk>;
-						if (metadata.useBrowser || metadata.webSearch) {
-							this.logger.info("browser mode enabled, using browser-use worker", {
-								useBrowser: metadata.useBrowser,
-								webSearch: metadata.webSearch,
-							});
-							stream = await this.browserUseWorker.handleChat(
-								request,
-								metadata.useBrowser,
-								metadata.webSearch,
+						if (useBrowser || webSearch) {
+							this.logger.info(
+								"browser mode enabled, using browser-use worker",
+								{
+									useBrowser,
+									webSearch,
+								},
 							);
+							const stream = await this.browserUseWorker.handleChat(
+								messages,
+								sessionId,
+								useBrowser,
+								webSearch,
+							);
+							pipeUIMessageStreamToResponse({ response, stream });
 						} else {
 							this.logger.info("using chat worker");
-							stream = await this.chatWorker.handleChat(request);
+							const result = await this.chatWorker.handleChat(
+								messages,
+								sessionId,
+								system,
+								tools as
+									| Record<
+											string,
+											{ description?: string; parameters: JSONSchema7 }
+									  >
+									| undefined,
+							);
+							result.pipeUIMessageStreamToResponse(response);
 						}
 
 						// Pipe the stream result to the Express response
-						pipeUIMessageStreamToResponse({ response, stream });
 					} catch (error) {
 						this.logger.error("Error handling chat:", error);
 						if (!response.headersSent) {

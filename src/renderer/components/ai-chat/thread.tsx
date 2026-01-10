@@ -23,6 +23,7 @@ import {
 	ErrorPrimitive,
 	MessagePrimitive,
 	ThreadPrimitive,
+	useAssistantEvent,
 } from "@assistant-ui/react";
 
 import type { FC, PropsWithChildren } from "react";
@@ -51,6 +52,20 @@ const logger = log.scope("Thread");
 
 interface ThreadProps {
 	showSplitView?: boolean;
+}
+
+/**
+ * Component that tracks sessionId when messages are sent
+ */
+function ThreadIdTracker() {
+	const setSessionId = useUiStore((state) => state.setSessionId);
+
+	// Listen for composer send events to update sessionId from the event
+	useAssistantEvent("composer.send", (event) => {
+		setSessionId(event.threadId);
+	});
+
+	return null;
 }
 
 export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
@@ -110,6 +125,7 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
 				["--thread-max-width" as string]: "44rem",
 			}}
 		>
+			<ThreadIdTracker />
 			{showSplitView ?
 				<ResizablePanelGroup direction="horizontal" className="flex-1">
 					<ResizablePanel defaultSize={50} minSize={30} className="h-full">

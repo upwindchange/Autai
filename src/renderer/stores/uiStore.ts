@@ -25,6 +25,10 @@ interface UiState {
 	webSearch: boolean;
 	setUseBrowser: (useBrowser: boolean) => void;
 	setWebSearch: (webSearch: boolean) => void;
+
+	// Session state (thread-based)
+	sessionId: string | null;
+	setSessionId: (sessionId: string | null) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -69,5 +73,9 @@ export const useUiStore = create<UiState>()(
 				// Mutually exclusive: if webSearch is true, useBrowser must be false
 				useBrowser: webSearch ? false : state.useBrowser,
 			})),
+
+		// Session state (thread-based)
+		sessionId: null,
+		setSessionId: (sessionId) => set({ sessionId }),
 	})),
 );

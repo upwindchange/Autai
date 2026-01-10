@@ -3,13 +3,15 @@ import {
 	convertToModelMessages,
 	stepCountIs,
 	hasToolCall,
-	UIMessageChunk,
+	StreamTextResult,
+	ToolSet,
+	type UIMessage,
+	type JSONSchema7,
 } from "ai";
 import { chatModel } from "@agents/providers";
 import { repairToolCall } from "@agents/utils";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
-import { type ChatRequest } from "@shared";
 import { frontendTools } from "@assistant-ui/react-ai-sdk";
 
 const systemPrompt = `You are a helpful AI assistant integrated into a web browser automation tool.
@@ -25,10 +27,11 @@ export class ChatWorker {
 	private logger = log.scope("ChatWorker");
 
 	async handleChat(
-		request: ChatRequest,
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	): Promise<ReadableStream<UIMessageChunk>> {
-		const { messages, system, sessionId, tools } = request;
+		messages: UIMessage[],
+		sessionId: string,
+		system?: string,
+		tools?: Record<string, { description?: string; parameters: JSONSchema7 }>,
+	): Promise<StreamTextResult<ToolSet, never>> {
 		this.logger.debug("request received", {
 			messagesCount: messages?.length,
 			hasSystem: !!system,
@@ -82,7 +85,7 @@ export class ChatWorker {
 
 			this.logger.debug("returning stream text result");
 			// Convert StreamTextResult to ReadableStream for consistency
-			return result.toUIMessageStream();
+			return result;
 		} catch (error) {
 			this.logger.error("failed to create stream", {
 				error,

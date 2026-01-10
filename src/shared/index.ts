@@ -19,6 +19,3 @@ export * from "./tools";
 
 // Logger types (excluding LogLevel which comes from settings)
 export * from "./logger";
-
-// Chat types
-export * from "./chat";

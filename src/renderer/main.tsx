@@ -28,6 +28,7 @@ import { AppHeader } from "@/components/app-header";
 import { useState } from "react";
 import { useSessionLifecycle } from "@/hooks";
 import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
+import { useEffect } from "react";
 
 import "./index.css";
 import "./demos/ipc";
@@ -134,21 +135,13 @@ function App() {
 	const runtime = useChatRuntime({
 		sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
 		transport: new AssistantChatTransport({
-			api: "http://localhost:3001/chat", // Custom API URL with forwarding
-			prepareSendMessagesRequest: async (options) => {
-				// Get useBrowser and webSearch state from store
-				const { useBrowser, webSearch } = useUiStore.getState();
-
-				// Add metadata to the request body
+			api: "http://localhost:3001/chat",
+			headers: async () => {
+				const { useBrowser, webSearch, sessionId } = useUiStore.getState();
 				return {
-					...options,
-					body: {
-						...options.body,
-						metadata: {
-							useBrowser,
-							webSearch,
-						},
-					},
+					"X-Use-Browser": String(useBrowser),
+					"X-Web-Search": String(webSearch),
+					"X-Session-Id": sessionId || "",
 				};
 			},
 		}),

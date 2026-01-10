@@ -1,5 +1,5 @@
-import { ChatRequest } from "@shared";
 import { toBaseMessages, toUIMessageStream } from "@ai-sdk/langchain";
+import type { UIMessage } from "ai";
 import log from "electron-log/main";
 import { UIMessageChunk } from "ai";
 import { browserUseWorkflow } from "./graph";
@@ -13,11 +13,11 @@ export class BrowserUseWorker {
 	}
 
 	async handleChat(
-		request: ChatRequest,
+		messages: UIMessage[],
+		sessionId: string,
 		useBrowser: boolean,
 		webSearch: boolean,
 	): Promise<ReadableStream<UIMessageChunk>> {
-		const { messages, system, sessionId, tools } = request;
 
 		// Initialize the Langfuse CallbackHandler
 		const langfuseHandler = new CallbackHandler({
@@ -27,10 +27,7 @@ export class BrowserUseWorker {
 
 		this.logger.debug("request received", {
 			messagesCount: messages?.length,
-			hasSystem: !!system,
 			sessionId: sessionId,
-			hasTools: !!tools,
-			toolCount: tools ? Object.keys(tools).length : 0,
 			useBrowser,
 			webSearch,
 		});
