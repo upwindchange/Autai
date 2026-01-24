@@ -18,7 +18,6 @@ export class BrowserUseWorker {
 		useBrowser: boolean,
 		webSearch: boolean,
 	): Promise<ReadableStream<UIMessageChunk>> {
-
 		// Initialize the Langfuse CallbackHandler
 		const langfuseHandler = new CallbackHandler({
 			sessionId: sessionId,

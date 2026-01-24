@@ -1,8 +1,5 @@
 import { START, END } from "@langchain/langgraph";
-import {
-	BrowserResearcherState,
-	graph_builder,
-} from "./state";
+import { BrowserResearcherState, graph_builder } from "./state";
 import { searchPlannerNode } from "./nodes/search-planner";
 import { pageWorkerNode } from "./nodes/page-worker";
 import { synthesizerNode } from "./nodes/synthesizer";

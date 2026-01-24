@@ -303,36 +303,20 @@ const ComposerAction: FC = () => {
 				<TooltipIconButton
 					tooltip={useBrowser ? "Browser enabled" : "Enable browser"}
 					variant="ghost"
-					className={cn(
-						"size-8.5",
-						useBrowser && "bg-muted hover:bg-muted",
-					)}
+					className={cn("size-8.5", useBrowser && "bg-muted hover:bg-muted")}
 					onClick={() => setUseBrowser(!useBrowser)}
 				>
-					<Globe
-						className={cn(
-							"size-5",
-							useBrowser && "text-blue-500",
-						)}
-					/>
+					<Globe className={cn("size-5", useBrowser && "text-blue-500")} />
 				</TooltipIconButton>
 
 				{/* Web Search toggle */}
 				<TooltipIconButton
 					tooltip={webSearch ? "Web search enabled" : "Enable web search"}
 					variant="ghost"
-					className={cn(
-						"size-8.5",
-						webSearch && "bg-muted hover:bg-muted",
-					)}
+					className={cn("size-8.5", webSearch && "bg-muted hover:bg-muted")}
 					onClick={() => setWebSearch(!webSearch)}
 				>
-					<Search
-						className={cn(
-							"size-5",
-							webSearch && "text-blue-500",
-						)}
-					/>
+					<Search className={cn("size-5", webSearch && "text-blue-500")} />
 				</TooltipIconButton>
 			</div>
 
