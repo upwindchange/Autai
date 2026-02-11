@@ -4,11 +4,7 @@ import { type Server } from "http";
 import { ChatWorker, BrowserUseWorker } from "@agents/workers";
 import { SessionTabService } from "@/services";
 import { sendAlert } from "@/utils";
-import {
-	pipeUIMessageStreamToResponse,
-	type UIMessage,
-	type JSONSchema7,
-} from "ai";
+import { pipeUIMessageStreamToResponse, type UIMessage, ToolSet } from "ai";
 import log from "electron-log/main";
 
 export class ApiServer {
@@ -53,7 +49,7 @@ export class ApiServer {
 						id: string;
 						messages: UIMessage[];
 						system?: string;
-						tools?: unknown;
+						tools?: ToolSet[];
 					}
 				>,
 				response,
@@ -125,12 +121,7 @@ export class ApiServer {
 								messages,
 								sessionId,
 								system,
-								tools as
-									| Record<
-											string,
-											{ description?: string; parameters: JSONSchema7 }
-									  >
-									| undefined,
+								tools,
 							);
 							result.pipeUIMessageStreamToResponse(response);
 						}

@@ -34,7 +34,6 @@ import type {
 } from "@shared/dom/interaction";
 import {
 	sendCDPCommand,
-	attachDebugger,
 	detachDebugger,
 	isDebuggerAttached,
 } from "@/services/dom/utils/DOMUtils";

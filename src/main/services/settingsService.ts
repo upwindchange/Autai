@@ -4,10 +4,7 @@ import * as path from "path";
 import { generateText } from "ai";
 import { createProvider } from "@agents/providers";
 import { sendSuccess, sendAlert, sendInfo } from "@/utils/messageUtils";
-import { z } from "zod";
 import log from "electron-log/main";
-import { simpleLangchainModel } from "@agents/providers";
-import { createAgent, toolStrategy } from "langchain";
 import type {
 	SettingsState,
 	TestConnectionConfig,

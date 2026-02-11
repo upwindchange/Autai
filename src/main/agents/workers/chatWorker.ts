@@ -6,7 +6,6 @@ import {
 	StreamTextResult,
 	ToolSet,
 	type UIMessage,
-	type JSONSchema7,
 } from "ai";
 import { chatModel } from "@agents/providers";
 import { repairToolCall } from "@agents/utils";
@@ -30,8 +29,8 @@ export class ChatWorker {
 		messages: UIMessage[],
 		sessionId: string,
 		system?: string,
-		tools?: Record<string, { description?: string; parameters: JSONSchema7 }>,
-	): Promise<StreamTextResult<ToolSet, never>> {
+		tools?: ToolSet[],
+	): Promise<StreamTextResult<any, any>> {
 		this.logger.debug("request received", {
 			messagesCount: messages?.length,
 			hasSystem: !!system,
