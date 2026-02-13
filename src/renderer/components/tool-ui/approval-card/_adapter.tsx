@@ -4,9 +4,8 @@
  * When copying this component to another project, update these imports
  * to match your project's paths:
  *
- *   cn     → Your Tailwind merge utility (e.g., "@/lib/utils", "~/lib/cn")
- *   Button → shadcn/ui Button
+ *   cn → Your Tailwind merge utility (e.g., "@/lib/utils", "~/lib/cn")
  */
 
 export { cn } from "@/lib/utils";
-export { Button } from "@/components/ui/button";
+export { Separator } from "@/components/ui/separator";

@@ -12,7 +12,7 @@ export function useSessionLifecycle() {
 	const previousSessionIdRef = useRef<string | null>(null);
 
 	// Handle session switch events
-	useAssistantEvent("thread-list-item.switched-to", (event) => {
+	useAssistantEvent("threadListItem.switchedTo", (event) => {
 		logger.debug("session switch event", { sessionId: event.threadId });
 
 		if (event.threadId && event.threadId !== previousSessionIdRef.current) {

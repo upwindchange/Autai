@@ -5,7 +5,8 @@ import type { ReactNode } from "react";
  * Tool UI conventions:
  * - Serializable schemas are JSON-safe (no callbacks/ReactNode/`className`).
  * - Schema: `SerializableXSchema`
- * - Parser: `parseSerializableX(input: unknown)`
+ * - Parser: `parseSerializableX(input: unknown)` (throws on invalid)
+ * - Safe parser: `safeParseSerializableX(input: unknown)` (returns `null` on invalid)
  * - Actions: `responseActions`, `onResponseAction`, `onBeforeResponseAction`
  * - Root attrs: `data-tool-ui-id` + `data-slot`
  */

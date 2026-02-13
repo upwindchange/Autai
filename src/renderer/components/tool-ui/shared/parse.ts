@@ -35,3 +35,17 @@ export function parseWithSchema<T>(
 	}
 	return res.data;
 }
+
+/**
+ * Parse unknown input, returning `null` instead of throwing on failure.
+ *
+ * Use this in assistant-ui `render` functions where `args` stream in
+ * incrementally and may be incomplete until the tool call finishes.
+ */
+export function safeParseWithSchema<T>(
+	schema: z.ZodType<T>,
+	input: unknown,
+): T | null {
+	const res = schema.safeParse(input);
+	return res.success ? res.data : null;
+}

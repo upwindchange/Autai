@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Action } from "./schema";
 
 export type UseActionButtonsOptions = {
@@ -25,6 +25,26 @@ export type UseActionButtonsResult = {
 	executingActionId: string | null;
 };
 
+type ActionExecutionLock = {
+	tryAcquire: () => boolean;
+	release: () => void;
+};
+
+export function createActionExecutionLock(): ActionExecutionLock {
+	let locked = false;
+
+	return {
+		tryAcquire: () => {
+			if (locked) return false;
+			locked = true;
+			return true;
+		},
+		release: () => {
+			locked = false;
+		},
+	};
+}
+
 export function useActionButtons(
 	options: UseActionButtonsOptions,
 ): UseActionButtonsResult {
@@ -35,6 +55,9 @@ export function useActionButtons(
 	);
 	const [executingActionId, setExecutingActionId] = useState<string | null>(
 		null,
+	);
+	const executionLockRef = useRef<ActionExecutionLock>(
+		createActionExecutionLock(),
 	);
 
 	useEffect(() => {
@@ -70,10 +93,15 @@ export function useActionButtons(
 				return;
 			}
 
+			if (!executionLockRef.current.tryAcquire()) {
+				return;
+			}
+
 			if (onBeforeAction) {
 				const shouldProceed = await onBeforeAction(action.id);
 				if (!shouldProceed) {
 					setConfirmingActionId(null);
+					executionLockRef.current.release();
 					return;
 				}
 			}
@@ -82,6 +110,7 @@ export function useActionButtons(
 				setExecutingActionId(action.id);
 				await onAction(action.id);
 			} finally {
+				executionLockRef.current.release();
 				setExecutingActionId(null);
 				setConfirmingActionId(null);
 			}

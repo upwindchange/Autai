@@ -12,7 +12,7 @@ import { AssistantChatContainer } from "@/components/ai-chat";
 import { SettingsProvider, SettingsView } from "@/components/settings";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useUiStore } from "@/stores/uiStore";
-import { CalculatorTool, AnswerTool, ApprovalTool } from "@/tools";
+import { CalculatorTool, AnswerTool } from "@/tools";
 import {
 	AssistantRuntimeProvider,
 	CompositeAttachmentAdapter,
@@ -28,7 +28,6 @@ import { AppHeader } from "@/components/app-header";
 import { useState } from "react";
 import { useSessionLifecycle } from "@/hooks";
 import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
-import { useEffect } from "react";
 
 import "./index.css";
 import "./demos/ipc";
