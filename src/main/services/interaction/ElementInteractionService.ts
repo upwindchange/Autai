@@ -565,7 +565,7 @@ export class ElementInteractionService {
 				scrollY: layoutViewport.pageY || 0,
 			};
 		} catch (error) {
-			throw new Error(`Failed to get viewport metrics: ${error}`);
+			throw new Error("Failed to get viewport metrics", { cause: error });
 		}
 	}
 
@@ -891,7 +891,8 @@ export class ElementInteractionService {
 					}
 				} catch (jsError) {
 					throw new Error(
-						`Both CDP and JavaScript click failed. CDP: ${cdpError}, JavaScript: ${jsError}`,
+						`Both CDP and JavaScript click failed. CDP error: ${cdpError}`,
+						{ cause: jsError },
 					);
 				}
 			}
@@ -1025,7 +1026,9 @@ export class ElementInteractionService {
 						duration: Date.now() - startTime,
 					};
 				} else {
-					throw new Error("Failed to resolve DOM node for JavaScript fill");
+					throw new Error("Failed to resolve DOM node for JavaScript fill", {
+						cause: error,
+					});
 				}
 			} catch (jsError) {
 				return {
@@ -1136,7 +1139,9 @@ export class ElementInteractionService {
 								`Successfully selected option using JavaScript: ${option.value}`,
 							);
 						} else {
-							throw new Error("JavaScript selection failed");
+							throw new Error("JavaScript selection failed", {
+								cause: clickError,
+							});
 						}
 					} catch (jsError) {
 						this.logger.warn(

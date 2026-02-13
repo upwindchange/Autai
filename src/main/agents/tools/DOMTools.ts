@@ -45,7 +45,7 @@ export const getDOMTreeTool = tool(
 				const changeTime =
 					sessionTabService.getTabMetadata(tabId)?.timestamp || 0;
 				const detectTime = stats?.timestamp || 0;
-				let response = {};
+				let response: object;
 				// Get DOM tree with change detection and update internal state (default)
 				if (detectTime > changeTime) {
 					response = {
