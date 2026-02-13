@@ -12,7 +12,7 @@ import { AssistantChatContainer } from "@/components/ai-chat";
 import { SettingsProvider, SettingsView } from "@/components/settings";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useUiStore } from "@/stores/uiStore";
-import { CalculatorTool, AnswerTool } from "@/tools";
+import { CalculatorTool, AnswerTool } from "@/components/tools";
 import {
 	AssistantRuntimeProvider,
 	CompositeAttachmentAdapter,
