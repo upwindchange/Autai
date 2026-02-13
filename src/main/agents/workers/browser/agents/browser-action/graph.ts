@@ -27,6 +27,13 @@ export async function browserActionNode(state: BrowserUseStateType) {
 	const response = await browserActionGraph.invoke({
 		messages: state.messages,
 		sessionId: state.sessionId,
+		// Initialize indices to -1 to indicate no active task/subtask
+		current_task_index: -1,
+		current_subtask_index: -1,
+		task_plan: [],
+		subtask_plan: [],
+		mode: "",
+		response: "",
 	});
 
 	return response;

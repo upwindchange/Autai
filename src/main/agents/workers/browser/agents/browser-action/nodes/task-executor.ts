@@ -35,24 +35,38 @@ function areAllSubtasksCompleted(subtaskPlan: Plan | undefined): boolean {
 }
 
 /**
- * Find the index of the first uncompleted task
+ * Mark the current task as completed and return updated state with next index
+ * Returns the next task index (current + 1)
  */
-function findNextUncompletedTask(taskPlan: Plan): number {
-	return taskPlan.findIndex((task) => task.status !== "completed");
+function completeCurrentTask(
+	state: BrowserActionStateType,
+	taskIndex: number,
+): { state: BrowserActionStateType; nextIndex: number } {
+	const updatedTaskPlan = [...state.task_plan];
+	updatedTaskPlan[taskIndex] = {
+		...updatedTaskPlan[taskIndex],
+		status: "completed",
+	};
+	return {
+		state: {
+			...state,
+			task_plan: updatedTaskPlan,
+		},
+		nextIndex: taskIndex + 1,
+	};
 }
 
 /**
- * Mark the current task as completed and return updated state
- * Does NOT check if workflow is complete - caller's responsibility
+ * Set the current task status to in_progress and return updated state
  */
-function completeCurrentTask(
+function setCurrentTaskInProgress(
 	state: BrowserActionStateType,
 	taskIndex: number,
 ): BrowserActionStateType {
 	const updatedTaskPlan = [...state.task_plan];
 	updatedTaskPlan[taskIndex] = {
 		...updatedTaskPlan[taskIndex],
-		status: "completed",
+		status: "in_progress",
 	};
 	return {
 		...state,
@@ -172,27 +186,48 @@ export async function browserActionTaskExecutorNode(
 	state: BrowserActionStateType,
 ): Promise<Command> {
 	// Phase 1: Complete current task if all subtasks done
-	let workingState = state;
-	if (areAllSubtasksCompleted(state.subtask_plan)) {
-		const currentIndex = findNextUncompletedTask(state.task_plan);
-		workingState = completeCurrentTask(state, currentIndex);
+	let workingState: BrowserActionStateType = state;
+	let currentIndex: number = state.current_task_index ?? -1;
+
+	if (
+		state.current_task_index !== -1 &&
+		areAllSubtasksCompleted(state.subtask_plan)
+	) {
+		// Complete the current task and get the next index
+		const result = completeCurrentTask(state, state.current_task_index);
+		workingState = result.state;
+		currentIndex = result.nextIndex;
+
+		// Reset subtask index when moving to next task
+		workingState = {
+			...workingState,
+			current_subtask_index: 0,
+		};
 	}
 
 	// Phase 2: Check if workflow is complete after task completion
-	if (areAllTasksCompleted(workingState.task_plan)) {
+	if (
+		areAllTasksCompleted(workingState.task_plan) ||
+		currentIndex === -1 ||
+		currentIndex >= workingState.task_plan.length
+	) {
 		return new Command({
 			update: {
 				task_plan: workingState.task_plan,
 				subtask_plan: [],
+				// Reset indices when workflow completes
+				current_task_index: -1,
+				current_subtask_index: -1,
 			},
 			goto: END,
 		});
 	}
 
-	// Phase 3: Find next task to work on
-	const currentIndex = findNextUncompletedTask(workingState.task_plan);
+	// Phase 3: At this point, currentIndex is guaranteed to be a valid task index
+	// Set current task to in_progress
+	workingState = setCurrentTaskInProgress(workingState, currentIndex);
 
-	// Phase 4: Build prompt
+	// Build prompt
 	const currentTask = workingState.task_plan[currentIndex];
 	const failureContext = buildFailureContext(workingState.subtask_plan);
 	const systemPrompt = buildSystemPrompt(
@@ -207,10 +242,13 @@ export async function browserActionTaskExecutorNode(
 		workingState.messages,
 	);
 
-	// Phase 6: Return command
+	// Phase 6: Return command with explicit index management
 	return new Command({
 		update: {
+			// Set to the index we're working on
 			current_task_index: currentIndex,
+			// Set subtask index to start at 0
+			current_subtask_index: 0,
 			...response,
 		},
 		goto: "action-executor",

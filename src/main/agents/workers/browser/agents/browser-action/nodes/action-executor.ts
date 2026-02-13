@@ -12,24 +12,24 @@ import { getFlattenDOMTool } from "@/agents/tools/DOMTools";
 export async function browserActionExecutorNode(
 	state: BrowserActionStateType,
 ): Promise<Command> {
-	// Find the first pending subtask
-	const firstPendingSubtaskIndex = state.subtask_plan?.findIndex(
-		(subtask) => subtask.status === "pending",
-	);
+	// Get current subtask index from state (set by task-executor)
+	const currentSubtaskIndex = state.current_subtask_index;
 
-	// If all subtasks are completed, route to task-executor for next task
+	// If no subtask index set or out of bounds, all subtasks are done
 	if (
-		!state.subtask_plan ||
-		firstPendingSubtaskIndex === undefined ||
-		firstPendingSubtaskIndex === -1
+		currentSubtaskIndex === -1 ||
+		currentSubtaskIndex >= (state.subtask_plan?.length || 0)
 	) {
 		return new Command({
-			update: {},
+			update: {
+				// Clear the index when all subtasks are done
+				current_subtask_index: -1,
+			},
 			goto: "task-executor",
 		});
 	}
 
-	const currentSubtask = state.subtask_plan[firstPendingSubtaskIndex];
+	const currentSubtask = state.subtask_plan![currentSubtaskIndex];
 
 	// Build context
 	const subtaskContext = JSON.stringify(currentSubtask, null, 2);
@@ -138,12 +138,12 @@ Now execute the actions needed to accomplish this subtask.`,
 
 	// Update subtask status based on success/failure
 	const updatedSubtaskPlan = [...(state.subtask_plan || [])];
-	updatedSubtaskPlan[firstPendingSubtaskIndex] = {
-		...updatedSubtaskPlan[firstPendingSubtaskIndex],
+	updatedSubtaskPlan[currentSubtaskIndex] = {
+		...updatedSubtaskPlan[currentSubtaskIndex],
 		status:
 			response.structuredResponse.subtask_success ? "completed" : "failed",
 		results: [
-			...(updatedSubtaskPlan[firstPendingSubtaskIndex].results || []),
+			...(updatedSubtaskPlan[currentSubtaskIndex].results || []),
 			response.structuredResponse.result_explanation,
 		],
 	};
@@ -152,7 +152,7 @@ Now execute the actions needed to accomplish this subtask.`,
 	if (!response.structuredResponse.subtask_success) {
 		return new Command({
 			update: {
-				current_subtask_index: firstPendingSubtaskIndex,
+				current_subtask_index: currentSubtaskIndex,
 				subtask_plan: updatedSubtaskPlan,
 				...response.structuredResponse,
 			},
@@ -160,19 +160,19 @@ Now execute the actions needed to accomplish this subtask.`,
 		});
 	}
 
-	// If successful and more subtasks pending, continue executing
-	// If all subtasks completed, go back to task-executor
-	const hasMorePendingSubtasks = updatedSubtaskPlan.some(
-		(subtask, idx) =>
-			idx > firstPendingSubtaskIndex && subtask.status === "pending",
-	);
+	// If successful, move to next subtask (increment index)
+	const nextSubtaskIndex = currentSubtaskIndex + 1;
+
+	// Check if there are more subtasks to process
+	const hasMoreSubtasks = nextSubtaskIndex < updatedSubtaskPlan.length;
 
 	return new Command({
 		update: {
-			current_subtask_index: firstPendingSubtaskIndex,
+			// Increment index or set to -1 if all done
+			current_subtask_index: hasMoreSubtasks ? nextSubtaskIndex : -1,
 			subtask_plan: updatedSubtaskPlan,
 			...response.structuredResponse,
 		},
-		goto: hasMorePendingSubtasks ? "action-executor" : "task-executor",
+		goto: hasMoreSubtasks ? "action-executor" : "task-executor",
 	});
 }

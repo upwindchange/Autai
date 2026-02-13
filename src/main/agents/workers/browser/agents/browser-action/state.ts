@@ -42,9 +42,9 @@ const BrowserActionState = Annotation.Root({
 	mode: Annotation<string>,
 	sessionId: Annotation<string>,
 	task_plan: Annotation<Plan>,
-	current_task_index: Annotation<number>,
+	current_task_index: Annotation<number>, // -1 means no active task
 	subtask_plan: Annotation<Plan>,
-	current_subtask_index: Annotation<number>,
+	current_subtask_index: Annotation<number>, // -1 means no active subtask
 	response: Annotation<string>,
 });
 

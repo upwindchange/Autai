@@ -43,7 +43,12 @@ Now create the execution plan.`,
 
 	const response = await agent.invoke({ messages: state.messages });
 	return new Command({
-		update: response.structuredResponse,
+		update: {
+			...response.structuredResponse,
+			// Initialize to first task (index 0)
+			current_task_index: 0,
+			current_subtask_index: 0,
+		},
 		goto: "task-executor",
 	});
 }
