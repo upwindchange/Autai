@@ -119,11 +119,7 @@ function buildSystemPrompt(
 	taskPlan: Plan,
 	failureContext: string,
 ): SystemMessage {
-	const hasFailedSubtask = failureContext.length > 0;
-
-	const baseInstructions =
-		!hasFailedSubtask ?
-			`
+	const baseInstructions = `
 
 ## Your Responsibilities
 Expand the current task into subtasks that provide clear instructions for the next subagent.
@@ -145,8 +141,7 @@ Each subtask has:
 - Subtasks should group related actions together
 - Make subtasks instructional - they guide another AI on what to accomplish
 - Don't break into atomic actions like "click button" or "type text" - that's for the next subagent
-- Consider page state from previous tasks when writing instructions`
-		:	"";
+- Consider page state from previous tasks when writing instructions`;
 
 	return new SystemMessage(
 		`You are a browser automation subtask planner. Break down one high-level task into instructional subtasks.

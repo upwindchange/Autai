@@ -16,7 +16,7 @@ import { PQueueManager } from "@agents/utils";
 import { apiServer } from "@agents";
 import { initializeTelemetry, shutdownTelemetry } from "@agents/utils";
 import { SettingsBridge } from "@/bridges/SettingsBridge";
-import { SessionTabBridge } from "@/bridges/ThreadViewBridge";
+import { SessionTabBridge } from "@/bridges/SessionTabBridge";
 
 // const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

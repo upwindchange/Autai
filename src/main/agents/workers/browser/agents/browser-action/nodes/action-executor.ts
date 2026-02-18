@@ -56,6 +56,33 @@ You have access to tools for:
 - DOM analysis: getFlattenDOMTool (LLM-optimized flattened DOM representation)
 - Element inspection: get attributes, evaluate JavaScript, get basic info
 
+## DOM Representation Format
+The getFlattenDOMTool returns a simplified DOM representation. Here's how to read it:
+
+### Element Markers
+- \`[N]<tag>\` - Interactive element with backendNodeId N. Use this number in tools like clickElementTool, fillElementTool.
+- \`*[N]<tag>\` - NEW element (first observation since last check). Useful for detecting page changes.
+- \`|SCROLL[N]<tag>\` - Scrollable AND interactive. Can scroll this container.
+- \`|SCROLL|<tag>\` - Scrollable but NOT clickable. Use scrollPagesTool instead.
+- \`|IFRAME|<iframe>\` / \`|FRAME|<frame>\` - Embedded frame elements.
+- \`|SHADOW(open)|\` / \`|SHADOW(closed)|\` - Shadow DOM boundary indicator.
+
+### Structure
+- Tab indentation shows nesting (child elements are indented under parents)
+- Text content appears on separate lines without brackets
+- Key attributes are included: role, aria-label, placeholder, value, type, etc.
+- Scroll position: \`scroll: horizontal: X%, vertical: Y%\`
+
+### Example
+\`\`\`
+[49]<div role=navigation />
+    [52]<a>About</a>
+    [64]<a aria-label=Search for Images>Images</a>
+    *[68]<button expanded=false>Menu</button>
+\`\`\`
+
+To click "Menu" button, use: clickElementTool with backendNodeId=68
+
 ## Your Responsibilities
 1. Use getFlattenDOMTool FIRST to understand the current page state
 2. Identify which atomic actions are needed to accomplish the subtask
