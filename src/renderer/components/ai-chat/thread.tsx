@@ -303,6 +303,7 @@ const ComposerAction: FC = () => {
 				<TooltipIconButton
 					tooltip={useBrowser ? "Browser enabled" : "Enable browser"}
 					variant="ghost"
+					type="button"
 					className={cn("size-8.5", useBrowser && "bg-muted hover:bg-muted")}
 					onClick={() => setUseBrowser(!useBrowser)}
 				>
@@ -313,6 +314,7 @@ const ComposerAction: FC = () => {
 				<TooltipIconButton
 					tooltip={webSearch ? "Web search enabled" : "Enable web search"}
 					variant="ghost"
+					type="button"
 					className={cn("size-8.5", webSearch && "bg-muted hover:bg-muted")}
 					onClick={() => setWebSearch(!webSearch)}
 				>

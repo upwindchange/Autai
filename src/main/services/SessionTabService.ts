@@ -8,14 +8,12 @@ import log from "electron-log/main";
 interface TabMetadata {
 	id: TabId;
 	sessionId: SessionId;
-	url: string;
 	backendVisibility: boolean;
 	timestamp: number;
 }
 
 interface CreateTabOptions {
 	sessionId: SessionId;
-	url?: string;
 	bounds?: Rectangle;
 }
 
@@ -145,7 +143,6 @@ export class SessionTabService extends EventEmitter {
 	async createTab(options: CreateTabOptions): Promise<TabId> {
 		const {
 			sessionId,
-			url = "https://find.quantimpulse.com",
 			bounds,
 		} = options;
 		const tabId = `tab-${Date.now()}-${Math.random()
@@ -167,7 +164,6 @@ export class SessionTabService extends EventEmitter {
 		this.tabMetadata.set(tabId, {
 			id: tabId,
 			sessionId,
-			url,
 			backendVisibility: true, // Default to visible from backend
 			timestamp: Date.now(),
 		});

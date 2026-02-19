@@ -89,12 +89,23 @@ export const getSessionTabsTool = tool(
 					return `No tabs found for session ${sessionId}.`;
 				}
 
-				const tabDetails = tabMetadataList.map((metadata) => ({
-					tabId: metadata.id,
-					url: metadata.url,
-					isActive: metadata.id === activeTabId,
-					backendVisibility: metadata.backendVisibility,
-				}));
+				const tabDetails = tabMetadataList.map((metadata) => {
+					const tab = sessionTabService.getTab(metadata.id);
+					let currentUrl: string | null = null;
+					if (tab?.webContents && !tab.webContents.isDestroyed()) {
+						try {
+							currentUrl = tab.webContents.getURL();
+						} catch (_error) {
+							// URL unavailable
+						}
+					}
+					return {
+						tabId: metadata.id,
+						url: currentUrl,
+						isActive: metadata.id === activeTabId,
+						backendVisibility: metadata.backendVisibility,
+					};
+				});
 
 				const result = {
 					sessionId,
@@ -136,12 +147,12 @@ export const getTabInfoTool = tool(
 					tabId;
 
 				// Get current URL if tab is available
-				let currentUrl = tabMetadata.url;
+				let currentUrl: string | null = null;
 				if (tab && tab.webContents && !tab.webContents.isDestroyed()) {
 					try {
 						currentUrl = tab.webContents.getURL();
 					} catch (_error) {
-						// Keep original URL if we can't get current URL
+						// URL unavailable
 					}
 				}
 
@@ -149,7 +160,6 @@ export const getTabInfoTool = tool(
 					tabId,
 					sessionId: tabMetadata.sessionId,
 					url: currentUrl,
-					originalUrl: tabMetadata.url,
 					isActiveTab,
 					backendVisibility: tabMetadata.backendVisibility,
 					tabExists: !!tab && !tab.webContents?.isDestroyed(),
@@ -268,12 +278,23 @@ export const getCurrentSessionContextTool = tool(
 					sessionId: sessionId,
 					activeTabId,
 					totalTabs: tabMetadataList.length,
-					tabs: tabMetadataList.map((metadata) => ({
-						tabId: metadata.id,
-						url: metadata.url,
-						isActive: metadata.id === activeTabId,
-						backendVisibility: metadata.backendVisibility,
-					})),
+					tabs: tabMetadataList.map((metadata) => {
+						const tab = sessionTabService.getTab(metadata.id);
+						let currentUrl: string | null = null;
+						if (tab?.webContents && !tab.webContents.isDestroyed()) {
+							try {
+								currentUrl = tab.webContents.getURL();
+							} catch (_error) {
+								// URL unavailable
+							}
+						}
+						return {
+							tabId: metadata.id,
+							url: currentUrl,
+							isActive: metadata.id === activeTabId,
+							backendVisibility: metadata.backendVisibility,
+						};
+					}),
 				};
 
 				return JSON.stringify(result, null, 2);
