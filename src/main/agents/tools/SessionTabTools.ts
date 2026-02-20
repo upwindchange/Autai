@@ -3,6 +3,67 @@ import { z } from "zod";
 import { SessionTabService } from "@/services";
 import { PQueueManager } from "@agents/utils";
 
+// Type definitions for tool results
+export interface SessionDetail {
+	sessionId: string;
+	tabCount: number;
+	activeTabId: string | null;
+}
+
+export interface ListSessionsResult {
+	totalSessions: number;
+	sessions: SessionDetail[];
+}
+
+export interface TabDetail {
+	tabId: string;
+	url: string | null;
+	isActive: boolean;
+	backendVisibility: boolean;
+}
+
+export interface GetSessionTabsResult {
+	sessionId: string;
+	totalTabs: number;
+	activeTabId: string | null;
+	tabs: TabDetail[];
+}
+
+export interface GetTabInfoResult {
+	tabId: string;
+	sessionId: string;
+	url: string | null;
+	isActiveTab: boolean;
+	backendVisibility: boolean;
+	tabExists: boolean;
+}
+
+export interface CreateTabResultSuccess {
+	success: true;
+	tabId: string;
+	sessionId: string;
+	url: string;
+	message: string;
+}
+
+export interface CreateTabResultFailure {
+	success: false;
+	sessionId?: string;
+	url: string;
+	error: string;
+}
+
+export type CreateTabResult = CreateTabResultSuccess | CreateTabResultFailure;
+
+export interface GetCurrentSessionContextResult {
+	success: boolean;
+	sessionId: string;
+	activeTabId: string | null;
+	totalTabs: number;
+	tabs: TabDetail[];
+	error?: string;
+}
+
 // Get all sessions schema
 const listSessionsSchema = z.object({});
 
@@ -41,7 +102,10 @@ export const listSessionsTool = tool(
 				const sessionIds = sessionTabService.getAllSessionIds();
 
 				if (sessionIds.length === 0) {
-					return "No sessions available.";
+					return {
+						totalSessions: 0,
+						sessions: [],
+					} satisfies ListSessionsResult;
 				}
 
 				const sessionDetails = sessionIds.map((sessionId) => {
@@ -55,12 +119,12 @@ export const listSessionsTool = tool(
 					};
 				});
 
-				const result = {
+				const result: ListSessionsResult = {
 					totalSessions: sessionIds.length,
 					sessions: sessionDetails,
 				};
 
-				return JSON.stringify(result, null, 2);
+				return result;
 			},
 			{
 				timeout: 10000, // 10 seconds timeout for session tab operations
@@ -86,7 +150,12 @@ export const getSessionTabsTool = tool(
 				const activeTabId = sessionTabService.getActiveTabForSession(sessionId);
 
 				if (tabMetadataList.length === 0) {
-					return `No tabs found for session ${sessionId}.`;
+					return {
+						sessionId,
+						totalTabs: 0,
+						activeTabId,
+						tabs: [],
+					} satisfies GetSessionTabsResult;
 				}
 
 				const tabDetails = tabMetadataList.map((metadata) => {
@@ -107,14 +176,14 @@ export const getSessionTabsTool = tool(
 					};
 				});
 
-				const result = {
+				const result: GetSessionTabsResult = {
 					sessionId,
 					totalTabs: tabMetadataList.length,
 					activeTabId,
 					tabs: tabDetails,
 				};
 
-				return JSON.stringify(result, null, 2);
+				return result;
 			},
 			{
 				timeout: 10000,
@@ -139,7 +208,7 @@ export const getTabInfoTool = tool(
 				const tab = sessionTabService.getTab(tabId);
 
 				if (!tabMetadata) {
-					return `Tab ${tabId} not found.`;
+					throw new Error(`Tab ${tabId} not found.`);
 				}
 
 				const isActiveTab =
@@ -156,7 +225,7 @@ export const getTabInfoTool = tool(
 					}
 				}
 
-				const result = {
+				const result: GetTabInfoResult = {
 					tabId,
 					sessionId: tabMetadata.sessionId,
 					url: currentUrl,
@@ -165,7 +234,7 @@ export const getTabInfoTool = tool(
 					tabExists: !!tab && !tab.webContents?.isDestroyed(),
 				};
 
-				return JSON.stringify(result, null, 2);
+				return result;
 			},
 			{
 				timeout: 10000,
@@ -189,24 +258,26 @@ export const createTabTool = tool(
 				const targetsessionId = sessionId;
 
 				if (!targetsessionId) {
-					const result = {
+					const result: CreateTabResultFailure = {
 						success: false,
+						url: url || "welcome page",
 						error:
 							"No session ID provided and no current session context available. Please specify a session ID.",
 					};
-					return JSON.stringify(result, null, 2);
+					return result;
 				}
 
 				// Check if session exists
 				const sessionState =
 					sessionTabService.getSessionTabState(targetsessionId);
 				if (!sessionState) {
-					const result = {
+					const result: CreateTabResultFailure = {
 						success: false,
 						sessionId: targetsessionId,
+						url: url || "welcome page",
 						error: `Session ${targetsessionId} not found. Please create the session first.`,
 					};
-					return JSON.stringify(result, null, 2);
+					return result;
 				}
 
 				try {
@@ -214,22 +285,22 @@ export const createTabTool = tool(
 						sessionId: targetsessionId,
 						url,
 					});
-					const result = {
+					const result: CreateTabResultSuccess = {
 						success: true,
 						tabId,
 						sessionId: targetsessionId,
 						url: url || "welcome page",
 						message: `Successfully created tab ${tabId} for session ${targetsessionId}`,
 					};
-					return JSON.stringify(result, null, 2);
+					return result;
 				} catch (error) {
-					const result = {
+					const result: CreateTabResultFailure = {
 						success: false,
 						sessionId: targetsessionId,
 						url: url || "welcome page",
 						error: error instanceof Error ? error.message : String(error),
 					};
-					return JSON.stringify(result, null, 2);
+					return result;
 				}
 			},
 			{
@@ -253,27 +324,34 @@ export const getCurrentSessionContextTool = tool(
 				const sessionTabService = SessionTabService.getInstance();
 
 				if (!sessionId) {
-					const result = {
+					const result: GetCurrentSessionContextResult = {
 						success: false,
+						sessionId: "",
+						activeTabId: null,
+						totalTabs: 0,
+						tabs: [],
 						error: "No session ID provided",
 					};
-					return JSON.stringify(result, null, 2);
+					return result;
 				}
 
 				const sessionState = sessionTabService.getSessionTabState(sessionId);
 				if (!sessionState) {
-					const result = {
+					const result: GetCurrentSessionContextResult = {
 						success: false,
 						sessionId: sessionId,
+						activeTabId: null,
+						totalTabs: 0,
+						tabs: [],
 						error: `Session ${sessionId} not found in session tab service`,
 					};
-					return JSON.stringify(result, null, 2);
+					return result;
 				}
 
 				const activeTabId = sessionTabService.getActiveTabForSession(sessionId);
 				const tabMetadataList = sessionTabService.getAllTabMetadata(sessionId);
 
-				const result = {
+				const result: GetCurrentSessionContextResult = {
 					success: true,
 					sessionId: sessionId,
 					activeTabId,
@@ -297,7 +375,7 @@ export const getCurrentSessionContextTool = tool(
 					}),
 				};
 
-				return JSON.stringify(result, null, 2);
+				return result;
 			},
 			{
 				timeout: 10000,
@@ -320,12 +398,6 @@ export const sessionTabTools = [
 	createTabTool,
 	getCurrentSessionContextTool,
 ];
-
-// Type definitions for tool results
-export type ListSessionsResult = string;
-export type GetSessionTabsResult = string;
-export type GetTabInfoResult = string;
-export type CreateTabResult = string;
 
 // Tool names enum for type safety
 export enum SessionTabToolNames {

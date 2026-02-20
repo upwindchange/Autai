@@ -15,6 +15,7 @@ interface TabMetadata {
 interface CreateTabOptions {
 	sessionId: SessionId;
 	bounds?: Rectangle;
+	url?: string;
 }
 
 export class SessionTabService extends EventEmitter {
@@ -144,6 +145,7 @@ export class SessionTabService extends EventEmitter {
 		const {
 			sessionId,
 			bounds,
+			url,
 		} = options;
 		const tabId = `tab-${Date.now()}-${Math.random()
 			.toString(36)
@@ -202,10 +204,16 @@ export class SessionTabService extends EventEmitter {
 			}
 		}
 
-		// Load welcome page
-		this.logger.debug("init welcome page loading");
-		await tab.webContents.loadFile("resources/welcome.html");
-		this.logger.debug("welcome page loaded");
+		// Load URL or welcome page
+		this.logger.debug("init page loading");
+		if (url) {
+			this.logger.debug(`Loading custom URL: ${url}`);
+			await tab.webContents.loadURL(url);
+		} else {
+			this.logger.debug("Loading welcome page");
+			await tab.webContents.loadFile("resources/welcome.html");
+		}
+		this.logger.debug("page loaded");
 
 		// Page load completion - build DOM tree (no script injection needed)
 		tab.webContents.on("did-finish-load", async () => {

@@ -13,6 +13,36 @@ import log from "electron-log/main";
 
 const logger = log.scope("DOMTools");
 
+// Type definitions for tool results
+export interface GetDOMTreeToolResultSuccess {
+	tabId: string;
+	newNodesCount: number;
+	totalNodesCountChange: number;
+}
+
+export interface GetDOMTreeToolResultError {
+	tabId: string;
+	error: string;
+}
+
+export type GetDOMTreeToolResult =
+	| GetDOMTreeToolResultSuccess
+	| GetDOMTreeToolResultError;
+
+export interface GetFlattenDOMToolResultSuccess {
+	tabId: string;
+	representation: string;
+}
+
+export interface GetFlattenDOMToolResultError {
+	tabId: string;
+	representation: string;
+}
+
+export type GetFlattenDOMToolResult =
+	| GetFlattenDOMToolResultSuccess
+	| GetFlattenDOMToolResultError;
+
 // Input schemas
 const getDOMTreeSchema = z.object({
 	tabId: z.string().describe("The ID of the tab to analyze"),
@@ -31,21 +61,18 @@ export const getDOMTreeTool = tool(
 				const domService = sessionTabService.getDomService(tabId);
 
 				if (!domService) {
-					return JSON.stringify(
-						{
-							tabId,
-							error:
-								"Error: DOM service not found. Please ensure the browser tab is still active.",
-						},
-						null,
-						2,
-					);
+					const result: GetDOMTreeToolResultError = {
+						tabId,
+						error:
+							"Error: DOM service not found. Please ensure the browser tab is still active.",
+					};
+					return result;
 				}
 				const stats = domService.simplifiedDOMState?.stats;
 				const changeTime =
 					sessionTabService.getTabMetadata(tabId)?.timestamp || 0;
 				const detectTime = stats?.timestamp || 0;
-				let response: object;
+				let response: GetDOMTreeToolResultSuccess;
 				// Get DOM tree with change detection and update internal state (default)
 				if (detectTime > changeTime) {
 					response = {
@@ -78,7 +105,7 @@ export const getDOMTreeTool = tool(
 					}
 				}
 
-				return JSON.stringify(response, null, 2);
+				return response;
 			},
 			{
 				timeout: 45000,
@@ -103,12 +130,12 @@ export const getFlattenDOMTool = tool(
 				const domService = sessionTabService.getDomService(tabId);
 
 				if (!domService) {
-					const response = {
+					const response: GetFlattenDOMToolResultError = {
 						tabId,
 						representation:
 							"Error: DOM service not found. Please ensure the browser tab is still active.",
 					};
-					return JSON.stringify(response, null, 2);
+					return response;
 				}
 
 				// Generate representation using the root node
@@ -116,12 +143,12 @@ export const getFlattenDOMTool = tool(
 					domService.simplifiedDOMState?.flattenedDOM ||
 					"No DOM tree available";
 
-				const response = {
+				const response: GetFlattenDOMToolResultSuccess = {
 					tabId,
 					representation,
 				};
 
-				return JSON.stringify(response, null, 2);
+				return response;
 			},
 			{
 				timeout: 45000,
@@ -141,12 +168,6 @@ export const getFlattenDOMTool = tool(
 
 // Export all tools as a ToolSet for AI SDK
 export const domTools = [getDOMTreeTool, getFlattenDOMTool];
-
-// Type definitions for tool results
-export type GetDOMTreeToolResult = string;
-export type ResetDOMTreeToolResult = string;
-export type getFlattenDOMToolResult = string;
-export type GetDOMStatusToolResult = string;
 
 // Tool names enum for type safety
 export enum DOMToolNames {
