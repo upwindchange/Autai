@@ -109,7 +109,6 @@ Based on:
 
 ## Subtask Result
 When subtask is completed:
-- Set subtask_completed: true
 - Set subtask_success: true if all actions succeeded, false if any failed
 - Provide detailed result_explanation describing what was accomplished or why it failed
 
@@ -137,20 +136,9 @@ Now execute the actions needed to accomplish this subtask.`,
 		tools: allTools,
 		responseFormat: toolStrategy(
 			z.object({
-				subtask_completed: z
-					.boolean()
-					.describe("Whether the current subtask has been fully accomplished"),
 				subtask_success: z
 					.boolean()
 					.describe("Whether the subtask was completed successfully or failed"),
-				actions_taken: z
-					.array(z.string())
-					.describe(
-						"List of actions executed (e.g., 'Clicked submit button', 'Filled email field')",
-					),
-				current_status: z
-					.string()
-					.describe("Brief description of the current page/state"),
 				result_explanation: z
 					.string()
 					.describe(
@@ -181,7 +169,6 @@ Now execute the actions needed to accomplish this subtask.`,
 			update: {
 				current_subtask_index: currentSubtaskIndex,
 				subtask_plan: updatedSubtaskPlan,
-				...response.structuredResponse,
 			},
 			goto: "task-executor", // Always go back on failure
 		});
@@ -198,7 +185,6 @@ Now execute the actions needed to accomplish this subtask.`,
 			// Increment index or set to -1 if all done
 			current_subtask_index: hasMoreSubtasks ? nextSubtaskIndex : -1,
 			subtask_plan: updatedSubtaskPlan,
-			...response.structuredResponse,
 		},
 		goto: hasMoreSubtasks ? "action-executor" : "task-executor",
 	});
