@@ -8,6 +8,7 @@ import { interactiveTools } from "@/agents/tools/InteractiveTools";
 import { tabControlTools } from "@/agents/tools/TabControlTools";
 import { getSessionTabsTool } from "@/agents/tools/SessionTabTools";
 import { getFlattenDOMTool } from "@/agents/tools/DOMTools";
+import { setContextVariable } from "@langchain/core/context";
 
 export async function browserActionExecutorNode(
 	state: BrowserActionStateType,
@@ -43,9 +44,6 @@ ${subtaskContext}
 
 ## All Subtasks Context
 ${allSubtasksContext}
-
-## Browser Session ID
-${state.sessionId}
 
 ## Your Capabilities
 You have access to tools for:
@@ -122,6 +120,9 @@ When subtask is completed:
 
 Now execute the actions needed to accomplish this subtask.`,
 	);
+
+	// Set sessionId in context for tools to access
+	setContextVariable("sessionId", state.sessionId);
 
 	// Combine all tools - getFlattenDOMTool first for priority
 	const allTools = [

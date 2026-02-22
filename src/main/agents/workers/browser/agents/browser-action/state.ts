@@ -24,10 +24,10 @@ export const PlanItemSchema = z.object({
 		.describe("Detailed description of what this step involves"),
 	results: z
 		.array(z.any())
+		.optional()
 		.describe(
-			"Array of BaseMessage objects from tool execution results for this step, populate this field as empty array first, will be populated manually",
-		)
-		.default([]),
+			"Array of BaseMessage objects from tool execution results for this step, will be populated during execution",
+		),
 });
 
 export const PlanSchema = z

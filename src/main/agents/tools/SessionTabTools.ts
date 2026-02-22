@@ -2,6 +2,7 @@ import { tool } from "langchain";
 import { z } from "zod";
 import { SessionTabService } from "@/services";
 import { PQueueManager } from "@agents/utils";
+import { getContextVariable } from "@langchain/core/context";
 
 // Type definitions for tool results
 export interface SessionDetail {
@@ -68,9 +69,7 @@ export interface GetCurrentSessionContextResult {
 const listSessionsSchema = z.object({});
 
 // Get session tabs schema
-const getSessionTabsSchema = z.object({
-	sessionId: z.string().describe("The ID of the session to get tabs from"),
-});
+const getSessionTabsSchema = z.object({});
 
 // Get tab info schema
 const getTabInfoSchema = z.object({
@@ -79,7 +78,6 @@ const getTabInfoSchema = z.object({
 
 // Create tab schema
 const createTabSchema = z.object({
-	sessionId: z.string().describe("The ID of the session to create the tab for"),
 	url: z
 		.string()
 		.optional()
@@ -89,9 +87,7 @@ const createTabSchema = z.object({
 });
 
 // Get current session context schema
-const getCurrentSessionContextSchema = z.object({
-	sessionId: z.string().describe("The ID of the session to get context for"),
-});
+const getCurrentSessionContextSchema = z.object({});
 
 // List all sessions tool
 export const listSessionsTool = tool(
@@ -142,9 +138,21 @@ export const listSessionsTool = tool(
 
 // Get session tabs tool
 export const getSessionTabsTool = tool(
-	async ({ sessionId }) => {
+	async (_input) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
+				// Get sessionId from context variable
+				const sessionId = getContextVariable("sessionId");
+
+				if (!sessionId) {
+					return {
+						sessionId: "",
+						totalTabs: 0,
+						activeTabId: null,
+						tabs: [],
+					} satisfies GetSessionTabsResult;
+				}
+
 				const sessionTabService = SessionTabService.getInstance();
 				const tabMetadataList = sessionTabService.getAllTabMetadata(sessionId);
 				const activeTabId = sessionTabService.getActiveTabForSession(sessionId);
@@ -193,7 +201,8 @@ export const getSessionTabsTool = tool(
 	},
 	{
 		name: "getSessionTabsTool",
-		description: "Get all tabs for a specific session including their metadata",
+		description:
+			"Get all tabs for the current browser session including their metadata. Uses the current session ID automatically.",
 		schema: getSessionTabsSchema,
 	},
 );
@@ -251,13 +260,14 @@ export const getTabInfoTool = tool(
 
 // Create tab tool
 export const createTabTool = tool(
-	async ({ sessionId, url }) => {
+	async ({ url }) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
+				// Get sessionId from context variable
+				const sessionId = getContextVariable("sessionId");
 				const sessionTabService = SessionTabService.getInstance();
-				const targetsessionId = sessionId;
 
-				if (!targetsessionId) {
+				if (!sessionId) {
 					const result: CreateTabResultFailure = {
 						success: false,
 						url: url || "welcome page",
@@ -268,35 +278,34 @@ export const createTabTool = tool(
 				}
 
 				// Check if session exists
-				const sessionState =
-					sessionTabService.getSessionTabState(targetsessionId);
+				const sessionState = sessionTabService.getSessionTabState(sessionId);
 				if (!sessionState) {
 					const result: CreateTabResultFailure = {
 						success: false,
-						sessionId: targetsessionId,
+						sessionId: sessionId,
 						url: url || "welcome page",
-						error: `Session ${targetsessionId} not found. Please create the session first.`,
+						error: `Session ${sessionId} not found. Please create the session first.`,
 					};
 					return result;
 				}
 
 				try {
 					const tabId = await sessionTabService.createTab({
-						sessionId: targetsessionId,
+						sessionId: sessionId,
 						url,
 					});
 					const result: CreateTabResultSuccess = {
 						success: true,
 						tabId,
-						sessionId: targetsessionId,
+						sessionId: sessionId,
 						url: url || "welcome page",
-						message: `Successfully created tab ${tabId} for session ${targetsessionId}`,
+						message: `Successfully created tab ${tabId} for session ${sessionId}`,
 					};
 					return result;
 				} catch (error) {
 					const result: CreateTabResultFailure = {
 						success: false,
-						sessionId: targetsessionId,
+						sessionId: sessionId,
 						url: url || "welcome page",
 						error: error instanceof Error ? error.message : String(error),
 					};
@@ -311,16 +320,19 @@ export const createTabTool = tool(
 	},
 	{
 		name: "createTabTool",
-		description: "Create a new tab for a specific session with optional URL",
+		description:
+			"Create a new tab for the current browser session with optional URL. Uses the current session ID automatically.",
 		schema: createTabSchema,
 	},
 );
 
 // Get current session context tool
 export const getCurrentSessionContextTool = tool(
-	async ({ sessionId }) => {
+	async (_input) => {
 		return await PQueueManager.getInstance().add(
 			async () => {
+				// Get sessionId from context variable
+				const sessionId = getContextVariable("sessionId");
 				const sessionTabService = SessionTabService.getInstance();
 
 				if (!sessionId) {
@@ -385,7 +397,8 @@ export const getCurrentSessionContextTool = tool(
 	},
 	{
 		name: "getCurrentSessionContextTool",
-		description: "Get information about a session context including its tabs",
+		description:
+			"Get information about the current session context including its tabs. Uses the current session ID automatically.",
 		schema: getCurrentSessionContextSchema,
 	},
 );
