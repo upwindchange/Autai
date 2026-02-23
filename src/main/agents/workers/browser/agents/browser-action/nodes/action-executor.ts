@@ -30,19 +30,19 @@ export async function browserActionExecutorNode(
 		});
 	}
 
-	const currentSubtask = state.subtask_plan![currentSubtaskIndex];
+	const currentSubtask = state.subtask_plan[currentSubtaskIndex];
 
 	// Build context
 	const subtaskContext = JSON.stringify(currentSubtask, null, 2);
 	const allSubtasksContext = JSON.stringify(state.subtask_plan, null, 2);
 
 	const systemPrompt = new SystemMessage(
-		`You are a browser automation action executor. Your role is to execute atomic, concrete browser actions to accomplish a subtask.
+		`You are a browser automation action executor. Your role is to execute atomic, concrete browser actions to accomplish the current subtask.
 
-## Current Subtask
+## Execute only this Current Subtask
 ${subtaskContext}
 
-## All Subtasks Context
+## All Subtasks Context (offered to you just as context, no execution to any tasks here except for the current subtask listed above)
 ${allSubtasksContext}
 
 ## Your Capabilities
