@@ -6,7 +6,7 @@ import { Command } from "@langchain/langgraph";
 import { z } from "zod";
 import { interactiveTools } from "@/agents/tools/InteractiveTools";
 import { tabControlTools } from "@/agents/tools/TabControlTools";
-import { getSessionTabsTool } from "@/agents/tools/SessionTabTools";
+import { getSessionTabsTool, getTabInfoTool, createTabTool } from "@/agents/tools/SessionTabTools";
 import { getFlattenDOMTool } from "@/agents/tools/DOMTools";
 import { setContextVariable } from "@langchain/core/context";
 
@@ -36,7 +36,57 @@ export async function browserActionExecutorNode(
 	const subtaskContext = JSON.stringify(currentSubtask, null, 2);
 	const allSubtasksContext = JSON.stringify(state.subtask_plan, null, 2);
 
-	const systemPrompt = new SystemMessage(
+	// ============================================================
+	// PHASE 1: Tab Selection
+	// ============================================================
+
+	// Set sessionId in context for tools to access
+	setContextVariable("sessionId", state.sessionId);
+
+	const tabSelectorSystemPrompt = new SystemMessage(
+		`You are a tab selector. Your role is to determine which tab should be used for the current subtask.
+
+## Current Subtask
+${subtaskContext}
+
+## Your Responsibilities
+1. Use getSessionTabsTool to see all available tabs
+2. Determine which tab is appropriate for the subtask:
+   - Use the active tab if it matches the requirements
+   - Select a different tab if the subtask requires a specific URL/content
+   - Create a new tab if no suitable tab exists
+3. Output the selected tabId and explanation
+
+## Output Format
+- selectedTabId: The tab ID to use (string)
+- explanation: Why this tab was chosen (string)
+
+Now select the appropriate tab for this subtask.`,
+	);
+
+	// Tab selector agent with tab management tools only
+	const tabSelectorAgent = createAgent({
+		model: complexLangchainModel(),
+		tools: [getSessionTabsTool, getTabInfoTool, createTabTool],
+		responseFormat: toolStrategy(
+			z.object({
+				selectedTabId: z.string().describe("The tab ID to use"),
+				explanation: z.string().describe("Why this tab was chosen"),
+			}),
+		),
+		systemPrompt: tabSelectorSystemPrompt,
+	});
+
+	const tabSelectorResponse = await tabSelectorAgent.invoke({ messages: state.messages });
+
+	// Set the selected tabId in context for action executor to use
+	setContextVariable("activeTabId", tabSelectorResponse.structuredResponse.selectedTabId);
+
+	// ============================================================
+	// PHASE 2: Action Execution
+	// ============================================================
+
+	const actionExecutorSystemPrompt = new SystemMessage(
 		`You are a browser automation action executor. Your role is to execute atomic, concrete browser actions to accomplish the current subtask.
 
 ## Execute only this Current Subtask
@@ -45,14 +95,20 @@ ${subtaskContext}
 ## All Subtasks Context (offered to you just as context, no execution to any tasks here except for the current subtask listed above)
 ${allSubtasksContext}
 
+## Selected Tab Context
+Tab ID: ${tabSelectorResponse.structuredResponse.selectedTabId}
+Explanation: ${tabSelectorResponse.structuredResponse.explanation}
+
 ## Your Capabilities
 You have access to tools for:
-- Analyze current session and tab: getSessionTabsTool, you can get current tabID from this tool
 - Interactive elements: click, fill, select, hover, drag
 - Page navigation: navigate, refresh, go back, go forward
 - Page scrolling: scroll by pages or at coordinates
 - DOM analysis: getFlattenDOMTool (LLM-optimized flattened DOM representation)
 - Element inspection: get attributes, evaluate JavaScript, get basic info
+
+## Important: Tab Context
+The active tab has been pre-selected for you. All interactive tools will automatically use this tab context - you do NOT need to specify tabId in your tool calls.
 
 ## DOM Representation Format
 The getFlattenDOMTool returns a simplified DOM representation. Here's how to read it:
@@ -121,18 +177,14 @@ When subtask is completed:
 Now execute the actions needed to accomplish this subtask.`,
 	);
 
-	// Set sessionId in context for tools to access
-	setContextVariable("sessionId", state.sessionId);
-
-	// Combine all tools - getFlattenDOMTool first for priority
+	// Action executor agent with interactive tools (NO getSessionTabsTool)
 	const allTools = [
 		getFlattenDOMTool,
-		getSessionTabsTool,
 		...interactiveTools,
 		...tabControlTools,
 	];
 
-	const agent = createAgent({
+	const actionExecutorAgent = createAgent({
 		model: complexLangchainModel(),
 		tools: allTools,
 		responseFormat: toolStrategy(
@@ -147,10 +199,10 @@ Now execute the actions needed to accomplish this subtask.`,
 					),
 			}),
 		),
-		systemPrompt,
+		systemPrompt: actionExecutorSystemPrompt,
 	});
 
-	const response = await agent.invoke({ messages: state.messages });
+	const response = await actionExecutorAgent.invoke({ messages: state.messages });
 
 	// Update subtask status based on success/failure
 	const updatedSubtaskPlan = [...(state.subtask_plan || [])];

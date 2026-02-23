@@ -2,10 +2,19 @@ import { tool } from "langchain";
 import { z } from "zod";
 import { TabControlService } from "@/services";
 import { PQueueManager } from "@agents/utils";
+import { getContextVariable } from "@langchain/core/context";
 
 // Navigate tool
 export const navigateTool = tool(
-	async ({ tabId, url }) => {
+	async ({ url }) => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const tabControlService = TabControlService.getInstance();
@@ -21,7 +30,6 @@ export const navigateTool = tool(
 		name: "navigateTool",
 		description: "Navigate a browser tab to a specific URL",
 		schema: z.object({
-			tabId: z.string().describe("The ID of the tab to navigate"),
 			url: z.url().describe("The URL to navigate to (must be a valid URL)"),
 		}),
 	},
@@ -29,7 +37,15 @@ export const navigateTool = tool(
 
 // Refresh tool
 export const refreshTool = tool(
-	async ({ tabId }) => {
+	async () => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const tabControlService = TabControlService.getInstance();
@@ -44,15 +60,21 @@ export const refreshTool = tool(
 	{
 		name: "refreshTool",
 		description: "Refresh the current page in a browser tab",
-		schema: z.object({
-			tabId: z.string().describe("The ID of the tab to refresh"),
-		}),
+		schema: z.object({}),
 	},
 );
 
 // Go back tool
 export const goBackTool = tool(
-	async ({ tabId }) => {
+	async () => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const tabControlService = TabControlService.getInstance();
@@ -67,15 +89,21 @@ export const goBackTool = tool(
 	{
 		name: "goBackTool",
 		description: "Navigate back in the browser history of a tab",
-		schema: z.object({
-			tabId: z.string().describe("The ID of the tab to navigate back"),
-		}),
+		schema: z.object({}),
 	},
 );
 
 // Go forward tool
 export const goForwardTool = tool(
-	async ({ tabId }) => {
+	async () => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const tabControlService = TabControlService.getInstance();
@@ -90,9 +118,7 @@ export const goForwardTool = tool(
 	{
 		name: "goForwardTool",
 		description: "Navigate forward in the browser history of a tab",
-		schema: z.object({
-			tabId: z.string().describe("The ID of the tab to navigate forward"),
-		}),
+		schema: z.object({}),
 	},
 );
 

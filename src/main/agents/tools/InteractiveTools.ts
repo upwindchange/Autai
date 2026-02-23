@@ -2,6 +2,7 @@ import { tool } from "langchain";
 import { z } from "zod";
 import { SessionTabService } from "@/services";
 import { PQueueManager } from "@agents/utils";
+import { getContextVariable } from "@langchain/core/context";
 import type {
 	ClickOptions,
 	ClickResult,
@@ -24,7 +25,15 @@ import type {
 
 // Click Element Tool
 export const clickElementTool = tool(
-	async ({ tabId, backendNodeId }) => {
+	async ({ backendNodeId }) => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -64,7 +73,7 @@ export const clickElementTool = tool(
 							// Return combined result
 							return {
 								...clickResult,
-								tabId,
+								tabId: tabId,
 								newNodesCount,
 								totalNodesCountChange,
 							};
@@ -77,7 +86,7 @@ export const clickElementTool = tool(
 				// Return result without refresh data
 				return {
 					...clickResult,
-					tabId,
+					tabId: tabId,
 					newNodesCount: 0,
 					totalNodesCountChange: 0,
 				};
@@ -92,7 +101,6 @@ export const clickElementTool = tool(
 		name: "clickElementTool",
 		description: "Click on an element using its backend node ID",
 		schema: z.object({
-			tabId: z.string().describe("The ID of the tab containing the element"),
 			backendNodeId: z
 				.number()
 				.describe("Backend node ID of the element to click"),
@@ -103,12 +111,19 @@ export const clickElementTool = tool(
 // Fill Element Tool
 export const fillElementTool = tool(
 	async ({
-		tabId,
 		backendNodeId,
 		value,
 		clear = true,
 		keystrokeDelay = 18,
 	}) => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -148,7 +163,7 @@ export const fillElementTool = tool(
 							// Return combined result
 							return {
 								...fillResult,
-								tabId,
+								tabId: tabId,
 								newNodesCount,
 								totalNodesCountChange,
 							};
@@ -161,7 +176,7 @@ export const fillElementTool = tool(
 				// Return result without refresh data
 				return {
 					...fillResult,
-					tabId,
+					tabId: tabId,
 					newNodesCount: 0,
 					totalNodesCountChange: 0,
 				};
@@ -176,7 +191,6 @@ export const fillElementTool = tool(
 		name: "fillElementTool",
 		description: "Fill an input element with text using human-like typing",
 		schema: z.object({
-			tabId: z.string().describe("The ID of the tab containing the element"),
 			backendNodeId: z
 				.number()
 				.describe("Backend node ID of the input element"),
@@ -195,7 +209,15 @@ export const fillElementTool = tool(
 
 // Select Option Tool
 export const selectOptionTool = tool(
-	async ({ tabId, backendNodeId, values, clear = true, timeout = 5000 }) => {
+	async ({ backendNodeId, values, clear = true, timeout = 5000 }) => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -235,7 +257,7 @@ export const selectOptionTool = tool(
 							// Return combined result
 							return {
 								...selectResult,
-								tabId,
+								tabId: tabId,
 								newNodesCount,
 								totalNodesCountChange,
 							};
@@ -248,7 +270,7 @@ export const selectOptionTool = tool(
 				// Return result without refresh data
 				return {
 					...selectResult,
-					tabId,
+					tabId: tabId,
 					newNodesCount: 0,
 					totalNodesCountChange: 0,
 				};
@@ -263,7 +285,6 @@ export const selectOptionTool = tool(
 		name: "selectOptionTool",
 		description: "Select option(s) in a select element by value or text",
 		schema: z.object({
-			tabId: z.string().describe("The ID of the tab containing the element"),
 			backendNodeId: z
 				.number()
 				.describe("Backend node ID of the select element"),
@@ -281,7 +302,15 @@ export const selectOptionTool = tool(
 
 // Hover Element Tool
 export const hoverElementTool = tool(
-	async ({ tabId, backendNodeId, timeout = 3000 }) => {
+	async ({ backendNodeId, timeout = 3000 }) => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -319,7 +348,7 @@ export const hoverElementTool = tool(
 							// Return combined result
 							return {
 								...hoverResult,
-								tabId,
+								tabId: tabId,
 								newNodesCount,
 								totalNodesCountChange,
 							};
@@ -332,7 +361,7 @@ export const hoverElementTool = tool(
 				// Return result without refresh data
 				return {
 					...hoverResult,
-					tabId,
+					tabId: tabId,
 					newNodesCount: 0,
 					totalNodesCountChange: 0,
 				};
@@ -347,7 +376,6 @@ export const hoverElementTool = tool(
 		name: "hoverElementTool",
 		description: "Hover over an element using its backend node ID",
 		schema: z.object({
-			tabId: z.string().describe("The ID of the tab containing the element"),
 			backendNodeId: z
 				.number()
 				.describe("Backend node ID of the element to hover"),
@@ -358,7 +386,15 @@ export const hoverElementTool = tool(
 
 // Drag to Element Tool
 export const dragToElementTool = tool(
-	async ({ tabId, sourceBackendNodeId, target }) => {
+	async ({ sourceBackendNodeId, target }) => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -396,7 +432,7 @@ export const dragToElementTool = tool(
 							// Return combined result
 							return {
 								...dragResult,
-								tabId,
+								tabId: tabId,
 								newNodesCount,
 								totalNodesCountChange,
 							};
@@ -409,7 +445,7 @@ export const dragToElementTool = tool(
 				// Return result without refresh data
 				return {
 					...dragResult,
-					tabId,
+					tabId: tabId,
 					newNodesCount: 0,
 					totalNodesCountChange: 0,
 				};
@@ -424,7 +460,6 @@ export const dragToElementTool = tool(
 		name: "dragToElementTool",
 		description: "Drag from one element to a target position or element",
 		schema: z.object({
-			tabId: z.string().describe("The ID of the tab containing the elements"),
 			sourceBackendNodeId: z
 				.number()
 				.describe("Backend node ID of the source element"),
@@ -446,12 +481,19 @@ export const dragToElementTool = tool(
 // Scroll Pages Tool
 export const scrollPagesTool = tool(
 	async ({
-		tabId,
 		direction = "down",
 		pages = 1.0,
 		scrollDelay = 300,
 		smooth = true,
 	}) => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -489,7 +531,7 @@ export const scrollPagesTool = tool(
 							// Return combined result
 							return {
 								...scrollResult,
-								tabId,
+								tabId: tabId,
 								newNodesCount,
 								totalNodesCountChange,
 							};
@@ -502,7 +544,7 @@ export const scrollPagesTool = tool(
 				// Return result without refresh data
 				return {
 					...scrollResult,
-					tabId,
+					tabId: tabId,
 					newNodesCount: 0,
 					totalNodesCountChange: 0,
 				};
@@ -517,7 +559,6 @@ export const scrollPagesTool = tool(
 		name: "scrollPagesTool",
 		description: "Scroll the page by number of pages",
 		schema: z.object({
-			tabId: z.string().describe("The ID of the tab to scroll"),
 			direction: z
 				.enum(["up", "down"])
 				.optional()
@@ -540,7 +581,15 @@ export const scrollPagesTool = tool(
 
 // Scroll at Coordinate Tool
 export const scrollAtCoordinateTool = tool(
-	async ({ tabId, x, y, deltaX = 0, deltaY = 0 }) => {
+	async ({ x, y, deltaX = 0, deltaY = 0 }) => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -579,7 +628,7 @@ export const scrollAtCoordinateTool = tool(
 							// Return combined result
 							return {
 								...scrollResult,
-								tabId,
+								tabId: tabId,
 								newNodesCount,
 								totalNodesCountChange,
 							};
@@ -592,7 +641,7 @@ export const scrollAtCoordinateTool = tool(
 				// Return result without refresh data
 				return {
 					...scrollResult,
-					tabId,
+					tabId: tabId,
 					newNodesCount: 0,
 					totalNodesCountChange: 0,
 				};
@@ -607,7 +656,6 @@ export const scrollAtCoordinateTool = tool(
 		name: "scrollAtCoordinateTool",
 		description: "Scroll at specific coordinates with delta values",
 		schema: z.object({
-			tabId: z.string().describe("The ID of the tab to scroll"),
 			x: z.number().describe("X coordinate relative to viewport"),
 			y: z.number().describe("Y coordinate relative to viewport"),
 			deltaX: z
@@ -624,7 +672,15 @@ export const scrollAtCoordinateTool = tool(
 
 // Get Attribute Tool
 export const getAttributeTool = tool(
-	async ({ tabId, backendNodeId, attributeName }) => {
+	async ({ backendNodeId, attributeName }) => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -649,7 +705,6 @@ export const getAttributeTool = tool(
 		name: "getAttributeTool",
 		description: "Get an attribute value from an element",
 		schema: z.object({
-			tabId: z.string().describe("The ID of the tab containing the element"),
 			backendNodeId: z.number().describe("Backend node ID of the element"),
 			attributeName: z.string().describe("Name of the attribute to retrieve"),
 		}),
@@ -658,7 +713,15 @@ export const getAttributeTool = tool(
 
 // Evaluate Tool
 export const evaluateTool = tool(
-	async ({ tabId, backendNodeId, expression, args = [] }) => {
+	async ({ backendNodeId, expression, args = [] }) => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -684,7 +747,6 @@ export const evaluateTool = tool(
 		name: "evaluateTool",
 		description: "Evaluate JavaScript expression on an element",
 		schema: z.object({
-			tabId: z.string().describe("The ID of the tab containing the element"),
 			backendNodeId: z.number().describe("Backend node ID of the element"),
 			expression: z
 				.string()
@@ -701,7 +763,15 @@ export const evaluateTool = tool(
 
 // Get Basic Info Tool
 export const getBasicInfoTool = tool(
-	async ({ tabId, backendNodeId }) => {
+	async ({ backendNodeId }) => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -723,7 +793,6 @@ export const getBasicInfoTool = tool(
 		name: "getBasicInfoTool",
 		description: "Get comprehensive information about an element",
 		schema: z.object({
-			tabId: z.string().describe("The ID of the tab containing the element"),
 			backendNodeId: z.number().describe("Backend node ID of the element"),
 		}),
 	},

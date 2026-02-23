@@ -72,9 +72,7 @@ const listSessionsSchema = z.object({});
 const getSessionTabsSchema = z.object({});
 
 // Get tab info schema
-const getTabInfoSchema = z.object({
-	tabId: z.string().describe("The ID of the tab to get information for"),
-});
+const getTabInfoSchema = z.object({});
 
 // Create tab schema
 const createTabSchema = z.object({
@@ -209,7 +207,15 @@ export const getSessionTabsTool = tool(
 
 // Get tab info tool
 export const getTabInfoTool = tool(
-	async ({ tabId }) => {
+	async () => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -235,7 +241,7 @@ export const getTabInfoTool = tool(
 				}
 
 				const result: GetTabInfoResult = {
-					tabId,
+					tabId: tabId,
 					sessionId: tabMetadata.sessionId,
 					url: currentUrl,
 					isActiveTab,

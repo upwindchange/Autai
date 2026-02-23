@@ -9,6 +9,7 @@ import { tool } from "langchain";
 import { z } from "zod";
 import { SessionTabService } from "@/services";
 import { PQueueManager } from "@agents/utils";
+import { getContextVariable } from "@langchain/core/context";
 import log from "electron-log/main";
 
 const logger = log.scope("DOMTools");
@@ -44,17 +45,21 @@ export type GetFlattenDOMToolResult =
 	| GetFlattenDOMToolResultError;
 
 // Input schemas
-const getDOMTreeSchema = z.object({
-	tabId: z.string().describe("The ID of the tab to analyze"),
-});
+const getDOMTreeSchema = z.object({});
 
-const getFlattenDOMSchema = z.object({
-	tabId: z.string().describe("The ID of the tab to analyze"),
-});
+const getFlattenDOMSchema = z.object({});
 
 // Tool implementation: Get DOM Tree
 export const getDOMTreeTool = tool(
-	async ({ tabId }) => {
+	async () => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -62,7 +67,7 @@ export const getDOMTreeTool = tool(
 
 				if (!domService) {
 					const result: GetDOMTreeToolResultError = {
-						tabId,
+						tabId: tabId,
 						error:
 							"Error: DOM service not found. Please ensure the browser tab is still active.",
 					};
@@ -76,7 +81,7 @@ export const getDOMTreeTool = tool(
 				// Get DOM tree with change detection and update internal state (default)
 				if (detectTime > changeTime) {
 					response = {
-						tabId,
+						tabId: tabId,
 						newNodesCount: stats?.newSimplifiedNodesCount || 0,
 						totalNodesCountChange: stats?.simplifiedNodesCountChange || 0,
 					};
@@ -89,7 +94,7 @@ export const getDOMTreeTool = tool(
 						(newState?.stats.timestamp || 0) > changeTime
 					) {
 						response = {
-							tabId,
+							tabId: tabId,
 							newNodesCount: newState?.stats?.newSimplifiedNodesCount || 0,
 							totalNodesCountChange:
 								newState?.stats?.simplifiedNodesCountChange || 0,
@@ -98,7 +103,7 @@ export const getDOMTreeTool = tool(
 						const { newNodesCount, totalNodesCountChange } =
 							await domService.buildSimplifiedDOMTree();
 						response = {
-							tabId,
+							tabId: tabId,
 							newNodesCount,
 							totalNodesCountChange,
 						};
@@ -123,7 +128,15 @@ export const getDOMTreeTool = tool(
 
 // Tool implementation: Generate LLM Representation
 export const getFlattenDOMTool = tool(
-	async ({ tabId }) => {
+	async () => {
+		const tabId = getContextVariable("activeTabId");
+		if (!tabId) {
+			throw new Error(
+				"No active tab in context. " +
+				"Ensure tab selection has run before calling this tool.",
+			);
+		}
+
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
@@ -131,7 +144,7 @@ export const getFlattenDOMTool = tool(
 
 				if (!domService) {
 					const response: GetFlattenDOMToolResultError = {
-						tabId,
+						tabId: tabId,
 						representation:
 							"Error: DOM service not found. Please ensure the browser tab is still active.",
 					};
@@ -144,7 +157,7 @@ export const getFlattenDOMTool = tool(
 					"No DOM tree available";
 
 				const response: GetFlattenDOMToolResultSuccess = {
-					tabId,
+					tabId: tabId,
 					representation,
 				};
 
