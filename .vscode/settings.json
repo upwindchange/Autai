@@ -1,29 +1,23 @@
 {
-    "editor.formatOnSaveMode": "file",
-    "editor.formatOnSave": true,
-    "editor.formatOnPaste": true,
-    "editor.formatOnType": true,
-    "editor.defaultFormatter": "prettier.prettier-vscode",
-    "editor.tabSize": 2,
-    "json.schemas": [
-        {
-            "fileMatch": [
-                "/*electron-builder.json5",
-                "/*electron-builder.json"
-            ],
-            "url": "https://json.schemastore.org/electron-builder"
-        }
-    ],
-    "eslint.runtime": "node",
-    "eslint.options": {
-        "flags": [
-            "unstable_native_nodejs_ts_config"
-        ]
-    },
-    "eslint.execArgv": [
-        "--experimental-strip-types"
-    ],
-    "[json]": {
-        "editor.defaultFormatter": "prettier.prettier-vscode"
-    },
+	"editor.formatOnSaveMode": "file",
+	"editor.formatOnSave": true,
+	"editor.formatOnPaste": true,
+	"editor.formatOnType": true,
+	"editor.defaultFormatter": "esbenp.prettier-vscode",
+	"editor.tabSize": 2,
+	"editor.insertSpaces": false,
+	"json.schemas": [
+		{
+			"fileMatch": ["/*electron-builder.json5", "/*electron-builder.json"],
+			"url": "https://json.schemastore.org/electron-builder"
+		}
+	],
+	"eslint.runtime": "node",
+	"eslint.options": {
+		"flags": ["unstable_native_nodejs_ts_config"]
+	},
+	"eslint.execArgv": ["--experimental-strip-types"],
+	"[json]": {
+		"editor.defaultFormatter": "esbenp.prettier-vscode"
+	}
 }
