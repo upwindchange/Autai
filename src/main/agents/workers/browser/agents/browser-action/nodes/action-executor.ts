@@ -1,4 +1,4 @@
-import { SystemMessage } from "@langchain/core/messages";
+import { HumanMessage } from "@langchain/core/messages";
 import { BrowserActionStateType } from "../state";
 import { complexLangchainModel } from "@/agents/providers";
 import { createAgent, toolStrategy } from "langchain";
@@ -6,9 +6,9 @@ import { Command } from "@langchain/langgraph";
 import { z } from "zod";
 import { interactiveTools } from "@/agents/tools/InteractiveTools";
 import { tabControlTools } from "@/agents/tools/TabControlTools";
-import { getSessionTabsTool, getTabInfoTool, createTabTool } from "@/agents/tools/SessionTabTools";
 import { getFlattenDOMTool } from "@/agents/tools/DOMTools";
 import { setContextVariable } from "@langchain/core/context";
+import { SessionTabService } from "@/services";
 
 export async function browserActionExecutorNode(
 	state: BrowserActionStateType,
@@ -34,70 +34,28 @@ export async function browserActionExecutorNode(
 
 	// Build context
 	const subtaskContext = JSON.stringify(currentSubtask, null, 2);
-	const allSubtasksContext = JSON.stringify(state.subtask_plan, null, 2);
 
 	// ============================================================
 	// PHASE 1: Tab Selection
 	// ============================================================
 
 	// Set sessionId in context for tools to access
+
+	const sessionTabService = SessionTabService.getInstance();
+	const activeTabId = sessionTabService.getActiveTabForSession(state.sessionId);
 	setContextVariable("sessionId", state.sessionId);
-
-	const tabSelectorSystemPrompt = new SystemMessage(
-		`You are a tab selector. Your role is to determine which tab should be used for the current subtask.
-
-## Current Subtask
-${subtaskContext}
-
-## Your Responsibilities
-1. Use getSessionTabsTool to see all available tabs
-2. Determine which tab is appropriate for the subtask:
-   - Use the active tab if it matches the requirements
-   - Select a different tab if the subtask requires a specific URL/content
-   - Create a new tab if no suitable tab exists
-3. Output the selected tabId and explanation
-
-## Output Format
-- selectedTabId: The tab ID to use (string)
-- explanation: Why this tab was chosen (string)
-
-Now select the appropriate tab for this subtask.`,
-	);
-
-	// Tab selector agent with tab management tools only
-	const tabSelectorAgent = createAgent({
-		model: complexLangchainModel(),
-		tools: [getSessionTabsTool, getTabInfoTool, createTabTool],
-		responseFormat: toolStrategy(
-			z.object({
-				selectedTabId: z.string().describe("The tab ID to use"),
-				explanation: z.string().describe("Why this tab was chosen"),
-			}),
-		),
-		systemPrompt: tabSelectorSystemPrompt,
-	});
-
-	const tabSelectorResponse = await tabSelectorAgent.invoke({ messages: state.messages });
-
-	// Set the selected tabId in context for action executor to use
-	setContextVariable("activeTabId", tabSelectorResponse.structuredResponse.selectedTabId);
+	setContextVariable("activeTabId", activeTabId);
 
 	// ============================================================
 	// PHASE 2: Action Execution
 	// ============================================================
 
-	const actionExecutorSystemPrompt = new SystemMessage(
+	const actionExecutorPrompt = new HumanMessage(
 		`You are a browser automation action executor. Your role is to execute atomic, concrete browser actions to accomplish the current subtask.
 
 ## Execute only this Current Subtask
 ${subtaskContext}
 
-## All Subtasks Context (offered to you just as context, no execution to any tasks here except for the current subtask listed above)
-${allSubtasksContext}
-
-## Selected Tab Context
-Tab ID: ${tabSelectorResponse.structuredResponse.selectedTabId}
-Explanation: ${tabSelectorResponse.structuredResponse.explanation}
 
 ## Your Capabilities
 You have access to tools for:
@@ -162,8 +120,8 @@ Based on:
 - Current page state: Does it match expected outcome?
 
 ## Subtask Result
-When subtask is completed:
-- Set subtask_success: true if all actions succeeded, false if any failed
+When subtask is completed, call the provided extract-? tool to prepare structured output:
+- Set subtask_status: true if all actions succeeded, false if any failed
 - Provide detailed result_explanation describing what was accomplished or why it failed
 
 ## Important
@@ -178,46 +136,48 @@ Now execute the actions needed to accomplish this subtask.`,
 	);
 
 	// Action executor agent with interactive tools (NO getSessionTabsTool)
-	const allTools = [
-		getFlattenDOMTool,
-		...interactiveTools,
-		...tabControlTools,
-	];
+	const allTools = [getFlattenDOMTool, ...interactiveTools, ...tabControlTools];
 
 	const actionExecutorAgent = createAgent({
 		model: complexLangchainModel(),
 		tools: allTools,
 		responseFormat: toolStrategy(
-			z.object({
-				subtask_success: z
-					.boolean()
-					.describe("Whether the subtask was completed successfully or failed"),
-				result_explanation: z
-					.string()
-					.describe(
-						"Explanation of success/failure based on getFlattenDOMTool result and previous tool call results",
-					),
-			}),
+			z
+				.object({
+					subtask_status: z
+						.boolean()
+						.describe(
+							"Whether the subtask was completed successfully or failed",
+						),
+					result_explanation: z
+						.string()
+						.describe(
+							"Explanation of success/failure based on getFlattenDOMTool result and previous tool call results",
+						),
+				})
+				.describe(
+					"Use this tool at the very end of agent execution to prepare structured output",
+				),
 		),
-		systemPrompt: actionExecutorSystemPrompt,
 	});
 
-	const response = await actionExecutorAgent.invoke({ messages: state.messages });
+	const response = await actionExecutorAgent.invoke({
+		messages: [actionExecutorPrompt],
+	});
 
 	// Update subtask status based on success/failure
 	const updatedSubtaskPlan = [...(state.subtask_plan || [])];
 	updatedSubtaskPlan[currentSubtaskIndex] = {
-		...updatedSubtaskPlan[currentSubtaskIndex],
-		status:
-			response.structuredResponse.subtask_success ? "completed" : "failed",
+		...currentSubtask,
+		status: response.structuredResponse.subtask_status ? "completed" : "failed",
 		results: [
-			...(updatedSubtaskPlan[currentSubtaskIndex].results || []),
+			...(currentSubtask.results || []),
 			response.structuredResponse.result_explanation,
 		],
 	};
 
 	// If subtask failed, route back to task-executor for replanning
-	if (!response.structuredResponse.subtask_success) {
+	if (!response.structuredResponse.subtask_status) {
 		return new Command({
 			update: {
 				current_subtask_index: currentSubtaskIndex,
