@@ -204,13 +204,8 @@ export class SessionTabService extends EventEmitter {
 			}
 		}
 
-		// Load URL if provided
-		if (url) {
-			this.logger.debug(`Loading custom URL: ${url}`);
-			await tab.webContents.loadURL(url);
-			this.logger.debug("page loaded");
-
-			// Page load completion - build DOM tree (no script injection needed)
+		// Helper function to setup DOM building on page load
+		const setupDOMBuilding = () => {
 			tab.webContents.on("did-finish-load", async () => {
 				try {
 					// Wait for dynamic content to load
@@ -223,8 +218,19 @@ export class SessionTabService extends EventEmitter {
 					this.logger.error("Failed to build DOM tree on page load:", error);
 				}
 			});
+		};
+
+		// Load URL or blank page
+		if (url) {
+			this.logger.debug(`Loading custom URL: ${url}`);
+			await tab.webContents.loadURL(url);
+			this.logger.debug("page loaded");
+			setupDOMBuilding();
 		} else {
-			this.logger.debug("No URL provided, tab created empty");
+			// Load about:blank to ensure DOM tree exists
+			this.logger.debug("Loading about:blank to initialize DOM");
+			await tab.webContents.loadURL("about:blank");
+			setupDOMBuilding();
 		}
 
 		this.logger.info("createTab", tabId, sessionId);
