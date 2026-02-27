@@ -23,13 +23,13 @@ export function useTabVisibility() {
 				hasContainerBounds: !!containerBounds,
 			});
 
-			// if (containerBounds) {
-			//   logger.debug('sending bounds ipc', { containerBounds });
-			//   // Set visibility (now using send since it's one-way)
-			//   window.ipcRenderer.send("sessiontab:setBounds", {
-			//     bounds: containerBounds,
-			//   });
-			// }
+			if (containerBounds) {
+				logger.debug("sending bounds ipc", { containerBounds });
+				// Set visibility (now using send since it's one-way)
+				window.ipcRenderer.send("sessiontab:setBounds", {
+					bounds: containerBounds,
+				});
+			}
 
 			logger.debug("sending visibility ipc", { isVisible });
 			// Set visibility (now using send since it's one-way)
