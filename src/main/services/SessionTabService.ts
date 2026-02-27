@@ -204,30 +204,28 @@ export class SessionTabService extends EventEmitter {
 			}
 		}
 
-		// Load URL or welcome page
-		this.logger.debug("init page loading");
+		// Load URL if provided
 		if (url) {
 			this.logger.debug(`Loading custom URL: ${url}`);
 			await tab.webContents.loadURL(url);
+			this.logger.debug("page loaded");
+
+			// Page load completion - build DOM tree (no script injection needed)
+			tab.webContents.on("did-finish-load", async () => {
+				try {
+					// Wait for dynamic content to load
+					await new Promise((resolve) => setTimeout(resolve, 500));
+
+					// Build simplified DOM tree with fresh state
+					await domService.buildSimplifiedDOMTree(false);
+					this.logger.debug(`DOM tree built for tab ${tabId}`);
+				} catch (error) {
+					this.logger.error("Failed to build DOM tree on page load:", error);
+				}
+			});
 		} else {
-			this.logger.debug("Loading welcome page");
-			await tab.webContents.loadFile("resources/welcome.html");
+			this.logger.debug("No URL provided, tab created empty");
 		}
-		this.logger.debug("page loaded");
-
-		// Page load completion - build DOM tree (no script injection needed)
-		tab.webContents.on("did-finish-load", async () => {
-			try {
-				// Wait for dynamic content to load
-				await new Promise((resolve) => setTimeout(resolve, 500));
-
-				// Build simplified DOM tree with fresh state
-				await domService.buildSimplifiedDOMTree(false);
-				this.logger.debug(`DOM tree built for tab ${tabId}`);
-			} catch (error) {
-				this.logger.error("Failed to build DOM tree on page load:", error);
-			}
-		});
 
 		this.logger.info("createTab", tabId, sessionId);
 		this.emit("sessiontab:created", { tabId, sessionId });

@@ -43,6 +43,7 @@ import {
 	UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
 import { Reasoning, ReasoningGroup } from "@/components/assistant-ui/reasoning";
+import { WorkspaceWelcome } from "@/components/ai-chat/workspace-welcome";
 import { useUiStore } from "@/stores/uiStore";
 import { useTabVisibility } from "@/hooks";
 import log from "electron-log/renderer";
@@ -155,9 +156,9 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
 					<ResizablePanel defaultSize={50} minSize={30}>
 						<div
 							ref={workspaceRef}
-							className="h-full bg-muted/30 flex items-center justify-center text-muted-foreground border-r"
+							className="h-full bg-muted/30 flex flex-col items-center justify-center text-muted-foreground border-r overflow-auto"
 						>
-							<p>Workspace Area</p>
+							<WorkspaceWelcome />
 						</div>
 					</ResizablePanel>
 				</ResizablePanelGroup>
