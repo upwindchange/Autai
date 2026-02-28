@@ -74,14 +74,18 @@ export class SessionTabService extends EventEmitter {
 			activeTabId: null,
 		});
 
-		this.activeSessionId = sessionId;
-		this.logger.info(`Session ${sessionId} created`);
-
 		// Create initial tab and set as active tab for the session
 		const tabId = await this.createTab({ sessionId: sessionId });
 		const state = this.sessionStates.get(sessionId)!;
 		state.activeTabId = tabId;
 		this.activeTab = this.tabs.get(tabId) || null;
+
+		// NOW set the active session ID (after tab is ready)
+		this.activeSessionId = sessionId;
+		this.logger.info(`Session ${sessionId} created`);
+
+		// Make sure the tab is visible if frontend is showing
+		await this.setBackendVisibility(tabId, true);
 		this.logger.info(`Initial tab ${tabId} created for session ${sessionId}`);
 	}
 
@@ -200,6 +204,8 @@ export class SessionTabService extends EventEmitter {
 				// If this session is the active session, update activeTab reference
 				if (this.activeSessionId === sessionId) {
 					this.activeTab = tab;
+					// Update visibility now that this tab is the active tab for the active session
+					await this.updateTabVisibility(tabId);
 				}
 			}
 		}
@@ -344,6 +350,10 @@ export class SessionTabService extends EventEmitter {
 			if (tabId) {
 				this.frontendVisibility = isVisible;
 				await this.updateTabVisibility(tabId);
+			} else {
+				// No active tab yet, just update the flag without triggering visibility
+				this.frontendVisibility = isVisible;
+				this.logger.debug("Frontend visibility updated but no active tab yet");
 			}
 		}
 	}
