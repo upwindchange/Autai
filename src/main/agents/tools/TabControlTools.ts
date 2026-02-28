@@ -11,7 +11,7 @@ export const navigateTool = tool(
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 
@@ -30,7 +30,11 @@ export const navigateTool = tool(
 		name: "navigateTool",
 		description: "Navigate a browser tab to a specific URL",
 		schema: z.object({
-			url: z.url().describe("The URL to navigate to (must be a valid URL)"),
+			url: z
+				.string()
+				.describe(
+					"Required (string): The URL to navigate to (must be a valid URL)",
+				),
 		}),
 	},
 );
@@ -42,7 +46,7 @@ export const refreshTool = tool(
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 
@@ -71,7 +75,7 @@ export const goBackTool = tool(
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 
@@ -100,7 +104,7 @@ export const goForwardTool = tool(
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 

@@ -1,4 +1,4 @@
-import { HumanMessage } from "@langchain/core/messages";
+import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { BrowserActionStateType } from "../state";
 import { complexLangchainModel } from "@/agents/providers";
 import { createAgent, toolStrategy } from "langchain";
@@ -32,9 +32,6 @@ export async function browserActionExecutorNode(
 
 	const currentSubtask = state.subtask_plan[currentSubtaskIndex];
 
-	// Build context
-	const subtaskContext = JSON.stringify(currentSubtask, null, 2);
-
 	// ============================================================
 	// PHASE 1: Tab Selection
 	// ============================================================
@@ -50,12 +47,8 @@ export async function browserActionExecutorNode(
 	// PHASE 2: Action Execution
 	// ============================================================
 
-	const actionExecutorPrompt = new HumanMessage(
+	const actionExecutorPrompt = new SystemMessage(
 		`You are a browser automation action executor. Your role is to execute atomic, concrete browser actions to accomplish the current subtask.
-
-## Execute only this Current Subtask
-${subtaskContext}
-
 
 ## Your Capabilities
 You have access to tools for:
@@ -120,16 +113,16 @@ Based on:
 - Current page state: Does it match expected outcome?
 
 ## Subtask Result
-When subtask is completed, call the provided extract-? tool to prepare structured output:
-- Set subtask_status: true if all actions succeeded, false if any failed
+When subtask is completed, must call the provided extract-? tool to prepare structured output:
+- Set task_status: true if all actions succeeded, false if any failed
 - Provide detailed result_explanation describing what was accomplished or why it failed
 
 ## Important
-- Always use getFlattenDOMTool BEFORE the first action to understand initial state
-- Always use getFlattenDOMTool AFTER EVERY action to evaluate results
+- use getFlattenDOMTool to understand state at proper time.
+- Always use extract-? tool at the end of task execution to generate structured output.
 - Use backendNodeId from DOM analysis to target specific elements
 - Each action should move purposefully toward subtask completion
-- If an action fails, explain why and either retry or mark subtask as failed
+- If an action fails, explain why and mark subtask as failed
 - Be thorough in your evaluation - use DOM state + tool return to judge success
 
 Now execute the actions needed to accomplish this subtask.`,
@@ -144,11 +137,9 @@ Now execute the actions needed to accomplish this subtask.`,
 		responseFormat: toolStrategy(
 			z
 				.object({
-					subtask_status: z
+					task_status: z
 						.boolean()
-						.describe(
-							"Whether the subtask was completed successfully or failed",
-						),
+						.describe("Whether the task was completed successfully or failed"),
 					result_explanation: z
 						.string()
 						.describe(
@@ -159,17 +150,21 @@ Now execute the actions needed to accomplish this subtask.`,
 					"Use this tool at the very end of agent execution to prepare structured output",
 				),
 		),
+		systemPrompt: actionExecutorPrompt,
 	});
 
+	const currentSubtaskContext = new HumanMessage(
+		JSON.stringify(currentSubtask),
+	);
 	const response = await actionExecutorAgent.invoke({
-		messages: [actionExecutorPrompt],
+		messages: [currentSubtaskContext],
 	});
 
 	// Update subtask status based on success/failure
 	const updatedSubtaskPlan = [...(state.subtask_plan || [])];
 	updatedSubtaskPlan[currentSubtaskIndex] = {
 		...currentSubtask,
-		status: response.structuredResponse.subtask_status ? "completed" : "failed",
+		status: response.structuredResponse.task_status ? "completed" : "failed",
 		results: [
 			...(currentSubtask.results || []),
 			response.structuredResponse.result_explanation,
@@ -177,7 +172,7 @@ Now execute the actions needed to accomplish this subtask.`,
 	};
 
 	// If subtask failed, route back to task-executor for replanning
-	if (!response.structuredResponse.subtask_status) {
+	if (!response.structuredResponse.task_status) {
 		return new Command({
 			update: {
 				current_subtask_index: currentSubtaskIndex,

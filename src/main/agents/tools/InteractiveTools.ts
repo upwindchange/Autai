@@ -103,7 +103,7 @@ export const clickElementTool = tool(
 		schema: z.object({
 			backendNodeId: z
 				.number()
-				.describe("Backend node ID of the element to click"),
+				.describe("Required (number): Backend node ID of the element to click"),
 		}),
 	},
 );
@@ -193,8 +193,10 @@ export const fillElementTool = tool(
 		schema: z.object({
 			backendNodeId: z
 				.number()
-				.describe("Backend node ID of the input element"),
-			value: z.string().describe("Text to fill in the input"),
+				.describe("Required (number): Backend node ID of the input element"),
+			value: z
+				.string()
+				.describe("Required (string): Text to fill in the input"),
 			clear: z
 				.boolean()
 				.optional()
@@ -287,10 +289,12 @@ export const selectOptionTool = tool(
 		schema: z.object({
 			backendNodeId: z
 				.number()
-				.describe("Backend node ID of the select element"),
+				.describe("Required (number): Backend node ID of the select element"),
 			values: z
 				.union([z.string(), z.array(z.string())])
-				.describe("Single value or array of values to select"),
+				.describe(
+					"Required (string | string[]): Single value or array of values to select",
+				),
 			clear: z
 				.boolean()
 				.optional()
@@ -378,7 +382,7 @@ export const hoverElementTool = tool(
 		schema: z.object({
 			backendNodeId: z
 				.number()
-				.describe("Backend node ID of the element to hover"),
+				.describe("Required (number): Backend node ID of the element to hover"),
 			timeout: z.number().optional().describe("Timeout in ms (default: 3000)"),
 		}),
 	},
@@ -462,7 +466,7 @@ export const dragToElementTool = tool(
 		schema: z.object({
 			sourceBackendNodeId: z
 				.number()
-				.describe("Backend node ID of the source element"),
+				.describe("Required (number): Backend node ID of the source element"),
 			target: z
 				.union([
 					z.object({
@@ -472,7 +476,7 @@ export const dragToElementTool = tool(
 					z.number(),
 				])
 				.describe(
-					"Target position {x, y} or backend node ID of target element",
+					"Required ({x: number, y: number} | number): Target position {x, y} or backend node ID of target element",
 				),
 		}),
 	},
@@ -656,8 +660,12 @@ export const scrollAtCoordinateTool = tool(
 		name: "scrollAtCoordinateTool",
 		description: "Scroll at specific coordinates with delta values",
 		schema: z.object({
-			x: z.number().describe("X coordinate relative to viewport"),
-			y: z.number().describe("Y coordinate relative to viewport"),
+			x: z
+				.number()
+				.describe("Required (number): X coordinate relative to viewport"),
+			y: z
+				.number()
+				.describe("Required (number): Y coordinate relative to viewport"),
 			deltaX: z
 				.number()
 				.optional()
@@ -705,8 +713,12 @@ export const getAttributeTool = tool(
 		name: "getAttributeTool",
 		description: "Get an attribute value from an element",
 		schema: z.object({
-			backendNodeId: z.number().describe("Backend node ID of the element"),
-			attributeName: z.string().describe("Name of the attribute to retrieve"),
+			backendNodeId: z
+				.number()
+				.describe("Required (number): Backend node ID of the element"),
+			attributeName: z
+				.string()
+				.describe("Required (string): Name of the attribute to retrieve"),
 		}),
 	},
 );
@@ -747,11 +759,13 @@ export const evaluateTool = tool(
 		name: "evaluateTool",
 		description: "Evaluate JavaScript expression on an element",
 		schema: z.object({
-			backendNodeId: z.number().describe("Backend node ID of the element"),
+			backendNodeId: z
+				.number()
+				.describe("Required (number): Backend node ID of the element"),
 			expression: z
 				.string()
 				.describe(
-					"JavaScript expression in arrow function format: (args) => { ... }",
+					"Required (string): JavaScript expression in arrow function format: (args) => { ... }",
 				),
 			args: z
 				.array(z.any())
@@ -793,7 +807,9 @@ export const getBasicInfoTool = tool(
 		name: "getBasicInfoTool",
 		description: "Get comprehensive information about an element",
 		schema: z.object({
-			backendNodeId: z.number().describe("Backend node ID of the element"),
+			backendNodeId: z
+				.number()
+				.describe("Required (number): Backend node ID of the element"),
 		}),
 	},
 );
