@@ -137,11 +137,12 @@ Each subtask has:
 - label: Brief action title (e.g., "Navigate to login page and locate login form")
 - description: Clear instructions on what this subtask should accomplish
 
-## Important
-- Subtasks should group related actions together
-- Make subtasks instructional - they guide another AI on what to accomplish
-- Don't break into atomic actions like "click button" or "type text" - that's for the next subagent
-- Consider page state from previous tasks when writing instructions`;
+## Subtask Guidelines
+- Group related actions together
+- Browser and tab are always available. Do NOT plan setup tasks like "open browser" or "ensure tab is ready"
+- Write instructional descriptions that guide the action-executor agent
+- Do NOT break into atomic actions (click, type). That is for the action-executor agent
+- Consider page state from previous subtasks when writing instructions`;
 
 	return new SystemMessage(
 		`You are a browser automation subtask planner. Break down one high-level task into instructional subtasks.
