@@ -105,13 +105,16 @@ For each subtask:
 5. After each action: judge if it changed page state
    - Changed: Call getFlattenDOMTool
    - Unchanged: Skip getFlattenDOMTool
-6. Judge success using BOTH DOM changes AND tool return value
-7. Continue until subtask complete
+6. Continue until subtask complete or determined to fail
 
-# Critical Reminders
-- backendNodeId persists across subtasks - reuse them
-- Judge success using DOM state + tool return
-- If action fails, explain why and mark subtask as failed`,
+# Output Format
+After completing a subtask, provide a text summary that includes:
+- What actions were taken
+- What the final DOM state shows
+- Any errors or unexpected behavior
+- Your assessment of whether the subtask goal was achieved
+
+This summary will be reviewed by an evaluator agent to make the final success/failure determination.`,
 	);
 
 	const allTools = [getFlattenDOMTool, ...interactiveTools, ...tabControlTools];
@@ -119,13 +122,46 @@ For each subtask:
 	const actionExecutorAgent = createAgent({
 		model: complexLangchainModel(),
 		tools: allTools,
+		systemPrompt: actionExecutorPrompt,
+	});
+
+	// ============================================================
+	// CREATE EVALUATOR AGENT
+	// ============================================================
+	const evaluatorPrompt = new SystemMessage(
+		`# Role
+Subtask evaluation agent. Judge if a subtask was successfully completed.
+
+# Your Task
+Evaluate whether the current subtask was accomplished based on:
+1. The subtask's description and goal
+2. The action-executor's execution summary
+3. The current DOM state
+
+# Evaluation Criteria
+- Success: The subtask's goal is achieved based on execution summary and DOM state
+- Failure: The goal was not achieved, or the action-executor encountered errors
+
+# Output
+Provide structured evaluation with:
+- is_task_successful: boolean
+- result_explanation: string (clear explanation of why it succeeded or failed)
+
+# Important Context
+- DOM state may show "No DOM tree available" if no page is loaded
+- The action-executor's summary describes what actions were taken
+- Compare the expected outcome (subtask description) with actual DOM state`,
+	);
+
+	const evaluatorAgent = createAgent({
+		model: complexLangchainModel(),
 		responseFormat: toolStrategy(
 			z.object({
 				is_task_successful: z.boolean(),
 				result_explanation: z.string(),
 			}),
 		),
-		systemPrompt: actionExecutorPrompt,
+		systemPrompt: evaluatorPrompt,
 	});
 
 	// ============================================================
@@ -137,13 +173,10 @@ For each subtask:
 	for (let i = 0; i < subtaskPlan.length; i++) {
 		const currentSubtask = subtaskPlan[i];
 
-		// Build HumanMessage with:
-		// 1. All previous completed subtasks (summary)
-		// 2. Current subtask to execute
+		// Build context for action executor
 		let subtaskContext = "";
 
 		if (i > 0) {
-			// Add completed subtasks as context
 			const completedSubtasks = results.slice(0, i);
 			subtaskContext += `## Previously Completed Subtasks:\n${JSON.stringify(completedSubtasks, null, 2)}\n\n`;
 		}
@@ -152,47 +185,80 @@ For each subtask:
 
 		const currentSubtaskMessage = new HumanMessage(subtaskContext);
 
-		// Invoke agent with accumulated messages + new subtask
-		const response = await actionExecutorAgent.invoke({
+		// Invoke ACTION EXECUTOR (freeform output)
+		const actionResponse = await actionExecutorAgent.invoke({
 			messages: [...agentMessages, currentSubtaskMessage],
 		});
 
-		// Update subtask status
+		// Extract freeform execution summary from the last message
+		const lastMessage =
+			actionResponse.messages[actionResponse.messages.length - 1];
+		const executionSummary =
+			typeof lastMessage.content === "string" ?
+				lastMessage.content
+			:	JSON.stringify(lastMessage.content);
+
+		// Get current DOM state directly (avoid extra tool call in evaluator)
+		let domRepresentation = "No DOM tree available";
+		if (activeTabId) {
+			const domService = sessionTabService.getDomService(activeTabId);
+			domRepresentation = domService?.simplifiedDOMState?.flattenedDOM ?? "No DOM tree available";
+		}
+
+		// Build evaluation context
+		let evaluationContext = "";
+
+		// Add current subtask context
+		evaluationContext += `## Current Subtask to Evaluate:\n${JSON.stringify(currentSubtask, null, 2)}\n\n`;
+
+		// Add action-executor's execution summary
+		evaluationContext += `## Action Executor Summary:\n${executionSummary}\n\n`;
+
+		// Add current DOM state
+		evaluationContext += `## Current DOM State:\n${domRepresentation}\n\n`;
+
+		// Add context about previous subtasks (if any)
+		if (i > 0) {
+			const completedSubtasks = results.slice(0, i);
+			evaluationContext += `## Previously Completed Subtasks:\n${JSON.stringify(completedSubtasks, null, 2)}\n\n`;
+		}
+
+		const evaluationMessage = new HumanMessage(evaluationContext);
+
+		// Invoke EVALUATOR (structured output)
+		const evaluationResponse = await evaluatorAgent.invoke({
+			messages: [evaluationMessage],
+		});
+
+		// Update subtask status based on evaluator's structured response
 		const updatedSubtask = {
 			...currentSubtask,
-			status: (response.structuredResponse.is_task_successful ?
+			status: (evaluationResponse.structuredResponse.is_task_successful ?
 				"completed"
 			:	"failed") as "completed" | "failed",
 			results: [
 				...(currentSubtask.results || []),
-				response.structuredResponse.result_explanation,
+				evaluationResponse.structuredResponse.result_explanation,
 			],
 		};
 		results.push(updatedSubtask);
 
 		// Accumulate messages for next subtask
-		// Only keep the agent's responses (tool calls, results), not the subtask instruction
-		agentMessages = [...agentMessages, ...response.messages];
+		agentMessages = [...agentMessages, ...actionResponse.messages];
 
-		// OPTIMIZATION: Trim messages to avoid bloat
-		// Strategy: Keep only recent messages to limit token usage
+		// Trim messages to avoid bloat
 		if (agentMessages.length > 50) {
-			// Threshold: trim after 50 messages
-			// Simple approach: keep last 30 messages
 			agentMessages = agentMessages.slice(-30);
 		}
 
 		// If subtask failed, stop and return to task-executor for replanning
-		if (!response.structuredResponse.is_task_successful) {
+		if (!evaluationResponse.structuredResponse.is_task_successful) {
 			return new Command({
 				update: {
-					subtask_plan: [
-						...results.slice(0, i), // Previously completed subtasks with correct status
-						updatedSubtask, // Current failed subtask
-					],
+					subtask_plan: [...results.slice(0, i), updatedSubtask],
 					current_subtask_index: i,
 				},
-				goto: "task-executor", // Replan needed
+				goto: "task-executor",
 			});
 		}
 	}
