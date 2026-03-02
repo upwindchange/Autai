@@ -159,9 +159,16 @@ Provide structured evaluation with:
 		model: complexLangchainModel(),
 		responseFormat: toolStrategy(
 			z.object({
-				is_task_successful: z.boolean(),
-				result_explanation: z.string(),
+				is_task_successful: z
+					.boolean()
+					.describe(
+						"boolean: true if task is successful, false if task failed",
+					),
+				result_explanation: z
+					.string()
+					.describe("text explanation of the task result"),
 			}),
+			{ handleError: true },
 		),
 		systemPrompt: evaluatorPrompt,
 		middleware: retryMiddleware,
@@ -205,7 +212,8 @@ Provide structured evaluation with:
 		let domRepresentation = "No DOM tree available";
 		if (activeTabId) {
 			const domService = sessionTabService.getDomService(activeTabId);
-			domRepresentation = domService?.simplifiedDOMState?.flattenedDOM ?? "No DOM tree available";
+			domRepresentation =
+				domService?.simplifiedDOMState?.flattenedDOM ?? "No DOM tree available";
 		}
 
 		// Build evaluation context
