@@ -9,6 +9,7 @@ import { complexLangchainModel } from "@/agents/providers";
 import { createAgent, toolStrategy } from "langchain";
 import { Command, END } from "@langchain/langgraph";
 import { z } from "zod";
+import { retryMiddleware } from "@agents/utils";
 
 type PlanItem = z.infer<typeof PlanItemSchema>;
 
@@ -168,6 +169,7 @@ async function generateSubtaskPlan(
 		model: complexLangchainModel(),
 		responseFormat: toolStrategy(z.object({ subtask_plan: PlanSchema })),
 		systemPrompt,
+		middleware: retryMiddleware,
 	});
 
 	const response = await agent.invoke({ messages });

@@ -7,6 +7,7 @@ import { z } from "zod";
 import { createTabTool } from "@/agents/tools/SessionTabTools";
 import { navigateTool } from "@/agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@/agents/tools/DOMTools";
+import { retryMiddleware } from "@agents/utils";
 
 export async function searchPlannerNode(
 	state: BrowserResearcherStateType,
@@ -51,6 +52,7 @@ Now search DuckDuckGo and extract the search results.`,
 		tools: [createTabTool, navigateTool, getFlattenDOMTool],
 		responseFormat: toolStrategy(SearchResultSchema),
 		systemPrompt,
+		middleware: retryMiddleware,
 	});
 
 	const response = await agent.invoke({ messages: state.messages });

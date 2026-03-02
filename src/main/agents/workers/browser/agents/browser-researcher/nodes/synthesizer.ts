@@ -4,6 +4,7 @@ import { complexLangchainModel } from "@/agents/providers";
 import { createAgent, toolStrategy } from "langchain";
 import { Command, END } from "@langchain/langgraph";
 import { z } from "zod";
+import { retryMiddleware } from "@agents/utils";
 
 export async function synthesizerNode(
 	state: BrowserResearcherStateType,
@@ -92,6 +93,7 @@ Now create the research report.`,
 		model: complexLangchainModel(),
 		responseFormat: toolStrategy(ReportSchema),
 		systemPrompt,
+		middleware: retryMiddleware,
 	});
 
 	const response = await agent.invoke({ messages: state.messages });

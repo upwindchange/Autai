@@ -4,6 +4,7 @@ import { complexLangchainModel } from "@/agents/providers";
 import { createAgent, toolStrategy } from "langchain";
 import { Command } from "@langchain/langgraph";
 import z from "zod";
+import { retryMiddleware } from "@agents/utils";
 
 export async function browserActionPlannerNode(
 	state: BrowserActionStateType,
@@ -39,6 +40,7 @@ Now create the execution plan.`,
 		model: complexLangchainModel(),
 		responseFormat: toolStrategy(z.object({ task_plan: PlanSchema })),
 		systemPrompt,
+		middleware: retryMiddleware,
 	});
 
 	const response = await agent.invoke({ messages: state.messages });

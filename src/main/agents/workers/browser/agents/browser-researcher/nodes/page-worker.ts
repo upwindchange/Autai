@@ -11,6 +11,7 @@ import {
 	scrollPagesTool,
 	hoverElementTool,
 } from "@/agents/tools/InteractiveTools";
+import { retryMiddleware } from "@agents/utils";
 
 export async function pageWorkerNode(
 	state: PageWorkerStateType,
@@ -71,6 +72,7 @@ Now extract and summarize the relevant content.`,
 		],
 		responseFormat: toolStrategy(SummarySchema),
 		systemPrompt,
+		middleware: retryMiddleware,
 	});
 
 	const response = await agent.invoke(

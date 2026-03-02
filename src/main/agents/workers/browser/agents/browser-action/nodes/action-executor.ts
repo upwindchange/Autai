@@ -13,6 +13,7 @@ import { tabControlTools } from "@/agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@/agents/tools/DOMTools";
 import { setContextVariable } from "@langchain/core/context";
 import { SessionTabService } from "@/services";
+import { retryMiddleware } from "@agents/utils";
 
 export async function browserActionExecutorNode(
 	state: BrowserActionStateType,
@@ -123,6 +124,7 @@ This summary will be reviewed by an evaluator agent to make the final success/fa
 		model: complexLangchainModel(),
 		tools: allTools,
 		systemPrompt: actionExecutorPrompt,
+		middleware: retryMiddleware,
 	});
 
 	// ============================================================
@@ -162,6 +164,7 @@ Provide structured evaluation with:
 			}),
 		),
 		systemPrompt: evaluatorPrompt,
+		middleware: retryMiddleware,
 	});
 
 	// ============================================================
