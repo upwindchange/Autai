@@ -3,7 +3,6 @@ import {
 	BrowserActionStateType,
 	PlanSchema,
 	Plan,
-	PlanItemSchema,
 } from "../state";
 import { complexLangchainModel } from "@/agents/providers";
 import { createAgent, toolStrategy } from "langchain";
@@ -11,7 +10,7 @@ import { Command, END } from "@langchain/langgraph";
 import { z } from "zod";
 import { retryMiddleware } from "@agents/utils";
 
-type PlanItem = z.infer<typeof PlanItemSchema>;
+type PlanItem = Plan["todos"][number];
 
 // ============================================================================
 // Helper Functions
@@ -21,7 +20,7 @@ type PlanItem = z.infer<typeof PlanItemSchema>;
  * Check if all tasks in the plan are completed
  */
 function areAllTasksCompleted(taskPlan: Plan | undefined): boolean {
-	return !taskPlan || taskPlan.every((task) => task.status === "completed");
+	return !taskPlan || taskPlan.todos.every((task) => task.status === "completed");
 }
 
 /**
@@ -30,8 +29,8 @@ function areAllTasksCompleted(taskPlan: Plan | undefined): boolean {
 function areAllSubtasksCompleted(subtaskPlan: Plan | undefined): boolean {
 	return Boolean(
 		subtaskPlan &&
-		subtaskPlan.length > 0 &&
-		subtaskPlan.every((subtask) => subtask.status === "completed"),
+		subtaskPlan.todos.length > 0 &&
+		subtaskPlan.todos.every((subtask) => subtask.status === "completed"),
 	);
 }
 
@@ -43,9 +42,12 @@ function completeCurrentTask(
 	state: BrowserActionStateType,
 	taskIndex: number,
 ): { state: BrowserActionStateType; nextIndex: number } {
-	const updatedTaskPlan = [...state.task_plan];
-	updatedTaskPlan[taskIndex] = {
-		...updatedTaskPlan[taskIndex],
+	const updatedTaskPlan = {
+		...state.task_plan,
+		todos: [...state.task_plan.todos],
+	};
+	updatedTaskPlan.todos[taskIndex] = {
+		...updatedTaskPlan.todos[taskIndex],
 		status: "completed",
 	};
 	return {
@@ -64,9 +66,12 @@ function setCurrentTaskInProgress(
 	state: BrowserActionStateType,
 	taskIndex: number,
 ): BrowserActionStateType {
-	const updatedTaskPlan = [...state.task_plan];
-	updatedTaskPlan[taskIndex] = {
-		...updatedTaskPlan[taskIndex],
+	const updatedTaskPlan = {
+		...state.task_plan,
+		todos: [...state.task_plan.todos],
+	};
+	updatedTaskPlan.todos[taskIndex] = {
+		...updatedTaskPlan.todos[taskIndex],
 		status: "in_progress",
 	};
 	return {
@@ -81,7 +86,7 @@ function setCurrentTaskInProgress(
 function buildFailureContext(subtaskPlan: Plan | undefined): string {
 	if (!subtaskPlan) return "";
 
-	const failedSubtask = subtaskPlan.find((s) => s.status === "failed");
+	const failedSubtask = subtaskPlan.todos.find((s) => s.status === "cancelled");
 	if (!failedSubtask) return "";
 
 	return `
@@ -94,12 +99,6 @@ ${JSON.stringify(subtaskPlan, null, 2)}
 
 Failed Subtask:
 ${JSON.stringify(failedSubtask, null, 2)}
-
-Failure Explanation:
-${
-	failedSubtask.results?.[failedSubtask.results.length - 1] ||
-	"No explanation provided"
-}
 
 ## Your Responsibility
 You MUST replan the subtasks for this task, taking into account:
@@ -207,12 +206,12 @@ export async function browserActionTaskExecutorNode(
 	if (
 		areAllTasksCompleted(workingState.task_plan) ||
 		currentIndex === -1 ||
-		currentIndex >= workingState.task_plan.length
+		currentIndex >= workingState.task_plan.todos.length
 	) {
 		return new Command({
 			update: {
 				task_plan: workingState.task_plan,
-				subtask_plan: [],
+				subtask_plan: undefined,
 				// Reset indices when workflow completes
 				current_task_index: -1,
 				current_subtask_index: -1,
@@ -226,7 +225,7 @@ export async function browserActionTaskExecutorNode(
 	workingState = setCurrentTaskInProgress(workingState, currentIndex);
 
 	// Build prompt
-	const currentTask = workingState.task_plan[currentIndex];
+	const currentTask = workingState.task_plan.todos[currentIndex];
 	const failureContext = buildFailureContext(workingState.subtask_plan);
 	const systemPrompt = buildSystemPrompt(
 		currentTask,

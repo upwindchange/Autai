@@ -5,34 +5,38 @@ import {
 } from "@langchain/langgraph";
 import { z } from "zod";
 
-export const PlanItemSchema = z.object({
+export const PlanSchema = z.object({
 	id: z
 		.string()
-		.regex(
-			/^\d+$/,
-			"Must be a string representation of a number (e.g., '1', '2', '3')",
-		)
+		.min(1)
 		.describe(
-			"identifier for the plan step, string of a number (e.g., '1', '2', '3'), incrementally increasing from '1' to the step number",
+			"Unique identifier for this plan, will be given by system prompt",
 		),
-	label: z.string().describe("Short human-readable title of the step"),
-	status: z
-		.enum(["pending", "in_progress", "completed", "failed"])
-		.describe("Current status of this plan step"),
+	title: z.string().min(1).describe("Plan title displayed as the header"),
 	description: z
 		.string()
-		.describe("Detailed description of what this step involves"),
-	results: z
-		.array(z.any())
 		.optional()
-		.describe(
-			"Array of BaseMessage objects from tool execution results for this step, will be populated during execution",
-		),
+		.describe("Context description below the title"),
+	todos: z
+		.array(
+			z.object({
+				id: z.string().min(1).describe("Unique todo identifier"),
+				label: z.string().min(1).describe("Display text"),
+				status: z
+					.enum(["pending", "in_progress", "completed", "cancelled"])
+					.describe("Current state"),
+				description: z.string().optional().describe("Expandable detail text"),
+			}),
+		)
+		.min(1)
+		.describe("Array of todo items - minimum 1 required"),
+	maxVisibleTodos: z
+		.number()
+		.int()
+		.min(1)
+		.optional()
+		.describe("Items to show before collapsing"),
 });
-
-export const PlanSchema = z
-	.array(PlanItemSchema)
-	.describe("Array of plan steps representing the execution plan");
 
 export type Plan = z.infer<typeof PlanSchema>;
 

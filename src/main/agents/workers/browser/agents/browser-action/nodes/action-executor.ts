@@ -19,7 +19,7 @@ export async function browserActionExecutorNode(
 	state: BrowserActionStateType,
 ): Promise<Command> {
 	// Get all subtasks
-	const subtaskPlan = state.subtask_plan || [];
+	const subtaskPlan = state.subtask_plan?.todos || [];
 
 	if (subtaskPlan.length === 0) {
 		// No subtasks, return to task-executor
@@ -180,8 +180,8 @@ Provide structured evaluation with:
 	const results: typeof subtaskPlan = [];
 	let agentMessages: BaseMessage[] = []; // Internal message accumulator
 
-	for (let i = 0; i < subtaskPlan.length; i++) {
-		const currentSubtask = subtaskPlan[i];
+	for (let i = 0; i < subtaskPlan.todos.length; i++) {
+		const currentSubtask = subtaskPlan.todos[i];
 
 		// Build context for action executor
 		let subtaskContext = "";
@@ -266,7 +266,10 @@ Provide structured evaluation with:
 		if (!evaluationResponse.structuredResponse.is_task_successful) {
 			return new Command({
 				update: {
-					subtask_plan: [...results.slice(0, i), updatedSubtask],
+					subtask_plan: state.subtask_plan ? {
+						...state.subtask_plan,
+						todos: [...results.slice(0, i), updatedSubtask],
+					} : undefined,
 					current_subtask_index: i,
 				},
 				goto: "task-executor",
@@ -279,7 +282,10 @@ Provide structured evaluation with:
 	// ============================================================
 	return new Command({
 		update: {
-			subtask_plan: results,
+			subtask_plan: state.subtask_plan ? {
+				...state.subtask_plan,
+				todos: results,
+			} : undefined,
 			current_subtask_index: -1, // All done
 		},
 		goto: "task-executor",

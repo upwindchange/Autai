@@ -3,6 +3,8 @@ import { evaluate } from "mathjs";
 import { CalculatorIcon, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calculateToolSchema, answerToolSchema } from "@shared/tools";
+import { Plan } from "@/components/tool-ui/plan";
+import { safeParseSerializablePlan } from "@/components/tool-ui/plan/schema";
 
 export const frontendToolkit: Toolkit = {
 	// Calculator tool - executes on frontend
@@ -87,5 +89,16 @@ export const frontendToolkit: Toolkit = {
 			);
 		},
 	},
-};
 
+	// Plan display tool - UI only (backend provides the result)
+	showPlan: {
+		type: "backend",
+		render: ({ result }) => {
+			const parsed = safeParseSerializablePlan(result);
+			if (!parsed) {
+				return null;
+			}
+			return <Plan {...parsed} />;
+		},
+	},
+};

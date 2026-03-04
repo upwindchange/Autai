@@ -1,10 +1,13 @@
-import { SystemMessage } from "@langchain/core/messages";
+import { SystemMessage, ToolMessage } from "@langchain/core/messages";
 import { BrowserActionStateType, PlanSchema } from "../state";
 import { complexLangchainModel } from "@/agents/providers";
 import { createAgent, toolStrategy } from "langchain";
 import { Command } from "@langchain/langgraph";
 import z from "zod";
 import { retryMiddleware } from "@agents/utils";
+import log from "electron-log/main";
+
+const logger = log.scope("Planner");
 
 export async function browserActionPlannerNode(
 	state: BrowserActionStateType,
@@ -26,12 +29,17 @@ You can control browsers: navigate, interact with pages, fill forms, extract inf
 - Example: "Log in to the site" is ONE task. Another AI will expand it to: find login form → enter username → enter password → submit
 - If complex, break into more tasks rather than fewer
 
-## Task Schema
-Each task has:
-- id: String number ('1', '2', '3'...) incrementing from '1'
-- label: Brief action title (e.g., "Find and navigate to login page")
-- status: Always "pending"
-- description: What this task accomplishes and why it's necessary
+## Plan Structure
+Your response must be a JSON object with:
+- id: "plan-${state.sessionId}"
+- title: Brief title for the entire plan (e.g., "Browser Automation Plan")
+- description: what this plan accomplishes
+- todos: Array of 3-10 task objects, each with:
+  - id: String number ('1', '2', '3'...) incrementing from '1'
+  - label: Brief action title (e.g., "Find and navigate to login page")
+  - status: Always "pending"
+  - description: What this task accomplishes and why it's necessary
+- maxVisibleTodos: Optional number (default 4)
 
 Now create the execution plan.`,
 	);
@@ -44,10 +52,28 @@ Now create the execution plan.`,
 	});
 
 	const response = await agent.invoke({ messages: state.messages });
+
+	// Extract the plan from structured response - already in correct format
+	const { task_plan } = response.structuredResponse;
+
+	// Create tool message for logging
+	const toolMessage = new ToolMessage({
+		content: JSON.stringify(task_plan, null, 2),
+		tool_call_id: `plan-${Date.now()}`,
+		name: "showPlan",
+	});
+
+	logger.info("Planner Tool Message:", {
+		toolCallId: toolMessage.tool_call_id,
+		content: toolMessage.content,
+		name: toolMessage.name,
+		planData: task_plan,
+	});
+
+	// Return command with plan and navigate to executor
 	return new Command({
 		update: {
-			...response.structuredResponse,
-			// Initialize to first task (index 0)
+			task_plan,
 			current_task_index: 0,
 			current_subtask_index: 0,
 		},
