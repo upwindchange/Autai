@@ -1,3 +1,2 @@
-// Tool components using makeAssistantTool pattern
-export { CalculatorTool } from "./CalculatorTool";
-export { AnswerTool } from "./AnswerTool";
+// Export the centralized toolkit
+export { frontendToolkit } from "./toolkit";

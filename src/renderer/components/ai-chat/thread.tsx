@@ -365,21 +365,6 @@ const MessageError: FC = () => {
 		</MessagePrimitive.Error>
 	);
 };
-const ToolGroup: FC<
-	PropsWithChildren<{ startIndex: number; endIndex: number }>
-> = ({ startIndex, endIndex, children }) => {
-	const toolCount = endIndex - startIndex + 1;
-
-	return (
-		<details className="my-2">
-			<summary className="cursor-pointer font-medium">
-				{toolCount} tool {toolCount === 1 ? "call" : "calls"}
-			</summary>
-			<div className="space-y-2 pl-4">{children}</div>
-		</details>
-	);
-};
-
 const AssistantMessage: FC = () => {
 	return (
 		<MessagePrimitive.Root
@@ -389,7 +374,6 @@ const AssistantMessage: FC = () => {
 			<div className="aui-assistant-message-content wrap-break-word mx-2 text-foreground leading-7">
 				<MessagePrimitive.Parts
 					components={{
-						ToolGroup,
 						Reasoning,
 						ReasoningGroup,
 						Text: MarkdownText,

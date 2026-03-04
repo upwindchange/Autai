@@ -12,13 +12,15 @@ import { AssistantChatContainer } from "@/components/ai-chat";
 import { SettingsProvider, SettingsView } from "@/components/settings";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useUiStore } from "@/stores/uiStore";
-import { CalculatorTool, AnswerTool } from "@/components/tools";
+import { frontendToolkit } from "@/components/tools";
 import {
 	AssistantRuntimeProvider,
 	CompositeAttachmentAdapter,
 	SimpleImageAttachmentAdapter,
 	SimpleTextAttachmentAdapter,
 	WebSpeechSynthesisAdapter,
+	useAui,
+	Tools,
 } from "@assistant-ui/react";
 import {
 	useChatRuntime,
@@ -153,10 +155,13 @@ function App() {
 		},
 	});
 
+	// Configure assistant-ui with tools using the new Tools() API
+	const aui = useAui({
+		tools: Tools({ toolkit: frontendToolkit }),
+	});
+
 	return (
-		<AssistantRuntimeProvider runtime={runtime}>
-			<CalculatorTool />
-			<AnswerTool />
+		<AssistantRuntimeProvider aui={aui} runtime={runtime}>
 			{/* <ApprovalTool /> */}
 			<AppContent />
 		</AssistantRuntimeProvider>
