@@ -34,6 +34,6 @@ yarn.lock
 
 #project tools
 .roo/
-
+.claude/
 .crush/
 .env

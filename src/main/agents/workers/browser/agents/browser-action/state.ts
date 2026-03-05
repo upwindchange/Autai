@@ -20,12 +20,19 @@ export const PlanSchema = z.object({
 	todos: z
 		.array(
 			z.object({
-				id: z.string().min(1).describe("Unique todo identifier"),
+				id: z
+					.string()
+					.regex(/^\d+$/, "Todo ID must be a string number like '1', '2', '3'")
+					.describe("Unique todo identifier as string number"),
 				label: z.string().min(1).describe("Display text"),
 				status: z
 					.enum(["pending", "in_progress", "completed", "cancelled"])
 					.describe("Current state"),
 				description: z.string().optional().describe("Expandable detail text"),
+				results: z
+					.array(z.string())
+					.optional()
+					.describe("Evaluation result explanations from action-executor"),
 			}),
 		)
 		.min(1)

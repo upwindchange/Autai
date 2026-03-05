@@ -29,17 +29,13 @@ You can control browsers: navigate, interact with pages, fill forms, extract inf
 - Example: "Log in to the site" is ONE task. Another AI will expand it to: find login form → enter username → enter password → submit
 - If complex, break into more tasks rather than fewer
 
-## Plan Structure
-Your response must be a JSON object with:
+## Plan Format
+Generate a plan with:
 - id: "plan-${state.sessionId}"
-- title: Brief title for the entire plan (e.g., "Browser Automation Plan")
-- description: what this plan accomplishes
-- todos: Array of 3-10 task objects, each with:
-  - id: String number ('1', '2', '3'...) incrementing from '1'
-  - label: Brief action title (e.g., "Find and navigate to login page")
-  - status: Always "pending"
-  - description: What this task accomplishes and why it's necessary
-- maxVisibleTodos: Optional number (default 4)
+- title: Brief title for the entire plan
+- description: What this plan accomplishes
+- todos: Array of tasks, each with id ('1', '2', '3'...), label, status ('pending'), and description
+- maxVisibleTodos: Optional (default 4)
 
 Now create the execution plan.`,
 	);

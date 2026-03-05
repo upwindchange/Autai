@@ -20,6 +20,7 @@ export const PlanTodoSchema = z.object({
 	label: z.string().min(1),
 	status: PlanTodoStatusSchema,
 	description: z.string().optional(),
+	results: z.array(z.string()).optional(),
 });
 
 export type PlanTodoStatus = z.infer<typeof PlanTodoStatusSchema>;

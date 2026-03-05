@@ -244,9 +244,9 @@ Provide structured evaluation with:
 		// Update subtask status based on evaluator's structured response
 		const updatedSubtask = {
 			...currentSubtask,
-			status: (evaluationResponse.structuredResponse.is_task_successful ?
-				"completed"
-			:	"failed") as "completed" | "failed",
+			status: evaluationResponse.structuredResponse.is_task_successful
+				? ("completed" as const)
+				: ("cancelled" as const),
 			results: [
 				...(currentSubtask.results || []),
 				evaluationResponse.structuredResponse.result_explanation,

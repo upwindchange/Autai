@@ -1,9 +1,5 @@
 import { SystemMessage } from "@langchain/core/messages";
-import {
-	BrowserActionStateType,
-	PlanSchema,
-	Plan,
-} from "../state";
+import { BrowserActionStateType, PlanSchema, Plan } from "../state";
 import { complexLangchainModel } from "@/agents/providers";
 import { createAgent, toolStrategy } from "langchain";
 import { Command, END } from "@langchain/langgraph";
@@ -20,7 +16,9 @@ type PlanItem = Plan["todos"][number];
  * Check if all tasks in the plan are completed
  */
 function areAllTasksCompleted(taskPlan: Plan | undefined): boolean {
-	return !taskPlan || taskPlan.todos.every((task) => task.status === "completed");
+	return (
+		!taskPlan || taskPlan.todos.every((task) => task.status === "completed")
+	);
 }
 
 /**
@@ -115,6 +113,8 @@ Do NOT simply repeat the same plan. Adjust your approach based on the failure, b
  * Build system prompt for subtask planning
  */
 function buildSystemPrompt(
+	state: BrowserActionStateType,
+	currentIndex: number,
 	currentTask: PlanItem,
 	taskPlan: Plan,
 	failureContext: string,
@@ -131,18 +131,17 @@ If the current task is "Log in to current site", you might create:
 3. "Fill in the username and password credentials. If username and password are on different pages, submit the first page and fill in credentials on each page separately"
 4. "Submit all information and complete the login process"
 
-## Subtask Schema
-Each subtask has:
-- id: String number ('1', '2', '3'...) incrementing from '1'
-- label: Brief action title (e.g., "Navigate to login page and locate login form")
-- description: Clear instructions on what this subtask should accomplish
-
 ## Subtask Guidelines
 - Group related actions together
 - Browser and tab are always available. Do NOT plan setup tasks like "open browser" or "ensure tab is ready"
 - Write instructional descriptions that guide the action-executor agent
 - Do NOT break into atomic actions (click, type). That is for the action-executor agent
-- Consider page state from previous subtasks when writing instructions`;
+- Consider page state from previous subtasks when writing instructions
+
+## Subtask Format
+Generate a subtask plan with:
+- id: "subplan-${state.sessionId}-${currentIndex}"
+- todos: Array of subtasks, each with id ('1', '2', '3'...), label, status ('pending'), and description`;
 
 	return new SystemMessage(
 		`You are a browser automation subtask planner. Break down one high-level task into instructional subtasks.
@@ -228,6 +227,8 @@ export async function browserActionTaskExecutorNode(
 	const currentTask = workingState.task_plan.todos[currentIndex];
 	const failureContext = buildFailureContext(workingState.subtask_plan);
 	const systemPrompt = buildSystemPrompt(
+		state,
+		currentIndex,
 		currentTask,
 		workingState.task_plan,
 		failureContext,
