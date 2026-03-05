@@ -1,13 +1,32 @@
 import { SystemMessage, ToolMessage } from "@langchain/core/messages";
-import { BrowserActionStateType, PlanSchema } from "../state";
+import { BrowserActionStateType, PlanSchema, Plan } from "../state";
 import { complexLangchainModel } from "@/agents/providers";
 import { createAgent, toolStrategy } from "langchain";
-import { Command } from "@langchain/langgraph";
+import { Command, END } from "@langchain/langgraph";
 import z from "zod";
 import { retryMiddleware } from "@agents/utils";
 import log from "electron-log/main";
+import { showPlanTool } from "@/agents/tools/PlanTool";
 
 const logger = log.scope("Planner");
+
+// ============================================================================
+// Helper Functions
+// ============================================================================
+
+/**
+ * Strip the results field from plan todos for cleaner display during approval.
+ * Results are added during execution and should not be shown in the approval UI.
+ */
+function stripResults(plan: Plan): Plan {
+	return {
+		...plan,
+		todos: plan.todos.map((todo) => {
+			const { results: _results, ...rest } = todo;
+			return rest;
+		}),
+	};
+}
 
 export async function browserActionPlannerNode(
 	state: BrowserActionStateType,
@@ -52,6 +71,11 @@ Now create the execution plan.`,
 	// Extract the plan from structured response - already in correct format
 	const { task_plan } = response.structuredResponse;
 
+	logger.info("Plan generated, requesting human approval", {
+		planId: task_plan.id,
+		taskCount: task_plan.todos.length,
+	});
+
 	// Create tool message for logging
 	const toolMessage = new ToolMessage({
 		content: JSON.stringify(task_plan, null, 2),
@@ -66,13 +90,43 @@ Now create the execution plan.`,
 		planData: task_plan,
 	});
 
-	// Return command with plan and navigate to executor
-	return new Command({
-		update: {
-			task_plan,
-			current_task_index: 0,
-			current_subtask_index: 0,
-		},
-		goto: "task-executor",
-	});
+	// Strip results field for cleaner display during approval
+	const planForApproval = stripResults(task_plan);
+
+	// Call showPlan tool which will interrupt and wait for human approval
+	try {
+		const approvedPlan = await showPlanTool.invoke(planForApproval);
+
+		logger.info("Plan approved, proceeding to execution", {
+			planId: approvedPlan.id,
+			taskCount: approvedPlan.todos.length,
+		});
+
+		// Return command with approved plan and navigate to executor
+		return new Command({
+			update: {
+				task_plan: approvedPlan,
+				current_task_index: 0,
+				current_subtask_index: 0,
+			},
+			goto: "task-executor",
+		});
+	} catch (error) {
+		// Handle rejection - end workflow with error message
+		const errorMessage =
+			error instanceof Error ? error.message : "Plan rejected by user";
+
+		logger.info("Plan rejected, ending workflow", {
+			errorMessage,
+			planId: task_plan.id,
+		});
+
+		return new Command({
+			update: {
+				response: errorMessage,
+				task_plan,
+			},
+			goto: END,
+		});
+	}
 }
