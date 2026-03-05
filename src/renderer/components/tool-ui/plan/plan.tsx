@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useMemo, useState, useEffect, useRef, memo } from "react";
 import { Loader2, Check, X, MoreHorizontal, ChevronRight } from "lucide-react";
 import type { PlanProps, PlanTodo, PlanTodoStatus } from "./schema";
 import {
@@ -11,7 +11,6 @@ import {
 	CardTitle,
 	CardDescription,
 	CardContent,
-	CardFooter,
 	Accordion,
 	AccordionItem,
 	AccordionTrigger,
@@ -20,13 +19,15 @@ import {
 	CollapsibleTrigger,
 	CollapsibleContent,
 } from "./_adapter";
-import { ActionButtons } from "../shared/action-buttons";
-import { normalizeActionsConfig } from "../shared/actions-config";
 import { calculatePlanProgress, shouldCelebrateProgress } from "./progress";
 
 const INITIAL_VISIBLE_TODO_COUNT = 4;
 
-function TodoIcon({ status }: { status: PlanTodoStatus }) {
+const TodoIcon = memo(function TodoIcon({
+	status,
+}: {
+	status: PlanTodoStatus;
+}) {
 	if (status === "pending") {
 		return (
 			<span
@@ -76,7 +77,7 @@ function TodoIcon({ status }: { status: PlanTodoStatus }) {
 	}
 
 	return null;
-}
+});
 
 interface PlanTodoItemProps {
 	todo: PlanTodo;
@@ -85,7 +86,27 @@ interface PlanTodoItemProps {
 	showConnector?: boolean;
 }
 
-function PlanTodoItem({
+function areTodoPropsEqual(
+	prev: PlanTodoItemProps,
+	next: PlanTodoItemProps,
+): boolean {
+	if (prev.todo.id !== next.todo.id) return false;
+	if (prev.todo.label !== next.todo.label) return false;
+	if (prev.todo.status !== next.todo.status) return false;
+	if (prev.todo.description !== next.todo.description) return false;
+	if (prev.showConnector !== next.showConnector) return false;
+	if (prev.className !== next.className) return false;
+	const prevStyle = prev.style;
+	const nextStyle = next.style;
+	if (prevStyle === nextStyle) return true;
+	if (!prevStyle || !nextStyle) return false;
+	return (
+		prevStyle.animationDelay === nextStyle.animationDelay &&
+		prevStyle.animationFillMode === nextStyle.animationFillMode
+	);
+}
+
+const PlanTodoItem = memo(function PlanTodoItem({
 	todo,
 	className,
 	style,
@@ -179,7 +200,7 @@ function PlanTodoItem({
 			</Collapsible>
 		</li>
 	);
-}
+}, areTodoPropsEqual);
 
 interface TodoListProps {
 	todos: PlanTodo[];
@@ -222,7 +243,10 @@ interface ProgressBarProps {
 	isCelebrating: boolean;
 }
 
-function ProgressBar({ progress, isCelebrating }: ProgressBarProps) {
+const ProgressBar = memo(function ProgressBar({
+	progress,
+	isCelebrating,
+}: ProgressBarProps) {
 	return (
 		<div
 			className="bg-muted relative mb-3 h-1.5 overflow-hidden rounded-full"
@@ -254,7 +278,7 @@ function ProgressBar({ progress, isCelebrating }: ProgressBarProps) {
 			)}
 		</div>
 	);
-}
+});
 
 function PlanRoot({
 	id,
@@ -262,9 +286,6 @@ function PlanRoot({
 	description,
 	todos,
 	maxVisibleTodos = INITIAL_VISIBLE_TODO_COUNT,
-	responseActions,
-	onResponseAction,
-	onBeforeResponseAction,
 	className,
 	compact = false,
 }: PlanProps & { compact?: boolean }) {
@@ -287,13 +308,6 @@ function PlanRoot({
 				}),
 			};
 		}, [todos, maxVisibleTodos]);
-
-	useEffect(() => {
-		seenTodoIds.current = new Set<string>();
-		prevProgressRef.current = 0;
-		setNewTodoIds(new Set<string>());
-		setIsCelebrating(false);
-	}, [id]);
 
 	useEffect(() => {
 		const newIds = new Set<string>();
@@ -331,11 +345,6 @@ function PlanRoot({
 		}
 	}, [progress]);
 
-	const resolvedFooterActions = useMemo(
-		() => normalizeActionsConfig(responseActions),
-		[responseActions],
-	);
-
 	const todoList = (
 		<ul className={cn("min-w-0 space-y-1", compact ? "mt-0" : "mt-4")}>
 			<TodoList todos={visibleTodos} newTodoIds={newTodoIds} />
@@ -362,7 +371,7 @@ function PlanRoot({
 
 	return (
 		<Card
-			className={cn("w-full max-w-xl min-w-80 gap-4 py-4", className)}
+			className={cn("isolate w-full max-w-xl min-w-80 gap-4 py-4", className)}
 			data-tool-ui-id={id}
 			data-slot="plan"
 		>
@@ -398,31 +407,22 @@ function PlanRoot({
 					{todoList}
 				</div>
 			</CardContent>
-
-			{!compact && resolvedFooterActions && (
-				<CardFooter className="@container/actions">
-					<ActionButtons
-						actions={resolvedFooterActions.items}
-						align={resolvedFooterActions.align}
-						confirmTimeout={resolvedFooterActions.confirmTimeout}
-						onAction={(id) => onResponseAction?.(id)}
-						onBeforeAction={onBeforeResponseAction}
-						className="w-full"
-					/>
-				</CardFooter>
-			)}
 		</Card>
 	);
 }
 
-export function PlanCompact(props: PlanProps) {
-	return <PlanRoot {...props} compact />;
+function PlanComponent(props: PlanProps) {
+	return <PlanRoot key={props.id} {...props} />;
 }
 
-type PlanComponent = typeof PlanRoot & {
+export function PlanCompact(props: PlanProps) {
+	return <PlanRoot key={props.id} {...props} compact />;
+}
+
+type PlanComponentType = typeof PlanComponent & {
 	Compact: typeof PlanCompact;
 };
 
-export const Plan = Object.assign(PlanRoot, {
+export const Plan = Object.assign(PlanComponent, {
 	Compact: PlanCompact,
-}) as PlanComponent;
+}) as PlanComponentType;

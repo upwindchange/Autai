@@ -56,7 +56,7 @@ export const getDOMTreeTool = tool(
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 
@@ -133,7 +133,7 @@ export const getFlattenDOMTool = tool(
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 

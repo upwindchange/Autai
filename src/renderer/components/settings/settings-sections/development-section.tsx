@@ -298,7 +298,10 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
 										variant="outline"
 										className="gap-2"
 										onClick={() =>
-											window.open(langfuseConfig.host || "https://cloud.langfuse.com", "_blank")
+											window.open(
+												langfuseConfig.host || "https://cloud.langfuse.com",
+												"_blank",
+											)
 										}
 									>
 										<ExternalLink className="h-4 w-4" />

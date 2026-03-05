@@ -1,7 +1,5 @@
 import { z } from "zod";
 import {
-	SerializableActionSchema,
-	SerializableActionsConfigSchema,
 	ToolUIIdSchema,
 	ToolUIReceiptSchema,
 	ToolUIRoleSchema,
@@ -34,12 +32,6 @@ export const PlanPropsSchema = z
 		description: z.string().optional(),
 		todos: z.array(PlanTodoSchema).min(1),
 		maxVisibleTodos: z.number().finite().int().min(1).optional(),
-		responseActions: z
-			.union([
-				z.array(SerializableActionSchema),
-				SerializableActionsConfigSchema,
-			])
-			.optional(),
 	})
 	.superRefine((value, ctx) => {
 		const seenTodoIds = new Set<string>();
@@ -58,8 +50,6 @@ export const PlanPropsSchema = z
 
 export type PlanProps = z.infer<typeof PlanPropsSchema> & {
 	className?: string;
-	onResponseAction?: (actionId: string) => void | Promise<void>;
-	onBeforeResponseAction?: (actionId: string) => boolean | Promise<boolean>;
 };
 
 export const SerializablePlanSchema = PlanPropsSchema;

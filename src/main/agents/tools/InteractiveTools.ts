@@ -30,7 +30,7 @@ export const clickElementTool = tool(
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 
@@ -110,17 +110,12 @@ export const clickElementTool = tool(
 
 // Fill Element Tool
 export const fillElementTool = tool(
-	async ({
-		backendNodeId,
-		value,
-		clear = true,
-		keystrokeDelay = 18,
-	}) => {
+	async ({ backendNodeId, value, clear = true, keystrokeDelay = 18 }) => {
 		const tabId = getContextVariable("activeTabId");
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 
@@ -216,7 +211,7 @@ export const selectOptionTool = tool(
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 
@@ -311,7 +306,7 @@ export const hoverElementTool = tool(
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 
@@ -395,7 +390,7 @@ export const dragToElementTool = tool(
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 
@@ -494,7 +489,7 @@ export const scrollPagesTool = tool(
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 
@@ -590,7 +585,7 @@ export const scrollAtCoordinateTool = tool(
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 
@@ -685,7 +680,7 @@ export const getAttributeTool = tool(
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 
@@ -730,7 +725,7 @@ export const evaluateTool = tool(
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 
@@ -782,7 +777,7 @@ export const getBasicInfoTool = tool(
 		if (!tabId) {
 			throw new Error(
 				"No active tab in context. " +
-				"Ensure tab selection has run before calling this tool.",
+					"Ensure tab selection has run before calling this tool.",
 			);
 		}
 

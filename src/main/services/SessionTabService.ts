@@ -146,11 +146,7 @@ export class SessionTabService extends EventEmitter {
 	// ===================
 
 	async createTab(options: CreateTabOptions): Promise<TabId> {
-		const {
-			sessionId,
-			bounds,
-			url,
-		} = options;
+		const { sessionId, bounds, url } = options;
 		const tabId = `tab-${Date.now()}-${Math.random()
 			.toString(36)
 			.substring(2, 11)}`;
