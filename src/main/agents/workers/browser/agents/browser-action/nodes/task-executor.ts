@@ -21,7 +21,11 @@ type PlanItem = z.infer<typeof PlanItemSchema>;
  * Check if all tasks in the plan are completed
  */
 function areAllTasksCompleted(taskPlan: Plan | undefined): boolean {
-	return !taskPlan || taskPlan.every((task) => task.status === "completed");
+	return (
+		!taskPlan ||
+		!taskPlan.steps ||
+		taskPlan.steps.every((task) => task.status === "completed")
+	);
 }
 
 /**
@@ -30,8 +34,9 @@ function areAllTasksCompleted(taskPlan: Plan | undefined): boolean {
 function areAllSubtasksCompleted(subtaskPlan: Plan | undefined): boolean {
 	return Boolean(
 		subtaskPlan &&
-		subtaskPlan.length > 0 &&
-		subtaskPlan.every((subtask) => subtask.status === "completed"),
+		subtaskPlan.steps &&
+		subtaskPlan.steps.length > 0 &&
+		subtaskPlan.steps.every((subtask) => subtask.status === "completed"),
 	);
 }
 
@@ -43,15 +48,18 @@ function completeCurrentTask(
 	state: BrowserActionStateType,
 	taskIndex: number,
 ): { state: BrowserActionStateType; nextIndex: number } {
-	const updatedTaskPlan = [...state.task_plan];
-	updatedTaskPlan[taskIndex] = {
-		...updatedTaskPlan[taskIndex],
+	const updatedSteps = [...state.task_plan.steps];
+	updatedSteps[taskIndex] = {
+		...updatedSteps[taskIndex],
 		status: "completed",
 	};
 	return {
 		state: {
 			...state,
-			task_plan: updatedTaskPlan,
+			task_plan: {
+				...state.task_plan,
+				steps: updatedSteps,
+			},
 		},
 		nextIndex: taskIndex + 1,
 	};
@@ -64,14 +72,17 @@ function setCurrentTaskInProgress(
 	state: BrowserActionStateType,
 	taskIndex: number,
 ): BrowserActionStateType {
-	const updatedTaskPlan = [...state.task_plan];
-	updatedTaskPlan[taskIndex] = {
-		...updatedTaskPlan[taskIndex],
+	const updatedSteps = [...state.task_plan.steps];
+	updatedSteps[taskIndex] = {
+		...updatedSteps[taskIndex],
 		status: "in_progress",
 	};
 	return {
 		...state,
-		task_plan: updatedTaskPlan,
+		task_plan: {
+			...state.task_plan,
+			steps: updatedSteps,
+		},
 	};
 }
 
@@ -79,9 +90,9 @@ function setCurrentTaskInProgress(
  * Build failure context for the system prompt
  */
 function buildFailureContext(subtaskPlan: Plan | undefined): string {
-	if (!subtaskPlan) return "";
+	if (!subtaskPlan || !subtaskPlan.steps) return "";
 
-	const failedSubtask = subtaskPlan.find((s) => s.status === "failed");
+	const failedSubtask = subtaskPlan.steps.find((s) => s.status === "failed");
 	if (!failedSubtask) return "";
 
 	return `
@@ -207,12 +218,12 @@ export async function browserActionTaskExecutorNode(
 	if (
 		areAllTasksCompleted(workingState.task_plan) ||
 		currentIndex === -1 ||
-		currentIndex >= workingState.task_plan.length
+		currentIndex >= workingState.task_plan.steps.length
 	) {
 		return new Command({
 			update: {
 				task_plan: workingState.task_plan,
-				subtask_plan: [],
+				subtask_plan: { title: "", steps: [] },
 				// Reset indices when workflow completes
 				current_task_index: -1,
 				current_subtask_index: -1,
@@ -226,7 +237,7 @@ export async function browserActionTaskExecutorNode(
 	workingState = setCurrentTaskInProgress(workingState, currentIndex);
 
 	// Build prompt
-	const currentTask = workingState.task_plan[currentIndex];
+	const currentTask = workingState.task_plan.steps[currentIndex];
 	const failureContext = buildFailureContext(workingState.subtask_plan);
 	const systemPrompt = buildSystemPrompt(
 		currentTask,

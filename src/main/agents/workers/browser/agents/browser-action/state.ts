@@ -30,9 +30,10 @@ export const PlanItemSchema = z.object({
 		),
 });
 
-export const PlanSchema = z
-	.array(PlanItemSchema)
-	.describe("Array of plan steps representing the execution plan");
+export const PlanSchema = z.object({
+	title: z.string().describe("Short human-readable title of the plan"),
+	steps: z.array(PlanItemSchema).describe("Array of plan steps"),
+});
 
 export type Plan = z.infer<typeof PlanSchema>;
 

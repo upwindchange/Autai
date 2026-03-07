@@ -34,12 +34,17 @@ export async function browserActionNode(
 			sessionId: state.sessionId,
 			current_task_index: -1,
 			current_subtask_index: -1,
-			task_plan: [],
-			subtask_plan: [],
+			task_plan: { title: "", steps: [] },
+			subtask_plan: { title: "", steps: [] },
 			mode: "",
 			response: "",
 		},
-		config,
+		{
+			...config,
+			configurable: { thread_id: state.sessionId },
+			streamMode: ["messages", "updates", "tools"],
+			subgraphs: true,
+		},
 	);
 
 	return stream;

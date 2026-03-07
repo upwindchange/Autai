@@ -1,11 +1,6 @@
 {
 	"permissions": {
-		"allow": [
-			"Bash(git mv:*)",
-			"mcp__language-server__diagnostics",
-			"Bash(dir:*)",
-			"Bash(find:*)"
-		],
+		"allow": ["Bash(git mv:*)", "Bash(dir:*)", "Bash(find:*)", "WebSearch"],
 		"deny": [],
 		"ask": []
 	}

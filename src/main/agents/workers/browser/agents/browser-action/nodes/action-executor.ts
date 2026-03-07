@@ -19,9 +19,9 @@ export async function browserActionExecutorNode(
 	state: BrowserActionStateType,
 ): Promise<Command> {
 	// Get all subtasks
-	const subtaskPlan = state.subtask_plan || [];
+	const subtaskPlan = state.subtask_plan || { title: "", steps: [] };
 
-	if (subtaskPlan.length === 0) {
+	if (subtaskPlan.steps.length === 0) {
 		// No subtasks, return to task-executor
 		return new Command({
 			update: {
@@ -177,11 +177,11 @@ Provide structured evaluation with:
 	// ============================================================
 	// INTERNAL SUBTASK LOOP
 	// ============================================================
-	const results: typeof subtaskPlan = [];
+	const results: typeof subtaskPlan.steps = [];
 	let agentMessages: BaseMessage[] = []; // Internal message accumulator
 
-	for (let i = 0; i < subtaskPlan.length; i++) {
-		const currentSubtask = subtaskPlan[i];
+	for (let i = 0; i < subtaskPlan.steps.length; i++) {
+		const currentSubtask = subtaskPlan.steps[i];
 
 		// Build context for action executor
 		let subtaskContext = "";
@@ -266,7 +266,10 @@ Provide structured evaluation with:
 		if (!evaluationResponse.structuredResponse.is_task_successful) {
 			return new Command({
 				update: {
-					subtask_plan: [...results.slice(0, i), updatedSubtask],
+					subtask_plan: {
+						title: subtaskPlan.title,
+						steps: [...results.slice(0, i), updatedSubtask],
+					},
 					current_subtask_index: i,
 				},
 				goto: "task-executor",
@@ -279,7 +282,10 @@ Provide structured evaluation with:
 	// ============================================================
 	return new Command({
 		update: {
-			subtask_plan: results,
+			subtask_plan: {
+				title: subtaskPlan.title,
+				steps: results,
+			},
 			current_subtask_index: -1, // All done
 		},
 		goto: "task-executor",
