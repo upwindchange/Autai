@@ -11,16 +11,68 @@ import type {
 	ScrollOptions,
 	ScrollAtCoordinateOptions,
 	Position,
+	ClickResult,
+	FillResult,
+	SelectOptionResult,
+	HoverResult,
+	DragResult,
+	ScrollResult,
+	GetAttributeResult,
+	EvaluateResult,
+	GetBasicInfoResult,
 } from "@shared/dom/interaction";
 import type { ToolExecutionContext } from "./types/context";
-import type {
-	ClickToolResult,
-	FillToolResult,
-	SelectToolResult,
-	HoverToolResult,
-	DragToolResult,
-	ScrollToolResult,
-} from "./types/results";
+
+// ===== Result Types =====
+
+/**
+ * Enhanced tool results with DOM change tracking
+ */
+export interface ClickToolResult extends ClickResult {
+	tabId: string;
+	newNodesCount?: number;
+	totalNodesCountChange?: number;
+	timestamp?: number;
+}
+
+export interface FillToolResult extends FillResult {
+	tabId: string;
+	newNodesCount?: number;
+	totalNodesCountChange?: number;
+	timestamp?: number;
+}
+
+export interface SelectToolResult extends SelectOptionResult {
+	tabId: string;
+	newNodesCount?: number;
+	totalNodesCountChange?: number;
+	timestamp?: number;
+}
+
+export interface HoverToolResult extends HoverResult {
+	tabId: string;
+	newNodesCount?: number;
+	totalNodesCountChange?: number;
+	timestamp?: number;
+}
+
+export interface DragToolResult extends DragResult {
+	tabId: string;
+	newNodesCount?: number;
+	totalNodesCountChange?: number;
+	timestamp?: number;
+}
+
+export interface ScrollToolResult extends ScrollResult {
+	tabId: string;
+	newNodesCount?: number;
+	totalNodesCountChange?: number;
+	timestamp?: number;
+}
+
+export type GetAttributeToolResult = GetAttributeResult;
+export type EvaluateToolResult = EvaluateResult;
+export type GetBasicInfoToolResult = GetBasicInfoResult;
 
 // Click Element Tool
 export const clickElementTool = tool({

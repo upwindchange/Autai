@@ -7,3 +7,11 @@ export {
 	shutdownTelemetry,
 } from "./telemetry";
 export { retryMiddleware } from "./langchainMiddleware";
+export {
+	executeToolDirectly,
+	simulateToolCall,
+	type Tool,
+	type ToolExecutionOptions,
+	type ToolExecutionResult,
+	type ToolSimulationResult,
+} from "./toolMessageUtils";

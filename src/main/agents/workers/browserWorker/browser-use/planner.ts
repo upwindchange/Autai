@@ -1,0 +1,166 @@
+import { generateText, ModelMessage, tool } from "ai";
+import { z } from "zod";
+import { complexModel } from "@agents/providers";
+import { settingsService } from "@/services";
+import log from "electron-log/main";
+
+const logger = log.scope("browser-action-planner");
+
+// ===== Result Types =====
+// from src/renderer/components/tool-ui/plan/plan.tsx
+
+export interface UIPlanTodo {
+	id: string;
+	label: string;
+	status: "pending" | "in_progress" | "completed" | "cancelled";
+	description?: string;
+}
+
+export interface UIPlanType {
+	id: string;
+	title: string;
+	description?: string;
+	todos: UIPlanTodo[];
+	maxVisibleTodos?: number;
+}
+
+// ===== Plan Schema =====
+// For AI tool input
+
+export const todoInputSchema = z.object({
+	label: z
+		.string()
+		.min(1)
+		.describe("Short human-readable title of the todo item"),
+	status: z
+		.enum(["pending", "in_progress", "completed", "cancelled"])
+		.default("pending")
+		.describe("Current status of this todo item"),
+	description: z
+		.string()
+		.describe("Detailed description of what this todo item involves"),
+});
+
+export const planInputSchema = z.object({
+	title: z.string().min(1).describe("Short human-readable title of the plan"),
+	description: z.string().describe("Optional detailed description of the plan"),
+	todos: z
+		.array(todoInputSchema)
+		.min(1)
+		.describe("Array of todo items representing the plan steps"),
+});
+
+type planInputType = z.infer<typeof planInputSchema>;
+
+// ===== Tool Definitions =====
+
+const generatePlanTool = tool({
+	description: "Generate a browser automation execution plan",
+	inputSchema: planInputSchema,
+	execute: async (input, { experimental_context }) => {
+		const context = experimental_context as {
+			sessionId: string;
+			plan: planInputType | null;
+		};
+		// Populate plan id and maxVisibleTodos
+		const plan = {
+			...input,
+			id: `plan-${context.sessionId}`,
+			maxVisibleTodos: 4,
+		};
+		// Populate todo ids
+		plan.todos = plan.todos.map((todo, index) => ({
+			...todo,
+			id: `subplan-${context.sessionId}-${index}`,
+		}));
+		// Store the plan in context for showPlanTool to access
+		context.plan = plan;
+		// Return populated plan
+		return plan;
+	},
+});
+
+// ===== System Prompt =====
+
+const plannerSystemPrompt = `You are a browser automation planner. Break down the user's request into logical high-level tasks.
+
+## Your Capabilities
+You can control browsers: navigate, interact with pages, fill forms, extract information, and coordinate multi-page workflows.
+
+## Planning Strategy
+1. Understand what the user wants to accomplish
+2. Identify the logical flow - what must happen first, then next
+3. Break into 3-10 major tasks that represent coherent phases
+
+## Plan Format
+Generate a plan with this structure:
+- title: Short human-readable title of the plan
+- description: Optional detailed description
+- todos: Array of todo items, where each todo has:
+  - label: Short title of the step
+  - status: Always start with "pending"
+  - description: Detailed description of what this step involves
+
+## Important
+- Each todo will be expanded into subtasks by another AI
+- Think at the "what" level, not "how"
+- Example: "Log in to the site" is ONE task. Another AI will expand it to: find login form → enter username → enter password → submit
+- If complex, break into more tasks rather than fewer
+
+## Tool Usage
+Call generatePlan with the complete plan (including title, description, todos array).
+
+Now create the execution plan.`;
+
+// ===== Main Exported Function =====
+
+export async function browserUsePlanner(
+	messages: ModelMessage[],
+	sessionId: string,
+): Promise<UIPlanType> {
+	logger.debug("Starting planner", {
+		sessionId,
+		messageCount: messages.length,
+	});
+
+	// Create a mutable context to store the plan
+	const context = {
+		sessionId,
+		plan: null as planInputType | null,
+	};
+
+	const result = await generateText({
+		model: complexModel(),
+		messages,
+		system: plannerSystemPrompt,
+		tools: {
+			generatePlan: generatePlanTool,
+		},
+		experimental_context: context,
+		experimental_telemetry: {
+			isEnabled: settingsService.settings.langfuse.enabled,
+			functionId: "browser-action-planner",
+			metadata: {
+				langfuseTraceId: sessionId,
+			},
+		},
+	});
+
+	// Manually extract plan from tool results
+	// Access tool results directly from the result object
+	const allToolResults = result.steps.flatMap((step) => step.toolResults ?? []);
+	const planResult = allToolResults.find(
+		(toolResult) => toolResult.toolName === "generatePlan",
+	)?.output as UIPlanType | undefined;
+
+	if (!planResult) {
+		throw new Error("Failed to generate plan: generatePlan tool not called");
+	}
+
+	logger.info("Plan generated successfully", {
+		title: planResult.title,
+		todoCount: planResult.todos.length,
+	});
+
+	return planResult;
+}

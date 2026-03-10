@@ -11,14 +11,6 @@ export { domTools } from "./DOMTools";
 export { sessionTools } from "./SessionTabTools";
 export { navigationTools } from "./TabControlTools";
 
-// Export utility functions for type-safe result extraction
-export {
-	extractToolResults,
-	extractFirstToolResult,
-	groupToolResults,
-} from "./utils";
-export type { ToolResultMap } from "./utils";
-
 // Export all types
 export type {
 	ToolExecutionContext,
@@ -35,14 +27,20 @@ export type {
 	GetAttributeToolResult,
 	EvaluateToolResult,
 	GetBasicInfoToolResult,
+} from "./InteractiveTools";
+
+export type {
 	DOMTreeResult,
 	FlattenDOMResult,
+} from "./DOMTools";
+
+export type {
 	ListSessionsResult,
 	GetSessionTabsResult,
 	GetTabInfoResult,
 	CreateTabResult,
 	GetCurrentSessionContextResult,
-} from "./types/results";
+} from "./SessionTabTools";
 
 // All tools as single object for AI SDK
 import { interactiveTools } from "./InteractiveTools";

@@ -3,13 +3,63 @@ import { z } from "zod";
 import { SessionTabService } from "@/services";
 import { PQueueManager } from "@agents/utils";
 import type { ToolExecutionContext } from "./types/context";
-import type {
-	ListSessionsResult,
-	GetSessionTabsResult,
-	GetTabInfoResult,
-	CreateTabResult,
-	GetCurrentSessionContextResult,
-} from "./types/results";
+
+// ===== Result Types =====
+
+/**
+ * Session tool results
+ */
+export interface SessionDetail {
+	sessionId: string;
+	tabCount: number;
+	activeTabId: string | null;
+}
+
+export interface ListSessionsResult {
+	totalSessions: number;
+	sessions: SessionDetail[];
+}
+
+export interface TabDetail {
+	tabId: string;
+	url: string | null;
+	isActive: boolean;
+	backendVisibility: boolean;
+}
+
+export interface GetSessionTabsResult {
+	sessionId: string;
+	totalTabs: number;
+	activeTabId: string | null;
+	tabs: TabDetail[];
+}
+
+export interface GetTabInfoResult {
+	tabId: string;
+	sessionId: string;
+	url: string | null;
+	isActiveTab: boolean;
+	backendVisibility: boolean;
+	tabExists: boolean;
+}
+
+export interface CreateTabResult {
+	success: boolean;
+	tabId?: string;
+	sessionId?: string;
+	url: string;
+	message?: string;
+	error?: string;
+}
+
+export interface GetCurrentSessionContextResult {
+	success: boolean;
+	sessionId: string;
+	activeTabId: string | null;
+	totalTabs: number;
+	tabs: TabDetail[];
+	error?: string;
+}
 
 // List all sessions tool
 export const listSessionsTool = tool({

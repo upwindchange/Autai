@@ -4,6 +4,16 @@ import { TabControlService } from "@/services";
 import { PQueueManager } from "@agents/utils";
 import type { ToolExecutionContext } from "./types/context";
 
+// ===== Result Types =====
+
+/**
+ * Navigation tool results
+ */
+export type NavigateResult = string;
+export type RefreshResult = string;
+export type GoBackResult = string;
+export type GoForwardResult = string;
+
 // Navigate tool
 export const navigateTool = tool({
 	description: "Navigate a browser tab to a specific URL",

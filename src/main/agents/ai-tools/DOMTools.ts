@@ -3,7 +3,24 @@ import { z } from "zod";
 import { SessionTabService } from "@/services";
 import { PQueueManager } from "@agents/utils";
 import type { ToolExecutionContext } from "./types/context";
-import type { DOMTreeResult, FlattenDOMResult } from "./types/results";
+
+// ===== Result Types =====
+
+/**
+ * DOM tool results
+ */
+export interface DOMTreeResult {
+	tabId: string;
+	newNodesCount: number;
+	totalNodesCountChange: number;
+	error?: string;
+}
+
+export interface FlattenDOMResult {
+	tabId: string;
+	representation: string;
+	error?: string;
+}
 
 // Get DOM Tree Tool
 export const getDOMTreeTool = tool({

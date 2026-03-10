@@ -3,7 +3,6 @@ import { BrowserActionStateType, PlanSchema } from "../state";
 import { complexLangchainModel } from "@/agents/providers";
 import { createAgent, toolStrategy, humanInTheLoopMiddleware } from "langchain";
 import { Command } from "@langchain/langgraph";
-import { LangGraphRunnableConfig } from "@langchain/langgraph";
 import z from "zod";
 import { retryMiddleware } from "@agents/utils";
 import {
