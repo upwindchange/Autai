@@ -1,6 +1,7 @@
 import { generateText, ModelMessage, tool } from "ai";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
+import { simulateToolCall } from "@agents/utils";
 import log from "electron-log/main";
 import { planInputSchema } from "./planner";
 import type { UIPlanType, UIPlanTodo } from "./planner";
@@ -96,7 +97,7 @@ const generateSubtaskPlanTool = tool({
 	execute: async (input, { experimental_context }) => {
 		const context = experimental_context as {
 			sessionId: string;
-			subtaskPlan: GenerateSubtaskPlanToolResult | null;
+			subtaskPlan: UIPlanType | null;
 		};
 		// Populate todo ids
 		const todosWithIds = input.todos.map((todo, index) => ({
@@ -104,7 +105,7 @@ const generateSubtaskPlanTool = tool({
 			id: `subtask-${context.sessionId}-${index}`,
 		}));
 		// Populate subtask plan id and maxVisibleTodos
-		const subtaskPlan: GenerateSubtaskPlanToolResult = {
+		const subtaskPlan: UIPlanType = {
 			...input,
 			id: `subtask-plan-${context.sessionId}`,
 			maxVisibleTodos: 4,
@@ -116,8 +117,6 @@ const generateSubtaskPlanTool = tool({
 		return subtaskPlan;
 	},
 });
-
-type GenerateSubtaskPlanToolResult = UIPlanType;
 
 // ============================================================================
 // Main Exported Function
@@ -165,6 +164,19 @@ export async function browserUseTaskExecutor(
 		plan.todos[currentTaskIndex].status = "completed";
 		workingIndex = currentTaskIndex + 1;
 
+		// Generate simulated tool call messages to trigger UI update
+		const { assistantMessage: completedAssistantMsg, toolMessage: completedToolMsg } =
+			await simulateToolCall({
+				toolName: "generateSubtaskPlan",
+				input: {
+					title: plan.title,
+					todos: plan.todos,
+				},
+				output: plan, // The updated plan with completed task
+			});
+
+		messages.push(completedAssistantMsg, completedToolMsg);
+
 		logger.debug("Task completed, moving to next", {
 			completedIndex: currentTaskIndex,
 			nextIndex: workingIndex,
@@ -175,7 +187,9 @@ export async function browserUseTaskExecutor(
 	// Phase 2: Check if workflow is complete after task completion
 	// ============================================================================
 	if (
-		(!plan || !plan.todos || plan.todos.every((todo) => todo.status === "completed")) ||
+		!plan ||
+		!plan.todos ||
+		plan.todos.every((todo) => todo.status === "completed") ||
 		workingIndex === -1 ||
 		workingIndex >= plan.todos.length
 	) {
@@ -196,6 +210,26 @@ export async function browserUseTaskExecutor(
 	// ============================================================================
 	plan.todos[workingIndex].status = "in_progress";
 
+	// Generate simulated tool call messages to trigger UI update
+	// Use generateSubtaskPlanTool to make the plan update visible to frontend
+	const { assistantMessage: inProgressAssistantMsg, toolMessage: inProgressToolMsg } =
+		await simulateToolCall({
+			toolName: "generateSubtaskPlan",
+			input: {
+				title: plan.title,
+				todos: plan.todos,
+			},
+			output: plan, // The updated plan with status="in_progress"
+		});
+
+	// Inject simulated messages into conversation history for UI rendering
+	messages.push(inProgressAssistantMsg, inProgressToolMsg);
+
+	logger.debug("Simulated generateSubtaskPlan tool call for UI update", {
+		taskId: plan.todos[workingIndex].id,
+		status: "in_progress",
+	});
+
 	// Build prompt
 	const currentTask = plan.todos[workingIndex];
 	const systemPrompt = buildSystemPrompt(
@@ -214,7 +248,7 @@ export async function browserUseTaskExecutor(
 	// ============================================================================
 	const context = {
 		sessionId,
-		subtaskPlan: null as GenerateSubtaskPlanToolResult | null,
+		subtaskPlan: null as UIPlanType | null,
 	};
 
 	const result = await generateText({
@@ -240,7 +274,7 @@ export async function browserUseTaskExecutor(
 	const allToolResults = result.steps.flatMap((step) => step.toolResults ?? []);
 	const subtaskPlanResult = allToolResults.find(
 		(toolResult) => toolResult.toolName === "generateSubtaskPlan",
-	)?.output as GenerateSubtaskPlanToolResult | undefined;
+	)?.output as UIPlanType | undefined;
 
 	if (!subtaskPlanResult) {
 		logger.error("Failed to generate subtask plan: tool not called");

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
 import { SessionTabService } from "@/services";
+import { simulateToolCall } from "@agents/utils";
 import log from "electron-log/main";
 import { interactiveTools } from "@/agents/ai-tools/InteractiveTools";
 import { navigationTools } from "@/agents/ai-tools/TabControlTools";
@@ -429,6 +430,25 @@ export async function executeSubtasks(
 			// ============================================================
 			subtask.status =
 				evaluation.is_task_successful ? "completed" : "cancelled";
+
+			// Generate simulated tool call messages to trigger UI update
+			const { assistantMessage: subtaskAssistantMsg, toolMessage: subtaskToolMsg } =
+				await simulateToolCall({
+					toolName: "generateSubtaskPlan",
+					input: {
+						title: subtaskPlan.title,
+						todos: subtaskPlan.todos,
+					},
+					output: subtaskPlan, // The updated subtask plan with new status
+				});
+
+			// Inject simulated messages into conversation history
+			messages.push(subtaskAssistantMsg, subtaskToolMsg);
+
+			logger.debug("Simulated generateSubtaskPlan tool call for subtask status", {
+				subtaskId: subtask.id,
+				status: subtask.status,
+			});
 
 			// Add to context results
 			context.subtaskResults.push({
