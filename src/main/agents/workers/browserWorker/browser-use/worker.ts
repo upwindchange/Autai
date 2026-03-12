@@ -5,7 +5,7 @@ import {
 	ModelMessage,
 } from "ai";
 import { chatModel } from "@agents/providers";
-import { repairToolCall } from "@agents/utils";
+import { repairToolCall, simulateToolCall } from "@agents/utils";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
 import { browserUsePlanner, type UIPlanType } from "./planner";
@@ -28,14 +28,14 @@ export async function browserUseWorker(
 		let currentTaskIndex = 0;
 		let previousSubtaskPlan: UIPlanType | undefined;
 
-		// Loop through tasks until completion
-		while (currentTaskIndex !== -1 && currentTaskIndex < plan.todos.length) {
+		// Loop through tasks sequentially
+		while (currentTaskIndex < plan.todos.length) {
 			logger.debug("Processing task", {
 				currentTaskIndex,
 				totalTasks: plan.todos.length,
 			});
 
-			const result = await browserUseTaskExecutor(
+			const subtaskPlan = await browserUseTaskExecutor(
 				messages,
 				sessionId,
 				plan,
@@ -43,23 +43,44 @@ export async function browserUseWorker(
 				previousSubtaskPlan,
 			);
 
-			if (result.nextAction === "complete") {
-				logger.info("Task execution completed successfully");
-				break;
-			}
+			// Check if task completed successfully (all subtasks done)
+			if (subtaskPlan.todos.every((t) => t.status === "completed")) {
+				// Mark current task as completed
+				plan.todos[currentTaskIndex].status = "completed";
 
-			// Store the subtask plan for the next iteration
-			previousSubtaskPlan = result.subtaskPlan;
+				// Generate simulated tool call messages to trigger UI update
+				const {
+					assistantMessage: completedAssistantMsg,
+					toolMessage: completedToolMsg,
+				} = await simulateToolCall({
+					toolName: "showPlan",
+					input: {
+						title: plan.title,
+						todos: plan.todos,
+					},
+					output: plan, // The updated plan with completed task
+				});
 
-			// Find the next pending task to process
-			currentTaskIndex = plan.todos.findIndex(
-				(todo) => todo.status === "pending" || todo.status === "in_progress",
-			);
+				messages.push(completedAssistantMsg, completedToolMsg);
 
-			// If no more pending tasks, we're done
-			if (currentTaskIndex === -1) {
-				logger.info("All tasks completed");
-				break;
+				logger.info("Task completed, moving to next", {
+					completedIndex: currentTaskIndex,
+				});
+
+				// Move to next task
+				currentTaskIndex += 1;
+				// Clear previous subtask plan for fresh task
+				previousSubtaskPlan = undefined;
+			} else {
+				// Task failed, keep same index for retry
+				logger.info("Task failed, will retry", {
+					currentTaskIndex,
+					failedSubtaskCount: subtaskPlan.todos.filter(
+						(t) => t.status === "cancelled",
+					).length,
+				});
+				// Keep subtask plan for failure context in next attempt
+				previousSubtaskPlan = subtaskPlan;
 			}
 		}
 

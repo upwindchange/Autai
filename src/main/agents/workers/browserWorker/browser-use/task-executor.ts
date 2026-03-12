@@ -121,12 +121,12 @@ const generateSubtaskPlanTool = tool({
  * Browser Use Task Executor
  *
  * Expands a high-level task into subtasks and executes them.
- * Manages task completion, workflow progression, and failure handling.
+ * Only handles the current task - task completion and progression is managed by the worker.
  *
  * @param messages - The conversation messages
  * @param sessionId - The current session ID
  * @param plan - The high-level task plan from the planner
- * @param currentTaskIndex - Index of the current task to expand (-1 if no active task)
+ * @param currentTaskIndex - Index of the current task to expand
  * @param previousSubtaskPlan - Optional previous subtask plan for failure context
  * @returns Executed subtask plan (modified in-place during execution)
  */
@@ -144,71 +144,29 @@ export async function browserUseTaskExecutor(
 	});
 
 	// ============================================================================
-	// Phase 1: Complete current task if all subtasks done
-	// ============================================================================
-	let workingIndex = currentTaskIndex;
-
-	if (
-		currentTaskIndex !== -1 &&
-		previousSubtaskPlan &&
-		previousSubtaskPlan.todos &&
-		previousSubtaskPlan.todos.length > 0 &&
-		previousSubtaskPlan.todos.every((subtask) => subtask.status === "completed")
-	) {
-		// Complete the current task and get the next index
-		plan.todos[currentTaskIndex].status = "completed";
-		workingIndex = currentTaskIndex + 1;
-
-		// Generate simulated tool call messages to trigger UI update
-		const {
-			assistantMessage: completedAssistantMsg,
-			toolMessage: completedToolMsg,
-		} = await simulateToolCall({
-			toolName: "showPlan",
-			input: {
-				title: plan.title,
-				todos: plan.todos,
-			},
-			output: plan, // The updated plan with completed task
-		});
-
-		messages.push(completedAssistantMsg, completedToolMsg);
-
-		logger.debug("Task completed, moving to next", {
-			completedIndex: currentTaskIndex,
-			nextIndex: workingIndex,
-		});
-	}
-
-	// ============================================================================
-	// Phase 2: Check if workflow is complete after task completion
+	// Validate current task exists
 	// ============================================================================
 	if (
 		!plan ||
 		!plan.todos ||
-		plan.todos.every((todo) => todo.status === "completed") ||
-		workingIndex === -1 ||
-		workingIndex >= plan.todos.length
+		currentTaskIndex < 0 ||
+		currentTaskIndex >= plan.todos.length
 	) {
-		logger.info("Workflow completed successfully", {
-			totalTasks: plan.todos.length,
+		logger.error("Invalid task index", {
+			currentTaskIndex,
+			taskCount: plan.todos?.length ?? 0,
 		});
-
-		return {
-			id: "",
-			title: "",
-			todos: [],
-		};
+		throw new Error(
+			`Invalid task index: ${currentTaskIndex}. Plan has ${plan.todos?.length ?? 0} tasks.`,
+		);
 	}
 
 	// ============================================================================
-	// Phase 3: At this point, workingIndex is guaranteed to be a valid task index
 	// Set current task to in_progress
 	// ============================================================================
-	plan.todos[workingIndex].status = "in_progress";
+	plan.todos[currentTaskIndex].status = "in_progress";
 
 	// Generate simulated tool call messages to trigger UI update
-	// Use generateSubtaskPlanTool to make the plan update visible to frontend
 	const {
 		assistantMessage: inProgressAssistantMsg,
 		toolMessage: inProgressToolMsg,
@@ -225,12 +183,12 @@ export async function browserUseTaskExecutor(
 	messages.push(inProgressAssistantMsg, inProgressToolMsg);
 
 	logger.debug("Simulated showPlan tool call for UI update", {
-		taskId: plan.todos[workingIndex].id,
+		taskId: plan.todos[currentTaskIndex].id,
 		status: "in_progress",
 	});
 
 	// Build prompt
-	const currentTask = plan.todos[workingIndex];
+	const currentTask = plan.todos[currentTaskIndex];
 	const systemPrompt = buildSystemPrompt(
 		currentTask,
 		plan,
@@ -243,7 +201,7 @@ export async function browserUseTaskExecutor(
 	});
 
 	// ============================================================================
-	// Phase 4: Generate new subtask plan using AI SDK
+	// Generate new subtask plan using AI SDK
 	// ============================================================================
 	const context = {
 		sessionId,
@@ -262,7 +220,7 @@ export async function browserUseTaskExecutor(
 			functionId: "browser-action-task-executor",
 			metadata: {
 				langfuseTraceId: sessionId,
-				currentTaskIndex: workingIndex,
+				currentTaskIndex,
 				currentTaskLabel: currentTask.label,
 			},
 		},
@@ -287,7 +245,7 @@ export async function browserUseTaskExecutor(
 	});
 
 	// ============================================================================
-	// Phase 5: Execute subtasks
+	// Execute subtasks
 	// ============================================================================
 	logger.debug("Starting subtask execution", {
 		subtaskCount: subtaskPlanResult.todos.length,
@@ -313,7 +271,7 @@ export async function browserUseTaskExecutor(
 	}
 
 	// ============================================================================
-	// Phase 6: Return executed subtask plan
+	// Return executed subtask plan
 	// ============================================================================
 	return subtaskPlanResult;
 }
