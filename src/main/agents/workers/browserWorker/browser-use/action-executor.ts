@@ -424,20 +424,22 @@ export async function executeSubtasks(
 				evaluation.is_task_successful ? "completed" : "cancelled";
 
 			// Generate simulated tool call messages to trigger UI update
-			const { assistantMessage: subtaskAssistantMsg, toolMessage: subtaskToolMsg } =
-				await simulateToolCall({
-					toolName: "generateSubtaskPlan",
-					input: {
-						title: subtaskPlan.title,
-						todos: subtaskPlan.todos,
-					},
-					output: subtaskPlan, // The updated subtask plan with new status
-				});
+			const {
+				assistantMessage: subtaskAssistantMsg,
+				toolMessage: subtaskToolMsg,
+			} = await simulateToolCall({
+				toolName: "showPlan",
+				input: {
+					title: subtaskPlan.title,
+					todos: subtaskPlan.todos,
+				},
+				output: subtaskPlan, // The updated subtask plan with new status
+			});
 
 			// Inject simulated messages into conversation history
 			messages.push(subtaskAssistantMsg, subtaskToolMsg);
 
-			logger.debug("Simulated generateSubtaskPlan tool call for subtask status", {
+			logger.debug("Simulated showPlan tool call for subtask status", {
 				subtaskId: subtask.id,
 				status: subtask.status,
 			});

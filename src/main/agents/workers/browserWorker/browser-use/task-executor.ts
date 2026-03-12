@@ -99,12 +99,12 @@ const generateSubtaskPlanTool = tool({
 		// Populate todo ids
 		const todosWithIds = input.todos.map((todo, index) => ({
 			...todo,
-			id: `subtask-${context.sessionId}-${index}`,
+			id: `subplan-${context.sessionId}-${index}`,
 		}));
 		// Populate subtask plan id and maxVisibleTodos
 		const subtaskPlan: UIPlanType = {
 			...input,
-			id: `subtask-plan-${context.sessionId}`,
+			id: `subplan-${context.sessionId}`,
 			maxVisibleTodos: 4,
 			todos: todosWithIds,
 		};
@@ -160,15 +160,17 @@ export async function browserUseTaskExecutor(
 		workingIndex = currentTaskIndex + 1;
 
 		// Generate simulated tool call messages to trigger UI update
-		const { assistantMessage: completedAssistantMsg, toolMessage: completedToolMsg } =
-			await simulateToolCall({
-				toolName: "generateSubtaskPlan",
-				input: {
-					title: plan.title,
-					todos: plan.todos,
-				},
-				output: plan, // The updated plan with completed task
-			});
+		const {
+			assistantMessage: completedAssistantMsg,
+			toolMessage: completedToolMsg,
+		} = await simulateToolCall({
+			toolName: "showPlan",
+			input: {
+				title: plan.title,
+				todos: plan.todos,
+			},
+			output: plan, // The updated plan with completed task
+		});
 
 		messages.push(completedAssistantMsg, completedToolMsg);
 
@@ -207,20 +209,22 @@ export async function browserUseTaskExecutor(
 
 	// Generate simulated tool call messages to trigger UI update
 	// Use generateSubtaskPlanTool to make the plan update visible to frontend
-	const { assistantMessage: inProgressAssistantMsg, toolMessage: inProgressToolMsg } =
-		await simulateToolCall({
-			toolName: "generateSubtaskPlan",
-			input: {
-				title: plan.title,
-				todos: plan.todos,
-			},
-			output: plan, // The updated plan with status="in_progress"
-		});
+	const {
+		assistantMessage: inProgressAssistantMsg,
+		toolMessage: inProgressToolMsg,
+	} = await simulateToolCall({
+		toolName: "showPlan",
+		input: {
+			title: plan.title,
+			todos: plan.todos,
+		},
+		output: plan, // The updated plan with status="in_progress"
+	});
 
 	// Inject simulated messages into conversation history for UI rendering
 	messages.push(inProgressAssistantMsg, inProgressToolMsg);
 
-	logger.debug("Simulated generateSubtaskPlan tool call for UI update", {
+	logger.debug("Simulated showPlan tool call for UI update", {
 		taskId: plan.todos[workingIndex].id,
 		status: "in_progress",
 	});
@@ -250,7 +254,7 @@ export async function browserUseTaskExecutor(
 		messages,
 		system: systemPrompt,
 		tools: {
-			generateSubtaskPlan: generateSubtaskPlanTool,
+			showPlan: generateSubtaskPlanTool,
 		},
 		experimental_context: context,
 		experimental_telemetry: {
@@ -267,13 +271,13 @@ export async function browserUseTaskExecutor(
 	// Extract subtask plan from tool results
 	const allToolResults = result.steps.flatMap((step) => step.toolResults ?? []);
 	const subtaskPlanResult = allToolResults.find(
-		(toolResult) => toolResult.toolName === "generateSubtaskPlan",
+		(toolResult) => toolResult.toolName === "showPlan",
 	)?.output as UIPlanType | undefined;
 
 	if (!subtaskPlanResult) {
 		logger.error("Failed to generate subtask plan: tool not called");
 		throw new Error(
-			"Failed to generate subtask plan: generateSubtaskPlan tool not called",
+			"Failed to generate subtask plan: showPlan tool not called",
 		);
 	}
 
