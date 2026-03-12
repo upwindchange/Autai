@@ -95,10 +95,7 @@ const generateSubtaskPlanTool = tool({
 	description: "Generate a subtask execution plan for the current task",
 	inputSchema: planInputSchema,
 	execute: async (input, { experimental_context }) => {
-		const context = experimental_context as {
-			sessionId: string;
-			subtaskPlan: UIPlanType | null;
-		};
+		const context = experimental_context as { sessionId: string };
 		// Populate todo ids
 		const todosWithIds = input.todos.map((todo, index) => ({
 			...todo,
@@ -111,8 +108,6 @@ const generateSubtaskPlanTool = tool({
 			maxVisibleTodos: 4,
 			todos: todosWithIds,
 		};
-		// Store the subtask plan in context
-		context.subtaskPlan = subtaskPlan;
 		// Return populated subtask plan
 		return subtaskPlan;
 	},
@@ -248,7 +243,6 @@ export async function browserUseTaskExecutor(
 	// ============================================================================
 	const context = {
 		sessionId,
-		subtaskPlan: null as UIPlanType | null,
 	};
 
 	const result = await generateText({

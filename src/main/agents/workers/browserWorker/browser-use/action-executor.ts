@@ -16,13 +16,6 @@ const logger = log.scope("browser-use-action-executor");
 // Types
 // ============================================================================
 
-interface ExecutionContext {
-	sessionId: string;
-	activeTabId?: string;
-	subtaskIndex: number;
-	subtaskResults: any[];
-}
-
 interface SubtaskEvaluation {
 	is_task_successful: boolean;
 	result_explanation: string;
@@ -334,11 +327,10 @@ export async function executeSubtasks(
 		);
 	}
 
-	const context: ExecutionContext = {
+	// Create context for tools (only sessionId and activeTabId are needed)
+	const context = {
 		sessionId,
 		activeTabId,
-		subtaskIndex: 0,
-		subtaskResults: [],
 	};
 
 	// ============================================================
@@ -450,13 +442,6 @@ export async function executeSubtasks(
 				status: subtask.status,
 			});
 
-			// Add to context results
-			context.subtaskResults.push({
-				subtaskId: subtask.id,
-				status: subtask.status,
-				explanation: evaluation.result_explanation,
-			});
-
 			// ============================================================
 			// STOP IF SUBTASK FAILED
 			// ============================================================
@@ -471,9 +456,6 @@ export async function executeSubtasks(
 				});
 				return false;
 			}
-
-			// Update context for next subtask
-			context.subtaskIndex = i + 1;
 		} catch (error) {
 			// ============================================================
 			// ERROR HANDLING

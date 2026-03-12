@@ -50,18 +50,13 @@ export const planInputSchema = z.object({
 		.describe("Array of todo items representing the plan steps"),
 });
 
-type planInputType = z.infer<typeof planInputSchema>;
-
 // ===== Tool Definitions =====
 
 const generatePlanTool = tool({
 	description: "Generate a browser automation execution plan",
 	inputSchema: planInputSchema,
 	execute: async (input, { experimental_context }) => {
-		const context = experimental_context as {
-			sessionId: string;
-			plan: planInputType | null;
-		};
+		const context = experimental_context as { sessionId: string };
 		// Populate plan id and maxVisibleTodos
 		const plan = {
 			...input,
@@ -73,8 +68,6 @@ const generatePlanTool = tool({
 			...todo,
 			id: `subplan-${context.sessionId}-${index}`,
 		}));
-		// Store the plan in context for showPlanTool to access
-		context.plan = plan;
 		// Return populated plan
 		return plan;
 	},
@@ -123,10 +116,9 @@ export async function browserUsePlanner(
 		messageCount: messages.length,
 	});
 
-	// Create a mutable context to store the plan
+	// Create a context for tool execution
 	const context = {
 		sessionId,
-		plan: null as planInputType | null,
 	};
 
 	const result = await generateText({
