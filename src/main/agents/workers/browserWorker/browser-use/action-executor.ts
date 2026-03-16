@@ -1,4 +1,9 @@
-import { generateText, tool, type ModelMessage } from "ai";
+import {
+	streamText,
+	tool,
+	createUIMessageStream,
+	type ModelMessage,
+} from "ai";
 import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
@@ -188,7 +193,7 @@ function buildEvaluationContext(
 /**
  * Get current DOM state
  */
-function getDomState(sessionId: string, activeTabId?: string): string {
+function getDomState(activeTabId?: string): string {
 	if (!activeTabId) {
 		return "No DOM tree available";
 	}
@@ -238,14 +243,14 @@ const evaluateSubtaskTool = tool({
  * @param executionSummary - Summary from action executor
  * @param domState - Current DOM state
  * @param previousSubtasks - Previously completed subtasks
- * @returns Evaluation result with success status and explanation
+ * @returns StreamTextResult that streams the evaluation
  */
 export async function evaluateSubtask(
 	subtask: UIPlanTodo,
 	executionSummary: string,
 	domState: string,
 	previousSubtasks: UIPlanTodo[],
-): Promise<SubtaskEvaluation> {
+) {
 	const evaluationContext = buildEvaluationContext(
 		subtask,
 		executionSummary,
@@ -253,7 +258,7 @@ export async function evaluateSubtask(
 		previousSubtasks,
 	);
 
-	const result = await generateText({
+	const result = streamText({
 		model: complexModel(),
 		system: EVALUATOR_PROMPT,
 		messages: [{ role: "user", content: evaluationContext }],
@@ -270,20 +275,7 @@ export async function evaluateSubtask(
 		},
 	});
 
-	// Extract tool output directly to code scope
-	const evaluationResult = result.toolResults.find(
-		(tr) => tr.toolName === "evaluateSubtaskTool",
-	)?.output as SubtaskEvaluation;
-
-	if (!evaluationResult) {
-		logger.error("Evaluation tool did not return a result", {
-			subtaskId: subtask.id,
-			toolResults: result.toolResults,
-		});
-		throw new Error("Evaluation failed: no tool result returned");
-	}
-
-	return evaluationResult;
+	return result;
 }
 
 // ============================================================================
@@ -291,22 +283,22 @@ export async function evaluateSubtask(
 // ============================================================================
 
 /**
- * Execute subtasks sequentially using AI SDK patterns
+ * Execute subtasks sequentially using AI SDK streaming patterns
  *
  * Modifies subtaskPlan in-place - no need to return it.
- * Returns boolean indicating if all subtasks were successful.
+ * Returns a StreamTextResult that streams all subtask executions.
  *
  * @param subtaskPlan - The subtask plan to execute (modified in-place)
  * @param sessionId - The current session ID
  * @param messages - The conversation messages
- * @returns True if all subtasks succeeded, false if any were cancelled
+ * @returns StreamTextResult that streams all subtask executions
  */
 export async function executeSubtasks(
 	subtaskPlan: UIPlanType,
 	sessionId: string,
 	messages: ModelMessage[],
-): Promise<boolean> {
-	logger.debug("Starting subtask execution", {
+): Promise<ReturnType<typeof createUIMessageStream>> {
+	logger.debug("Starting subtask execution stream", {
 		sessionId,
 		subtaskCount: subtaskPlan.todos.length,
 	});
@@ -343,144 +335,212 @@ export async function executeSubtasks(
 	};
 
 	// ============================================================
-	// EXECUTE SUBTASKS SEQUENTIALLY
+	// CREATE STREAM THAT EXECUTES SUBTASKS SEQUENTIALLY
 	// ============================================================
-	for (let i = 0; i < subtaskPlan.todos.length; i++) {
-		const subtask = subtaskPlan.todos[i];
-		const completedSubtasks = subtaskPlan.todos.slice(0, i);
-
-		logger.debug("Executing subtask", {
-			subtaskId: subtask.id,
-			subtaskLabel: subtask.label,
-			index: i,
-		});
-
-		try {
-			// ============================================================
-			// BUILD CONTEXT FOR THIS SUBTASK
-			// ============================================================
-			const subtaskContext = buildSubtaskContext(subtask, completedSubtasks);
+	return createUIMessageStream({
+		execute: async ({ writer }) => {
+			let allSuccessful = true;
 
 			// ============================================================
-			// EXECUTE ACTIONS FOR THIS SUBTASK
+			// EXECUTE SUBTASKS SEQUENTIALLY
 			// ============================================================
-			const result = await generateText({
-				model: complexModel(),
-				system: ACTION_EXECUTOR_PROMPT,
-				messages: [...messages, { role: "user", content: subtaskContext }],
-				tools: allTools,
-				experimental_context: context,
-				experimental_telemetry: {
-					isEnabled: settingsService.settings.langfuse.enabled,
-					functionId: "browser-use-action-executor",
-					metadata: {
-						sessionId,
-						subtaskId: subtask.id,
-						subtaskLabel: subtask.label,
-						subtaskIndex: i,
-					},
-				},
-			});
+			for (let i = 0; i < subtaskPlan.todos.length; i++) {
+				const subtask = subtaskPlan.todos[i];
+				const completedSubtasks = subtaskPlan.todos.slice(0, i);
 
-			// ============================================================
-			// EXTRACT EXECUTION SUMMARY
-			// ============================================================
-			const lastMessage =
-				result.response.messages[result.response.messages.length - 1];
-			const executionSummary =
-				typeof lastMessage.content === "string" ?
-					lastMessage.content
-				:	JSON.stringify(lastMessage.content);
-
-			logger.debug("Subtask execution completed", {
-				subtaskId: subtask.id,
-				hasToolResults: result.toolResults.length > 0,
-			});
-
-			// ============================================================
-			// GET CURRENT DOM STATE
-			// ============================================================
-			const domState = getDomState(sessionId, activeTabId);
-
-			// ============================================================
-			// EVALUATE SUBTASK SUCCESS
-			// ============================================================
-			const evaluation = await evaluateSubtask(
-				subtask,
-				executionSummary,
-				domState,
-				completedSubtasks,
-			);
-
-			logger.debug("Subtask evaluation completed", {
-				subtaskId: subtask.id,
-				isSuccessful: evaluation.is_task_successful,
-			});
-
-			// ============================================================
-			// UPDATE SUBTASK STATUS IN-PLACE
-			// ============================================================
-			subtask.status =
-				evaluation.is_task_successful ? "completed" : "cancelled";
-
-			// Generate simulated tool call messages to trigger UI update
-			const {
-				assistantMessage: subtaskAssistantMsg,
-				toolMessage: subtaskToolMsg,
-			} = await simulateToolCall({
-				toolName: "showPlan",
-				input: {
-					title: subtaskPlan.title,
-					todos: subtaskPlan.todos,
-				},
-				output: subtaskPlan, // The updated subtask plan with new status
-			});
-
-			// Inject simulated messages into conversation history
-			messages.push(subtaskAssistantMsg, subtaskToolMsg);
-
-			logger.debug("Simulated showPlan tool call for subtask status", {
-				subtaskId: subtask.id,
-				status: subtask.status,
-			});
-
-			// ============================================================
-			// STOP IF SUBTASK FAILED
-			// ============================================================
-			if (!evaluation.is_task_successful) {
-				// Enrich execution summary with failure explanation for task executor
-				const enrichedSummary = `${executionSummary}\n\nSubtask Evaluation: ${evaluation.result_explanation}`;
-
-				logger.info("Subtask failed, stopping execution", {
+				logger.debug("Executing subtask", {
 					subtaskId: subtask.id,
 					subtaskLabel: subtask.label,
-					enrichedSummary,
+					index: i,
 				});
-				return false;
+
+				try {
+					// ============================================================
+					// BUILD CONTEXT FOR THIS SUBTASK
+					// ============================================================
+					const subtaskContext = buildSubtaskContext(subtask, completedSubtasks);
+
+					// ============================================================
+					// EXECUTE ACTIONS FOR THIS SUBTASK (streaming)
+					// ============================================================
+					const actionResult = streamText({
+						model: complexModel(),
+						system: ACTION_EXECUTOR_PROMPT,
+						messages: [{ role: "user", content: subtaskContext }],
+						tools: allTools,
+						experimental_context: context,
+						experimental_telemetry: {
+							isEnabled: settingsService.settings.langfuse.enabled,
+							functionId: "browser-use-action-executor",
+							metadata: {
+								sessionId,
+								subtaskId: subtask.id,
+								subtaskLabel: subtask.label,
+								subtaskIndex: i,
+							},
+						},
+					});
+
+					// Merge action execution stream
+					writer.merge(
+						actionResult.toUIMessageStream({ sendStart: false }),
+					);
+
+					// Wait for action execution to complete
+					await actionResult.finishReason;
+
+					// ============================================================
+					// EXTRACT EXECUTION SUMMARY
+					// ============================================================
+					const response = await actionResult.response;
+					const lastMessage =
+						response.messages[response.messages.length - 1];
+					const executionSummary =
+						typeof lastMessage.content === "string" ?
+							lastMessage.content
+						:	JSON.stringify(lastMessage.content);
+
+					logger.debug("Subtask execution completed", {
+						subtaskId: subtask.id,
+						hasToolResults: (await actionResult.toolResults).length > 0,
+						executionSummary: executionSummary,
+					});
+
+					// ============================================================
+					// GET CURRENT DOM STATE
+					// ============================================================
+					const domState = getDomState(activeTabId);
+
+					// ============================================================
+					// EVALUATE SUBTASK SUCCESS (streaming)
+					// ============================================================
+					const evaluationResult = await evaluateSubtask(
+						subtask,
+						executionSummary,
+						domState,
+						completedSubtasks,
+					);
+
+					// Merge evaluation stream
+					writer.merge(
+						evaluationResult.toUIMessageStream({ sendStart: false }),
+					);
+
+					// Wait for evaluation to complete
+					await evaluationResult.finishReason;
+
+					// Extract evaluation result
+					const steps = await evaluationResult.steps;
+					const allToolResults = steps.flatMap(
+						(step) => step.toolResults ?? [],
+					);
+					const evaluation = allToolResults.find(
+						(toolResult) => toolResult.toolName === "evaluateSubtaskTool",
+					)?.output as SubtaskEvaluation | undefined;
+
+					if (!evaluation) {
+						logger.error("Evaluation tool did not return a result", {
+							subtaskId: subtask.id,
+							toolResults: allToolResults,
+						});
+						throw new Error("Evaluation failed: no tool result returned");
+					}
+
+					logger.debug("Subtask evaluation completed", {
+						subtaskId: subtask.id,
+						isSuccessful: evaluation.is_task_successful,
+						result_explanation: evaluation.result_explanation,
+					});
+
+					// ============================================================
+					// UPDATE SUBTASK STATUS IN-PLACE
+					// ============================================================
+					subtask.status =
+						evaluation.is_task_successful ? "completed" : "cancelled";
+
+					// Populate receipt with evaluation result for task executor
+					subtaskPlan.receipt = {
+						outcome: evaluation.is_task_successful ? "success" : "cancelled",
+						summary: evaluation.result_explanation,
+						at: new Date().toISOString(),
+					};
+
+					// Generate simulated tool call messages to trigger UI update
+					const {
+						assistantMessage: subtaskAssistantMsg,
+						toolMessage: subtaskToolMsg,
+					} = await simulateToolCall({
+						toolName: "showPlan",
+						input: {
+							title: subtaskPlan.title,
+							todos: subtaskPlan.todos,
+						},
+						output: subtaskPlan, // The updated subtask plan with new status
+					});
+
+					// Inject simulated messages into conversation history
+					messages.push(subtaskAssistantMsg, subtaskToolMsg);
+
+					logger.debug("Simulated showPlan tool call for subtask status", {
+						subtaskId: subtask.id,
+						status: subtask.status,
+					});
+
+					// ============================================================
+					// STOP IF SUBTASK FAILED
+					// ============================================================
+					if (!evaluation.is_task_successful) {
+						// Enrich execution summary with failure explanation for task executor
+						const enrichedSummary = `${executionSummary}\n\nSubtask Evaluation: ${evaluation.result_explanation}`;
+
+						logger.info("Subtask failed, stopping execution", {
+							subtaskId: subtask.id,
+							subtaskLabel: subtask.label,
+							enrichedSummary,
+						});
+						allSuccessful = false;
+						break; // Stop processing more subtasks
+					}
+				} catch (error) {
+					// ============================================================
+					// ERROR HANDLING
+					// ============================================================
+					logger.error("Subtask execution error", {
+						subtaskId: subtask.id,
+						subtaskLabel: subtask.label,
+						error,
+					});
+
+					// Mark subtask as cancelled
+					subtask.status = "cancelled";
+
+					allSuccessful = false;
+					break; // Stop processing more subtasks
+				}
 			}
-		} catch (error) {
+
 			// ============================================================
-			// ERROR HANDLING
+			// ALL SUBTASKS COMPLETED (OR FAILED)
 			// ============================================================
-			logger.error("Subtask execution error", {
-				subtaskId: subtask.id,
-				subtaskLabel: subtask.label,
+			if (allSuccessful) {
+				logger.info("All subtasks completed successfully", {
+					totalSubtasks: subtaskPlan.todos.length,
+				});
+			} else {
+				logger.info("Some subtasks failed", {
+					totalSubtasks: subtaskPlan.todos.length,
+					failedCount: subtaskPlan.todos.filter(
+						(t) => t.status === "cancelled",
+					).length,
+				});
+			}
+		},
+		onError: (error) => {
+			logger.error("Error in action executor stream", {
 				error,
+				stack: error instanceof Error ? error.stack : undefined,
 			});
-
-			// Mark subtask as cancelled
-			subtask.status = "cancelled";
-
-			return false;
-		}
-	}
-
-	// ============================================================
-	// ALL SUBTASKS COMPLETED SUCCESSFULLY
-	// ============================================================
-	logger.info("All subtasks completed successfully", {
-		totalSubtasks: subtaskPlan.todos.length,
+			return error instanceof Error ? error.message : String(error);
+		},
 	});
-
-	return true;
 }

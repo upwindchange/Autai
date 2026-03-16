@@ -2,10 +2,10 @@ import {
 	convertToModelMessages,
 	stepCountIs,
 	hasToolCall,
-	GenerateTextResult,
+	StreamTextResult,
 	ToolSet,
 	type UIMessage,
-	generateText,
+	streamText,
 } from "ai";
 import { chatModel } from "@agents/providers";
 import { repairToolCall } from "@agents/utils";
@@ -30,7 +30,7 @@ export class ChatWorker {
 		sessionId: string,
 		system?: string,
 		tools?: ToolSet[],
-	): Promise<GenerateTextResult<any, any>> {
+	): Promise<StreamTextResult<any, any>> {
 		this.logger.debug("request received", {
 			messagesCount: messages?.length,
 			hasSystem: !!system,
@@ -66,7 +66,7 @@ export class ChatWorker {
 				}
 			}
 
-			const result = generateText({
+			const result = streamText({
 				model: chatModel(),
 				messages: await convertToModelMessages(messages),
 				system: `${systemPrompt} ${system || ""}`,

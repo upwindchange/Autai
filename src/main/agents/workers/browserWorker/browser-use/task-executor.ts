@@ -1,4 +1,9 @@
-import { generateText, ModelMessage, tool } from "ai";
+import {
+	streamText,
+	createUIMessageStream,
+	ModelMessage,
+	tool,
+} from "ai";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
 import { simulateToolCall } from "@agents/utils";
@@ -128,7 +133,7 @@ const generateSubtaskPlanTool = tool({
  * @param plan - The high-level task plan from the planner
  * @param currentTaskIndex - Index of the current task to expand
  * @param previousSubtaskPlan - Optional previous subtask plan for failure context
- * @returns Executed subtask plan (modified in-place during execution)
+ * @returns StreamTextResult that includes subtask planning and execution
  */
 export async function browserUseTaskExecutor(
 	messages: ModelMessage[],
@@ -136,7 +141,7 @@ export async function browserUseTaskExecutor(
 	plan: UIPlanType,
 	currentTaskIndex: number,
 	previousSubtaskPlan?: UIPlanType,
-): Promise<UIPlanType> {
+): Promise<ReturnType<typeof createUIMessageStream>> {
 	logger.debug("Starting task executor", {
 		sessionId,
 		currentTaskIndex,
@@ -201,77 +206,97 @@ export async function browserUseTaskExecutor(
 	});
 
 	// ============================================================================
-	// Generate new subtask plan using AI SDK
+	// Create a combined stream that includes subtask planning and execution
 	// ============================================================================
-	const context = {
-		sessionId,
-	};
+	return createUIMessageStream({
+		execute: async ({ writer }) => {
+			const context = {
+				sessionId,
+			};
 
-	const result = await generateText({
-		model: complexModel(),
-		messages,
-		system: systemPrompt,
-		tools: {
-			showPlan: generateSubtaskPlanTool,
+			// ============================================================================
+			// Step 1: Generate subtask plan using AI SDK
+			// ============================================================================
+			const subtaskPlanResult = streamText({
+				model: complexModel(),
+				messages,
+				system: systemPrompt,
+				tools: {
+					showPlan: generateSubtaskPlanTool,
+				},
+				experimental_context: context,
+				experimental_telemetry: {
+					isEnabled: settingsService.settings.langfuse.enabled,
+					functionId: "browser-action-task-executor",
+					metadata: {
+						langfuseTraceId: sessionId,
+						currentTaskIndex,
+						currentTaskLabel: currentTask.label,
+					},
+				},
+			});
+
+			// Merge subtask planning stream
+			writer.merge(
+				subtaskPlanResult.toUIMessageStream({ sendStart: false }),
+			);
+
+			// Wait for subtask plan to complete and extract it
+			await subtaskPlanResult.finishReason;
+			const steps = await subtaskPlanResult.steps;
+			const allToolResults = steps.flatMap(
+				(step) => step.toolResults ?? [],
+			);
+			const subtaskPlanResultData = allToolResults.find(
+				(toolResult) => toolResult.toolName === "showPlan",
+			)?.output as UIPlanType | undefined;
+
+			if (!subtaskPlanResultData) {
+				logger.error("Failed to generate subtask plan: tool not called");
+				throw new Error(
+					"Failed to generate subtask plan: showPlan tool not called",
+				);
+			}
+
+			logger.info("Subtask plan generated successfully", {
+				title: subtaskPlanResultData.title,
+				todoCount: subtaskPlanResultData.todos.length,
+			});
+
+			// ============================================================================
+			// Step 2: Execute subtasks (streaming)
+			// ============================================================================
+			logger.debug("Starting subtask execution", {
+				subtaskCount: subtaskPlanResultData.todos.length,
+			});
+
+			const actionExecutorStream = await executeSubtasks(
+				subtaskPlanResultData, // Modified in-place during execution
+				sessionId,
+				messages,
+			);
+
+			// Merge action executor stream directly (it's already a ReadableStream)
+			writer.merge(actionExecutorStream);
+
+			// Wait for stream to complete by reading until done
+			const reader = actionExecutorStream.getReader();
+			while (true) {
+				const { done } = await reader.read();
+				if (done) break;
+			}
+			reader.releaseLock();
+
+			logger.info("Subtask execution completed", {
+				subtaskCount: subtaskPlanResultData.todos.length,
+			});
 		},
-		experimental_context: context,
-		experimental_telemetry: {
-			isEnabled: settingsService.settings.langfuse.enabled,
-			functionId: "browser-action-task-executor",
-			metadata: {
-				langfuseTraceId: sessionId,
-				currentTaskIndex,
-				currentTaskLabel: currentTask.label,
-			},
+		onError: (error) => {
+			logger.error("Error in task executor stream", {
+				error,
+				stack: error instanceof Error ? error.stack : undefined,
+			});
+			return error instanceof Error ? error.message : String(error);
 		},
 	});
-
-	// Extract subtask plan from tool results
-	const allToolResults = result.steps.flatMap((step) => step.toolResults ?? []);
-	const subtaskPlanResult = allToolResults.find(
-		(toolResult) => toolResult.toolName === "showPlan",
-	)?.output as UIPlanType | undefined;
-
-	if (!subtaskPlanResult) {
-		logger.error("Failed to generate subtask plan: tool not called");
-		throw new Error(
-			"Failed to generate subtask plan: showPlan tool not called",
-		);
-	}
-
-	logger.info("Subtask plan generated successfully", {
-		title: subtaskPlanResult.title,
-		todoCount: subtaskPlanResult.todos.length,
-	});
-
-	// ============================================================================
-	// Execute subtasks
-	// ============================================================================
-	logger.debug("Starting subtask execution", {
-		subtaskCount: subtaskPlanResult.todos.length,
-	});
-
-	const allSuccessful = await executeSubtasks(
-		subtaskPlanResult, // Modified in-place during execution
-		sessionId,
-		messages,
-	);
-
-	if (allSuccessful) {
-		logger.info("All subtasks completed successfully", {
-			subtaskCount: subtaskPlanResult.todos.length,
-		});
-	} else {
-		logger.info("Some subtasks failed, returning for replanning", {
-			subtaskCount: subtaskPlanResult.todos.length,
-			failedCount: subtaskPlanResult.todos.filter(
-				(t) => t.status === "cancelled",
-			).length,
-		});
-	}
-
-	// ============================================================================
-	// Return executed subtask plan
-	// ============================================================================
-	return subtaskPlanResult;
 }

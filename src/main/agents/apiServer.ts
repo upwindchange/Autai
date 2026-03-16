@@ -1,7 +1,8 @@
 import express, { type Express } from "express";
 import cors from "cors";
 import { type Server } from "http";
-import { ChatWorker, BrowserUseWorker } from "@agents/workers";
+import { ChatWorker } from "@agents/workers";
+import { BrowserWorker } from "@agents/workers/browserWorker/worker";
 import { SessionTabService } from "@/services";
 import { sendAlert } from "@/utils";
 import { pipeUIMessageStreamToResponse, type UIMessage, ToolSet } from "ai";
@@ -13,12 +14,10 @@ export class ApiServer {
 	private port: number = 3001;
 	private logger = log.scope("ApiServer");
 	private chatWorker: ChatWorker;
-	private browserUseWorker: BrowserUseWorker;
 
 	constructor() {
 		this.app = express();
 		this.chatWorker = new ChatWorker();
-		this.browserUseWorker = new BrowserUseWorker();
 		this.setupMiddleware();
 		this.setupRoutes();
 	}
@@ -108,7 +107,7 @@ export class ApiServer {
 									webSearch,
 								},
 							);
-							const stream = await this.browserUseWorker.handleChat(
+							const stream = await BrowserWorker(
 								messages,
 								sessionId,
 								useBrowser,

@@ -1,10 +1,23 @@
-import { generateText, ModelMessage, tool } from "ai";
+import { streamText, ModelMessage, tool } from "ai";
 import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
 
 const logger = log.scope("browser-action-planner");
+
+// ===== Local Type Definitions =====
+// These match the renderer's ToolUIReceipt schema but are defined locally
+// since main process cannot import from renderer
+
+type ToolUIReceiptOutcome = "success" | "partial" | "failed" | "cancelled";
+
+interface ToolUIReceipt {
+	outcome: ToolUIReceiptOutcome;
+	summary: string;
+	identifiers?: Record<string, string>;
+	at: string;
+}
 
 // ===== Result Types =====
 // from src/renderer/components/tool-ui/plan/plan.tsx
@@ -22,6 +35,7 @@ export interface UIPlanType {
 	description?: string;
 	todos: UIPlanTodo[];
 	maxVisibleTodos?: number;
+	receipt?: ToolUIReceipt;
 }
 
 // ===== Plan Schema =====
@@ -110,7 +124,7 @@ Now create the execution plan.`;
 export async function browserUsePlanner(
 	messages: ModelMessage[],
 	sessionId: string,
-): Promise<UIPlanType> {
+) {
 	logger.debug("Starting planner", {
 		sessionId,
 		messageCount: messages.length,
@@ -121,7 +135,7 @@ export async function browserUsePlanner(
 		sessionId,
 	};
 
-	const result = await generateText({
+	const result = streamText({
 		model: complexModel(),
 		messages,
 		system: plannerSystemPrompt,
@@ -138,21 +152,12 @@ export async function browserUsePlanner(
 		},
 	});
 
-	// Manually extract plan from tool results
-	// Access tool results directly from the result object
-	const allToolResults = result.steps.flatMap((step) => step.toolResults ?? []);
-	const planResult = allToolResults.find(
-		(toolResult) => toolResult.toolName === "generatePlan",
-	)?.output as UIPlanType | undefined;
-
-	if (!planResult) {
-		throw new Error("Failed to generate plan: generatePlan tool not called");
-	}
-
-	logger.info("Plan generated successfully", {
-		title: planResult.title,
-		todoCount: planResult.todos.length,
+	// Log when plan generation completes (in background)
+	result.finishReason.then((reason) => {
+		logger.info("Planner stream completed", {
+			finishReason: reason,
+		});
 	});
 
-	return planResult;
+	return result;
 }

@@ -1,4 +1,4 @@
-import { convertToModelMessages, GenerateTextResult, type UIMessage } from "ai";
+import { convertToModelMessages, type UIMessage, type UIMessageChunk } from "ai";
 import log from "electron-log/main";
 import { browserResearchWorker } from "@agents/workers/browserWorker/browser-research/worker";
 import { browserUseWorker } from "@agents/workers/browserWorker/browser-use/worker";
@@ -9,7 +9,7 @@ export async function BrowserWorker(
 	sessionId: string,
 	useBrowser: boolean,
 	webSearch: boolean,
-): Promise<GenerateTextResult<any, any>> {
+): Promise<ReadableStream<UIMessageChunk>> {
 	logger.info("request received", {
 		messagesCount: messages?.length,
 		sessionId: sessionId,
