@@ -11,8 +11,6 @@ import log from "electron-log/main";
 import { browserUsePlanner, type UIPlanType } from "./planner";
 import { browserUseTaskExecutor } from "./task-executor";
 
-const systemPrompt = `placeholder`;
-
 const logger = log.scope("Browser Use Worker");
 
 export async function browserUseWorker(

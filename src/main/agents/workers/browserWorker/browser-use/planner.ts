@@ -66,7 +66,7 @@ const generatePlanTool = tool({
 		// Populate todo ids
 		plan.todos = plan.todos.map((todo, index) => ({
 			...todo,
-			id: `subplan-${context.sessionId}-${index}`,
+			id: `task-${context.sessionId}-${index}`,
 		}));
 		// Return populated plan
 		return plan;

@@ -99,12 +99,12 @@ const generateSubtaskPlanTool = tool({
 		// Populate todo ids
 		const todosWithIds = input.todos.map((todo, index) => ({
 			...todo,
-			id: `subplan-${context.sessionId}-${index}`,
+			id: `subtask-${context.sessionId}-${index}`,
 		}));
 		// Populate subtask plan id and maxVisibleTodos
 		const subtaskPlan: UIPlanType = {
 			...input,
-			id: `subplan-${context.sessionId}`,
+			id: `subtaskplan-${context.sessionId}`,
 			maxVisibleTodos: 4,
 			todos: todosWithIds,
 		};
