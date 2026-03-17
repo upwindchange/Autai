@@ -1,7 +1,14 @@
 {
-	"permissions": {
-		"allow": ["Bash(git mv:*)", "Bash(dir:*)", "Bash(find:*)", "WebSearch"],
-		"deny": [],
-		"ask": []
-	}
+  "permissions": {
+    "allow": [
+      "Bash(git mv:*)",
+      "Bash(dir:*)",
+      "Bash(find:*)",
+      "WebSearch",
+      "Bash(git add:*)",
+      "Bash(git restore:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
 }

@@ -27,6 +27,7 @@ export interface UIPlanTodo {
 	label: string;
 	status: "pending" | "in_progress" | "completed" | "cancelled";
 	description?: string;
+	receipt?: ToolUIReceipt;
 }
 
 export interface UIPlanType {

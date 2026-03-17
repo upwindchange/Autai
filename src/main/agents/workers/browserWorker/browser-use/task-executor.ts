@@ -24,7 +24,6 @@ const logger = log.scope("browser-action-task-executor");
 function buildSystemPrompt(
 	currentTask: UIPlanTodo,
 	taskPlan: UIPlanType,
-	previousSubtaskPlan: UIPlanType | undefined,
 ): string {
 	const baseInstructions = `
 
@@ -51,34 +50,25 @@ Each subtask has:
 - Do NOT break into atomic actions (click, type). That is for the action-executor agent
 - Consider page state from previous subtasks when writing instructions`;
 
-	// Build failure context if previous subtask plan exists and has failed tasks
+	// Build failure context from current task's receipt
 	let failureContext = "";
-	if (previousSubtaskPlan && previousSubtaskPlan.todos) {
-		const failedSubtask = previousSubtaskPlan.todos.find(
-			(s) => s.status === "cancelled",
-		);
-		if (failedSubtask) {
-			failureContext = `
+	if (currentTask.receipt && currentTask.receipt.outcome !== "success") {
+		failureContext = `
 
 ## Previous Attempt Failed
 The previous attempt to accomplish this task failed. Here's what happened:
 
-Full Previous Subtask Plan:
-${JSON.stringify(previousSubtaskPlan, null, 2)}
-
-Failed Subtask:
-${JSON.stringify(failedSubtask, null, 2)}
+Task Receipt:
+${JSON.stringify(currentTask.receipt, null, 2)}
 
 ## Your Responsibility
 You MUST replan the subtasks for this task, taking into account:
 1. What went wrong in the previous attempt
-2. What subtasks succeeded and can be kept as-is
-3. Alternative approaches that might work better for the failed subtask
-4. Whether you need to break down the task differently
-5. Whether some steps need to be combined or split differently
+2. Alternative approaches that might work better
+3. Whether you need to break down the task differently
+4. Whether some steps need to be combined or split differently
 
-Do NOT simply repeat the same plan. Adjust your approach based on the failure, but keep successful subtasks that still make sense.`;
-		}
+Do NOT simply repeat the same plan. Adjust your approach based on the failure.`;
 	}
 
 	return `You are a browser automation subtask planner. Break down one high-level task into instructional subtasks.
@@ -126,13 +116,14 @@ const generateSubtaskPlanTool = tool({
  * Browser Use Task Executor
  *
  * Expands a high-level task into subtasks and executes them.
- * Only handles the current task - task completion and progression is managed by the worker.
+ * Handles task completion marking and automatic replanning on failures.
  *
  * @param messages - The conversation messages
  * @param sessionId - The current session ID
  * @param plan - The high-level task plan from the planner
  * @param currentTaskIndex - Index of the current task to expand
- * @param previousSubtaskPlan - Optional previous subtask plan for failure context
+ * @param maxRetries - Maximum number of replanning attempts (default: 3)
+ * @param attemptCount - Current retry attempt count (default: 0)
  * @returns StreamTextResult that includes subtask planning and execution
  */
 export async function browserUseTaskExecutor(
@@ -140,7 +131,8 @@ export async function browserUseTaskExecutor(
 	sessionId: string,
 	plan: UIPlanType,
 	currentTaskIndex: number,
-	previousSubtaskPlan?: UIPlanType,
+	maxRetries: number = 3,
+	attemptCount: number = 0,
 ): Promise<ReturnType<typeof createUIMessageStream>> {
 	logger.debug("Starting task executor", {
 		sessionId,
@@ -197,7 +189,6 @@ export async function browserUseTaskExecutor(
 	const systemPrompt = buildSystemPrompt(
 		currentTask,
 		plan,
-		previousSubtaskPlan,
 	);
 
 	logger.debug("Generating subtask plan", {
@@ -290,6 +281,100 @@ export async function browserUseTaskExecutor(
 			logger.info("Subtask execution completed", {
 				subtaskCount: subtaskPlanResultData.todos.length,
 			});
+
+			// Check if any subtasks failed
+			const hasFailedSubtasks = subtaskPlanResultData.todos.some(
+				(t) => t.status === "cancelled",
+			);
+
+			if (hasFailedSubtasks) {
+				// Check if we've exceeded max retries
+				if (attemptCount >= maxRetries) {
+					// Max retries exceeded, mark task as failed
+					plan.todos[currentTaskIndex].status = "cancelled";
+					plan.todos[currentTaskIndex].receipt = {
+						outcome: "failed",
+						summary: `Task failed after ${maxRetries} retry attempts`,
+						at: new Date().toISOString(),
+					};
+
+					logger.error("Task failed after max retries", {
+						currentTaskIndex,
+						attemptCount,
+						maxRetries,
+					});
+
+					// Generate simulated tool call messages to trigger UI update
+					const {
+						assistantMessage: failedAssistantMsg,
+						toolMessage: failedToolMsg,
+					} = await simulateToolCall({
+						toolName: "showPlan",
+						input: {
+							title: plan.title,
+							todos: plan.todos,
+						},
+						output: plan, // The updated plan with cancelled task
+					});
+
+					// Inject simulated messages into conversation history
+					messages.push(failedAssistantMsg, failedToolMsg);
+				} else {
+					// Store failure information in current task
+					plan.todos[currentTaskIndex].receipt = subtaskPlanResultData.receipt;
+
+					logger.info("Subtasks failed, replanning...", {
+						currentTaskIndex,
+						attemptCount: attemptCount + 1,
+						maxRetries,
+					});
+
+					// Recursively call browserUseTaskExecutor to replan
+					const replanStream = await browserUseTaskExecutor(
+						messages,
+						sessionId,
+						plan,
+						currentTaskIndex,
+						maxRetries,
+						attemptCount + 1,
+					);
+
+					// Merge replan stream
+					writer.merge(replanStream);
+
+					// Wait for replan stream to complete
+					const replanReader = replanStream.getReader();
+					while (true) {
+						const { done } = await replanReader.read();
+						if (done) break;
+					}
+					replanReader.releaseLock();
+				}
+			} else {
+				// All subtasks succeeded, mark task as completed
+				plan.todos[currentTaskIndex].status = "completed";
+
+				logger.info("Task completed successfully", {
+					currentTaskIndex,
+					taskLabel: plan.todos[currentTaskIndex].label,
+				});
+
+				// Generate simulated tool call messages to trigger UI update
+				const {
+					assistantMessage: completedAssistantMsg,
+					toolMessage: completedToolMsg,
+				} = await simulateToolCall({
+					toolName: "showPlan",
+					input: {
+						title: plan.title,
+						todos: plan.todos,
+					},
+					output: plan, // The updated plan with completed task
+				});
+
+				// Inject simulated messages into conversation history
+				messages.push(completedAssistantMsg, completedToolMsg);
+			}
 		},
 		onError: (error) => {
 			logger.error("Error in task executor stream", {

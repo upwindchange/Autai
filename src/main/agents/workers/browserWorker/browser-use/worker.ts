@@ -59,7 +59,6 @@ export async function browserUseWorker(
 				// Stage 2-3: Task execution loop
 				// ============================================================
 				let currentTaskIndex = 0;
-				let previousSubtaskPlan: UIPlanType | undefined;
 
 				while (currentTaskIndex < plan.todos.length) {
 					logger.debug("Processing task", {
@@ -73,7 +72,6 @@ export async function browserUseWorker(
 						sessionId,
 						plan,
 						currentTaskIndex,
-						previousSubtaskPlan,
 					);
 
 					// Merge task execution stream
@@ -87,7 +85,7 @@ export async function browserUseWorker(
 					}
 					reader.releaseLock();
 
-					// Check if task completed successfully (all subtasks done)
+					// Check if task completed successfully
 					if (plan.todos[currentTaskIndex].status === "completed") {
 						logger.info("Task completed, moving to next", {
 							completedIndex: currentTaskIndex,
@@ -95,18 +93,14 @@ export async function browserUseWorker(
 
 						// Move to next task
 						currentTaskIndex += 1;
-						// Clear previous subtask plan for fresh task
-						previousSubtaskPlan = undefined;
 					} else {
-						// Task failed, keep same index for retry
-						logger.info("Task failed, will retry", {
+						// Task failed (status will be "cancelled" after max retries)
+						logger.error("Task failed after multiple attempts", {
 							currentTaskIndex,
-							failedSubtaskCount: plan.todos.filter(
-								(t) => t.status === "cancelled",
-							).length,
+							taskStatus: plan.todos[currentTaskIndex].status,
 						});
-						// Keep subtask plan for failure context in next attempt
-						previousSubtaskPlan = plan;
+						// Break out of the loop since task failed permanently
+						break;
 					}
 				}
 
