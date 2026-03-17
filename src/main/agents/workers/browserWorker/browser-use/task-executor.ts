@@ -1,9 +1,4 @@
-import {
-	streamText,
-	createUIMessageStream,
-	ModelMessage,
-	tool,
-} from "ai";
+import { streamText, createUIMessageStream, ModelMessage, tool } from "ai";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
 import { simulateToolCall } from "@agents/utils";
@@ -186,14 +181,10 @@ export async function browserUseTaskExecutor(
 
 	// Build prompt
 	const currentTask = plan.todos[currentTaskIndex];
-	const systemPrompt = buildSystemPrompt(
-		currentTask,
-		plan,
-	);
+	const systemPrompt = buildSystemPrompt(currentTask, plan);
 
 	logger.debug("Generating subtask plan", {
 		currentTaskLabel: currentTask.label,
-		hasPreviousSubtaskPlan: !!previousSubtaskPlan,
 	});
 
 	// ============================================================================
@@ -228,16 +219,12 @@ export async function browserUseTaskExecutor(
 			});
 
 			// Merge subtask planning stream
-			writer.merge(
-				subtaskPlanResult.toUIMessageStream({ sendStart: false }),
-			);
+			writer.merge(subtaskPlanResult.toUIMessageStream({ sendStart: false }));
 
 			// Wait for subtask plan to complete and extract it
 			await subtaskPlanResult.finishReason;
 			const steps = await subtaskPlanResult.steps;
-			const allToolResults = steps.flatMap(
-				(step) => step.toolResults ?? [],
-			);
+			const allToolResults = steps.flatMap((step) => step.toolResults ?? []);
 			const subtaskPlanResultData = allToolResults.find(
 				(toolResult) => toolResult.toolName === "showPlan",
 			)?.output as UIPlanType | undefined;

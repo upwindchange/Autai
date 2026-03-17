@@ -1,5 +1,6 @@
 import {
-	streamText,
+	ToolLoopAgent,
+	stepCountIs,
 	tool,
 	createUIMessageStream,
 	type ModelMessage,
@@ -16,15 +17,6 @@ import { getFlattenDOMTool } from "@/agents/ai-tools/DOMTools";
 import type { UIPlanType, UIPlanTodo } from "./planner";
 
 const logger = log.scope("browser-use-action-executor");
-
-// ============================================================================
-// Types
-// ============================================================================
-
-interface SubtaskEvaluation {
-	is_task_successful: boolean;
-	result_explanation: string;
-}
 
 // ============================================================================
 // System Prompts
@@ -105,29 +97,6 @@ After completing a subtask, provide a text summary that includes:
 
 This summary will be reviewed by an evaluator agent to make the final success/failure determination.`;
 
-const EVALUATOR_PROMPT = `# Role
-Subtask evaluation agent. Judge if a subtask was successfully completed.
-
-# Your Task
-Evaluate whether the current subtask was accomplished based on:
-1. The subtask's description and goal
-2. The action-executor's execution summary
-3. The current DOM state
-
-# Evaluation Criteria
-- Success: The subtask's goal is achieved based on execution summary and DOM state
-- Failure: The goal was not achieved, or the action-executor encountered errors
-
-# Required Action
-You MUST call the evaluateSubtaskTool with your evaluation:
-- is_task_successful: boolean (true if goal achieved, false otherwise)
-- result_explanation: string (clear explanation of why it succeeded or failed)
-
-# Important Context
-- DOM state may show "No DOM tree available" if no page is loaded
-- The action-executor's summary describes what actions were taken
-- Compare the expected outcome (subtask description) with actual DOM state`;
-
 // ============================================================================
 // Helper Functions
 // ============================================================================
@@ -157,133 +126,12 @@ function buildSubtaskContext(
 	return context;
 }
 
-/**
- * Build evaluation context
- */
-function buildEvaluationContext(
-	subtask: UIPlanTodo,
-	executionSummary: string,
-	domState: string,
-	previousSubtasks: UIPlanTodo[],
-): string {
-	let context = "";
-
-	// Add current subtask
-	context += `## Current Subtask to Evaluate:\n${JSON.stringify(subtask, null, 2)}\n\n`;
-
-	// Add action-executor's execution summary
-	context += `## Action Executor Summary:\n${executionSummary}\n\n`;
-
-	// Add current DOM state
-	context += `## Current DOM State:\n${domState}\n\n`;
-
-	// Add context about previous subtasks (if any)
-	if (previousSubtasks.length > 0) {
-		const completedSubtasks = previousSubtasks.filter(
-			(s) => s.status === "completed",
-		);
-		if (completedSubtasks.length > 0) {
-			context += `## Previously Completed Subtasks:\n${JSON.stringify(completedSubtasks, null, 2)}\n\n`;
-		}
-	}
-
-	return context;
-}
-
-/**
- * Get current DOM state
- */
-function getDomState(activeTabId?: string): string {
-	if (!activeTabId) {
-		return "No DOM tree available";
-	}
-
-	const sessionTabService = SessionTabService.getInstance();
-	const domService = sessionTabService.getDomService(activeTabId);
-	return (
-		domService?.simplifiedDOMState?.flattenedDOM ?? "No DOM tree available"
-	);
-}
-
-// ============================================================================
-// Tools
-// ============================================================================
-
-/**
- * Evaluation tool for subtask assessment
- * Returns structured evaluation result that can be extracted directly
- */
-const evaluateSubtaskTool = tool({
-	description: "Evaluate whether a subtask was successfully completed",
-	inputSchema: z.object({
-		is_task_successful: z
-			.boolean()
-			.describe("true if task is successful, false if task failed"),
-		result_explanation: z
-			.string()
-			.describe("clear explanation of why it succeeded or failed"),
-	}),
-	execute: async ({ is_task_successful, result_explanation }) => {
-		// Return structured data directly to code scope
-		return {
-			is_task_successful,
-			result_explanation,
-		};
-	},
-});
-
-// ============================================================================
-// Evaluation Function
-// ============================================================================
-
-/**
- * Evaluate if a subtask was successfully completed
- *
- * @param subtask - The subtask to evaluate
- * @param executionSummary - Summary from action executor
- * @param domState - Current DOM state
- * @param previousSubtasks - Previously completed subtasks
- * @returns StreamTextResult that streams the evaluation
- */
-export async function evaluateSubtask(
-	subtask: UIPlanTodo,
-	executionSummary: string,
-	domState: string,
-	previousSubtasks: UIPlanTodo[],
-) {
-	const evaluationContext = buildEvaluationContext(
-		subtask,
-		executionSummary,
-		domState,
-		previousSubtasks,
-	);
-
-	const result = streamText({
-		model: complexModel(),
-		system: EVALUATOR_PROMPT,
-		messages: [{ role: "user", content: evaluationContext }],
-		tools: {
-			evaluateSubtaskTool,
-		},
-		experimental_telemetry: {
-			isEnabled: settingsService.settings.langfuse.enabled,
-			functionId: "browser-use-evaluator",
-			metadata: {
-				subtaskId: subtask.id,
-				subtaskLabel: subtask.label,
-			},
-		},
-	});
-
-	return result;
-}
-
 // ============================================================================
 // Main Execution Function
 // ============================================================================
 
 /**
- * Execute subtasks sequentially using AI SDK streaming patterns
+ * Execute subtasks sequentially using ToolLoopAgent
  *
  * Modifies subtaskPlan in-place - no need to return it.
  * Returns a StreamTextResult that streams all subtask executions.
@@ -319,21 +167,6 @@ export async function executeSubtasks(
 		);
 	}
 
-	// Create context for tools (only sessionId and activeTabId are needed)
-	const context = {
-		sessionId,
-		activeTabId,
-	};
-
-	// ============================================================
-	// PREPARE TOOLS
-	// ============================================================
-	const allTools = {
-		getFlattenDOMTool,
-		...interactiveTools,
-		...navigationTools,
-	};
-
 	// ============================================================
 	// CREATE STREAM THAT EXECUTES SUBTASKS SEQUENTIALLY
 	// ============================================================
@@ -361,14 +194,30 @@ export async function executeSubtasks(
 					const subtaskContext = buildSubtaskContext(subtask, completedSubtasks);
 
 					// ============================================================
-					// EXECUTE ACTIONS FOR THIS SUBTASK (streaming)
+					// EXECUTE ACTIONS FOR THIS SUBTASK USING AGENT
 					// ============================================================
-					const actionResult = streamText({
+					const agent = new ToolLoopAgent({
 						model: complexModel(),
-						system: ACTION_EXECUTOR_PROMPT,
-						messages: [{ role: "user", content: subtaskContext }],
-						tools: allTools,
-						experimental_context: context,
+						instructions: ACTION_EXECUTOR_PROMPT,
+						tools: {
+							getFlattenDOMTool,
+							...interactiveTools,
+							...navigationTools,
+							subtaskComplete: tool({
+								description:
+									"Signal that the current subtask has been completed. Call this when you have accomplished the subtask goal or determined it cannot be completed.",
+								inputSchema: z.object({
+									success: z
+										.boolean()
+										.describe("Whether the subtask was successful"),
+									summary: z
+										.string()
+										.describe("Summary of what was accomplished or why it failed"),
+								}),
+								// No execute function - this signals agent completion
+							}),
+						},
+						stopWhen: stepCountIs(50),
 						experimental_telemetry: {
 							isEnabled: settingsService.settings.langfuse.enabled,
 							functionId: "browser-use-action-executor",
@@ -379,89 +228,71 @@ export async function executeSubtasks(
 								subtaskIndex: i,
 							},
 						},
+						experimental_context: {
+							sessionId,
+							activeTabId,
+						},
 					});
 
-					// Merge action execution stream
-					writer.merge(
-						actionResult.toUIMessageStream({ sendStart: false }),
-					);
-
-					// Wait for action execution to complete
-					await actionResult.finishReason;
-
-					// ============================================================
-					// EXTRACT EXECUTION SUMMARY
-					// ============================================================
-					const response = await actionResult.response;
-					const lastMessage =
-						response.messages[response.messages.length - 1];
-					const executionSummary =
-						typeof lastMessage.content === "string" ?
-							lastMessage.content
-						:	JSON.stringify(lastMessage.content);
-
-					logger.debug("Subtask execution completed", {
-						subtaskId: subtask.id,
-						hasToolResults: (await actionResult.toolResults).length > 0,
-						executionSummary: executionSummary,
+					const agentResult = await agent.stream({
+						messages: [{ role: "user", content: subtaskContext }],
+						onStepFinish: async ({ stepNumber, toolCalls, usage }) => {
+							logger.debug("Agent step completed", {
+								subtaskId: subtask.id,
+								stepNumber,
+								toolCount: toolCalls?.length,
+								tokens: usage.totalTokens,
+							});
+						},
 					});
 
-					// ============================================================
-					// GET CURRENT DOM STATE
-					// ============================================================
-					const domState = getDomState(activeTabId);
-
-					// ============================================================
-					// EVALUATE SUBTASK SUCCESS (streaming)
-					// ============================================================
-					const evaluationResult = await evaluateSubtask(
-						subtask,
-						executionSummary,
-						domState,
-						completedSubtasks,
-					);
-
-					// Merge evaluation stream
+					// Merge agent stream
 					writer.merge(
-						evaluationResult.toUIMessageStream({ sendStart: false }),
+						agentResult.toUIMessageStream({ sendStart: false }),
 					);
 
-					// Wait for evaluation to complete
-					await evaluationResult.finishReason;
+					// Wait for agent to complete
+					await agentResult.finishReason;
 
-					// Extract evaluation result
-					const steps = await evaluationResult.steps;
-					const allToolResults = steps.flatMap(
-						(step) => step.toolResults ?? [],
+					// ============================================================
+					// EXTRACT SUBTASK COMPLETION RESULT
+					// ============================================================
+					const steps = await agentResult.steps;
+					const allToolResults = steps.flatMap((step) => step.toolResults ?? []);
+					const completeResult = allToolResults.find(
+						(toolResult) => toolResult.toolName === "subtaskComplete",
 					);
-					const evaluation = allToolResults.find(
-						(toolResult) => toolResult.toolName === "evaluateSubtaskTool",
-					)?.output as SubtaskEvaluation | undefined;
 
-					if (!evaluation) {
-						logger.error("Evaluation tool did not return a result", {
+					if (!completeResult) {
+						logger.error("Agent did not call subtaskComplete tool", {
 							subtaskId: subtask.id,
 							toolResults: allToolResults,
 						});
-						throw new Error("Evaluation failed: no tool result returned");
+						throw new Error(
+							"Agent failed to complete subtask: subtaskComplete tool not called",
+						);
 					}
 
-					logger.debug("Subtask evaluation completed", {
+					const { success, summary } = completeResult.output as {
+						success: boolean;
+						summary: string;
+					};
+
+					logger.debug("Subtask completed", {
 						subtaskId: subtask.id,
-						isSuccessful: evaluation.is_task_successful,
-						result_explanation: evaluation.result_explanation,
+						success,
+						summary,
 					});
 
 					// ============================================================
 					// UPDATE SUBTASK STATUS IN-PLACE
 					// ============================================================
-					subtask.status =
-						evaluation.is_task_successful ? "completed" : "cancelled";
+					subtask.status = success ? "completed" : "cancelled";
 
-					// Populate receipt with evaluation result for task executor
+					// Populate receipt with completion result for task executor
 					subtaskPlan.receipt = {
-						outcome: evaluation.is_task_successful ? "success" : "cancelled",
-						summary: evaluation.result_explanation,
+						outcome: success ? "success" : "cancelled",
+						summary,
 						at: new Date().toISOString(),
 					};
 
@@ -489,14 +320,11 @@ export async function executeSubtasks(
 					// ============================================================
 					// STOP IF SUBTASK FAILED
 					// ============================================================
-					if (!evaluation.is_task_successful) {
-						// Enrich execution summary with failure explanation for task executor
-						const enrichedSummary = `${executionSummary}\n\nSubtask Evaluation: ${evaluation.result_explanation}`;
-
+					if (!success) {
 						logger.info("Subtask failed, stopping execution", {
 							subtaskId: subtask.id,
 							subtaskLabel: subtask.label,
-							enrichedSummary,
+							summary,
 						});
 						allSuccessful = false;
 						break; // Stop processing more subtasks

@@ -141,7 +141,11 @@ export async function browserUsePlanner(
 		messages,
 		system: plannerSystemPrompt,
 		tools: {
-			generatePlan: generatePlanTool,
+			showPlan: generatePlanTool,
+		},
+		toolChoice: {
+			type: "tool",
+			toolName: "showPlan",
 		},
 		experimental_context: context,
 		experimental_telemetry: {
