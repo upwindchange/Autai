@@ -1,7 +1,7 @@
 import { streamText, createUIMessageStream, ModelMessage, tool } from "ai";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
-import { simulateToolCall } from "@agents/utils";
+import { simulateToolCall, mergeStreamAndWait } from "@agents/utils";
 import log from "electron-log/main";
 import { planInputSchema } from "./planner";
 import type { UIPlanType, UIPlanTodo } from "./planner";
@@ -254,16 +254,8 @@ export async function browserUseTaskExecutor(
 				messages,
 			);
 
-			// Merge action executor stream directly (it's already a ReadableStream)
-			writer.merge(actionExecutorStream);
-
-			// Wait for stream to complete by reading until done
-			const reader = actionExecutorStream.getReader();
-			while (true) {
-				const { done } = await reader.read();
-				if (done) break;
-			}
-			reader.releaseLock();
+			// Merge action executor stream and wait for completion
+			await mergeStreamAndWait(actionExecutorStream, writer);
 
 			logger.info("Subtask execution completed", {
 				subtaskCount: subtaskPlanResultData.todos.length,
@@ -326,16 +318,8 @@ export async function browserUseTaskExecutor(
 						attemptCount + 1,
 					);
 
-					// Merge replan stream
-					writer.merge(replanStream);
-
-					// Wait for replan stream to complete
-					const replanReader = replanStream.getReader();
-					while (true) {
-						const { done } = await replanReader.read();
-						if (done) break;
-					}
-					replanReader.releaseLock();
+					// Merge replan stream and wait for completion
+					await mergeStreamAndWait(replanStream, writer);
 				}
 			} else {
 				// All subtasks succeeded, mark task as completed

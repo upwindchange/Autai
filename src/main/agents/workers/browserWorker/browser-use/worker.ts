@@ -9,6 +9,7 @@ import { settingsService } from "@/services";
 import log from "electron-log/main";
 import { browserUsePlanner, type UIPlanType } from "./planner";
 import { browserUseTaskExecutor } from "./task-executor";
+import { mergeStreamAndWait } from "@agents/utils";
 
 const logger = log.scope("Browser Use Worker");
 
@@ -69,16 +70,8 @@ export async function browserUseWorker(
 					currentTaskIndex,
 				);
 
-				// Merge task execution stream
-				writer.merge(taskExecutorStream);
-
-				// Wait for stream to complete
-				const reader = taskExecutorStream.getReader();
-				while (true) {
-					const { done } = await reader.read();
-					if (done) break;
-				}
-				reader.releaseLock();
+				// Merge task execution stream and wait for completion
+				await mergeStreamAndWait(taskExecutorStream, writer);
 
 				// Check if task completed successfully
 				if (plan.todos[currentTaskIndex].status === "completed") {

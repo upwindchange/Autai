@@ -15,3 +15,4 @@ export {
 	type ToolExecutionResult,
 	type ToolSimulationResult,
 } from "./toolMessageUtils";
+export { mergeStreamAndWait } from "./streamUtils";
