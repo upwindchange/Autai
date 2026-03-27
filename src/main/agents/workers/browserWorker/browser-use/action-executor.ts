@@ -1,6 +1,7 @@
 import {
 	ToolLoopAgent,
 	stepCountIs,
+	hasToolCall,
 	tool,
 	createUIMessageStream,
 	type ModelMessage,
@@ -191,7 +192,10 @@ export async function executeSubtasks(
 					// ============================================================
 					// BUILD CONTEXT FOR THIS SUBTASK
 					// ============================================================
-					const subtaskContext = buildSubtaskContext(subtask, completedSubtasks);
+					const subtaskContext = buildSubtaskContext(
+						subtask,
+						completedSubtasks,
+					);
 
 					// ============================================================
 					// EXECUTE ACTIONS FOR THIS SUBTASK USING AGENT
@@ -205,19 +209,21 @@ export async function executeSubtasks(
 							...navigationTools,
 							subtaskComplete: tool({
 								description:
-									"Signal that the current subtask has been completed. Call this when you have accomplished the subtask goal or determined it cannot be completed.",
+									"Signal that the current subtask has been completed. Call this when you have accomplished the subtask goal or determined it cannot be completed. YOU MUST CALL THIS TOOL when finished to signal completion.",
 								inputSchema: z.object({
 									success: z
 										.boolean()
 										.describe("Whether the subtask was successful"),
 									summary: z
 										.string()
-										.describe("Summary of what was accomplished or why it failed"),
+										.describe(
+											"Summary of what was accomplished or why it failed",
+										),
 								}),
 								// No execute function - this signals agent completion
 							}),
 						},
-						stopWhen: stepCountIs(50),
+						stopWhen: [hasToolCall("subtaskComplete")],
 						experimental_telemetry: {
 							isEnabled: settingsService.settings.langfuse.enabled,
 							functionId: "browser-use-action-executor",
@@ -247,9 +253,7 @@ export async function executeSubtasks(
 					});
 
 					// Merge agent stream
-					writer.merge(
-						agentResult.toUIMessageStream({ sendStart: false }),
-					);
+					writer.merge(agentResult.toUIMessageStream({ sendStart: false }));
 
 					// Wait for agent to complete
 					await agentResult.finishReason;
@@ -258,7 +262,9 @@ export async function executeSubtasks(
 					// EXTRACT SUBTASK COMPLETION RESULT
 					// ============================================================
 					const steps = await agentResult.steps;
-					const allToolResults = steps.flatMap((step) => step.toolResults ?? []);
+					const allToolResults = steps.flatMap(
+						(step) => step.toolResults ?? [],
+					);
 					const completeResult = allToolResults.find(
 						(toolResult) => toolResult.toolName === "subtaskComplete",
 					);
@@ -357,9 +363,8 @@ export async function executeSubtasks(
 			} else {
 				logger.info("Some subtasks failed", {
 					totalSubtasks: subtaskPlan.todos.length,
-					failedCount: subtaskPlan.todos.filter(
-						(t) => t.status === "cancelled",
-					).length,
+					failedCount: subtaskPlan.todos.filter((t) => t.status === "cancelled")
+						.length,
 				});
 			}
 		},

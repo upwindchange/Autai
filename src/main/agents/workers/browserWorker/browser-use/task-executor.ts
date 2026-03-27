@@ -203,13 +203,14 @@ export async function browserUseTaskExecutor(
 				model: complexModel(),
 				messages,
 				system: systemPrompt,
+				toolChoice: "required", // Force showPlan tool
 				tools: {
 					showPlan: generateSubtaskPlanTool,
 				},
 				experimental_context: context,
 				experimental_telemetry: {
 					isEnabled: settingsService.settings.langfuse.enabled,
-					functionId: "browser-action-task-executor",
+					functionId: "browser-use-task-executor",
 					metadata: {
 						langfuseTraceId: sessionId,
 						currentTaskIndex,
