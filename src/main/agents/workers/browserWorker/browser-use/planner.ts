@@ -1,6 +1,7 @@
-import { streamText, ModelMessage, tool } from "ai";
+import { streamText, stepCountIs, ModelMessage, tool } from "ai";
 import { z } from "zod";
 import { complexModel } from "@agents/providers";
+import { hasSuccessfulToolResult } from "@/agents/utils";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
 
@@ -33,7 +34,7 @@ export interface UIPlanTodo {
 export interface UIPlanType {
 	id: string;
 	title: string;
-	description?: string;
+	description: string;
 	todos: UIPlanTodo[];
 	maxVisibleTodos?: number;
 	receipt?: ToolUIReceipt;
@@ -53,12 +54,13 @@ export const todoInputSchema = z.object({
 		.describe("Current status of this todo item"),
 	description: z
 		.string()
+		.min(1)
 		.describe("Detailed description of what this todo item involves"),
 });
 
 export const planInputSchema = z.object({
 	title: z.string().min(1).describe("Short human-readable title of the plan"),
-	description: z.string().describe("Optional detailed description of the plan"),
+	description: z.string().min(1).describe("Detailed description of the plan"),
 	todos: z
 		.array(todoInputSchema)
 		.min(1)
@@ -147,6 +149,7 @@ export async function browserUsePlanner(
 			type: "tool",
 			toolName: "showPlan",
 		},
+		stopWhen: [hasSuccessfulToolResult("showPlan"), stepCountIs(100)],
 		experimental_context: context,
 		experimental_telemetry: {
 			isEnabled: settingsService.settings.langfuse.enabled,

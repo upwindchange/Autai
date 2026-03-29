@@ -1,4 +1,3 @@
-export { repairToolCall } from "./aiSDKTool";
 export { getAppMode, isDevMode } from "./environment";
 export { PQueueManager } from "./pQueueManager";
 export {
@@ -8,11 +7,13 @@ export {
 } from "./telemetry";
 export { retryMiddleware } from "./langchainMiddleware";
 export {
+	mergeStreamAndWait,
+	hasSuccessfulToolResult,
+	repairToolCall,
 	executeToolDirectly,
 	simulateToolCall,
 	type Tool,
 	type ToolExecutionOptions,
 	type ToolExecutionResult,
 	type ToolSimulationResult,
-} from "./toolMessageUtils";
-export { mergeStreamAndWait } from "./streamUtils";
+} from "./toolUtils";

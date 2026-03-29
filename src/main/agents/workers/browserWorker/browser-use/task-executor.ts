@@ -12,7 +12,7 @@ import log from "electron-log/main";
 import { planInputSchema } from "./planner";
 import type { UIPlanType, UIPlanTodo } from "./planner";
 import { executeSubtasks } from "./action-executor";
-import { hasSuccessfulToolResult } from "@/agents/utils/aiSDKTool";
+import { hasSuccessfulToolResult } from "@/agents/utils";
 
 const logger = log.scope("browser-action-task-executor");
 
@@ -38,6 +38,12 @@ If the current task is "Log in to current site", you might create:
 2. "Find the username and password input fields on the page"
 3. "Fill in the username and password credentials. If username and password are on different pages, submit the first page and fill in credentials on each page separately"
 4. "Submit all information and complete the login process"
+
+## Plan Schema
+The showPlan tool expects a plan object with these REQUIRED fields:
+- title: Short title for the subtask plan (e.g., "Subtask plan: Navigate to Google.com")
+- description: Brief description of the subtask plan's overall goal
+- todos: Array of subtask items (see below)
 
 ## Subtask Schema
 Each subtask has:
@@ -176,6 +182,7 @@ export async function browserUseTaskExecutor(
 		toolName: "showPlan",
 		input: {
 			title: plan.title,
+			description: plan.description,
 			todos: plan.todos,
 		},
 		output: plan, // The updated plan with status="in_progress"
@@ -237,27 +244,56 @@ export async function browserUseTaskExecutor(
 			writer.merge(subtaskPlanResult.toUIMessageStream({ sendStart: false }));
 
 			// Wait for subtask plan to complete and extract it
-			await subtaskPlanResult.finishReason;
+			const finishReason = await subtaskPlanResult.finishReason;
 			const steps = await subtaskPlanResult.steps;
+
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			const anySteps = steps as any[];
+			logger.info("Subtask plan stream finished", {
+				finishReason,
+				stepCount: steps.length,
+				steps: anySteps.map((step, i) => ({
+					index: i,
+					toolCalls: (step.toolCalls ?? []).map((tc) => ({
+						toolName: tc.toolName,
+						args: tc.args,
+					})),
+					toolResults: (step.toolResults ?? []).map((tr) => ({
+						type: tr.type,
+						toolName: tr.toolName,
+						hasOutput: tr.output != null,
+						output: tr.output,
+						error: tr.error,
+					})),
+				})),
+			});
+
 			const allToolResults = steps.flatMap((step) => step.toolResults ?? []);
 			const subtaskPlanResultData = allToolResults.find(
-				(toolResult) => toolResult.toolName === "showPlan",
+				(toolResult) =>
+					toolResult.toolName === "showPlan" &&
+					toolResult.type === "tool-result",
 			)?.output as UIPlanType | undefined;
 
 			if (!subtaskPlanResultData) {
-				// Check for tool-error parts to log actual validation/execution error
-				const allContent = steps.flatMap((step) => step.content ?? []);
-				const toolError = allContent.find(
-					// eslint-disable-next-line @typescript-eslint/no-explicit-any
-					(part: any) =>
-						part.type === "tool-error" && part.toolName === "showPlan",
+				// eslint-disable-next-line @typescript-eslint/no-explicit-any
+				const anyResults = allToolResults as any[];
+				const errorResults = anyResults.filter(
+					(tr) => tr.toolName === "showPlan" && tr.type === "tool-error",
 				);
-				if (toolError) {
-					logger.error("showPlan tool call failed with error", {
-						// eslint-disable-next-line @typescript-eslint/no-explicit-any
-						error: (toolError as any).error,
-						// eslint-disable-next-line @typescript-eslint/no-explicit-any
-						input: (toolError as any).input,
+				if (errorResults.length > 0) {
+					logger.error("showPlan tool call(s) failed with errors", {
+						count: errorResults.length,
+						errors: errorResults.map((er) => ({
+							error: er.error,
+							input: er.input,
+						})),
+					});
+				} else {
+					logger.error("No showPlan tool results found at all", {
+						allToolResultNames: allToolResults.map(
+							(tr) => `${tr.type}:${tr.toolName}`,
+						),
 					});
 				}
 				throw new Error(

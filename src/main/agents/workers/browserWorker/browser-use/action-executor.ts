@@ -15,7 +15,7 @@ import { interactiveTools } from "@/agents/ai-tools/InteractiveTools";
 import { navigationTools } from "@/agents/ai-tools/TabControlTools";
 import { getFlattenDOMTool } from "@/agents/ai-tools/DOMTools";
 import type { UIPlanType, UIPlanTodo } from "./planner";
-import { hasSuccessfulToolResult } from "@/agents/utils/aiSDKTool";
+import { hasSuccessfulToolResult } from "@/agents/utils";
 
 const logger = log.scope("browser-use-action-executor");
 
