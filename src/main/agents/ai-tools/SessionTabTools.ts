@@ -63,7 +63,8 @@ export interface GetCurrentSessionContextResult {
 
 // List all sessions tool
 export const listSessionsTool = tool({
-	description: "Get all available sessions with their tab counts and active tabs",
+	description:
+		"Get all available sessions with their tab counts and active tabs",
 	inputSchema: z.object({}),
 	execute: async () => {
 		return await PQueueManager.getInstance().add(
@@ -124,8 +125,12 @@ export const getSessionTabsTool = tool({
 				}
 
 				const sessionTabService = SessionTabService.getInstance();
-				const tabMetadataList = sessionTabService.getAllTabMetadata(context.sessionId);
-				const activeTabId = sessionTabService.getActiveTabForSession(context.sessionId);
+				const tabMetadataList = sessionTabService.getAllTabMetadata(
+					context.sessionId,
+				);
+				const activeTabId = sessionTabService.getActiveTabForSession(
+					context.sessionId,
+				);
 
 				if (tabMetadataList.length === 0) {
 					return {
@@ -188,7 +193,9 @@ export const getTabInfoTool = tool({
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
-				const tabMetadata = sessionTabService.getTabMetadata(context.activeTabId!);
+				const tabMetadata = sessionTabService.getTabMetadata(
+					context.activeTabId!,
+				);
 				const tab = sessionTabService.getTab(context.activeTabId!);
 
 				if (!tabMetadata) {
@@ -236,7 +243,9 @@ export const createTabTool = tool({
 		url: z
 			.string()
 			.optional()
-			.describe("The URL to load in the tab (optional, defaults to welcome page)"),
+			.describe(
+				"The URL to load in the tab (optional, defaults to welcome page)",
+			),
 	}),
 	execute: async ({ url }, { experimental_context }) => {
 		const context = experimental_context as ToolExecutionContext;
@@ -256,7 +265,9 @@ export const createTabTool = tool({
 				}
 
 				// Check if session exists
-				const sessionState = sessionTabService.getSessionTabState(context.sessionId);
+				const sessionState = sessionTabService.getSessionTabState(
+					context.sessionId,
+				);
 				if (!sessionState) {
 					const result: CreateTabResult = {
 						success: false,
@@ -321,7 +332,9 @@ export const getCurrentSessionContextTool = tool({
 				}
 
 				const sessionTabService = SessionTabService.getInstance();
-				const sessionState = sessionTabService.getSessionTabState(context.sessionId);
+				const sessionState = sessionTabService.getSessionTabState(
+					context.sessionId,
+				);
 
 				if (!sessionState) {
 					const result: GetCurrentSessionContextResult = {
@@ -335,8 +348,12 @@ export const getCurrentSessionContextTool = tool({
 					return result;
 				}
 
-				const activeTabId = sessionTabService.getActiveTabForSession(context.sessionId);
-				const tabMetadataList = sessionTabService.getAllTabMetadata(context.sessionId);
+				const activeTabId = sessionTabService.getActiveTabForSession(
+					context.sessionId,
+				);
+				const tabMetadataList = sessionTabService.getAllTabMetadata(
+					context.sessionId,
+				);
 
 				const result: GetCurrentSessionContextResult = {
 					success: true,

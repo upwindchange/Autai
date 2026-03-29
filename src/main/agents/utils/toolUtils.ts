@@ -1,11 +1,11 @@
-import { InvalidToolInputError, StopCondition } from 'ai';
-import { z } from 'zod';
-import { createIdGenerator } from '@ai-sdk/provider-utils';
+import { InvalidToolInputError, StopCondition } from "ai";
+import { z } from "zod";
+import { createIdGenerator } from "@ai-sdk/provider-utils";
 import type {
 	AssistantModelMessage,
 	ToolModelMessage,
 	ToolResultOutput,
-} from '@ai-sdk/provider-utils';
+} from "@ai-sdk/provider-utils";
 import {
 	calculateToolSchema,
 	answerToolSchema,
@@ -13,16 +13,19 @@ import {
 	TOOL_NAMES,
 	type ToolName,
 	repairZodInput,
-} from '@shared';
-import log from 'electron-log/main';
+} from "@shared";
+import log from "electron-log/main";
 
-const logger = log.scope('toolUtils');
-const generateId = createIdGenerator({ prefix: 'call', size: 24 });
+const logger = log.scope("toolUtils");
+const generateId = createIdGenerator({ prefix: "call", size: 24 });
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
 export type Tool = {
-	execute?: (input: unknown, options: ToolExecutionOptions) => Promise<unknown> | unknown;
+	execute?: (
+		input: unknown,
+		options: ToolExecutionOptions,
+	) => Promise<unknown> | unknown;
 	[key: string]: unknown;
 };
 
@@ -83,7 +86,7 @@ export async function mergeStreamAndWait<T>(
 export function hasSuccessfulToolResult(toolName: string): StopCondition<any> {
 	return ({ steps }) =>
 		steps[steps.length - 1]?.toolResults?.some(
-			(r) => r.toolName === toolName && r.type === 'tool-result',
+			(r) => r.toolName === toolName && r.type === "tool-result",
 		) ?? false;
 }
 
@@ -105,14 +108,14 @@ export async function repairToolCall({
 	error,
 }: {
 	toolCall: {
-		type: 'tool-call';
+		type: "tool-call";
 		toolCallId: string;
 		toolName: string;
 		input: string;
 	};
 	error: Error | InvalidToolInputError;
 }) {
-	logger.debug('attempting to repair tool call', {
+	logger.debug("attempting to repair tool call", {
 		toolName: toolCall.toolName,
 		error: error.message,
 	});
@@ -130,7 +133,7 @@ export async function repairToolCall({
 		const schema = getSchemaForTool(toolCall.toolName as ToolName);
 
 		if (schema) {
-			logger.debug('using zod repair utility', { toolName: toolCall.toolName });
+			logger.debug("using zod repair utility", { toolName: toolCall.toolName });
 
 			// Use the shared repair utility to fix the entire object structure
 			const repairedArgs = repairZodInput(parsedArgs, schema);
@@ -143,15 +146,15 @@ export async function repairToolCall({
 				input: JSON.stringify(repairedArgs),
 			};
 
-			logger.info('tool call repaired', { toolName: repairedCall.toolName });
+			logger.info("tool call repaired", { toolName: repairedCall.toolName });
 
 			return repairedCall;
 		} else {
-			logger.warn('no schema found for tool', { toolName: toolCall.toolName });
+			logger.warn("no schema found for tool", { toolName: toolCall.toolName });
 
 			// Fallback: check if steps is a string that needs to be parsed
-			if (typeof parsedArgs.steps === 'string') {
-				logger.debug('detected steps as string, parsing');
+			if (typeof parsedArgs.steps === "string") {
+				logger.debug("detected steps as string, parsing");
 				try {
 					parsedArgs.steps = JSON.parse(parsedArgs.steps);
 				} catch {
@@ -166,13 +169,13 @@ export async function repairToolCall({
 					input: JSON.stringify(parsedArgs),
 				};
 
-				logger.info('tool call repaired', { toolName: repairedCall.toolName });
+				logger.info("tool call repaired", { toolName: repairedCall.toolName });
 
 				return repairedCall;
 			}
 		}
 	} catch (repairError) {
-		logger.error('failed to repair tool call', repairError);
+		logger.error("failed to repair tool call", repairError);
 	}
 
 	return null;
@@ -194,7 +197,7 @@ export async function executeToolDirectly({
 }): Promise<ToolExecutionResult> {
 	const toolCallId = generateId();
 
-	logger.debug('Executing tool directly', {
+	logger.debug("Executing tool directly", {
 		toolName,
 		toolCallId,
 		input,
@@ -211,20 +214,23 @@ export async function executeToolDirectly({
 				abortSignal: undefined,
 				experimental_context: undefined,
 			});
-			logger.debug('Tool executed successfully', {
+			logger.debug("Tool executed successfully", {
 				toolName,
 				toolCallId,
 				output,
 			});
 		} else {
-			logger.warn('Tool does not have execute function, returning null output', {
-				toolName,
-				toolCallId,
-			});
+			logger.warn(
+				"Tool does not have execute function, returning null output",
+				{
+					toolName,
+					toolCallId,
+				},
+			);
 			output = null;
 		}
 	} catch (error) {
-		logger.error('Tool execution failed', {
+		logger.error("Tool execution failed", {
 			toolName,
 			toolCallId,
 			error: error instanceof Error ? error.message : String(error),
@@ -234,10 +240,10 @@ export async function executeToolDirectly({
 
 	// Create assistant message with tool call
 	const assistantMessage: AssistantModelMessage = {
-		role: 'assistant',
+		role: "assistant",
 		content: [
 			{
-				type: 'tool-call',
+				type: "tool-call",
 				toolCallId,
 				toolName,
 				input,
@@ -247,14 +253,14 @@ export async function executeToolDirectly({
 
 	// Create tool message with result
 	const toolMessage: ToolModelMessage = {
-		role: 'tool',
+		role: "tool",
 		content: [
 			{
-				type: 'tool-result',
+				type: "tool-result",
 				toolCallId,
 				toolName,
 				output: {
-					type: 'json',
+					type: "json",
 					value: output,
 				} as ToolResultOutput,
 			},
@@ -283,7 +289,7 @@ export async function simulateToolCall({
 }): Promise<ToolSimulationResult> {
 	const toolCallId = generateId();
 
-	logger.debug('Simulating tool call', {
+	logger.debug("Simulating tool call", {
 		toolName,
 		toolCallId,
 		input,
@@ -292,10 +298,10 @@ export async function simulateToolCall({
 
 	// Create assistant message with tool call
 	const assistantMessage: AssistantModelMessage = {
-		role: 'assistant',
+		role: "assistant",
 		content: [
 			{
-				type: 'tool-call',
+				type: "tool-call",
 				toolCallId,
 				toolName,
 				input,
@@ -305,14 +311,14 @@ export async function simulateToolCall({
 
 	// Create tool message with result
 	const toolMessage: ToolModelMessage = {
-		role: 'tool',
+		role: "tool",
 		content: [
 			{
-				type: 'tool-result',
+				type: "tool-result",
 				toolCallId,
 				toolName,
 				output: {
-					type: 'json',
+					type: "json",
 					value: output,
 				} as ToolResultOutput,
 			},

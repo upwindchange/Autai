@@ -1,6 +1,10 @@
 import { tool, ToolRuntime } from "langchain";
 import z from "zod";
-import { PlanItemSchema, PlanSchema, BrowserActionStateType } from "@agents/workers/browser/agents/browser-action/state";
+import {
+	PlanItemSchema,
+	PlanSchema,
+	BrowserActionStateType,
+} from "@agents/workers/browser/agents/browser-action/state";
 
 // Local schema definitions for UI plan structure
 const PlanTodoStatusSchema = z.enum([

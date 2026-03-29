@@ -1,4 +1,8 @@
-import { convertToModelMessages, type UIMessage, type UIMessageChunk } from "ai";
+import {
+	convertToModelMessages,
+	type UIMessage,
+	type UIMessageChunk,
+} from "ai";
 import log from "electron-log/main";
 import { browserResearchWorker } from "@agents/workers/browserWorker/browser-research/worker";
 import { browserUseWorker } from "@agents/workers/browserWorker/browser-use/worker";

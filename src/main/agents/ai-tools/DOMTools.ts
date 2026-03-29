@@ -40,7 +40,9 @@ export const getDOMTreeTool = tool({
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
-				const domService = sessionTabService.getDomService(context.activeTabId!);
+				const domService = sessionTabService.getDomService(
+					context.activeTabId!,
+				);
 
 				if (!domService) {
 					const result: DOMTreeResult = {
@@ -55,7 +57,8 @@ export const getDOMTreeTool = tool({
 
 				const stats = domService.simplifiedDOMState?.stats;
 				const changeTime =
-					sessionTabService.getTabMetadata(context.activeTabId!)?.timestamp || 0;
+					sessionTabService.getTabMetadata(context.activeTabId!)?.timestamp ||
+					0;
 				const detectTime = stats?.timestamp || 0;
 
 				let response: DOMTreeResult;
@@ -106,7 +109,9 @@ export const getFlattenDOMTool = tool({
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
-				const domService = sessionTabService.getDomService(context.activeTabId!);
+				const domService = sessionTabService.getDomService(
+					context.activeTabId!,
+				);
 
 				if (!domService) {
 					const response: FlattenDOMResult = {
@@ -120,7 +125,8 @@ export const getFlattenDOMTool = tool({
 
 				// Generate representation using the root node
 				const representation =
-					domService.simplifiedDOMState?.flattenedDOM || "No DOM tree available";
+					domService.simplifiedDOMState?.flattenedDOM ||
+					"No DOM tree available";
 
 				const response: FlattenDOMResult = {
 					tabId: context.activeTabId!,

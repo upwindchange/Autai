@@ -20,7 +20,9 @@ export const navigateTool = tool({
 	inputSchema: z.object({
 		url: z
 			.string()
-			.describe("Required (string): The URL to navigate to (must be a valid URL)"),
+			.describe(
+				"Required (string): The URL to navigate to (must be a valid URL)",
+			),
 	}),
 	execute: async ({ url }, { experimental_context }) => {
 		const context = experimental_context as ToolExecutionContext;

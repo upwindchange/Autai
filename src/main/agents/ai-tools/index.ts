@@ -12,10 +12,7 @@ export { sessionTools } from "./SessionTabTools";
 export { navigationTools } from "./TabControlTools";
 
 // Export all types
-export type {
-	ToolExecutionContext,
-	ToolContextOptions,
-} from "./types/context";
+export type { ToolExecutionContext, ToolContextOptions } from "./types/context";
 
 export type {
 	ClickToolResult,
@@ -29,10 +26,7 @@ export type {
 	GetBasicInfoToolResult,
 } from "./InteractiveTools";
 
-export type {
-	DOMTreeResult,
-	FlattenDOMResult,
-} from "./DOMTools";
+export type { DOMTreeResult, FlattenDOMResult } from "./DOMTools";
 
 export type {
 	ListSessionsResult,

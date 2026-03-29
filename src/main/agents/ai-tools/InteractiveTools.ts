@@ -95,8 +95,9 @@ export const clickElementTool = tool({
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
-				const interactionService =
-					sessionTabService.getInteractionService(context.activeTabId!);
+				const interactionService = sessionTabService.getInteractionService(
+					context.activeTabId!,
+				);
 				if (!interactionService) {
 					throw new Error(
 						`Interaction service not found for tab ${context.activeTabId}`,
@@ -125,7 +126,9 @@ export const clickElementTool = tool({
 						await new Promise((resolve) => setTimeout(resolve, 1000));
 
 						// Get DOM service and refresh
-						const domService = sessionTabService.getDomService(context.activeTabId!);
+						const domService = sessionTabService.getDomService(
+							context.activeTabId!,
+						);
 						if (domService) {
 							const { newNodesCount, totalNodesCountChange } =
 								await domService.buildSimplifiedDOMTree();
@@ -139,7 +142,10 @@ export const clickElementTool = tool({
 							};
 						}
 					} catch (refreshError) {
-						console.warn(`DOM refresh failed for tab ${context.activeTabId}:`, refreshError);
+						console.warn(
+							`DOM refresh failed for tab ${context.activeTabId}:`,
+							refreshError,
+						);
 					}
 				}
 
@@ -192,8 +198,9 @@ export const fillElementTool = tool({
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
-				const interactionService =
-					sessionTabService.getInteractionService(context.activeTabId!);
+				const interactionService = sessionTabService.getInteractionService(
+					context.activeTabId!,
+				);
 
 				if (!interactionService) {
 					throw new Error(
@@ -223,7 +230,9 @@ export const fillElementTool = tool({
 						await new Promise((resolve) => setTimeout(resolve, 500));
 
 						// Get DOM service and refresh
-						const domService = sessionTabService.getDomService(context.activeTabId!);
+						const domService = sessionTabService.getDomService(
+							context.activeTabId!,
+						);
 						if (domService) {
 							const { newNodesCount, totalNodesCountChange } =
 								await domService.buildSimplifiedDOMTree();
@@ -237,7 +246,10 @@ export const fillElementTool = tool({
 							};
 						}
 					} catch (refreshError) {
-						console.warn(`DOM refresh failed for tab ${context.activeTabId}:`, refreshError);
+						console.warn(
+							`DOM refresh failed for tab ${context.activeTabId}:`,
+							refreshError,
+						);
 					}
 				}
 
@@ -291,8 +303,9 @@ export const selectOptionTool = tool({
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
-				const interactionService =
-					sessionTabService.getInteractionService(context.activeTabId!);
+				const interactionService = sessionTabService.getInteractionService(
+					context.activeTabId!,
+				);
 
 				if (!interactionService) {
 					throw new Error(
@@ -322,7 +335,9 @@ export const selectOptionTool = tool({
 						await new Promise((resolve) => setTimeout(resolve, 800));
 
 						// Get DOM service and refresh
-						const domService = sessionTabService.getDomService(context.activeTabId!);
+						const domService = sessionTabService.getDomService(
+							context.activeTabId!,
+						);
 						if (domService) {
 							const { newNodesCount, totalNodesCountChange } =
 								await domService.buildSimplifiedDOMTree();
@@ -336,7 +351,10 @@ export const selectOptionTool = tool({
 							};
 						}
 					} catch (refreshError) {
-						console.warn(`DOM refresh failed for tab ${context.activeTabId}:`, refreshError);
+						console.warn(
+							`DOM refresh failed for tab ${context.activeTabId}:`,
+							refreshError,
+						);
 					}
 				}
 
@@ -365,7 +383,10 @@ export const hoverElementTool = tool({
 			.describe("Required (number): Backend node ID of the element to hover"),
 		timeout: z.number().optional().describe("Timeout in ms (default: 3000)"),
 	}),
-	execute: async ({ backendNodeId, timeout = 3000 }, { experimental_context }) => {
+	execute: async (
+		{ backendNodeId, timeout = 3000 },
+		{ experimental_context },
+	) => {
 		const context = experimental_context as ToolExecutionContext;
 
 		if (!context.activeTabId) {
@@ -378,8 +399,9 @@ export const hoverElementTool = tool({
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
-				const interactionService =
-					sessionTabService.getInteractionService(context.activeTabId!);
+				const interactionService = sessionTabService.getInteractionService(
+					context.activeTabId!,
+				);
 
 				if (!interactionService) {
 					throw new Error(
@@ -407,7 +429,9 @@ export const hoverElementTool = tool({
 						await new Promise((resolve) => setTimeout(resolve, 300));
 
 						// Get DOM service and refresh
-						const domService = sessionTabService.getDomService(context.activeTabId!);
+						const domService = sessionTabService.getDomService(
+							context.activeTabId!,
+						);
 						if (domService) {
 							const { newNodesCount, totalNodesCountChange } =
 								await domService.buildSimplifiedDOMTree();
@@ -421,7 +445,10 @@ export const hoverElementTool = tool({
 							};
 						}
 					} catch (refreshError) {
-						console.warn(`DOM refresh failed for tab ${context.activeTabId}:`, refreshError);
+						console.warn(
+							`DOM refresh failed for tab ${context.activeTabId}:`,
+							refreshError,
+						);
 					}
 				}
 
@@ -460,7 +487,10 @@ export const dragToElementTool = tool({
 				"Required ({x: number, y: number} | number): Target position {x, y} or backend node ID of target element",
 			),
 	}),
-	execute: async ({ sourceBackendNodeId, target }, { experimental_context }) => {
+	execute: async (
+		{ sourceBackendNodeId, target },
+		{ experimental_context },
+	) => {
 		const context = experimental_context as ToolExecutionContext;
 
 		if (!context.activeTabId) {
@@ -473,8 +503,9 @@ export const dragToElementTool = tool({
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
-				const interactionService =
-					sessionTabService.getInteractionService(context.activeTabId!);
+				const interactionService = sessionTabService.getInteractionService(
+					context.activeTabId!,
+				);
 
 				if (!interactionService) {
 					throw new Error(
@@ -502,7 +533,9 @@ export const dragToElementTool = tool({
 						await new Promise((resolve) => setTimeout(resolve, 1200));
 
 						// Get DOM service and refresh
-						const domService = sessionTabService.getDomService(context.activeTabId!);
+						const domService = sessionTabService.getDomService(
+							context.activeTabId!,
+						);
 						if (domService) {
 							const { newNodesCount, totalNodesCountChange } =
 								await domService.buildSimplifiedDOMTree();
@@ -516,7 +549,10 @@ export const dragToElementTool = tool({
 							};
 						}
 					} catch (refreshError) {
-						console.warn(`DOM refresh failed for tab ${context.activeTabId}:`, refreshError);
+						console.warn(
+							`DOM refresh failed for tab ${context.activeTabId}:`,
+							refreshError,
+						);
 					}
 				}
 
@@ -544,12 +580,18 @@ export const scrollPagesTool = tool({
 			.enum(["up", "down"])
 			.optional()
 			.describe("Scroll direction (default: down)"),
-		pages: z.number().optional().describe("Number of pages to scroll (default: 1.0)"),
+		pages: z
+			.number()
+			.optional()
+			.describe("Number of pages to scroll (default: 1.0)"),
 		scrollDelay: z
 			.number()
 			.optional()
 			.describe("Delay between scrolls in ms (default: 300)"),
-		smooth: z.boolean().optional().describe("Whether to scroll smoothly (default: true)"),
+		smooth: z
+			.boolean()
+			.optional()
+			.describe("Whether to scroll smoothly (default: true)"),
 	}),
 	execute: async (
 		{ direction = "down", pages = 1.0, scrollDelay = 300, smooth = true },
@@ -567,8 +609,9 @@ export const scrollPagesTool = tool({
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
-				const interactionService =
-					sessionTabService.getInteractionService(context.activeTabId!);
+				const interactionService = sessionTabService.getInteractionService(
+					context.activeTabId!,
+				);
 
 				if (!interactionService) {
 					throw new Error(
@@ -596,7 +639,9 @@ export const scrollPagesTool = tool({
 						await new Promise((resolve) => setTimeout(resolve, 400));
 
 						// Get DOM service and refresh
-						const domService = sessionTabService.getDomService(context.activeTabId!);
+						const domService = sessionTabService.getDomService(
+							context.activeTabId!,
+						);
 						if (domService) {
 							const { newNodesCount, totalNodesCountChange } =
 								await domService.buildSimplifiedDOMTree();
@@ -610,7 +655,10 @@ export const scrollPagesTool = tool({
 							};
 						}
 					} catch (refreshError) {
-						console.warn(`DOM refresh failed for tab ${context.activeTabId}:`, refreshError);
+						console.warn(
+							`DOM refresh failed for tab ${context.activeTabId}:`,
+							refreshError,
+						);
 					}
 				}
 
@@ -649,7 +697,10 @@ export const scrollAtCoordinateTool = tool({
 			.optional()
 			.describe("Vertical scroll delta (default: 0)"),
 	}),
-	execute: async ({ x, y, deltaX = 0, deltaY = 0 }, { experimental_context }) => {
+	execute: async (
+		{ x, y, deltaX = 0, deltaY = 0 },
+		{ experimental_context },
+	) => {
 		const context = experimental_context as ToolExecutionContext;
 
 		if (!context.activeTabId) {
@@ -662,8 +713,9 @@ export const scrollAtCoordinateTool = tool({
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
-				const interactionService =
-					sessionTabService.getInteractionService(context.activeTabId!);
+				const interactionService = sessionTabService.getInteractionService(
+					context.activeTabId!,
+				);
 
 				if (!interactionService) {
 					throw new Error(
@@ -682,7 +734,8 @@ export const scrollAtCoordinateTool = tool({
 				sessionTabService.updateTabTimestamp(context.activeTabId!);
 
 				// Execute original scroll operation
-				const scrollResult = await interactionService.scrollAtCoordinate(options);
+				const scrollResult =
+					await interactionService.scrollAtCoordinate(options);
 
 				// Add automatic DOM refresh
 				if (scrollResult.success) {
@@ -691,7 +744,9 @@ export const scrollAtCoordinateTool = tool({
 						await new Promise((resolve) => setTimeout(resolve, 400));
 
 						// Get DOM service and refresh
-						const domService = sessionTabService.getDomService(context.activeTabId!);
+						const domService = sessionTabService.getDomService(
+							context.activeTabId!,
+						);
 						if (domService) {
 							const { newNodesCount, totalNodesCountChange } =
 								await domService.buildSimplifiedDOMTree();
@@ -705,7 +760,10 @@ export const scrollAtCoordinateTool = tool({
 							};
 						}
 					} catch (refreshError) {
-						console.warn(`DOM refresh failed for tab ${context.activeTabId}:`, refreshError);
+						console.warn(
+							`DOM refresh failed for tab ${context.activeTabId}:`,
+							refreshError,
+						);
 					}
 				}
 
@@ -736,7 +794,10 @@ export const getAttributeTool = tool({
 			.string()
 			.describe("Required (string): Name of the attribute to retrieve"),
 	}),
-	execute: async ({ backendNodeId, attributeName }, { experimental_context }) => {
+	execute: async (
+		{ backendNodeId, attributeName },
+		{ experimental_context },
+	) => {
 		const context = experimental_context as ToolExecutionContext;
 
 		if (!context.activeTabId) {
@@ -749,8 +810,9 @@ export const getAttributeTool = tool({
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
-				const interactionService =
-					sessionTabService.getInteractionService(context.activeTabId!);
+				const interactionService = sessionTabService.getInteractionService(
+					context.activeTabId!,
+				);
 
 				if (!interactionService) {
 					throw new Error(
@@ -758,7 +820,10 @@ export const getAttributeTool = tool({
 					);
 				}
 
-				return await interactionService.getAttribute(backendNodeId, attributeName);
+				return await interactionService.getAttribute(
+					backendNodeId,
+					attributeName,
+				);
 			},
 			{
 				timeout: 60000,
@@ -785,7 +850,10 @@ export const evaluateTool = tool({
 			.optional()
 			.describe("Arguments to pass to the function (default: [])"),
 	}),
-	execute: async ({ backendNodeId, expression, args = [] }, { experimental_context }) => {
+	execute: async (
+		{ backendNodeId, expression, args = [] },
+		{ experimental_context },
+	) => {
 		const context = experimental_context as ToolExecutionContext;
 
 		if (!context.activeTabId) {
@@ -798,8 +866,9 @@ export const evaluateTool = tool({
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
-				const interactionService =
-					sessionTabService.getInteractionService(context.activeTabId!);
+				const interactionService = sessionTabService.getInteractionService(
+					context.activeTabId!,
+				);
 
 				if (!interactionService) {
 					throw new Error(
@@ -807,7 +876,11 @@ export const evaluateTool = tool({
 					);
 				}
 
-				return await interactionService.evaluate(backendNodeId, expression, args);
+				return await interactionService.evaluate(
+					backendNodeId,
+					expression,
+					args,
+				);
 			},
 			{
 				timeout: 60000,
@@ -838,8 +911,9 @@ export const getBasicInfoTool = tool({
 		return await PQueueManager.getInstance().add(
 			async () => {
 				const sessionTabService = SessionTabService.getInstance();
-				const interactionService =
-					sessionTabService.getInteractionService(context.activeTabId!);
+				const interactionService = sessionTabService.getInteractionService(
+					context.activeTabId!,
+				);
 
 				if (!interactionService) {
 					throw new Error(
