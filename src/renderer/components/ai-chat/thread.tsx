@@ -398,16 +398,20 @@ const AssistantActionBar: FC = () => {
 			autohide="not-last"
 			className="aui-assistant-action-bar-root col-start-3 row-start-2 -ml-1 flex gap-1 text-muted-foreground"
 		>
-			<ActionBarPrimitive.Speak asChild>
-				<TooltipIconButton tooltip="Read aloud">
-					<AudioLinesIcon />
-				</TooltipIconButton>
-			</ActionBarPrimitive.Speak>
-			<ActionBarPrimitive.StopSpeaking asChild>
-				<TooltipIconButton tooltip="Stop">
-					<StopCircleIcon />
-				</TooltipIconButton>
-			</ActionBarPrimitive.StopSpeaking>
+			<AuiIf condition={(s) => (s.message as Record<string, unknown>).speech == null}>
+				<ActionBarPrimitive.Speak asChild>
+					<TooltipIconButton tooltip="Read aloud">
+						<AudioLinesIcon />
+					</TooltipIconButton>
+				</ActionBarPrimitive.Speak>
+			</AuiIf>
+			<AuiIf condition={(s) => (s.message as Record<string, unknown>).speech != null}>
+				<ActionBarPrimitive.StopSpeaking asChild>
+					<TooltipIconButton tooltip="Stop">
+						<StopCircleIcon />
+					</TooltipIconButton>
+				</ActionBarPrimitive.StopSpeaking>
+			</AuiIf>
 			<ActionBarPrimitive.Copy asChild>
 				<TooltipIconButton tooltip="Copy">
 					<AuiIf condition={(s) => s.message.isCopied}>
