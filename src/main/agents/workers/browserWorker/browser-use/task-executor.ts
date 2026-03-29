@@ -1,4 +1,10 @@
-import { streamText, createUIMessageStream, ModelMessage, tool } from "ai";
+import {
+	streamText,
+	createUIMessageStream,
+	ModelMessage,
+	tool,
+	stepCountIs,
+} from "ai";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
 import { simulateToolCall, mergeStreamAndWait } from "@agents/utils";
@@ -6,6 +12,7 @@ import log from "electron-log/main";
 import { planInputSchema } from "./planner";
 import type { UIPlanType, UIPlanTodo } from "./planner";
 import { executeSubtasks } from "./action-executor";
+import { hasSuccessfulToolResult } from "@/agents/utils/aiSDKTool";
 
 const logger = log.scope("browser-action-task-executor");
 
@@ -43,7 +50,10 @@ Each subtask has:
 - Browser and tab are always available. Do NOT plan setup tasks like "open browser" or "ensure tab is ready"
 - Write instructional descriptions that guide the action-executor agent
 - Do NOT break into atomic actions (click, type). That is for the action-executor agent
-- Consider page state from previous subtasks when writing instructions`;
+- Consider page state from previous subtasks when writing instructions
+
+## Important
+You MUST call the showPlan tool to provide your subtask plan. Do not just describe the plan in text — you are required to use the showPlan tool.`;
 
 	// Build failure context from current task's receipt
 	let failureContext = "";
@@ -203,11 +213,15 @@ export async function browserUseTaskExecutor(
 				model: complexModel(),
 				messages,
 				system: systemPrompt,
-				toolChoice: "required", // Force showPlan tool
+				toolChoice: {
+					type: "tool",
+					toolName: "showPlan",
+				},
 				tools: {
 					showPlan: generateSubtaskPlanTool,
 				},
 				experimental_context: context,
+				stopWhen: [hasSuccessfulToolResult("showPlan"), stepCountIs(100)],
 				experimental_telemetry: {
 					isEnabled: settingsService.settings.langfuse.enabled,
 					functionId: "browser-use-task-executor",
@@ -231,7 +245,21 @@ export async function browserUseTaskExecutor(
 			)?.output as UIPlanType | undefined;
 
 			if (!subtaskPlanResultData) {
-				logger.error("Failed to generate subtask plan: tool not called");
+				// Check for tool-error parts to log actual validation/execution error
+				const allContent = steps.flatMap((step) => step.content ?? []);
+				const toolError = allContent.find(
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					(part: any) =>
+						part.type === "tool-error" && part.toolName === "showPlan",
+				);
+				if (toolError) {
+					logger.error("showPlan tool call failed with error", {
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any
+						error: (toolError as any).error,
+						// eslint-disable-next-line @typescript-eslint/no-explicit-any
+						input: (toolError as any).input,
+					});
+				}
 				throw new Error(
 					"Failed to generate subtask plan: showPlan tool not called",
 				);

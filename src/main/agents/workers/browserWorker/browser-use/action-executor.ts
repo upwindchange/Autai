@@ -1,7 +1,6 @@
 import {
-	ToolLoopAgent,
 	stepCountIs,
-	hasToolCall,
+	streamText,
 	tool,
 	createUIMessageStream,
 	type ModelMessage,
@@ -10,12 +9,13 @@ import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
 import { SessionTabService } from "@/services";
-import { simulateToolCall } from "@agents/utils";
+import { simulateToolCall, mergeStreamAndWait } from "@agents/utils";
 import log from "electron-log/main";
 import { interactiveTools } from "@/agents/ai-tools/InteractiveTools";
 import { navigationTools } from "@/agents/ai-tools/TabControlTools";
 import { getFlattenDOMTool } from "@/agents/ai-tools/DOMTools";
 import type { UIPlanType, UIPlanTodo } from "./planner";
+import { hasSuccessfulToolResult } from "@/agents/utils/aiSDKTool";
 
 const logger = log.scope("browser-use-action-executor");
 
@@ -89,14 +89,12 @@ For each subtask:
    - Unchanged: Skip getFlattenDOMTool
 6. Continue until subtask complete or determined to fail
 
-# Output Format
-After completing a subtask, provide a text summary that includes:
-- What actions were taken
-- What the final DOM state shows
-- Any errors or unexpected behavior
-- Your assessment of whether the subtask goal was achieved
+# Completion
+When the subtask is done (goal achieved or determined impossible), you MUST call the subtaskComplete tool with:
+- success: true if the subtask goal was achieved, false otherwise
+- summary: a brief description of what was accomplished or why it failed
 
-This summary will be reviewed by an evaluator agent to make the final success/failure determination.`;
+This is required to signal completion. Do not just describe the result in text.`;
 
 // ============================================================================
 // Helper Functions
@@ -132,7 +130,7 @@ function buildSubtaskContext(
 // ============================================================================
 
 /**
- * Execute subtasks sequentially using ToolLoopAgent
+ * Execute subtasks sequentially using streamText
  *
  * Modifies subtaskPlan in-place - no need to return it.
  * Returns a StreamTextResult that streams all subtask executions.
@@ -198,11 +196,12 @@ export async function executeSubtasks(
 					);
 
 					// ============================================================
-					// EXECUTE ACTIONS FOR THIS SUBTASK USING AGENT
+					// EXECUTE ACTIONS FOR THIS SUBTASK USING streamText
 					// ============================================================
-					const agent = new ToolLoopAgent({
+					const result = streamText({
 						model: complexModel(),
-						instructions: ACTION_EXECUTOR_PROMPT,
+						messages: [{ role: "user", content: subtaskContext }],
+						system: ACTION_EXECUTOR_PROMPT,
 						tools: {
 							getFlattenDOMTool,
 							...interactiveTools,
@@ -220,10 +219,17 @@ export async function executeSubtasks(
 											"Summary of what was accomplished or why it failed",
 										),
 								}),
-								// No execute function - this signals agent completion
+								execute: async ({ success, summary }) => ({
+									success,
+									summary,
+								}),
 							}),
 						},
-						stopWhen: [hasToolCall("subtaskComplete")],
+						toolChoice: "auto",
+						stopWhen: [
+							hasSuccessfulToolResult("subtaskComplete"),
+							stepCountIs(100),
+						],
 						experimental_telemetry: {
 							isEnabled: settingsService.settings.langfuse.enabled,
 							functionId: "browser-use-action-executor",
@@ -240,28 +246,19 @@ export async function executeSubtasks(
 						},
 					});
 
-					const agentResult = await agent.stream({
-						messages: [{ role: "user", content: subtaskContext }],
-						onStepFinish: async ({ stepNumber, toolCalls, usage }) => {
-							logger.debug("Agent step completed", {
-								subtaskId: subtask.id,
-								stepNumber,
-								toolCount: toolCalls?.length,
-								tokens: usage.totalTokens,
-							});
-						},
-					});
+					// Merge stream and wait for completion
+					await mergeStreamAndWait(
+						result.toUIMessageStream({ sendStart: false }),
+						writer,
+					);
 
-					// Merge agent stream
-					writer.merge(agentResult.toUIMessageStream({ sendStart: false }));
-
-					// Wait for agent to complete
-					await agentResult.finishReason;
+					// Wait for stream to finish
+					await result.finishReason;
 
 					// ============================================================
 					// EXTRACT SUBTASK COMPLETION RESULT
 					// ============================================================
-					const steps = await agentResult.steps;
+					const steps = await result.steps;
 					const allToolResults = steps.flatMap(
 						(step) => step.toolResults ?? [],
 					);

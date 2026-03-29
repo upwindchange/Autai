@@ -1,4 +1,4 @@
-export { repairToolCall } from "./repairTool";
+export { repairToolCall } from "./aiSDKTool";
 export { getAppMode, isDevMode } from "./environment";
 export { PQueueManager } from "./pQueueManager";
 export {

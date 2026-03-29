@@ -1,4 +1,4 @@
-import { InvalidToolInputError } from "ai";
+import { InvalidToolInputError, StopCondition } from "ai";
 import { z } from "zod";
 import {
 	calculateToolSchema,
@@ -10,7 +10,20 @@ import {
 } from "@shared";
 import log from "electron-log/main";
 
-const logger = log.scope("ToolRepair");
+const logger = log.scope("aiSDKTool");
+
+/**
+ * Stop condition that checks if a tool was successfully executed
+ * (has a tool-result, not just a tool-call or tool-error).
+ * This allows the streamText step loop to retry when tool input validation fails.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function hasSuccessfulToolResult(toolName: string): StopCondition<any> {
+	return ({ steps }) =>
+		steps[steps.length - 1]?.toolResults?.some(
+			(r) => r.toolName === toolName,
+		) ?? false;
+}
 
 function getSchemaForTool(toolName: ToolName): z.ZodSchema<unknown> | null {
 	switch (toolName) {
