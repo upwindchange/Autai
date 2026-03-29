@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 
 import { Sidebar, SidebarContent } from "@/components/ui/sidebar";
 import { NavSecondary } from "@/components/side-bar/nav-secondary";
-import { ThreadList } from "@/components/side-bar/thread-list";
+import { ThreadList } from "@/components/assistant-ui/thread-list";
 
 /**
  * Props for the SidebarLeft component
