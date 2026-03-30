@@ -5,7 +5,7 @@
 	"editor.formatOnType": true,
 	"editor.defaultFormatter": "esbenp.prettier-vscode",
 	"editor.tabSize": 2,
-	"editor.insertSpaces": false,
+	"editor.insertSpaces": true,
 	"json.schemas": [
 		{
 			"fileMatch": ["/*electron-builder.json5", "/*electron-builder.json"],

@@ -11,9 +11,9 @@ export type TabId = string;
 
 // Thread-view state for tracking relationships
 export const SessionTabStateSchema = z.object({
-	sessionId: z.string().min(1),
-	tabIds: z.array(z.string()),
-	activeTabId: z.string().nullable(),
+  sessionId: z.string().min(1),
+  tabIds: z.array(z.string()),
+  activeTabId: z.string().nullable(),
 });
 
 export type sessionTabState = z.infer<typeof SessionTabStateSchema>;

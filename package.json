@@ -23,7 +23,7 @@
 	"prettier": {
 		"experimentalTernaries": true,
 		"tabWidth": 2,
-		"useTabs": true
+		"useTabs": false
 	},
 	"dependencies": {
 		"electron-updater": "^6.8.3"

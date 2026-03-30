@@ -7,21 +7,21 @@ import { z } from "zod";
 import { retryMiddleware } from "@agents/utils";
 
 export async function synthesizerNode(
-	state: BrowserResearcherStateType,
+  state: BrowserResearcherStateType,
 ): Promise<Command> {
-	// Build context from all page summaries
-	const summariesContext = state.pageSummaries
-		.map(
-			(summary, index) => `
+  // Build context from all page summaries
+  const summariesContext = state.pageSummaries
+    .map(
+      (summary, index) => `
 ### Source ${index + 1}
 URL: ${summary.url}
 Summary: ${summary.summary}
 `,
-		)
-		.join("\n");
+    )
+    .join("\n");
 
-	const systemPrompt = new SystemMessage(
-		`You are a research synthesizer creating a comprehensive markdown report from multiple sources.
+  const systemPrompt = new SystemMessage(
+    `You are a research synthesizer creating a comprehensive markdown report from multiple sources.
 
 ## Research Topic
 ${state.researchTopic}
@@ -79,30 +79,30 @@ Create a well-structured markdown report that includes:
 - Use proper markdown formatting
 
 Now create the research report.`,
-	);
+  );
 
-	const ReportSchema = z.object({
-		finalReport: z
-			.string()
-			.describe(
-				"Complete markdown report with table of contents, executive summary, detailed findings, and citations",
-			),
-	});
+  const ReportSchema = z.object({
+    finalReport: z
+      .string()
+      .describe(
+        "Complete markdown report with table of contents, executive summary, detailed findings, and citations",
+      ),
+  });
 
-	const agent = createAgent({
-		model: complexLangchainModel(),
-		responseFormat: toolStrategy(ReportSchema),
-		systemPrompt,
-		middleware: retryMiddleware,
-	});
+  const agent = createAgent({
+    model: complexLangchainModel(),
+    responseFormat: toolStrategy(ReportSchema),
+    systemPrompt,
+    middleware: retryMiddleware,
+  });
 
-	const response = await agent.invoke({ messages: state.messages });
+  const response = await agent.invoke({ messages: state.messages });
 
-	return new Command({
-		update: {
-			finalReport: response.structuredResponse.finalReport,
-			status: "completed",
-		},
-		goto: END,
-	});
+  return new Command({
+    update: {
+      finalReport: response.structuredResponse.finalReport,
+      status: "completed",
+    },
+    goto: END,
+  });
 }

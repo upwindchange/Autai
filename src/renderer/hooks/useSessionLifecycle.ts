@@ -9,46 +9,46 @@ const logger = log.scope("useSessionLifecycle");
  * Handles session lifecycle events: creation, switching, and deletion.
  */
 export function useSessionLifecycle() {
-	const previousSessionIdRef = useRef<string | null>(null);
+  const previousSessionIdRef = useRef<string | null>(null);
 
-	// Handle session switch events
-	useAssistantEvent("threadListItem.switchedTo", (event) => {
-		logger.debug("session switch event", { sessionId: event.threadId });
+  // Handle session switch events
+  useAssistantEvent("threadListItem.switchedTo", (event) => {
+    logger.debug("session switch event", { sessionId: event.threadId });
 
-		if (event.threadId && event.threadId !== previousSessionIdRef.current) {
-			logger.debug("sending sessiontab:switched ipc", {
-				sessionId: event.threadId,
-			});
-			window.ipcRenderer.send("sessiontab:switched", event.threadId);
-			previousSessionIdRef.current = event.threadId;
-		}
-	});
+    if (event.threadId && event.threadId !== previousSessionIdRef.current) {
+      logger.debug("sending sessiontab:switched ipc", {
+        sessionId: event.threadId,
+      });
+      window.ipcRenderer.send("sessiontab:switched", event.threadId);
+      previousSessionIdRef.current = event.threadId;
+    }
+  });
 
-	// Handle session initialization
-	useAssistantEvent("thread.initialize", (event) => {
-		logger.debug("session initialize event", { sessionId: event.threadId });
+  // Handle session initialization
+  useAssistantEvent("thread.initialize", (event) => {
+    logger.debug("session initialize event", { sessionId: event.threadId });
 
-		if (event.threadId) {
-			logger.debug("sending sessiontab:created ipc", {
-				sessionId: event.threadId,
-			});
-			window.ipcRenderer.send("sessiontab:created", event.threadId);
-			previousSessionIdRef.current = event.threadId;
-		}
-	});
+    if (event.threadId) {
+      logger.debug("sending sessiontab:created ipc", {
+        sessionId: event.threadId,
+      });
+      window.ipcRenderer.send("sessiontab:created", event.threadId);
+      previousSessionIdRef.current = event.threadId;
+    }
+  });
 
-	// Handle session cleanup (when component unmounts)
-	useEffect(() => {
-		return () => {
-			if (previousSessionIdRef.current) {
-				logger.debug("cleanup: sending sessiontab:deleted ipc", {
-					sessionId: previousSessionIdRef.current,
-				});
-				window.ipcRenderer.send(
-					"sessiontab:deleted",
-					previousSessionIdRef.current,
-				);
-			}
-		};
-	}, []);
+  // Handle session cleanup (when component unmounts)
+  useEffect(() => {
+    return () => {
+      if (previousSessionIdRef.current) {
+        logger.debug("cleanup: sending sessiontab:deleted ipc", {
+          sessionId: previousSessionIdRef.current,
+        });
+        window.ipcRenderer.send(
+          "sessiontab:deleted",
+          previousSessionIdRef.current,
+        );
+      }
+    };
+  }, []);
 }

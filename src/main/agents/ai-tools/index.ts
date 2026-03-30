@@ -15,25 +15,25 @@ export { navigationTools } from "./TabControlTools";
 export type { ToolExecutionContext, ToolContextOptions } from "./types/context";
 
 export type {
-	ClickToolResult,
-	FillToolResult,
-	SelectToolResult,
-	HoverToolResult,
-	DragToolResult,
-	ScrollToolResult,
-	GetAttributeToolResult,
-	EvaluateToolResult,
-	GetBasicInfoToolResult,
+  ClickToolResult,
+  FillToolResult,
+  SelectToolResult,
+  HoverToolResult,
+  DragToolResult,
+  ScrollToolResult,
+  GetAttributeToolResult,
+  EvaluateToolResult,
+  GetBasicInfoToolResult,
 } from "./InteractiveTools";
 
 export type { DOMTreeResult, FlattenDOMResult } from "./DOMTools";
 
 export type {
-	ListSessionsResult,
-	GetSessionTabsResult,
-	GetTabInfoResult,
-	CreateTabResult,
-	GetCurrentSessionContextResult,
+  ListSessionsResult,
+  GetSessionTabsResult,
+  GetTabInfoResult,
+  CreateTabResult,
+  GetCurrentSessionContextResult,
 } from "./SessionTabTools";
 
 // All tools as single object for AI SDK
@@ -43,42 +43,42 @@ import { sessionTools } from "./SessionTabTools";
 import { navigationTools } from "./TabControlTools";
 
 export const allBrowserTools = {
-	...interactiveTools,
-	...domTools,
-	...sessionTools,
-	...navigationTools,
+  ...interactiveTools,
+  ...domTools,
+  ...sessionTools,
+  ...navigationTools,
 };
 
 // Tool names enum for type safety
 export const AI_TOOL_NAMES = {
-	// Interactive
-	CLICK_ELEMENT: "clickElement",
-	FILL_ELEMENT: "fillElement",
-	SELECT_OPTION: "selectOption",
-	HOVER_ELEMENT: "hoverElement",
-	DRAG_TO_ELEMENT: "dragToElement",
-	SCROLL_PAGES: "scrollPages",
-	SCROLL_AT_COORDINATE: "scrollAtCoordinate",
-	GET_ATTRIBUTE: "getAttribute",
-	EVALUATE: "evaluate",
-	GET_BASIC_INFO: "getBasicInfo",
+  // Interactive
+  CLICK_ELEMENT: "clickElement",
+  FILL_ELEMENT: "fillElement",
+  SELECT_OPTION: "selectOption",
+  HOVER_ELEMENT: "hoverElement",
+  DRAG_TO_ELEMENT: "dragToElement",
+  SCROLL_PAGES: "scrollPages",
+  SCROLL_AT_COORDINATE: "scrollAtCoordinate",
+  GET_ATTRIBUTE: "getAttribute",
+  EVALUATE: "evaluate",
+  GET_BASIC_INFO: "getBasicInfo",
 
-	// DOM
-	GET_DOM_TREE: "getDOMTree",
-	GET_FLATTEN_DOM: "getFlattenDOM",
+  // DOM
+  GET_DOM_TREE: "getDOMTree",
+  GET_FLATTEN_DOM: "getFlattenDOM",
 
-	// Session
-	LIST_SESSIONS: "listSessions",
-	GET_SESSION_TABS: "getSessionTabs",
-	GET_TAB_INFO: "getTabInfo",
-	CREATE_TAB: "createTab",
-	GET_CURRENT_SESSION_CONTEXT: "getCurrentSessionContext",
+  // Session
+  LIST_SESSIONS: "listSessions",
+  GET_SESSION_TABS: "getSessionTabs",
+  GET_TAB_INFO: "getTabInfo",
+  CREATE_TAB: "createTab",
+  GET_CURRENT_SESSION_CONTEXT: "getCurrentSessionContext",
 
-	// Navigation
-	NAVIGATE: "navigate",
-	REFRESH: "refresh",
-	GO_BACK: "goBack",
-	GO_FORWARD: "goForward",
+  // Navigation
+  NAVIGATE: "navigate",
+  REFRESH: "refresh",
+  GO_BACK: "goBack",
+  GO_FORWARD: "goForward",
 } as const;
 
 export type AIToolName = (typeof AI_TOOL_NAMES)[keyof typeof AI_TOOL_NAMES];

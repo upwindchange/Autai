@@ -1,9 +1,9 @@
 import {
-	streamText,
-	createUIMessageStream,
-	ModelMessage,
-	tool,
-	stepCountIs,
+  streamText,
+  createUIMessageStream,
+  ModelMessage,
+  tool,
+  stepCountIs,
 } from "ai";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
@@ -24,10 +24,10 @@ const logger = log.scope("browser-action-task-executor");
  * Build system prompt for subtask planning
  */
 function buildSystemPrompt(
-	currentTask: UIPlanTodo,
-	taskPlan: UIPlanType,
+  currentTask: UIPlanTodo,
+  taskPlan: UIPlanType,
 ): string {
-	const baseInstructions = `
+  const baseInstructions = `
 
 ## Your Responsibilities
 Expand the current task into subtasks that provide clear instructions for the next subagent.
@@ -61,10 +61,10 @@ Each subtask has:
 ## Important
 You MUST call the showPlan tool to provide your subtask plan. Do not just describe the plan in text — you are required to use the showPlan tool.`;
 
-	// Build failure context from current task's receipt
-	let failureContext = "";
-	if (currentTask.receipt && currentTask.receipt.outcome !== "success") {
-		failureContext = `
+  // Build failure context from current task's receipt
+  let failureContext = "";
+  if (currentTask.receipt && currentTask.receipt.outcome !== "success") {
+    failureContext = `
 
 ## Previous Attempt Failed
 The previous attempt to accomplish this task failed. Here's what happened:
@@ -80,9 +80,9 @@ You MUST replan the subtasks for this task, taking into account:
 4. Whether some steps need to be combined or split differently
 
 Do NOT simply repeat the same plan. Adjust your approach based on the failure.`;
-	}
+  }
 
-	return `You are a browser automation subtask planner. Break down one high-level task into instructional subtasks.
+  return `You are a browser automation subtask planner. Break down one high-level task into instructional subtasks.
 
 ## Current Task
 ${JSON.stringify(currentTask, null, 2)}${failureContext}
@@ -96,25 +96,25 @@ ${JSON.stringify(taskPlan, null, 2)}${baseInstructions}`;
 // ============================================================================
 
 const generateSubtaskPlanTool = tool({
-	description: "Generate a subtask execution plan for the current task",
-	inputSchema: planInputSchema,
-	execute: async (input, { experimental_context }) => {
-		const context = experimental_context as { sessionId: string };
-		// Populate todo ids
-		const todosWithIds = input.todos.map((todo, index) => ({
-			...todo,
-			id: `subtask-${context.sessionId}-${index}`,
-		}));
-		// Populate subtask plan id and maxVisibleTodos
-		const subtaskPlan: UIPlanType = {
-			...input,
-			id: `subtaskplan-${context.sessionId}`,
-			maxVisibleTodos: 4,
-			todos: todosWithIds,
-		};
-		// Return populated subtask plan
-		return subtaskPlan;
-	},
+  description: "Generate a subtask execution plan for the current task",
+  inputSchema: planInputSchema,
+  execute: async (input, { experimental_context }) => {
+    const context = experimental_context as { sessionId: string };
+    // Populate todo ids
+    const todosWithIds = input.todos.map((todo, index) => ({
+      ...todo,
+      id: `subtask-${context.sessionId}-${index}`,
+    }));
+    // Populate subtask plan id and maxVisibleTodos
+    const subtaskPlan: UIPlanType = {
+      ...input,
+      id: `subtaskplan-${context.sessionId}`,
+      maxVisibleTodos: 4,
+      todos: todosWithIds,
+    };
+    // Return populated subtask plan
+    return subtaskPlan;
+  },
 });
 
 // ============================================================================
@@ -136,290 +136,290 @@ const generateSubtaskPlanTool = tool({
  * @returns StreamTextResult that includes subtask planning and execution
  */
 export async function browserUseTaskExecutor(
-	messages: ModelMessage[],
-	sessionId: string,
-	plan: UIPlanType,
-	currentTaskIndex: number,
-	maxRetries: number = 3,
-	attemptCount: number = 0,
+  messages: ModelMessage[],
+  sessionId: string,
+  plan: UIPlanType,
+  currentTaskIndex: number,
+  maxRetries: number = 3,
+  attemptCount: number = 0,
 ): Promise<ReturnType<typeof createUIMessageStream>> {
-	logger.debug("Starting task executor", {
-		sessionId,
-		currentTaskIndex,
-		taskCount: plan.todos.length,
-	});
+  logger.debug("Starting task executor", {
+    sessionId,
+    currentTaskIndex,
+    taskCount: plan.todos.length,
+  });
 
-	// ============================================================================
-	// Validate current task exists
-	// ============================================================================
-	if (
-		!plan ||
-		!plan.todos ||
-		currentTaskIndex < 0 ||
-		currentTaskIndex >= plan.todos.length
-	) {
-		logger.error("Invalid task index", {
-			currentTaskIndex,
-			taskCount: plan.todos?.length ?? 0,
-		});
-		throw new Error(
-			`Invalid task index: ${currentTaskIndex}. Plan has ${plan.todos?.length ?? 0} tasks.`,
-		);
-	}
+  // ============================================================================
+  // Validate current task exists
+  // ============================================================================
+  if (
+    !plan ||
+    !plan.todos ||
+    currentTaskIndex < 0 ||
+    currentTaskIndex >= plan.todos.length
+  ) {
+    logger.error("Invalid task index", {
+      currentTaskIndex,
+      taskCount: plan.todos?.length ?? 0,
+    });
+    throw new Error(
+      `Invalid task index: ${currentTaskIndex}. Plan has ${plan.todos?.length ?? 0} tasks.`,
+    );
+  }
 
-	// ============================================================================
-	// Set current task to in_progress
-	// ============================================================================
-	plan.todos[currentTaskIndex].status = "in_progress";
+  // ============================================================================
+  // Set current task to in_progress
+  // ============================================================================
+  plan.todos[currentTaskIndex].status = "in_progress";
 
-	// Generate simulated tool call messages to trigger UI update
-	const {
-		assistantMessage: inProgressAssistantMsg,
-		toolMessage: inProgressToolMsg,
-	} = await simulateToolCall({
-		toolName: "showPlan",
-		input: {
-			title: plan.title,
-			description: plan.description,
-			todos: plan.todos,
-		},
-		output: plan, // The updated plan with status="in_progress"
-	});
+  // Generate simulated tool call messages to trigger UI update
+  const {
+    assistantMessage: inProgressAssistantMsg,
+    toolMessage: inProgressToolMsg,
+  } = await simulateToolCall({
+    toolName: "showPlan",
+    input: {
+      title: plan.title,
+      description: plan.description,
+      todos: plan.todos,
+    },
+    output: plan, // The updated plan with status="in_progress"
+  });
 
-	// Inject simulated messages into conversation history for UI rendering
-	messages.push(inProgressAssistantMsg, inProgressToolMsg);
+  // Inject simulated messages into conversation history for UI rendering
+  messages.push(inProgressAssistantMsg, inProgressToolMsg);
 
-	logger.debug("Simulated showPlan tool call for UI update", {
-		taskId: plan.todos[currentTaskIndex].id,
-		status: "in_progress",
-	});
+  logger.debug("Simulated showPlan tool call for UI update", {
+    taskId: plan.todos[currentTaskIndex].id,
+    status: "in_progress",
+  });
 
-	// Build prompt
-	const currentTask = plan.todos[currentTaskIndex];
-	const systemPrompt = buildSystemPrompt(currentTask, plan);
+  // Build prompt
+  const currentTask = plan.todos[currentTaskIndex];
+  const systemPrompt = buildSystemPrompt(currentTask, plan);
 
-	logger.debug("Generating subtask plan", {
-		currentTaskLabel: currentTask.label,
-	});
+  logger.debug("Generating subtask plan", {
+    currentTaskLabel: currentTask.label,
+  });
 
-	// ============================================================================
-	// Create a combined stream that includes subtask planning and execution
-	// ============================================================================
-	return createUIMessageStream({
-		execute: async ({ writer }) => {
-			const context = {
-				sessionId,
-			};
+  // ============================================================================
+  // Create a combined stream that includes subtask planning and execution
+  // ============================================================================
+  return createUIMessageStream({
+    execute: async ({ writer }) => {
+      const context = {
+        sessionId,
+      };
 
-			// ============================================================================
-			// Step 1: Generate subtask plan using AI SDK
-			// ============================================================================
-			const subtaskPlanResult = streamText({
-				model: complexModel(),
-				messages: [
-					{ role: "user", content: "Create the subtask plan for this task." },
-				],
-				system: systemPrompt,
-				toolChoice: {
-					type: "tool",
-					toolName: "showPlan",
-				},
-				tools: {
-					showPlan: generateSubtaskPlanTool,
-				},
-				experimental_context: context,
-				stopWhen: [hasSuccessfulToolResult("showPlan"), stepCountIs(100)],
-				experimental_telemetry: {
-					isEnabled: settingsService.settings.langfuse.enabled,
-					functionId: "browser-use-task-executor",
-					metadata: {
-						currentTaskIndex,
-						currentTaskLabel: currentTask.label,
-					},
-				},
-			});
+      // ============================================================================
+      // Step 1: Generate subtask plan using AI SDK
+      // ============================================================================
+      const subtaskPlanResult = streamText({
+        model: complexModel(),
+        messages: [
+          { role: "user", content: "Create the subtask plan for this task." },
+        ],
+        system: systemPrompt,
+        toolChoice: {
+          type: "tool",
+          toolName: "showPlan",
+        },
+        tools: {
+          showPlan: generateSubtaskPlanTool,
+        },
+        experimental_context: context,
+        stopWhen: [hasSuccessfulToolResult("showPlan"), stepCountIs(100)],
+        experimental_telemetry: {
+          isEnabled: settingsService.settings.langfuse.enabled,
+          functionId: "browser-use-task-executor",
+          metadata: {
+            currentTaskIndex,
+            currentTaskLabel: currentTask.label,
+          },
+        },
+      });
 
-			// Merge subtask planning stream and wait for completion
-			await mergeStreamAndWait(
-				subtaskPlanResult.toUIMessageStream({ sendStart: false }),
-				writer,
-			);
+      // Merge subtask planning stream and wait for completion
+      await mergeStreamAndWait(
+        subtaskPlanResult.toUIMessageStream({ sendStart: false }),
+        writer,
+      );
 
-			// Wait for subtask plan to complete and extract it
-			const finishReason = await subtaskPlanResult.finishReason;
-			const steps = await subtaskPlanResult.steps;
+      // Wait for subtask plan to complete and extract it
+      const finishReason = await subtaskPlanResult.finishReason;
+      const steps = await subtaskPlanResult.steps;
 
-			// eslint-disable-next-line @typescript-eslint/no-explicit-any
-			const anySteps = steps as any[];
-			logger.info("Subtask plan stream finished", {
-				finishReason,
-				stepCount: steps.length,
-				steps: anySteps.map((step, i) => ({
-					index: i,
-					toolCalls: (step.toolCalls ?? []).map((tc) => ({
-						toolName: tc.toolName,
-						args: tc.args,
-					})),
-					toolResults: (step.toolResults ?? []).map((tr) => ({
-						type: tr.type,
-						toolName: tr.toolName,
-						hasOutput: tr.output != null,
-						output: tr.output,
-						error: tr.error,
-					})),
-				})),
-			});
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const anySteps = steps as any[];
+      logger.info("Subtask plan stream finished", {
+        finishReason,
+        stepCount: steps.length,
+        steps: anySteps.map((step, i) => ({
+          index: i,
+          toolCalls: (step.toolCalls ?? []).map((tc) => ({
+            toolName: tc.toolName,
+            args: tc.args,
+          })),
+          toolResults: (step.toolResults ?? []).map((tr) => ({
+            type: tr.type,
+            toolName: tr.toolName,
+            hasOutput: tr.output != null,
+            output: tr.output,
+            error: tr.error,
+          })),
+        })),
+      });
 
-			const allToolResults = steps.flatMap((step) => step.toolResults ?? []);
-			const subtaskPlanResultData = allToolResults.find(
-				(toolResult) =>
-					toolResult.toolName === "showPlan" &&
-					toolResult.type === "tool-result",
-			)?.output as UIPlanType | undefined;
+      const allToolResults = steps.flatMap((step) => step.toolResults ?? []);
+      const subtaskPlanResultData = allToolResults.find(
+        (toolResult) =>
+          toolResult.toolName === "showPlan" &&
+          toolResult.type === "tool-result",
+      )?.output as UIPlanType | undefined;
 
-			if (!subtaskPlanResultData) {
-				// eslint-disable-next-line @typescript-eslint/no-explicit-any
-				const anyResults = allToolResults as any[];
-				const errorResults = anyResults.filter(
-					(tr) => tr.toolName === "showPlan" && tr.type === "tool-error",
-				);
-				if (errorResults.length > 0) {
-					logger.error("showPlan tool call(s) failed with errors", {
-						count: errorResults.length,
-						errors: errorResults.map((er) => ({
-							error: er.error,
-							input: er.input,
-						})),
-					});
-				} else {
-					logger.error("No showPlan tool results found at all", {
-						allToolResultNames: allToolResults.map(
-							(tr) => `${tr.type}:${tr.toolName}`,
-						),
-					});
-				}
-				throw new Error(
-					"Failed to generate subtask plan: showPlan tool not called",
-				);
-			}
+      if (!subtaskPlanResultData) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const anyResults = allToolResults as any[];
+        const errorResults = anyResults.filter(
+          (tr) => tr.toolName === "showPlan" && tr.type === "tool-error",
+        );
+        if (errorResults.length > 0) {
+          logger.error("showPlan tool call(s) failed with errors", {
+            count: errorResults.length,
+            errors: errorResults.map((er) => ({
+              error: er.error,
+              input: er.input,
+            })),
+          });
+        } else {
+          logger.error("No showPlan tool results found at all", {
+            allToolResultNames: allToolResults.map(
+              (tr) => `${tr.type}:${tr.toolName}`,
+            ),
+          });
+        }
+        throw new Error(
+          "Failed to generate subtask plan: showPlan tool not called",
+        );
+      }
 
-			logger.info("Subtask plan generated successfully", {
-				title: subtaskPlanResultData.title,
-				todoCount: subtaskPlanResultData.todos.length,
-			});
+      logger.info("Subtask plan generated successfully", {
+        title: subtaskPlanResultData.title,
+        todoCount: subtaskPlanResultData.todos.length,
+      });
 
-			// ============================================================================
-			// Step 2: Execute subtasks (streaming)
-			// ============================================================================
-			logger.debug("Starting subtask execution", {
-				subtaskCount: subtaskPlanResultData.todos.length,
-			});
+      // ============================================================================
+      // Step 2: Execute subtasks (streaming)
+      // ============================================================================
+      logger.debug("Starting subtask execution", {
+        subtaskCount: subtaskPlanResultData.todos.length,
+      });
 
-			const actionExecutorStream = await executeSubtasks(
-				subtaskPlanResultData, // Modified in-place during execution
-				sessionId,
-				messages,
-			);
+      const actionExecutorStream = await executeSubtasks(
+        subtaskPlanResultData, // Modified in-place during execution
+        sessionId,
+        messages,
+      );
 
-			// Merge action executor stream and wait for completion
-			await mergeStreamAndWait(actionExecutorStream, writer);
+      // Merge action executor stream and wait for completion
+      await mergeStreamAndWait(actionExecutorStream, writer);
 
-			logger.info("Subtask execution completed", {
-				subtaskCount: subtaskPlanResultData.todos.length,
-			});
+      logger.info("Subtask execution completed", {
+        subtaskCount: subtaskPlanResultData.todos.length,
+      });
 
-			// Check if any subtasks failed
-			const hasFailedSubtasks = subtaskPlanResultData.todos.some(
-				(t) => t.status === "cancelled",
-			);
+      // Check if any subtasks failed
+      const hasFailedSubtasks = subtaskPlanResultData.todos.some(
+        (t) => t.status === "cancelled",
+      );
 
-			if (hasFailedSubtasks) {
-				// Check if we've exceeded max retries
-				if (attemptCount >= maxRetries) {
-					// Max retries exceeded, mark task as failed
-					plan.todos[currentTaskIndex].status = "cancelled";
-					plan.todos[currentTaskIndex].receipt = {
-						outcome: "failed",
-						summary: `Task failed after ${maxRetries} retry attempts`,
-						at: new Date().toISOString(),
-					};
+      if (hasFailedSubtasks) {
+        // Check if we've exceeded max retries
+        if (attemptCount >= maxRetries) {
+          // Max retries exceeded, mark task as failed
+          plan.todos[currentTaskIndex].status = "cancelled";
+          plan.todos[currentTaskIndex].receipt = {
+            outcome: "failed",
+            summary: `Task failed after ${maxRetries} retry attempts`,
+            at: new Date().toISOString(),
+          };
 
-					logger.error("Task failed after max retries", {
-						currentTaskIndex,
-						attemptCount,
-						maxRetries,
-					});
+          logger.error("Task failed after max retries", {
+            currentTaskIndex,
+            attemptCount,
+            maxRetries,
+          });
 
-					// Generate simulated tool call messages to trigger UI update
-					const {
-						assistantMessage: failedAssistantMsg,
-						toolMessage: failedToolMsg,
-					} = await simulateToolCall({
-						toolName: "showPlan",
-						input: {
-							title: plan.title,
-							todos: plan.todos,
-						},
-						output: plan, // The updated plan with cancelled task
-					});
+          // Generate simulated tool call messages to trigger UI update
+          const {
+            assistantMessage: failedAssistantMsg,
+            toolMessage: failedToolMsg,
+          } = await simulateToolCall({
+            toolName: "showPlan",
+            input: {
+              title: plan.title,
+              todos: plan.todos,
+            },
+            output: plan, // The updated plan with cancelled task
+          });
 
-					// Inject simulated messages into conversation history
-					messages.push(failedAssistantMsg, failedToolMsg);
-				} else {
-					// Store failure information in current task
-					plan.todos[currentTaskIndex].receipt = subtaskPlanResultData.receipt;
+          // Inject simulated messages into conversation history
+          messages.push(failedAssistantMsg, failedToolMsg);
+        } else {
+          // Store failure information in current task
+          plan.todos[currentTaskIndex].receipt = subtaskPlanResultData.receipt;
 
-					logger.info("Subtasks failed, replanning...", {
-						currentTaskIndex,
-						attemptCount: attemptCount + 1,
-						maxRetries,
-					});
+          logger.info("Subtasks failed, replanning...", {
+            currentTaskIndex,
+            attemptCount: attemptCount + 1,
+            maxRetries,
+          });
 
-					// Recursively call browserUseTaskExecutor to replan
-					const replanStream = await browserUseTaskExecutor(
-						messages,
-						sessionId,
-						plan,
-						currentTaskIndex,
-						maxRetries,
-						attemptCount + 1,
-					);
+          // Recursively call browserUseTaskExecutor to replan
+          const replanStream = await browserUseTaskExecutor(
+            messages,
+            sessionId,
+            plan,
+            currentTaskIndex,
+            maxRetries,
+            attemptCount + 1,
+          );
 
-					// Merge replan stream and wait for completion
-					await mergeStreamAndWait(replanStream, writer);
-				}
-			} else {
-				// All subtasks succeeded, mark task as completed
-				plan.todos[currentTaskIndex].status = "completed";
+          // Merge replan stream and wait for completion
+          await mergeStreamAndWait(replanStream, writer);
+        }
+      } else {
+        // All subtasks succeeded, mark task as completed
+        plan.todos[currentTaskIndex].status = "completed";
 
-				logger.info("Task completed successfully", {
-					currentTaskIndex,
-					taskLabel: plan.todos[currentTaskIndex].label,
-				});
+        logger.info("Task completed successfully", {
+          currentTaskIndex,
+          taskLabel: plan.todos[currentTaskIndex].label,
+        });
 
-				// Generate simulated tool call messages to trigger UI update
-				const {
-					assistantMessage: completedAssistantMsg,
-					toolMessage: completedToolMsg,
-				} = await simulateToolCall({
-					toolName: "showPlan",
-					input: {
-						title: plan.title,
-						todos: plan.todos,
-					},
-					output: plan, // The updated plan with completed task
-				});
+        // Generate simulated tool call messages to trigger UI update
+        const {
+          assistantMessage: completedAssistantMsg,
+          toolMessage: completedToolMsg,
+        } = await simulateToolCall({
+          toolName: "showPlan",
+          input: {
+            title: plan.title,
+            todos: plan.todos,
+          },
+          output: plan, // The updated plan with completed task
+        });
 
-				// Inject simulated messages into conversation history
-				messages.push(completedAssistantMsg, completedToolMsg);
-			}
-		},
-		onError: (error) => {
-			logger.error("Error in task executor stream", {
-				error,
-				stack: error instanceof Error ? error.stack : undefined,
-			});
-			return error instanceof Error ? error.message : String(error);
-		},
-	});
+        // Inject simulated messages into conversation history
+        messages.push(completedAssistantMsg, completedToolMsg);
+      }
+    },
+    onError: (error) => {
+      logger.error("Error in task executor stream", {
+        error,
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      return error instanceof Error ? error.message : String(error);
+    },
+  });
 }

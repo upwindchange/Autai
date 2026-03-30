@@ -7,17 +7,17 @@ import { createTabTool } from "@/agents/tools/SessionTabTools";
 import { navigateTool } from "@/agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@/agents/tools/DOMTools";
 import {
-	clickElementTool,
-	scrollPagesTool,
-	hoverElementTool,
+  clickElementTool,
+  scrollPagesTool,
+  hoverElementTool,
 } from "@/agents/tools/InteractiveTools";
 import { retryMiddleware } from "@agents/utils";
 
 export async function pageWorkerNode(
-	state: PageWorkerStateType,
+  state: PageWorkerStateType,
 ): Promise<Partial<BrowserResearcherStateType>> {
-	const systemPrompt = new SystemMessage(
-		`You are a content researcher extracting and summarizing relevant information from a web page.
+  const systemPrompt = new SystemMessage(
+    `You are a content researcher extracting and summarizing relevant information from a web page.
 
 ## Your Task
 1. Create a new browser tab for this worker
@@ -50,43 +50,43 @@ ${state.url}
 - Include source context in your summary
 
 Now extract and summarize the relevant content.`,
-	);
+  );
 
-	const SummarySchema = z.object({
-		summary: z
-			.string()
-			.describe(
-				"Summary of the page content relevant to the research topic, or a note if the page is inaccessible",
-			),
-	});
+  const SummarySchema = z.object({
+    summary: z
+      .string()
+      .describe(
+        "Summary of the page content relevant to the research topic, or a note if the page is inaccessible",
+      ),
+  });
 
-	const agent = createAgent({
-		model: complexLangchainModel(),
-		tools: [
-			createTabTool,
-			navigateTool,
-			getFlattenDOMTool,
-			clickElementTool,
-			scrollPagesTool,
-			hoverElementTool,
-		],
-		responseFormat: toolStrategy(SummarySchema),
-		systemPrompt,
-		middleware: retryMiddleware,
-	});
+  const agent = createAgent({
+    model: complexLangchainModel(),
+    tools: [
+      createTabTool,
+      navigateTool,
+      getFlattenDOMTool,
+      clickElementTool,
+      scrollPagesTool,
+      hoverElementTool,
+    ],
+    responseFormat: toolStrategy(SummarySchema),
+    systemPrompt,
+    middleware: retryMiddleware,
+  });
 
-	const response = await agent.invoke(
-		{ messages: state.messages },
-		{ recursionLimit: 10 }, // Simple recaptcha handling with attempt limit
-	);
+  const response = await agent.invoke(
+    { messages: state.messages },
+    { recursionLimit: 10 }, // Simple recaptcha handling with attempt limit
+  );
 
-	return {
-		pageSummaries: [
-			{
-				url: state.url,
-				summary: response.structuredResponse.summary,
-			},
-		],
-		processedUrls: [state.url],
-	};
+  return {
+    pageSummaries: [
+      {
+        url: state.url,
+        summary: response.structuredResponse.summary,
+      },
+    ],
+    processedUrls: [state.url],
+  };
 }

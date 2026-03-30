@@ -10,10 +10,10 @@ import { getFlattenDOMTool } from "@/agents/tools/DOMTools";
 import { retryMiddleware } from "@agents/utils";
 
 export async function searchPlannerNode(
-	state: BrowserResearcherStateType,
+  state: BrowserResearcherStateType,
 ): Promise<Command> {
-	const systemPrompt = new SystemMessage(
-		`You are a search specialist using DuckDuckGo to find relevant information for the user's research topic.
+  const systemPrompt = new SystemMessage(
+    `You are a search specialist using DuckDuckGo to find relevant information for the user's research topic.
 
 ## Your Task
 1. Create a new browser tab for the search
@@ -34,45 +34,45 @@ export async function searchPlannerNode(
 - Skip ads, sponsored content, and navigation elements
 
 Now search DuckDuckGo and extract the search results.`,
-	);
+  );
 
-	const SearchResultSchema = z.object({
-		searchResults: z
-			.array(
-				z.object({
-					url: z.string().describe("The URL of the search result"),
-					title: z.string().describe("The title of the search result"),
-				}),
-			)
-			.describe("Array of 5-10 relevant search results with URLs and titles"),
-	});
+  const SearchResultSchema = z.object({
+    searchResults: z
+      .array(
+        z.object({
+          url: z.string().describe("The URL of the search result"),
+          title: z.string().describe("The title of the search result"),
+        }),
+      )
+      .describe("Array of 5-10 relevant search results with URLs and titles"),
+  });
 
-	const agent = createAgent({
-		model: complexLangchainModel(),
-		tools: [createTabTool, navigateTool, getFlattenDOMTool],
-		responseFormat: toolStrategy(SearchResultSchema),
-		systemPrompt,
-		middleware: retryMiddleware,
-	});
+  const agent = createAgent({
+    model: complexLangchainModel(),
+    tools: [createTabTool, navigateTool, getFlattenDOMTool],
+    responseFormat: toolStrategy(SearchResultSchema),
+    systemPrompt,
+    middleware: retryMiddleware,
+  });
 
-	const response = await agent.invoke({ messages: state.messages });
-	const searchResults = response.structuredResponse.searchResults;
+  const response = await agent.invoke({ messages: state.messages });
+  const searchResults = response.structuredResponse.searchResults;
 
-	// Create Send objects for each search result to spawn parallel workers
-	const workerCommands: Send[] = searchResults.map((result) => {
-		return new Send("page-worker", {
-			url: result.url,
-			sessionId: state.sessionId,
-			researchTopic: state.researchTopic,
-			messages: state.messages,
-		} as PageWorkerStateType);
-	});
+  // Create Send objects for each search result to spawn parallel workers
+  const workerCommands: Send[] = searchResults.map((result) => {
+    return new Send("page-worker", {
+      url: result.url,
+      sessionId: state.sessionId,
+      researchTopic: state.researchTopic,
+      messages: state.messages,
+    } as PageWorkerStateType);
+  });
 
-	return new Command({
-		update: {
-			searchResults: searchResults,
-		},
-		// Send array of Send objects to spawn parallel workers
-		goto: workerCommands,
-	});
+  return new Command({
+    update: {
+      searchResults: searchResults,
+    },
+    // Send array of Send objects to spawn parallel workers
+    goto: workerCommands,
+  });
 }

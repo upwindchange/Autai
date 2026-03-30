@@ -9,16 +9,16 @@ export type AppMode = "vscode-debug" | "dev-server" | "production";
  * @returns The current app mode
  */
 export function getAppMode(): AppMode {
-	const isVSCodeDebug = !!process.env.VSCODE_DEBUG;
-	const isDevServer = !!process.env.ELECTRON_RENDERER_URL;
+  const isVSCodeDebug = !!process.env.VSCODE_DEBUG;
+  const isDevServer = !!process.env.ELECTRON_RENDERER_URL;
 
-	if (isVSCodeDebug) {
-		return "vscode-debug";
-	} else if (isDevServer) {
-		return "dev-server"; // pnpm dev
-	} else {
-		return "production"; // pnpm build
-	}
+  if (isVSCodeDebug) {
+    return "vscode-debug";
+  } else if (isDevServer) {
+    return "dev-server"; // pnpm dev
+  } else {
+    return "production"; // pnpm build
+  }
 }
 
 /**
@@ -26,5 +26,5 @@ export function getAppMode(): AppMode {
  * @returns true if running in any development mode
  */
 export function isDevMode(): boolean {
-	return !!process.env.ELECTRON_RENDERER_URL || !!process.env.VSCODE_DEBUG;
+  return !!process.env.ELECTRON_RENDERER_URL || !!process.env.VSCODE_DEBUG;
 }

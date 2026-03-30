@@ -6,46 +6,46 @@ import { browserUseWorkflow } from "./graph";
 import { CallbackHandler } from "@langfuse/langchain";
 
 export class BrowserUseWorker {
-	private logger = log.scope("BrowserUseWorker");
+  private logger = log.scope("BrowserUseWorker");
 
-	constructor() {
-		this.logger.info("BrowserUseWorker initialized");
-	}
+  constructor() {
+    this.logger.info("BrowserUseWorker initialized");
+  }
 
-	async handleChat(
-		messages: UIMessage[],
-		sessionId: string,
-		useBrowser: boolean,
-		webSearch: boolean,
-	): Promise<ReadableStream<UIMessageChunk>> {
-		const langfuseHandler = new CallbackHandler({
-			sessionId: sessionId,
-			tags: ["BrowserUseWorker"],
-		});
+  async handleChat(
+    messages: UIMessage[],
+    sessionId: string,
+    useBrowser: boolean,
+    webSearch: boolean,
+  ): Promise<ReadableStream<UIMessageChunk>> {
+    const langfuseHandler = new CallbackHandler({
+      sessionId: sessionId,
+      tags: ["BrowserUseWorker"],
+    });
 
-		this.logger.debug("request received", {
-			messagesCount: messages?.length,
-			sessionId: sessionId,
-			useBrowser,
-			webSearch,
-		});
+    this.logger.debug("request received", {
+      messagesCount: messages?.length,
+      sessionId: sessionId,
+      useBrowser,
+      webSearch,
+    });
 
-		const langchainMessages = await toBaseMessages(messages);
+    const langchainMessages = await toBaseMessages(messages);
 
-		const stream = await browserUseWorkflow.stream(
-			{
-				messages: langchainMessages,
-				sessionId,
-				useBrowser,
-				webSearch,
-			},
-			{
-				callbacks: [langfuseHandler],
-				configurable: { thread_id: sessionId },
-				streamMode: ["messages", "updates", "tools"],
-				subgraphs: true,
-			},
-		);
-		return toUIMessageStream(stream);
-	}
+    const stream = await browserUseWorkflow.stream(
+      {
+        messages: langchainMessages,
+        sessionId,
+        useBrowser,
+        webSearch,
+      },
+      {
+        callbacks: [langfuseHandler],
+        configurable: { thread_id: sessionId },
+        streamMode: ["messages", "updates", "tools"],
+        subgraphs: true,
+      },
+    );
+    return toUIMessageStream(stream);
+  }
 }

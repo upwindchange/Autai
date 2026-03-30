@@ -10,20 +10,20 @@ import { modelRetryMiddleware, toolRetryMiddleware } from "langchain";
  * - Continues on failure (returns error message instead of raising)
  */
 export const retryMiddleware = [
-	modelRetryMiddleware({
-		maxRetries: 3,
-		backoffFactor: 2.0,
-		initialDelayMs: 1000,
-		maxDelayMs: 60000,
-		jitter: true,
-		onFailure: "continue",
-	}),
-	toolRetryMiddleware({
-		maxRetries: 3,
-		backoffFactor: 2.0,
-		initialDelayMs: 1000,
-		maxDelayMs: 60000,
-		jitter: true,
-		onFailure: "continue",
-	}),
+  modelRetryMiddleware({
+    maxRetries: 3,
+    backoffFactor: 2.0,
+    initialDelayMs: 1000,
+    maxDelayMs: 60000,
+    jitter: true,
+    onFailure: "continue",
+  }),
+  toolRetryMiddleware({
+    maxRetries: 3,
+    backoffFactor: 2.0,
+    initialDelayMs: 1000,
+    maxDelayMs: 60000,
+    jitter: true,
+    onFailure: "continue",
+  }),
 ];

@@ -1,51 +1,51 @@
 import {
-	Annotation,
-	MessagesAnnotation,
-	StateGraph,
+  Annotation,
+  MessagesAnnotation,
+  StateGraph,
 } from "@langchain/langgraph";
 import { z } from "zod";
 
 export const PlanItemSchema = z.object({
-	id: z
-		.string()
-		.regex(
-			/^\d+$/,
-			"Must be a string representation of a number (e.g., '1', '2', '3')",
-		)
-		.describe(
-			"identifier for the plan step, string of a number (e.g., '1', '2', '3'), incrementally increasing from '1' to the step number",
-		),
-	label: z.string().describe("Short human-readable title of the step"),
-	status: z
-		.enum(["pending", "in_progress", "completed", "failed"])
-		.describe("Current status of this plan step"),
-	description: z
-		.string()
-		.describe("Detailed description of what this step involves"),
-	results: z
-		.array(z.any())
-		.optional()
-		.describe(
-			"Array of BaseMessage objects from tool execution results for this step, will be populated during execution",
-		),
+  id: z
+    .string()
+    .regex(
+      /^\d+$/,
+      "Must be a string representation of a number (e.g., '1', '2', '3')",
+    )
+    .describe(
+      "identifier for the plan step, string of a number (e.g., '1', '2', '3'), incrementally increasing from '1' to the step number",
+    ),
+  label: z.string().describe("Short human-readable title of the step"),
+  status: z
+    .enum(["pending", "in_progress", "completed", "failed"])
+    .describe("Current status of this plan step"),
+  description: z
+    .string()
+    .describe("Detailed description of what this step involves"),
+  results: z
+    .array(z.any())
+    .optional()
+    .describe(
+      "Array of BaseMessage objects from tool execution results for this step, will be populated during execution",
+    ),
 });
 
 export const PlanSchema = z.object({
-	title: z.string().describe("Short human-readable title of the plan"),
-	steps: z.array(PlanItemSchema).describe("Array of plan steps"),
+  title: z.string().describe("Short human-readable title of the plan"),
+  steps: z.array(PlanItemSchema).describe("Array of plan steps"),
 });
 
 export type Plan = z.infer<typeof PlanSchema>;
 
 const BrowserActionState = Annotation.Root({
-	...MessagesAnnotation.spec,
-	mode: Annotation<string>,
-	sessionId: Annotation<string>,
-	task_plan: Annotation<Plan>,
-	current_task_index: Annotation<number>, // -1 means no active task
-	subtask_plan: Annotation<Plan>,
-	current_subtask_index: Annotation<number>, // -1 means no active subtask
-	response: Annotation<string>,
+  ...MessagesAnnotation.spec,
+  mode: Annotation<string>,
+  sessionId: Annotation<string>,
+  task_plan: Annotation<Plan>,
+  current_task_index: Annotation<number>, // -1 means no active task
+  subtask_plan: Annotation<Plan>,
+  current_subtask_index: Annotation<number>, // -1 means no active subtask
+  response: Annotation<string>,
 });
 
 // Extract the state type for function signatures

@@ -3,49 +3,49 @@
 import { memo, type ComponentProps, type FC } from "react";
 import type { QuoteMessagePartComponent } from "@assistant-ui/react";
 import {
-	ComposerPrimitive,
-	SelectionToolbarPrimitive,
+  ComposerPrimitive,
+  SelectionToolbarPrimitive,
 } from "@assistant-ui/react";
 import { QuoteIcon, XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 function QuoteBlockRoot({ className, ...props }: ComponentProps<"div">) {
-	return (
-		<div
-			data-slot="quote-block"
-			className={cn("mb-2 flex items-start gap-1.5", className)}
-			{...props}
-		/>
-	);
+  return (
+    <div
+      data-slot="quote-block"
+      className={cn("mb-2 flex items-start gap-1.5", className)}
+      {...props}
+    />
+  );
 }
 
 function QuoteBlockIcon({
-	className,
-	...props
+  className,
+  ...props
 }: ComponentProps<typeof QuoteIcon>) {
-	return (
-		<QuoteIcon
-			data-slot="quote-block-icon"
-			className={cn(
-				"mt-0.5 size-3 shrink-0 text-muted-foreground/60",
-				className,
-			)}
-			{...props}
-		/>
-	);
+  return (
+    <QuoteIcon
+      data-slot="quote-block-icon"
+      className={cn(
+        "mt-0.5 size-3 shrink-0 text-muted-foreground/60",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 function QuoteBlockText({ className, ...props }: ComponentProps<"p">) {
-	return (
-		<p
-			data-slot="quote-block-text"
-			className={cn(
-				"line-clamp-2 min-w-0 text-muted-foreground/80 text-sm italic",
-				className,
-			)}
-			{...props}
-		/>
-	);
+  return (
+    <p
+      data-slot="quote-block-text"
+      className={cn(
+        "line-clamp-2 min-w-0 text-muted-foreground/80 text-sm italic",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 /**
@@ -61,20 +61,20 @@ function QuoteBlockText({ className, ...props }: ComponentProps<"p">) {
  * ```
  */
 const QuoteBlockImpl: QuoteMessagePartComponent = ({ text }) => {
-	return (
-		<QuoteBlockRoot>
-			<QuoteBlockIcon />
-			<QuoteBlockText>{text}</QuoteBlockText>
-		</QuoteBlockRoot>
-	);
+  return (
+    <QuoteBlockRoot>
+      <QuoteBlockIcon />
+      <QuoteBlockText>{text}</QuoteBlockText>
+    </QuoteBlockRoot>
+  );
 };
 
 const QuoteBlock = memo(
-	QuoteBlockImpl,
+  QuoteBlockImpl,
 ) as unknown as QuoteMessagePartComponent & {
-	Root: typeof QuoteBlockRoot;
-	Icon: typeof QuoteBlockIcon;
-	Text: typeof QuoteBlockText;
+  Root: typeof QuoteBlockRoot;
+  Icon: typeof QuoteBlockIcon;
+  Text: typeof QuoteBlockText;
 };
 
 QuoteBlock.displayName = "QuoteBlock";
@@ -83,43 +83,43 @@ QuoteBlock.Icon = QuoteBlockIcon;
 QuoteBlock.Text = QuoteBlockText;
 
 function SelectionToolbarRoot({
-	className,
-	...props
+  className,
+  ...props
 }: ComponentProps<typeof SelectionToolbarPrimitive.Root>) {
-	return (
-		<SelectionToolbarPrimitive.Root
-			data-slot="selection-toolbar"
-			className={cn(
-				"flex items-center gap-1 rounded-lg border bg-popover px-1 py-1 shadow-md",
-				className,
-			)}
-			{...props}
-		/>
-	);
+  return (
+    <SelectionToolbarPrimitive.Root
+      data-slot="selection-toolbar"
+      className={cn(
+        "flex items-center gap-1 rounded-lg border bg-popover px-1 py-1 shadow-md",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 function SelectionToolbarQuote({
-	className,
-	children,
-	...props
+  className,
+  children,
+  ...props
 }: ComponentProps<typeof SelectionToolbarPrimitive.Quote>) {
-	return (
-		<SelectionToolbarPrimitive.Quote
-			data-slot="selection-toolbar-quote"
-			className={cn(
-				"flex items-center gap-1.5 rounded-md px-2.5 py-1 text-popover-foreground text-sm transition-colors hover:bg-accent",
-				className,
-			)}
-			{...props}
-		>
-			{children ?? (
-				<>
-					<QuoteIcon className="size-3.5" />
-					Quote
-				</>
-			)}
-		</SelectionToolbarPrimitive.Quote>
-	);
+  return (
+    <SelectionToolbarPrimitive.Quote
+      data-slot="selection-toolbar-quote"
+      className={cn(
+        "flex items-center gap-1.5 rounded-md px-2.5 py-1 text-popover-foreground text-sm transition-colors hover:bg-accent",
+        className,
+      )}
+      {...props}
+    >
+      {children ?? (
+        <>
+          <QuoteIcon className="size-3.5" />
+          Quote
+        </>
+      )}
+    </SelectionToolbarPrimitive.Quote>
+  );
 }
 
 /**
@@ -136,21 +136,21 @@ function SelectionToolbarQuote({
  * ```
  */
 const SelectionToolbarImpl: FC<ComponentProps<typeof SelectionToolbarRoot>> = ({
-	className,
-	...props
+  className,
+  ...props
 }) => {
-	return (
-		<SelectionToolbarRoot className={className} {...props}>
-			<SelectionToolbarQuote />
-		</SelectionToolbarRoot>
-	);
+  return (
+    <SelectionToolbarRoot className={className} {...props}>
+      <SelectionToolbarQuote />
+    </SelectionToolbarRoot>
+  );
 };
 
 const SelectionToolbar = memo(
-	SelectionToolbarImpl,
+  SelectionToolbarImpl,
 ) as unknown as typeof SelectionToolbarImpl & {
-	Root: typeof SelectionToolbarRoot;
-	Quote: typeof SelectionToolbarQuote;
+  Root: typeof SelectionToolbarRoot;
+  Quote: typeof SelectionToolbarQuote;
 };
 
 SelectionToolbar.displayName = "SelectionToolbar";
@@ -158,79 +158,79 @@ SelectionToolbar.Root = SelectionToolbarRoot;
 SelectionToolbar.Quote = SelectionToolbarQuote;
 
 function ComposerQuotePreviewRoot({
-	className,
-	...props
+  className,
+  ...props
 }: ComponentProps<typeof ComposerPrimitive.Quote>) {
-	return (
-		<ComposerPrimitive.Quote
-			data-slot="composer-quote"
-			className={cn(
-				"mx-3 mt-2 flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2",
-				className,
-			)}
-			{...props}
-		/>
-	);
+  return (
+    <ComposerPrimitive.Quote
+      data-slot="composer-quote"
+      className={cn(
+        "mx-3 mt-2 flex items-start gap-2 rounded-lg bg-muted/60 px-3 py-2",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 function ComposerQuotePreviewIcon({
-	className,
-	...props
+  className,
+  ...props
 }: ComponentProps<typeof QuoteIcon>) {
-	return (
-		<QuoteIcon
-			data-slot="composer-quote-icon"
-			className={cn(
-				"mt-0.5 size-3.5 shrink-0 text-muted-foreground/70",
-				className,
-			)}
-			{...props}
-		/>
-	);
+  return (
+    <QuoteIcon
+      data-slot="composer-quote-icon"
+      className={cn(
+        "mt-0.5 size-3.5 shrink-0 text-muted-foreground/70",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 function ComposerQuotePreviewText({
-	className,
-	...props
+  className,
+  ...props
 }: ComponentProps<typeof ComposerPrimitive.QuoteText>) {
-	return (
-		<ComposerPrimitive.QuoteText
-			data-slot="composer-quote-text"
-			className={cn(
-				"line-clamp-2 min-w-0 flex-1 text-muted-foreground text-sm",
-				className,
-			)}
-			{...props}
-		/>
-	);
+  return (
+    <ComposerPrimitive.QuoteText
+      data-slot="composer-quote-text"
+      className={cn(
+        "line-clamp-2 min-w-0 flex-1 text-muted-foreground text-sm",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 function ComposerQuotePreviewDismiss({
-	className,
-	children,
-	...props
+  className,
+  children,
+  ...props
 }: ComponentProps<typeof ComposerPrimitive.QuoteDismiss>) {
-	const defaultClassName =
-		"shrink-0 rounded-sm p-0.5 text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground";
+  const defaultClassName =
+    "shrink-0 rounded-sm p-0.5 text-muted-foreground/70 transition-colors hover:bg-accent hover:text-foreground";
 
-	return (
-		<ComposerPrimitive.QuoteDismiss
-			data-slot="composer-quote-dismiss"
-			asChild
-			className={children ? className : undefined}
-			{...props}
-		>
-			{children ?? (
-				<button
-					type="button"
-					aria-label="Dismiss quote"
-					className={cn(defaultClassName, className)}
-				>
-					<XIcon className="size-3.5" />
-				</button>
-			)}
-		</ComposerPrimitive.QuoteDismiss>
-	);
+  return (
+    <ComposerPrimitive.QuoteDismiss
+      data-slot="composer-quote-dismiss"
+      asChild
+      className={children ? className : undefined}
+      {...props}
+    >
+      {children ?? (
+        <button
+          type="button"
+          aria-label="Dismiss quote"
+          className={cn(defaultClassName, className)}
+        >
+          <XIcon className="size-3.5" />
+        </button>
+      )}
+    </ComposerPrimitive.QuoteDismiss>
+  );
 }
 
 /**
@@ -248,24 +248,24 @@ function ComposerQuotePreviewDismiss({
  * ```
  */
 const ComposerQuotePreviewImpl: FC<
-	ComponentProps<typeof ComposerQuotePreviewRoot>
+  ComponentProps<typeof ComposerQuotePreviewRoot>
 > = ({ className, ...props }) => {
-	return (
-		<ComposerQuotePreviewRoot className={className} {...props}>
-			<ComposerQuotePreviewIcon />
-			<ComposerQuotePreviewText />
-			<ComposerQuotePreviewDismiss />
-		</ComposerQuotePreviewRoot>
-	);
+  return (
+    <ComposerQuotePreviewRoot className={className} {...props}>
+      <ComposerQuotePreviewIcon />
+      <ComposerQuotePreviewText />
+      <ComposerQuotePreviewDismiss />
+    </ComposerQuotePreviewRoot>
+  );
 };
 
 const ComposerQuotePreview = memo(
-	ComposerQuotePreviewImpl,
+  ComposerQuotePreviewImpl,
 ) as unknown as typeof ComposerQuotePreviewImpl & {
-	Root: typeof ComposerQuotePreviewRoot;
-	Icon: typeof ComposerQuotePreviewIcon;
-	Text: typeof ComposerQuotePreviewText;
-	Dismiss: typeof ComposerQuotePreviewDismiss;
+  Root: typeof ComposerQuotePreviewRoot;
+  Icon: typeof ComposerQuotePreviewIcon;
+  Text: typeof ComposerQuotePreviewText;
+  Dismiss: typeof ComposerQuotePreviewDismiss;
 };
 
 ComposerQuotePreview.displayName = "ComposerQuotePreview";
@@ -275,16 +275,16 @@ ComposerQuotePreview.Text = ComposerQuotePreviewText;
 ComposerQuotePreview.Dismiss = ComposerQuotePreviewDismiss;
 
 export {
-	QuoteBlock,
-	QuoteBlockRoot,
-	QuoteBlockIcon,
-	QuoteBlockText,
-	SelectionToolbar,
-	SelectionToolbarRoot,
-	SelectionToolbarQuote,
-	ComposerQuotePreview,
-	ComposerQuotePreviewRoot,
-	ComposerQuotePreviewIcon,
-	ComposerQuotePreviewText,
-	ComposerQuotePreviewDismiss,
+  QuoteBlock,
+  QuoteBlockRoot,
+  QuoteBlockIcon,
+  QuoteBlockText,
+  SelectionToolbar,
+  SelectionToolbarRoot,
+  SelectionToolbarQuote,
+  ComposerQuotePreview,
+  ComposerQuotePreviewRoot,
+  ComposerQuotePreviewIcon,
+  ComposerQuotePreviewText,
+  ComposerQuotePreviewDismiss,
 };

@@ -14,80 +14,80 @@ const logger = log.scope("browser-action-planner");
 type ToolUIReceiptOutcome = "success" | "partial" | "failed" | "cancelled";
 
 interface ToolUIReceipt {
-	outcome: ToolUIReceiptOutcome;
-	summary: string;
-	identifiers?: Record<string, string>;
-	at: string;
+  outcome: ToolUIReceiptOutcome;
+  summary: string;
+  identifiers?: Record<string, string>;
+  at: string;
 }
 
 // ===== Result Types =====
 // from src/renderer/components/tool-ui/plan/plan.tsx
 
 export interface UIPlanTodo {
-	id: string;
-	label: string;
-	status: "pending" | "in_progress" | "completed" | "cancelled";
-	description?: string;
-	receipt?: ToolUIReceipt;
+  id: string;
+  label: string;
+  status: "pending" | "in_progress" | "completed" | "cancelled";
+  description?: string;
+  receipt?: ToolUIReceipt;
 }
 
 export interface UIPlanType {
-	id: string;
-	title: string;
-	description: string;
-	todos: UIPlanTodo[];
-	maxVisibleTodos?: number;
-	receipt?: ToolUIReceipt;
+  id: string;
+  title: string;
+  description: string;
+  todos: UIPlanTodo[];
+  maxVisibleTodos?: number;
+  receipt?: ToolUIReceipt;
 }
 
 // ===== Plan Schema =====
 // For AI tool input
 
 export const todoInputSchema = z.object({
-	label: z
-		.string()
-		.min(1)
-		.describe("Short human-readable title of the todo item"),
-	status: z
-		.enum(["pending", "in_progress", "completed", "cancelled"])
-		.default("pending")
-		.describe("Current status of this todo item"),
-	description: z
-		.string()
-		.min(1)
-		.describe("Detailed description of what this todo item involves"),
+  label: z
+    .string()
+    .min(1)
+    .describe("Short human-readable title of the todo item"),
+  status: z
+    .enum(["pending", "in_progress", "completed", "cancelled"])
+    .default("pending")
+    .describe("Current status of this todo item"),
+  description: z
+    .string()
+    .min(1)
+    .describe("Detailed description of what this todo item involves"),
 });
 
 export const planInputSchema = z.object({
-	title: z.string().min(1).describe("Short human-readable title of the plan"),
-	description: z.string().min(1).describe("Detailed description of the plan"),
-	todos: z
-		.array(todoInputSchema)
-		.min(1)
-		.describe("Array of todo items representing the plan steps"),
+  title: z.string().min(1).describe("Short human-readable title of the plan"),
+  description: z.string().min(1).describe("Detailed description of the plan"),
+  todos: z
+    .array(todoInputSchema)
+    .min(1)
+    .describe("Array of todo items representing the plan steps"),
 });
 
 // ===== Tool Definitions =====
 
 const generatePlanTool = tool({
-	description: "Generate a browser automation execution plan",
-	inputSchema: planInputSchema,
-	execute: async (input, { experimental_context }) => {
-		const context = experimental_context as { sessionId: string };
-		// Populate plan id and maxVisibleTodos
-		const plan = {
-			...input,
-			id: `plan-${context.sessionId}`,
-			maxVisibleTodos: 4,
-		};
-		// Populate todo ids
-		plan.todos = plan.todos.map((todo, index) => ({
-			...todo,
-			id: `task-${context.sessionId}-${index}`,
-		}));
-		// Return populated plan
-		return plan;
-	},
+  description: "Generate a browser automation execution plan",
+  inputSchema: planInputSchema,
+  execute: async (input, { experimental_context }) => {
+    const context = experimental_context as { sessionId: string };
+    // Populate plan id and maxVisibleTodos
+    const plan = {
+      ...input,
+      id: `plan-${context.sessionId}`,
+      maxVisibleTodos: 4,
+    };
+    // Populate todo ids
+    plan.todos = plan.todos.map((todo, index) => ({
+      ...todo,
+      id: `task-${context.sessionId}-${index}`,
+    }));
+    // Return populated plan
+    return plan;
+  },
 });
 
 // ===== System Prompt =====
@@ -125,44 +125,44 @@ Now create the execution plan.`;
 // ===== Main Exported Function =====
 
 export async function browserUsePlanner(
-	messages: ModelMessage[],
-	sessionId: string,
+  messages: ModelMessage[],
+  sessionId: string,
 ) {
-	logger.debug("Starting planner", {
-		sessionId,
-		messageCount: messages.length,
-	});
+  logger.debug("Starting planner", {
+    sessionId,
+    messageCount: messages.length,
+  });
 
-	// Create a context for tool execution
-	const context = {
-		sessionId,
-	};
+  // Create a context for tool execution
+  const context = {
+    sessionId,
+  };
 
-	const result = streamText({
-		model: complexModel(),
-		messages,
-		system: plannerSystemPrompt,
-		tools: {
-			showPlan: generatePlanTool,
-		},
-		toolChoice: {
-			type: "tool",
-			toolName: "showPlan",
-		},
-		stopWhen: [hasSuccessfulToolResult("showPlan"), stepCountIs(100)],
-		experimental_context: context,
-		experimental_telemetry: {
-			isEnabled: settingsService.settings.langfuse.enabled,
-			functionId: "browser-action-planner",
-		},
-	});
+  const result = streamText({
+    model: complexModel(),
+    messages,
+    system: plannerSystemPrompt,
+    tools: {
+      showPlan: generatePlanTool,
+    },
+    toolChoice: {
+      type: "tool",
+      toolName: "showPlan",
+    },
+    stopWhen: [hasSuccessfulToolResult("showPlan"), stepCountIs(100)],
+    experimental_context: context,
+    experimental_telemetry: {
+      isEnabled: settingsService.settings.langfuse.enabled,
+      functionId: "browser-action-planner",
+    },
+  });
 
-	// Log when plan generation completes (in background)
-	result.finishReason.then((reason) => {
-		logger.info("Planner stream completed", {
-			finishReason: reason,
-		});
-	});
+  // Log when plan generation completes (in background)
+  result.finishReason.then((reason) => {
+    logger.info("Planner stream completed", {
+      finishReason: reason,
+    });
+  });
 
-	return result;
+  return result;
 }

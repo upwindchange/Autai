@@ -13,41 +13,41 @@ const logger = log.scope("useTabVisibility");
  * The backend handles tab switching between threads via sessiontab:switched events.
  */
 export function useTabVisibility() {
-	const { containerRef, containerBounds } = useUiStore();
-	const mainTabId = useAssistantState(({ threads }) => threads.mainThreadId);
+  const { containerRef, containerBounds } = useUiStore();
+  const mainTabId = useAssistantState(({ threads }) => threads.mainThreadId);
 
-	useEffect(() => {
-		const updateVisibility = async (isVisible: boolean) => {
-			logger.debug("updating visibility", {
-				isVisible,
-				hasContainerBounds: !!containerBounds,
-			});
+  useEffect(() => {
+    const updateVisibility = async (isVisible: boolean) => {
+      logger.debug("updating visibility", {
+        isVisible,
+        hasContainerBounds: !!containerBounds,
+      });
 
-			if (containerBounds) {
-				logger.debug("sending bounds ipc", { containerBounds });
-				// Set visibility (now using send since it's one-way)
-				window.ipcRenderer.send("sessiontab:setBounds", {
-					bounds: containerBounds,
-				});
-			}
+      if (containerBounds) {
+        logger.debug("sending bounds ipc", { containerBounds });
+        // Set visibility (now using send since it's one-way)
+        window.ipcRenderer.send("sessiontab:setBounds", {
+          bounds: containerBounds,
+        });
+      }
 
-			logger.debug("sending visibility ipc", { isVisible });
-			// Set visibility (now using send since it's one-way)
-			window.ipcRenderer.send("sessiontab:setVisibility", {
-				isVisible,
-			});
-		};
+      logger.debug("sending visibility ipc", { isVisible });
+      // Set visibility (now using send since it's one-way)
+      window.ipcRenderer.send("sessiontab:setVisibility", {
+        isVisible,
+      });
+    };
 
-		// Set visibility based on current container state
-		logger.debug("initializing visibility", {
-			hasContainerRef: !!containerRef,
-		});
-		updateVisibility(!!containerRef);
+    // Set visibility based on current container state
+    logger.debug("initializing visibility", {
+      hasContainerRef: !!containerRef,
+    });
+    updateVisibility(!!containerRef);
 
-		// Cleanup function - hide tab when hook unmounts
-		return () => {
-			logger.debug("cleaning up, hiding tab");
-			updateVisibility(false);
-		};
-	}, [containerRef, mainTabId]);
+    // Cleanup function - hide tab when hook unmounts
+    return () => {
+      logger.debug("cleaning up, hiding tab");
+      updateVisibility(false);
+    };
+  }, [containerRef, mainTabId]);
 }
