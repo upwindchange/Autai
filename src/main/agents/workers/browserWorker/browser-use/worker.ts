@@ -86,9 +86,7 @@ export async function browserUseWorker(
 							await mergeStreamAndWait(taskExecutorStream, writer);
 
 							// Check if task completed successfully
-							if (
-								plan.todos[currentTaskIndex].status === "completed"
-							) {
+							if (plan.todos[currentTaskIndex].status === "completed") {
 								logger.info("Task completed, moving to next", {
 									completedIndex: currentTaskIndex,
 								});

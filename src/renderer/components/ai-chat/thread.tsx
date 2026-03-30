@@ -40,7 +40,7 @@ import {
 	ResizableHandle,
 } from "@/components/ui/resizable";
 
-import { MarkdownText } from "@/components/assistant-ui/markdown-text";
+import { MarkdownText } from "@/components/ai-chat/markdown-text";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import {
@@ -50,19 +50,19 @@ import {
 } from "@/components/assistant-ui/attachment";
 import { Reasoning, ReasoningGroup } from "@/components/assistant-ui/reasoning";
 import { MessageTiming } from "@/components/assistant-ui/message-timing";
-	import {
+import {
 	QuoteBlock,
 	SelectionToolbar,
 	ComposerQuotePreview,
-	} from "@/components/assistant-ui/quote";
-	import { Sources } from "@/components/assistant-ui/sources";
-	import { Image } from "@/components/assistant-ui/image";
-	import { File } from "@/components/assistant-ui/file";
-	import { WorkspaceWelcome } from "@/components/ai-chat/workspace-welcome";
-	import { useUiStore } from "@/stores/uiStore";
-	import { useTabVisibility } from "@/hooks";
-	import log from "electron-log/renderer";
-	import { cn } from "@/lib/utils";
+} from "@/components/assistant-ui/quote";
+import { Sources } from "@/components/assistant-ui/sources";
+import { Image } from "@/components/assistant-ui/image";
+import { File } from "@/components/assistant-ui/file";
+import { WorkspaceWelcome } from "@/components/ai-chat/workspace-welcome";
+import { useUiStore } from "@/stores/uiStore";
+import { useTabVisibility } from "@/hooks";
+import log from "electron-log/renderer";
+import { cn } from "@/lib/utils";
 
 const logger = log.scope("Thread");
 
@@ -400,14 +400,18 @@ const AssistantActionBar: FC = () => {
 			autohide="not-last"
 			className="aui-assistant-action-bar-root col-start-3 row-start-2 -ml-1 flex gap-1 text-muted-foreground"
 		>
-			<AuiIf condition={(s) => (s.message as Record<string, unknown>).speech == null}>
+			<AuiIf
+				condition={(s) => (s.message as Record<string, unknown>).speech == null}
+			>
 				<ActionBarPrimitive.Speak asChild>
 					<TooltipIconButton tooltip="Read aloud">
 						<AudioLinesIcon />
 					</TooltipIconButton>
 				</ActionBarPrimitive.Speak>
 			</AuiIf>
-			<AuiIf condition={(s) => (s.message as Record<string, unknown>).speech != null}>
+			<AuiIf
+				condition={(s) => (s.message as Record<string, unknown>).speech != null}
+			>
 				<ActionBarPrimitive.StopSpeaking asChild>
 					<TooltipIconButton tooltip="Stop">
 						<StopCircleIcon />

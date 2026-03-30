@@ -9,7 +9,7 @@ import {
 	type ReasoningMessagePartComponent,
 	type ReasoningGroupComponent,
 } from "@assistant-ui/react";
-import { MarkdownText } from "@/components/assistant-ui/markdown-text";
+import { MarkdownText } from "@/components/ai-chat/markdown-text";
 import {
 	Collapsible,
 	CollapsibleContent,
