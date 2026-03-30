@@ -48,21 +48,21 @@ import {
 	ComposerAttachments,
 	UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
-import { Reasoning } from "@/components/assistant-ui/reasoning";
+import { Reasoning, ReasoningGroup } from "@/components/assistant-ui/reasoning";
 import { MessageTiming } from "@/components/assistant-ui/message-timing";
-import {
+	import {
 	QuoteBlock,
 	SelectionToolbar,
 	ComposerQuotePreview,
-} from "@/components/assistant-ui/quote";
-import { Sources } from "@/components/assistant-ui/sources";
-import { Image } from "@/components/assistant-ui/image";
-import { File } from "@/components/assistant-ui/file";
-import { WorkspaceWelcome } from "@/components/ai-chat/workspace-welcome";
-import { useUiStore } from "@/stores/uiStore";
-import { useTabVisibility } from "@/hooks";
-import log from "electron-log/renderer";
-import { cn } from "@/lib/utils";
+	} from "@/components/assistant-ui/quote";
+	import { Sources } from "@/components/assistant-ui/sources";
+	import { Image } from "@/components/assistant-ui/image";
+	import { File } from "@/components/assistant-ui/file";
+	import { WorkspaceWelcome } from "@/components/ai-chat/workspace-welcome";
+	import { useUiStore } from "@/stores/uiStore";
+	import { useTabVisibility } from "@/hooks";
+	import log from "electron-log/renderer";
+	import { cn } from "@/lib/utils";
 
 const logger = log.scope("Thread");
 
@@ -369,18 +369,19 @@ const AssistantMessage: FC = () => {
 			data-role="assistant"
 		>
 			<div className="aui-assistant-message-content wrap-break-word px-2 text-foreground leading-relaxed">
-				<MessagePrimitive.Parts>
-					{({ part }) => {
-						if (part.type === "reasoning") return <Reasoning {...part} />;
-						if (part.type === "text") return <MarkdownText />;
-						if (part.type === "tool-call")
-							return part.toolUI ?? <ToolFallback {...part} />;
-						if (part.type === "source") return <Sources {...part} />;
-						if (part.type === "image") return <Image {...part} />;
-						if (part.type === "file") return <File {...part} />;
-						return null;
+				<MessagePrimitive.Parts
+					components={{
+						Text: () => <MarkdownText />,
+						Reasoning,
+						ReasoningGroup,
+						tools: {
+							Fallback: (props) => <ToolFallback {...props} />,
+						},
+						Source: (props) => <Sources {...props} />,
+						Image: (props) => <Image {...props} />,
+						File: (props) => <File {...props} />,
 					}}
-				</MessagePrimitive.Parts>
+				/>
 				<MessageError />
 			</div>
 
