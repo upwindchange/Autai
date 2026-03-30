@@ -12,7 +12,7 @@ Autai is an "Automatic AI Agent Driven Browser" - a desktop application built wi
 
 1. Do not run any pnpm command, ask the user to run it.
 2. This project does not use npm, npx. It uses pnpm and pnpm dlx.
-3. All files uses tab `\t` to indent, not spaces.
+3. All files uses tab to indent, not spaces. All files, except for windows .bat and .cmd files, use LF as end of line, not CRLF.
 
 ```bash
 # Development

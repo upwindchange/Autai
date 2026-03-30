@@ -218,7 +218,7 @@ export async function browserUseTaskExecutor(
 			// ============================================================================
 			const subtaskPlanResult = streamText({
 				model: complexModel(),
-				messages,
+				messages: [{ role: "user", content: "Now create the subtask plan for this task." }],
 				system: systemPrompt,
 				toolChoice: {
 					type: "tool",
@@ -233,15 +233,17 @@ export async function browserUseTaskExecutor(
 					isEnabled: settingsService.settings.langfuse.enabled,
 					functionId: "browser-use-task-executor",
 					metadata: {
-						langfuseTraceId: sessionId,
 						currentTaskIndex,
 						currentTaskLabel: currentTask.label,
 					},
 				},
 			});
 
-			// Merge subtask planning stream
-			writer.merge(subtaskPlanResult.toUIMessageStream({ sendStart: false }));
+			// Merge subtask planning stream and wait for completion
+			await mergeStreamAndWait(
+				subtaskPlanResult.toUIMessageStream({ sendStart: false }),
+				writer,
+			);
 
 			// Wait for subtask plan to complete and extract it
 			const finishReason = await subtaskPlanResult.finishReason;

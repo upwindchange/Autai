@@ -154,9 +154,6 @@ export async function browserUsePlanner(
 		experimental_telemetry: {
 			isEnabled: settingsService.settings.langfuse.enabled,
 			functionId: "browser-action-planner",
-			metadata: {
-				langfuseTraceId: sessionId,
-			},
 		},
 	});
 
