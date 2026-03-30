@@ -51,6 +51,7 @@ import {
 import { Reasoning } from "@/components/assistant-ui/reasoning";
 import { MessageTiming } from "@/components/assistant-ui/message-timing";
 import {
+	QuoteBlock,
 	SelectionToolbar,
 	ComposerQuotePreview,
 } from "@/components/assistant-ui/quote";
@@ -463,6 +464,9 @@ const UserMessage: FC = () => {
 			<UserMessageAttachments />
 
 			<div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
+				<MessagePrimitive.Quote>
+					{(quote) => <QuoteBlock {...quote} />}
+				</MessagePrimitive.Quote>
 				<div className="aui-user-message-content wrap-break-word peer rounded-2xl bg-muted px-4 py-2.5 text-foreground empty:hidden">
 					<MessagePrimitive.Parts />
 				</div>
