@@ -88,9 +88,7 @@ Do NOT simply repeat the same plan. Adjust your approach based on the failure.`;
 ${JSON.stringify(currentTask, null, 2)}${failureContext}
 
 ## Overall Plan Context
-${JSON.stringify(taskPlan, null, 2)}${baseInstructions}
-
-Now create the subtask plan for this task.`;
+${JSON.stringify(taskPlan, null, 2)}${baseInstructions}`;
 }
 
 // ============================================================================
@@ -218,7 +216,9 @@ export async function browserUseTaskExecutor(
 			// ============================================================================
 			const subtaskPlanResult = streamText({
 				model: complexModel(),
-				messages: [{ role: "user", content: "Now create the subtask plan for this task." }],
+				messages: [
+					{ role: "user", content: "Create the subtask plan for this task." },
+				],
 				system: systemPrompt,
 				toolChoice: {
 					type: "tool",
