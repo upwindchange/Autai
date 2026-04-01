@@ -3,7 +3,7 @@ import cors from "cors";
 import { type Server } from "http";
 import { ChatWorker } from "@agents/workers";
 import { BrowserWorker } from "@agents/workers/browserWorker/worker";
-import { SessionTabService } from "@/services";
+import { SessionTabService, threadPersistenceService } from "@/services";
 import { sendAlert } from "@/utils";
 import { pipeUIMessageStreamToResponse, type UIMessage, ToolSet } from "ai";
 import log from "electron-log/main";
@@ -122,7 +122,14 @@ export class ApiServer {
                 system,
                 tools,
               );
-              result.pipeUIMessageStreamToResponse(response);
+              result.pipeUIMessageStreamToResponse(response, {
+                onFinish: ({ messages: finalMessages }) => {
+                  threadPersistenceService.saveMessages(
+                    sessionId,
+                    finalMessages,
+                  );
+                },
+              });
             }
 
             // Pipe the stream result to the Express response
@@ -147,6 +154,101 @@ export class ApiServer {
         }
       },
     );
+
+    // Thread management endpoints
+    this.app.get("/threads", (_req, res) => {
+      try {
+        const threads = threadPersistenceService.listThreads();
+        res.json({
+          threads: threads.map((t) => ({
+            remoteId: t.id,
+            status: t.status,
+            title: t.title,
+          })),
+        });
+      } catch (error) {
+        this.logger.error("Error listing threads:", error);
+        res.status(500).json({ error: "Failed to list threads" });
+      }
+    });
+
+    this.app.post("/threads", (req, res) => {
+      try {
+        const { id } = req.body as { id: string };
+        if (!id) {
+          res.status(400).json({ error: "Thread id is required" });
+          return;
+        }
+        const thread = threadPersistenceService.createThread(id);
+        res.status(201).json({
+          remoteId: thread.id,
+          externalId: undefined,
+        });
+      } catch (error) {
+        this.logger.error("Error creating thread:", error);
+        res.status(500).json({ error: "Failed to create thread" });
+      }
+    });
+
+    this.app.get("/threads/:id", (req, res) => {
+      try {
+        const thread = threadPersistenceService.getThread(req.params.id);
+        if (!thread) {
+          res.status(404).json({ error: "Thread not found" });
+          return;
+        }
+        res.json({
+          remoteId: thread.id,
+          status: thread.status,
+          title: thread.title,
+        });
+      } catch (error) {
+        this.logger.error("Error fetching thread:", error);
+        res.status(500).json({ error: "Failed to fetch thread" });
+      }
+    });
+
+    this.app.patch("/threads/:id", (req, res) => {
+      try {
+        const { title, status } = req.body as {
+          title?: string;
+          status?: string;
+        };
+        if (title !== undefined) {
+          threadPersistenceService.renameThread(req.params.id, title);
+        }
+        if (status === "archived") {
+          threadPersistenceService.archiveThread(req.params.id);
+        }
+        if (status === "regular") {
+          threadPersistenceService.unarchiveThread(req.params.id);
+        }
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error("Error updating thread:", error);
+        res.status(500).json({ error: "Failed to update thread" });
+      }
+    });
+
+    this.app.delete("/threads/:id", (req, res) => {
+      try {
+        threadPersistenceService.deleteThread(req.params.id);
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error("Error deleting thread:", error);
+        res.status(500).json({ error: "Failed to delete thread" });
+      }
+    });
+
+    this.app.get("/threads/:id/messages", (req, res) => {
+      try {
+        const messages = threadPersistenceService.loadMessages(req.params.id);
+        res.json({ messages });
+      } catch (error) {
+        this.logger.error("Error loading messages:", error);
+        res.status(500).json({ error: "Failed to load messages" });
+      }
+    });
 
     // Health check endpoint
     this.app.get("/health", (_req, res) => {

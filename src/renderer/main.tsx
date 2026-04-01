@@ -30,6 +30,10 @@ import { AppHeader } from "@/components/app-header";
 import { useState } from "react";
 import { useSessionLifecycle } from "@/hooks";
 import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
+import {
+  useRemoteThreadListRuntime,
+} from "@assistant-ui/react";
+import { backendThreadListAdapter } from "@/adapters/backendThreadListAdapter";
 
 import "./index.css";
 import "./demos/ipc";
@@ -132,27 +136,31 @@ function AppContent() {
  * Manages the sidebar, main content area, and AI chat interface.
  */
 function App() {
-  // Create runtime for the entire app using AI SDK v5 with useChatRuntime
-  const runtime = useChatRuntime({
-    sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
-    transport: new AssistantChatTransport({
-      api: "http://localhost:3001/chat",
-      headers: async () => {
-        const { useBrowser, webSearch, sessionId } = useUiStore.getState();
-        return {
-          "X-Use-Browser": String(useBrowser),
-          "X-Web-Search": String(webSearch),
-          "X-Session-Id": sessionId || "",
-        };
-      },
-    }),
-    adapters: {
-      speech: new WebSpeechSynthesisAdapter(),
-      attachments: new CompositeAttachmentAdapter([
-        new SimpleImageAttachmentAdapter(),
-        new SimpleTextAttachmentAdapter(),
-      ]),
-    },
+  // Create runtime with thread list support (persistence via REST backend)
+  const runtime = useRemoteThreadListRuntime({
+    runtimeHook: () =>
+      useChatRuntime({
+        sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
+        transport: new AssistantChatTransport({
+          api: "http://localhost:3001/chat",
+          headers: async () => {
+            const { useBrowser, webSearch, sessionId } = useUiStore.getState();
+            return {
+              "X-Use-Browser": String(useBrowser),
+              "X-Web-Search": String(webSearch),
+              "X-Session-Id": sessionId || "",
+            };
+          },
+        }),
+        adapters: {
+          speech: new WebSpeechSynthesisAdapter(),
+          attachments: new CompositeAttachmentAdapter([
+            new SimpleImageAttachmentAdapter(),
+            new SimpleTextAttachmentAdapter(),
+          ]),
+        },
+      }),
+    adapter: backendThreadListAdapter,
   });
 
   // Configure assistant-ui with tools using the new Tools() API

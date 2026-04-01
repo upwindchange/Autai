@@ -11,6 +11,7 @@ import {
   settingsService,
   SessionTabService,
   TabControlService,
+  threadPersistenceService,
 } from "@/services";
 import { PQueueManager } from "@agents/utils";
 import { apiServer } from "@agents";
@@ -142,6 +143,9 @@ app.whenReady().then(async () => {
   // Load settings first to get log level
   await settingsService.initialize();
 
+  // Initialize thread persistence database
+  threadPersistenceService.initialize();
+
   // Set log levels from settings or use defaults
   const logLevel =
     settingsService.settings.logLevel || (app.isPackaged ? "info" : "debug");
@@ -234,6 +238,9 @@ app.on("before-quit", async (event) => {
 
     // Clean up ViewControlService singleton
     TabControlService.destroyInstance();
+
+    // Close thread persistence database
+    threadPersistenceService.close();
 
     // Stop API server
     logger.info("Stopping API server...");
