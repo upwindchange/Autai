@@ -47,6 +47,15 @@ export default defineConfig({
   },
   renderer: {
     resolve: {
+      dedupe: [
+        "@assistant-ui/core",
+        "@assistant-ui/react",
+        "@assistant-ui/react-ai-sdk",
+        "@assistant-ui/store",
+        "@assistant-ui/tap",
+        "react",
+        "react-dom",
+      ],
       alias: {
         "@": resolve("src/renderer"),
         "@shared": resolve("src/shared"),
