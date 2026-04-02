@@ -34,3 +34,6 @@
 [submodule "reference/tool-ui"]
 	path = reference/tool-ui
 	url = git@github.com:assistant-ui/tool-ui.git
+[submodule "reference/electron-vite-samples"]
+	path = reference/electron-vite-samples
+	url = git@github.com:caoxiemeihao/electron-vite-samples.git
