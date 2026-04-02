@@ -1,6 +1,7 @@
 import { app } from "electron";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { fileURLToPath } from "node:url";
 import type BetterSqlite3 from "better-sqlite3";
 import type { UIMessage } from "ai";
 import log from "electron-log/main";
@@ -8,6 +9,9 @@ import log from "electron-log/main";
 // better-sqlite3 is a CJS native module — load via createRequire for ESM compat
 const require = createRequire(import.meta.url);
 const Database = require("better-sqlite3") as typeof BetterSqlite3;
+
+// __dirname equivalent for ESM
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const logger = log.scope("ThreadPersistenceService");
 
@@ -35,7 +39,9 @@ class ThreadPersistenceService {
     const dbPath = path.join(userDataPath, "autai.db");
     logger.info("Initializing database", { dbPath });
 
-    this.db = new Database(dbPath);
+    this.db = new Database(dbPath, {
+      nativeBinding: path.join(__dirname, "better_sqlite3.node"),
+    });
 
     // Enable WAL mode for better concurrent read performance
     this.db.pragma("journal_mode = WAL");

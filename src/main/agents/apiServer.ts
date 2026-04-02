@@ -123,6 +123,8 @@ export class ApiServer {
                 tools,
               );
               result.pipeUIMessageStreamToResponse(response, {
+                originalMessages: messages,
+                generateMessageId: () => crypto.randomUUID(),
                 onFinish: ({ messages: finalMessages }) => {
                   threadPersistenceService.saveMessages(
                     sessionId,
