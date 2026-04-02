@@ -2,9 +2,8 @@ import { spawn } from "node:child_process";
 
 // Rebuild better-sqlite3 for Electron's Node ABI version using @electron/rebuild.
 
-const isWin = process.platform === "win32";
 const cp = spawn(
-  isWin ? "pnpm.cmd" : "pnpm",
+  "pnpm",
   ["exec", "electron-rebuild", "-f", "-w", "better-sqlite3"],
   {
     cwd: import.meta.dirname + "/..",
