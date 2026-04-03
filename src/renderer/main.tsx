@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { AppMessage } from "@shared";
@@ -181,8 +182,10 @@ window.ipcRenderer.on("app:message", handleAppMessage);
 
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
-    <App />
-    <Toaster />
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <App />
+      <Toaster />
+    </ThemeProvider>
   </React.StrictMode>,
 );
 
