@@ -124,7 +124,7 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
   },
 
   async generateTitle(
-    _remoteId: string,
+    remoteId: string,
     messages: readonly {
       role: string;
       content: readonly { type: string; text?: string }[];
@@ -132,16 +132,23 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
   ) {
     return createAssistantStream(async (controller) => {
       const firstUserMessage = messages.find((m) => m.role === "user");
+      let title = "New Chat";
       if (firstUserMessage) {
         const content = firstUserMessage.content
           .filter((c) => c.type === "text" && c.text)
           .map((c) => c.text!)
           .join(" ");
-        const title =
-          content.slice(0, 50) + (content.length > 50 ? "..." : "");
-        controller.appendText(title);
-      } else {
-        controller.appendText("New Chat");
+        title = content.slice(0, 50) + (content.length > 50 ? "..." : "");
+      }
+      controller.appendText(title);
+
+      // Persist title to backend so it survives app reboot
+      if (remoteId) {
+        fetch(`${API_BASE}/threads/${remoteId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title }),
+        }).catch(() => {});
       }
     });
   },
