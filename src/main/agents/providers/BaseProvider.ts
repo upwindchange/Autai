@@ -1,6 +1,5 @@
 import type { LanguageModel } from "ai";
 import type { ProviderConfig } from "@shared";
-import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 /**
  * Abstract base class for all AI model providers
@@ -20,13 +19,6 @@ export abstract class BaseProvider {
    * @returns Promise resolving to a LanguageModel instance
    */
   abstract createLanguageModel(modelName: string): LanguageModel;
-
-  /**
-   * Creates a LangChain model instance with the specified model name
-   * @param modelName - The name of the model to create
-   * @returns BaseChatModel instance configured with the provider settings
-   */
-  abstract createLangchainModel(modelName: string): BaseChatModel;
 
   /**
    * Validates the provider configuration

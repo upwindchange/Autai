@@ -6,7 +6,6 @@ import { OpenAICompatibleProvider } from "@agents/providers/OpenAICompatibleProv
 import { AnthropicProvider } from "@agents/providers/AnthropicProvider";
 import { DeepInfraProvider } from "@agents/providers/DeepInfraProvider";
 import { sendAlert } from "@/utils/messageUtils";
-import { BaseChatModel } from "@langchain/core/language_models/chat_models";
 
 /**
  * Creates a provider instance based on the configuration type
@@ -82,68 +81,10 @@ function createModel(
   return provider.createLanguageModel(modelConfig.modelName);
 }
 
-/**
- * Creates a LangChain model based on the active settings for the specified model type
- * @param modelType - The type of model to use ('chat', 'simple' or 'complex')
- * @returns LangChain model instance
- */
-function createLangchainModel(
-  modelType: "chat" | "simple" | "complex" = "simple",
-) {
-  // Get settings
-  const settings = settingsService.settings;
-  if (!settings || !settings.providers || settings.providers.length === 0) {
-    sendAlert(
-      "No Providers Configured",
-      "Please configure at least one provider in settings before using AI features.",
-    );
-    throw new Error("No providers configured");
-  }
-
-  // If useSameModelForAgents is enabled and requesting simple/complex model,
-  // use the chat model configuration instead
-  let effectiveModelType = modelType;
-  if (settings.useSameModelForAgents && modelType !== "chat") {
-    effectiveModelType = "chat";
-  }
-
-  // Get the model configuration for the effective model type
-  const modelConfig = settings.modelConfigurations?.[effectiveModelType];
-  if (!modelConfig) {
-    sendAlert(
-      "Model Not Configured",
-      `No configuration found for ${effectiveModelType} model. Please configure it in settings.`,
-    );
-    throw new Error(
-      `No model configuration found for ${effectiveModelType} model`,
-    );
-  }
-
-  // Find the provider configuration
-  const providerConfig = settings.providers.find(
-    (p) => p.id === modelConfig.providerId,
-  );
-  if (!providerConfig) {
-    sendAlert(
-      "Provider Not Found",
-      `Provider "${modelConfig.providerName}" (ID: ${modelConfig.providerId}) not found. Please check your settings.`,
-    );
-    throw new Error(`Provider with ID ${modelConfig.providerId} not found`);
-  }
-
-  // Create provider instance
-  const provider: BaseProvider = createProvider(providerConfig);
-
-  // Create and return the LangChain model
-  return provider.createLangchainModel(modelConfig.modelName);
-}
-
 // Singleton instances (created on first access)
 let _chatModel: LanguageModel | null = null;
 let _simpleModel: LanguageModel | null = null;
 let _complexModel: LanguageModel | null = null;
-let _simpleLangchainModel: BaseChatModel | null = null;
-let _complexLangchainModel: BaseChatModel | null = null;
 
 // Export arrow functions with singleton pattern
 export const chatModel = (): LanguageModel => {
@@ -165,18 +106,4 @@ export const complexModel = (): LanguageModel => {
     _complexModel = createModel("complex");
   }
   return _complexModel;
-};
-
-export const simpleLangchainModel = () => {
-  if (!_simpleLangchainModel) {
-    _simpleLangchainModel = createLangchainModel("simple");
-  }
-  return _simpleLangchainModel;
-};
-
-export const complexLangchainModel = () => {
-  if (!_complexLangchainModel) {
-    _complexLangchainModel = createLangchainModel("complex");
-  }
-  return _complexLangchainModel;
 };

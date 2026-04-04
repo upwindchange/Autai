@@ -1,7 +1,6 @@
 /**
  * AI SDK Browser Automation Tools
  *
- * Migrated from Langchain patterns to AI SDK patterns
  * Uses experimental_context for zero-token context passing
  */
 

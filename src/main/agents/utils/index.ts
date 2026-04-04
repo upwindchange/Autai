@@ -5,7 +5,6 @@ export {
   flushTelemetry,
   shutdownTelemetry,
 } from "./telemetry";
-export { retryMiddleware } from "./langchainMiddleware";
 export {
   mergeStreamAndWait,
   hasSuccessfulToolResult,
