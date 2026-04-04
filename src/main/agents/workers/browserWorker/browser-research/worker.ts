@@ -4,6 +4,7 @@ import {
   createUIMessageStream,
   UIMessageChunk,
   ModelMessage,
+  type UIMessage,
 } from "ai";
 import { chatModel } from "@agents/providers";
 import { repairToolCall } from "@agents/utils";
@@ -17,11 +18,17 @@ const logger = log.scope("Research Worker");
 export async function browserResearchWorker(
   messages: ModelMessage[],
   sessionId: string,
+  originalMessages: UIMessage[],
+  onFinish?: (messages: UIMessage[]) => void,
 ): Promise<ReadableStream<UIMessageChunk>> {
   try {
     logger.debug("creating stream with chat model");
 
     return createUIMessageStream({
+      originalMessages,
+      onFinish: onFinish
+        ? ({ messages: finalMessages }) => onFinish(finalMessages)
+        : undefined,
       execute: async ({ writer }) => {
         // Configure stop conditions based on available tools
         const stopConditions = [

@@ -112,6 +112,12 @@ export class ApiServer {
                 sessionId,
                 useBrowser,
                 webSearch,
+                (finalMessages) => {
+                  threadPersistenceService.saveMessages(
+                    sessionId,
+                    finalMessages,
+                  );
+                },
               );
               pipeUIMessageStreamToResponse({ response, stream });
             } else {

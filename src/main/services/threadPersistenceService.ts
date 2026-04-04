@@ -1,14 +1,9 @@
 import { app } from "electron";
 import path from "node:path";
-import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
-import type BetterSqlite3 from "better-sqlite3";
+import Database from "better-sqlite3";
 import type { UIMessage } from "ai";
 import log from "electron-log/main";
-
-// better-sqlite3 is a CJS native module — load via createRequire for ESM compat
-const require = createRequire(import.meta.url);
-const Database = require("better-sqlite3") as typeof BetterSqlite3;
 
 // __dirname equivalent for ESM
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -32,7 +27,7 @@ interface MessageRow {
 }
 
 class ThreadPersistenceService {
-  private db: BetterSqlite3.Database | null = null;
+  private db: Database.Database | null = null;
 
   initialize(): void {
     const userDataPath = app.getPath("userData");

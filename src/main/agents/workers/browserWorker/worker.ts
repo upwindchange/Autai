@@ -13,6 +13,7 @@ export async function BrowserWorker(
   sessionId: string,
   useBrowser: boolean,
   webSearch: boolean,
+  onFinish?: (messages: UIMessage[]) => void,
 ): Promise<ReadableStream<UIMessageChunk>> {
   logger.info("request received", {
     messagesCount: messages?.length,
@@ -21,10 +22,10 @@ export async function BrowserWorker(
   const modelMessages = await convertToModelMessages(messages);
   if (useBrowser) {
     logger.info("routing to browser use node");
-    return browserUseWorker(modelMessages, sessionId);
+    return browserUseWorker(modelMessages, sessionId, messages, onFinish);
   } else if (webSearch) {
     logger.info("routing to reseach node");
-    return browserResearchWorker(modelMessages, sessionId);
+    return browserResearchWorker(modelMessages, sessionId, messages, onFinish);
   } else {
     throw new Error("Either useBrowser or webSearch must be true");
   }

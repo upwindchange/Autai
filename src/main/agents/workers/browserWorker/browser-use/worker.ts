@@ -3,6 +3,7 @@ import {
   createUIMessageStream,
   UIMessageChunk,
   ModelMessage,
+  type UIMessage,
 } from "ai";
 import { chatModel } from "@agents/providers";
 import { settingsService } from "@/services";
@@ -19,10 +20,16 @@ const systemPrompt = `You are a browser automation assistant. Summarize what was
 export async function browserUseWorker(
   messages: ModelMessage[],
   sessionId: string,
+  originalMessages: UIMessage[],
+  onFinish?: (messages: UIMessage[]) => void,
 ): Promise<ReadableStream<UIMessageChunk>> {
   logger.info("Entering Browser Use worker");
 
   return createUIMessageStream({
+    originalMessages,
+    onFinish: onFinish
+      ? ({ messages: finalMessages }) => onFinish(finalMessages)
+      : undefined,
     execute: async ({ writer }) => {
       // Create a root span so all child streamText calls nest under one Langfuse trace
       const tracer = trace.getTracer("browser-use-worker", "1.0.0");
