@@ -11,9 +11,9 @@ import { settingsService } from "@/services";
 import { SessionTabService } from "@/services";
 import { simulateToolCall, mergeStreamAndWait } from "@agents/utils";
 import log from "electron-log/main";
-import { interactiveTools } from "@/agents/ai-tools/InteractiveTools";
-import { navigationTools } from "@/agents/ai-tools/TabControlTools";
-import { getFlattenDOMTool } from "@/agents/ai-tools/DOMTools";
+import { interactiveTools } from "@agents/tools/InteractiveTools";
+import { navigationTools } from "@agents/tools/TabControlTools";
+import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import type { UIPlanType, UIPlanTodo } from "./planner";
 import { hasSuccessfulToolResult } from "@/agents/utils";
 
