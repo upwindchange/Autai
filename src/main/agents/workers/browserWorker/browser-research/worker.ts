@@ -90,10 +90,12 @@ export async function browserResearchWorker(
             // Stage 2: Execute Search Queries
             // ============================================================
             logger.debug("Stage 2: Executing search queries");
-            const { stream: searchStream, results: searchResults } =
+            const { stream: searchStream, results: searchResultsPromise } =
               await executeSearchQueries(plan, sessionId, tabId, messages);
 
             await mergeStreamAndWait(searchStream, writer);
+
+            const searchResults = await searchResultsPromise;
 
             logger.info("Search complete", {
               resultCount: searchResults.length,
@@ -122,7 +124,7 @@ export async function browserResearchWorker(
             // Stage 3: Extract Results from URLs
             // ============================================================
             logger.debug("Stage 3: Extracting results from URLs");
-            const { stream: extractionStream, results: extractionResults } =
+            const { stream: extractionStream, results: extractionResultsPromise } =
               await extractResultsFromUrls(
                 searchResults,
                 plan.queries,
@@ -132,6 +134,8 @@ export async function browserResearchWorker(
               );
 
             await mergeStreamAndWait(extractionStream, writer);
+
+            const extractionResults = await extractionResultsPromise;
 
             logger.info("Extraction complete", {
               extractionCount: extractionResults.length,

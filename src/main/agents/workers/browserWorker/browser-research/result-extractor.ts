@@ -129,138 +129,146 @@ export async function extractResultsFromUrls(
   messages: ModelMessage[],
 ): Promise<{
   stream: ReturnType<typeof createUIMessageStream>;
-  results: ExtractionResult[];
+  results: Promise<ExtractionResult[]>;
 }> {
   const allExtractions: ExtractionResult[] = [];
+  let resolveResults: (results: ExtractionResult[]) => void;
+  const resultsPromise = new Promise<ExtractionResult[]>((resolve) => {
+    resolveResults = resolve;
+  });
   const focusDescription = researchFocus.map((q) => q.focus).join("; ");
 
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
-      for (let i = 0; i < searchResults.length; i++) {
-        const searchResult = searchResults[i];
+      try {
+        for (let i = 0; i < searchResults.length; i++) {
+          const searchResult = searchResults[i];
 
-        logger.debug("Extracting from URL", {
-          url: searchResult.url,
-          title: searchResult.title,
-        });
-
-        // Show UI progress
-        const { assistantMessage, toolMessage } = await simulateToolCall({
-          toolName: "showPlan",
-          input: {
-            title: `Reading: ${searchResult.title}`,
-            description: searchResult.url,
-          },
-          output: {
-            id: `extraction-${sessionId}`,
-            title: "Extracting Results",
-            description: "Reading and analyzing web pages",
-            todos: searchResults.map((sr, idx) => ({
-              id: `extract-${sessionId}-${idx}`,
-              label: `Read: ${sr.title}`,
-              status:
-                idx < i
-                  ? "completed"
-                  : idx === i
-                    ? "in_progress"
-                    : "pending",
-              description: sr.url,
-            })),
-          },
-        });
-        messages.push(assistantMessage, toolMessage);
-
-        try {
-          // Navigate to the URL
-          await navigateTo(searchResult.url, sessionId, activeTabId);
-
-          // Get the DOM
-          const domRepresentation = await getFlattenDOM(sessionId, activeTabId);
-
-          // Truncate if too large (60k chars for content pages)
-          const truncatedDom =
-            domRepresentation.length > 60000
-              ? domRepresentation.slice(0, 60000) +
-                "\n\n[... content truncated ...]"
-              : domRepresentation;
-
-          // Extract with LLM
-          const extractionResult = streamText({
-            model: complexModel(),
-            messages: [
-              {
-                role: "user",
-                content: `Research focus: "${focusDescription}"\nSource URL: ${searchResult.url}\nSource title: ${searchResult.title}\n\nPage DOM:\n${truncatedDom}`,
-              },
-            ],
-            system: extractionPrompt,
-            tools: {
-              showExtractionResult: showExtractionResultTool,
-            },
-            toolChoice: {
-              type: "tool",
-              toolName: "showExtractionResult",
-            },
-            stopWhen: [
-              hasSuccessfulToolResult("showExtractionResult"),
-              stepCountIs(10),
-            ],
-            experimental_telemetry: {
-              isEnabled: settingsService.settings.langfuse.enabled,
-              functionId: "research-result-extraction",
-              metadata: {
-                urlIndex: i,
-                url: searchResult.url,
-              },
-            },
-          });
-
-          // Merge extraction stream
-          await mergeStreamAndWait(
-            extractionResult.toUIMessageStream({ sendStart: false }),
-            writer,
-          );
-
-          // Extract result
-          const steps = await extractionResult.steps;
-          const toolResult = steps
-            .flatMap((s) => s.toolResults ?? [])
-            .find(
-              (tr) =>
-                tr.toolName === "showExtractionResult" &&
-                tr.type === "tool-result",
-            );
-
-          if (toolResult) {
-            const output = toolResult.output as ExtractionResult;
-            allExtractions.push({
-              ...output,
-              title: searchResult.title,
-            });
-
-            logger.debug("Extraction complete", {
-              url: searchResult.url,
-              relevant: output.relevant,
-            });
-          } else {
-            logger.warn("No extraction result for URL", {
-              url: searchResult.url,
-            });
-          }
-        } catch (error) {
-          logger.error("Extraction failed for URL", {
-            url: searchResult.url,
-            error: error instanceof Error ? error.message : String(error),
-          });
-
-          allExtractions.push({
+          logger.debug("Extracting from URL", {
             url: searchResult.url,
             title: searchResult.title,
-            summary: `Failed to extract content: ${error instanceof Error ? error.message : String(error)}`,
-            quotes: [],
-            relevant: false,
           });
+
+          // Show UI progress
+          const { assistantMessage, toolMessage } = await simulateToolCall({
+            toolName: "showPlan",
+            input: {
+              title: `Reading: ${searchResult.title}`,
+              description: searchResult.url,
+            },
+            output: {
+              id: `extraction-${sessionId}`,
+              title: "Extracting Results",
+              description: "Reading and analyzing web pages",
+              todos: searchResults.map((sr, idx) => ({
+                id: `extract-${sessionId}-${idx}`,
+                label: `Read: ${sr.title}`,
+                status:
+                  idx < i
+                    ? "completed"
+                    : idx === i
+                      ? "in_progress"
+                      : "pending",
+                description: sr.url,
+              })),
+            },
+          });
+          messages.push(assistantMessage, toolMessage);
+
+          try {
+            // Navigate to the URL
+            await navigateTo(searchResult.url, sessionId, activeTabId);
+
+            // Get the DOM
+            const domRepresentation = await getFlattenDOM(sessionId, activeTabId);
+
+            // Truncate if too large (60k chars for content pages)
+            const truncatedDom =
+              domRepresentation.length > 60000
+                ? domRepresentation.slice(0, 60000) +
+                  "\n\n[... content truncated ...]"
+                : domRepresentation;
+
+            // Extract with LLM
+            const extractionResult = streamText({
+              model: complexModel(),
+              messages: [
+                {
+                  role: "user",
+                  content: `Research focus: "${focusDescription}"\nSource URL: ${searchResult.url}\nSource title: ${searchResult.title}\n\nPage DOM:\n${truncatedDom}`,
+                },
+              ],
+              system: extractionPrompt,
+              tools: {
+                showExtractionResult: showExtractionResultTool,
+              },
+              toolChoice: {
+                type: "tool",
+                toolName: "showExtractionResult",
+              },
+              stopWhen: [
+                hasSuccessfulToolResult("showExtractionResult"),
+                stepCountIs(10),
+              ],
+              experimental_telemetry: {
+                isEnabled: settingsService.settings.langfuse.enabled,
+                functionId: "research-result-extraction",
+                metadata: {
+                  urlIndex: i,
+                  url: searchResult.url,
+                },
+              },
+            });
+
+            // Merge extraction stream
+            await mergeStreamAndWait(
+              extractionResult.toUIMessageStream({ sendStart: false }),
+              writer,
+            );
+
+            // Extract result
+            const steps = await extractionResult.steps;
+            const toolResult = steps
+              .flatMap((s) => s.toolResults ?? [])
+              .find(
+                (tr) =>
+                  tr.toolName === "showExtractionResult" &&
+                  tr.type === "tool-result",
+              );
+
+            if (toolResult) {
+              const output = toolResult.output as ExtractionResult;
+              allExtractions.push({
+                ...output,
+                title: searchResult.title,
+              });
+
+              logger.debug("Extraction complete", {
+                url: searchResult.url,
+                relevant: output.relevant,
+              });
+            } else {
+              logger.warn("No extraction result for URL", {
+                url: searchResult.url,
+              });
+            }
+          } catch (error) {
+            logger.error("Extraction failed for URL", {
+              url: searchResult.url,
+              error: error instanceof Error ? error.message : String(error),
+            });
+
+            allExtractions.push({
+              url: searchResult.url,
+              title: searchResult.title,
+              summary: `Failed to extract content: ${error instanceof Error ? error.message : String(error)}`,
+              quotes: [],
+              relevant: false,
+            });
+          }
         }
+      } finally {
+        resolveResults!([...allExtractions]);
       }
     },
     onError: (error) => {
@@ -274,6 +282,6 @@ export async function extractResultsFromUrls(
 
   return {
     stream,
-    results: allExtractions,
+    results: resultsPromise,
   };
 }

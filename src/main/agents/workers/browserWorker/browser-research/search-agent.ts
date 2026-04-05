@@ -158,129 +158,137 @@ export async function executeSearchQueries(
   messages: ModelMessage[],
 ): Promise<{
   stream: ReturnType<typeof createUIMessageStream>;
-  results: SearchResultItem[];
+  results: Promise<SearchResultItem[]>;
 }> {
   const allResults: SearchResultItem[] = [];
+  let resolveResults: (results: SearchResultItem[]) => void;
+  const resultsPromise = new Promise<SearchResultItem[]>((resolve) => {
+    resolveResults = resolve;
+  });
 
   const stream = createUIMessageStream({
     execute: async ({ writer }) => {
-      for (let i = 0; i < plan.queries.length; i++) {
-        const { query, focus } = plan.queries[i];
-        const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+      try {
+        for (let i = 0; i < plan.queries.length; i++) {
+          const { query, focus } = plan.queries[i];
+          const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
 
-        logger.debug("Searching", { query, searchUrl });
+          logger.debug("Searching", { query, searchUrl });
 
-        // Show UI progress
-        const { assistantMessage, toolMessage } = await simulateToolCall({
-          toolName: "showPlan",
-          input: {
-            title: `Searching: "${query}"`,
-            description: `Query ${i + 1} of ${plan.queries.length}`,
-          },
-          output: {
-            id: `search-${sessionId}`,
-            title: plan.title,
-            description: plan.description,
-            todos: plan.queries.map((q, idx) => ({
-              id: `search-${sessionId}-${idx}`,
-              label: `Search: "${q.query}"`,
-              status:
-                idx < i ? "completed" : idx === i ? "in_progress" : "pending",
-              description: q.focus,
-            })),
-          },
-        });
-        messages.push(assistantMessage, toolMessage);
-
-        try {
-          // Navigate to Google
-          await navigateTo(searchUrl, sessionId, activeTabId);
-
-          // Get the DOM
-          const domRepresentation = await getFlattenDOM(sessionId, activeTabId);
-
-          // Truncate if too large (50k chars)
-          const truncatedDom =
-            domRepresentation.length > 50000
-              ? domRepresentation.slice(0, 50000) +
-                "\n\n[... content truncated ...]"
-              : domRepresentation;
-
-          // Analyze with LLM
-          const analysisResult = streamText({
-            model: complexModel(),
-            messages: [
-              {
-                role: "user",
-                content: `Search query: "${query}"\nFocus: "${focus}"\n\nGoogle search results DOM:\n${truncatedDom}`,
-              },
-            ],
-            system: searchAnalysisPrompt,
-            tools: {
-              showSearchResults: showSearchResultsTool,
+          // Show UI progress
+          const { assistantMessage, toolMessage } = await simulateToolCall({
+            toolName: "showPlan",
+            input: {
+              title: `Searching: "${query}"`,
+              description: `Query ${i + 1} of ${plan.queries.length}`,
             },
-            toolChoice: {
-              type: "tool",
-              toolName: "showSearchResults",
-            },
-            stopWhen: [
-              hasSuccessfulToolResult("showSearchResults"),
-              stepCountIs(10),
-            ],
-            experimental_telemetry: {
-              isEnabled: settingsService.settings.langfuse.enabled,
-              functionId: "research-search-analysis",
-              metadata: { queryIndex: i, query },
+            output: {
+              id: `search-${sessionId}`,
+              title: plan.title,
+              description: plan.description,
+              todos: plan.queries.map((q, idx) => ({
+                id: `search-${sessionId}-${idx}`,
+                label: `Search: "${q.query}"`,
+                status:
+                  idx < i ? "completed" : idx === i ? "in_progress" : "pending",
+                description: q.focus,
+              })),
             },
           });
+          messages.push(assistantMessage, toolMessage);
 
-          // Merge analysis stream
-          await mergeStreamAndWait(
-            analysisResult.toUIMessageStream({ sendStart: false }),
-            writer,
-          );
+          try {
+            // Navigate to Google
+            await navigateTo(searchUrl, sessionId, activeTabId);
 
-          // Extract results
-          const steps = await analysisResult.steps;
-          const toolResult = steps
-            .flatMap((s) => s.toolResults ?? [])
-            .find(
-              (tr) =>
-                tr.toolName === "showSearchResults" &&
-                tr.type === "tool-result",
+            // Get the DOM
+            const domRepresentation = await getFlattenDOM(sessionId, activeTabId);
+
+            // Truncate if too large (50k chars)
+            const truncatedDom =
+              domRepresentation.length > 50000
+                ? domRepresentation.slice(0, 50000) +
+                  "\n\n[... content truncated ...]"
+                : domRepresentation;
+
+            // Analyze with LLM
+            const analysisResult = streamText({
+              model: complexModel(),
+              messages: [
+                {
+                  role: "user",
+                  content: `Search query: "${query}"\nFocus: "${focus}"\n\nGoogle search results DOM:\n${truncatedDom}`,
+                },
+              ],
+              system: searchAnalysisPrompt,
+              tools: {
+                showSearchResults: showSearchResultsTool,
+              },
+              toolChoice: {
+                type: "tool",
+                toolName: "showSearchResults",
+              },
+              stopWhen: [
+                hasSuccessfulToolResult("showSearchResults"),
+                stepCountIs(10),
+              ],
+              experimental_telemetry: {
+                isEnabled: settingsService.settings.langfuse.enabled,
+                functionId: "research-search-analysis",
+                metadata: { queryIndex: i, query },
+              },
+            });
+
+            // Merge analysis stream
+            await mergeStreamAndWait(
+              analysisResult.toUIMessageStream({ sendStart: false }),
+              writer,
             );
 
-          if (toolResult) {
-            const output = toolResult.output as {
-              results: Array<{
-                url: string;
-                title: string;
-                snippet: string;
-                relevanceScore: number;
-              }>;
-            };
+            // Extract results
+            const steps = await analysisResult.steps;
+            const toolResult = steps
+              .flatMap((s) => s.toolResults ?? [])
+              .find(
+                (tr) =>
+                  tr.toolName === "showSearchResults" &&
+                  tr.type === "tool-result",
+              );
 
-            for (const r of output.results) {
-              allResults.push({
-                ...r,
-                queryIndex: i,
+            if (toolResult) {
+              const output = toolResult.output as {
+                results: Array<{
+                  url: string;
+                  title: string;
+                  snippet: string;
+                  relevanceScore: number;
+                }>;
+              };
+
+              for (const r of output.results) {
+                allResults.push({
+                  ...r,
+                  queryIndex: i,
+                });
+              }
+
+              logger.debug("Search results extracted", {
+                query,
+                count: output.results.length,
               });
+            } else {
+              logger.warn("No search results extracted for query", { query });
             }
-
-            logger.debug("Search results extracted", {
+          } catch (error) {
+            logger.error("Search query failed", {
               query,
-              count: output.results.length,
+              error: error instanceof Error ? error.message : String(error),
             });
-          } else {
-            logger.warn("No search results extracted for query", { query });
+            // Continue to next query
           }
-        } catch (error) {
-          logger.error("Search query failed", {
-            query,
-            error: error instanceof Error ? error.message : String(error),
-          });
-          // Continue to next query
         }
+      } finally {
+        resolveResults!(deduplicateResults(allResults));
       }
     },
     onError: (error) => {
@@ -294,6 +302,6 @@ export async function executeSearchQueries(
 
   return {
     stream,
-    results: deduplicateResults(allResults),
+    results: resultsPromise,
   };
 }
