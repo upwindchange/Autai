@@ -151,7 +151,7 @@ export async function extractResultsFromUrls(
 
           // Show UI progress
           const { assistantMessage, toolMessage } = await simulateToolCall({
-            toolName: "showPlan",
+            toolName: "plan",
             input: {
               title: `Reading: ${searchResult.title}`,
               description: searchResult.url,
@@ -164,11 +164,9 @@ export async function extractResultsFromUrls(
                 id: `extract-${sessionId}-${idx}`,
                 label: `Read: ${sr.title}`,
                 status:
-                  idx < i
-                    ? "completed"
-                    : idx === i
-                      ? "in_progress"
-                      : "pending",
+                  idx < i ? "completed"
+                  : idx === i ? "in_progress"
+                  : "pending",
                 description: sr.url,
               })),
             },
@@ -180,14 +178,17 @@ export async function extractResultsFromUrls(
             await navigateTo(searchResult.url, sessionId, activeTabId);
 
             // Get the DOM
-            const domRepresentation = await getFlattenDOM(sessionId, activeTabId);
+            const domRepresentation = await getFlattenDOM(
+              sessionId,
+              activeTabId,
+            );
 
             // Truncate if too large (60k chars for content pages)
             const truncatedDom =
-              domRepresentation.length > 60000
-                ? domRepresentation.slice(0, 60000) +
-                  "\n\n[... content truncated ...]"
-                : domRepresentation;
+              domRepresentation.length > 60000 ?
+                domRepresentation.slice(0, 60000) +
+                "\n\n[... content truncated ...]"
+              : domRepresentation;
 
             // Extract with LLM
             const extractionResult = streamText({

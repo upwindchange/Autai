@@ -304,7 +304,7 @@ export async function executeSubtasks(
             assistantMessage: subtaskAssistantMsg,
             toolMessage: subtaskToolMsg,
           } = await simulateToolCall({
-            toolName: "showPlan",
+            toolName: "plan",
             input: {
               title: subtaskPlan.title,
               todos: subtaskPlan.todos,
@@ -315,7 +315,7 @@ export async function executeSubtasks(
           // Inject simulated messages into conversation history
           messages.push(subtaskAssistantMsg, subtaskToolMsg);
 
-          logger.debug("Simulated showPlan tool call for subtask status", {
+          logger.debug("Simulated plan tool call for subtask status", {
             subtaskId: subtask.id,
             status: subtask.status,
           });

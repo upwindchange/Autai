@@ -143,13 +143,13 @@ export async function browserUsePlanner(
     messages,
     system: plannerSystemPrompt,
     tools: {
-      showPlan: generatePlanTool,
+      plan: generatePlanTool,
     },
     toolChoice: {
       type: "tool",
-      toolName: "showPlan",
+      toolName: "plan",
     },
-    stopWhen: [hasSuccessfulToolResult("showPlan"), stepCountIs(100)],
+    stopWhen: [hasSuccessfulToolResult("plan"), stepCountIs(100)],
     experimental_context: context,
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,

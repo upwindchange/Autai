@@ -27,8 +27,9 @@ export async function browserUseWorker(
 
   return createUIMessageStream({
     originalMessages,
-    onFinish: onFinish
-      ? ({ messages: finalMessages }) => onFinish(finalMessages)
+    onFinish:
+      onFinish ?
+        ({ messages: finalMessages }) => onFinish(finalMessages)
       : undefined,
     execute: async ({ writer }) => {
       // Create a root span so all child streamText calls nest under one Langfuse trace
@@ -56,14 +57,12 @@ export async function browserUseWorker(
             const steps = await planResult.steps;
             const planToolResult = steps
               .flatMap((s) => s.toolResults ?? [])
-              .find((tr) => tr.toolName === "showPlan");
+              .find((tr) => tr.toolName === "plan");
             const plan = planToolResult?.output as UIPlanType;
 
             if (!plan) {
               logger.error("Failed to generate plan: tool not called");
-              throw new Error(
-                "Failed to generate plan: showPlan tool not called",
-              );
+              throw new Error("Failed to generate plan: plan tool not called");
             }
 
             logger.info("Plan generated successfully", {

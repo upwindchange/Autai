@@ -91,7 +91,7 @@ export const frontendToolkit: Toolkit = {
   },
 
   // Plan tool - backend renders a structured plan, UI displays it
-  showPlan: {
+  plan: {
     type: "backend",
     render: ({ result }) => {
       const parsed = safeParseSerializablePlan(result);

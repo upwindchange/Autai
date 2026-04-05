@@ -40,7 +40,7 @@ If the current task is "Log in to current site", you might create:
 4. "Submit all information and complete the login process"
 
 ## Plan Schema
-The showPlan tool expects a plan object with these REQUIRED fields:
+The plan tool expects a plan object with these REQUIRED fields:
 - title: Short title for the subtask plan (e.g., "Subtask plan: Navigate to Google.com")
 - description: Brief description of the subtask plan's overall goal
 - todos: Array of subtask items (see below)
@@ -59,7 +59,7 @@ Each subtask has:
 - Consider page state from previous subtasks when writing instructions
 
 ## Important
-You MUST call the showPlan tool to provide your subtask plan. Do not just describe the plan in text — you are required to use the showPlan tool.`;
+You MUST call the plan tool to provide your subtask plan. Do not just describe the plan in text — you are required to use the plan tool.`;
 
   // Build failure context from current task's receipt
   let failureContext = "";
@@ -177,7 +177,7 @@ export async function browserUseTaskExecutor(
     assistantMessage: inProgressAssistantMsg,
     toolMessage: inProgressToolMsg,
   } = await simulateToolCall({
-    toolName: "showPlan",
+    toolName: "plan",
     input: {
       title: plan.title,
       description: plan.description,
@@ -189,7 +189,7 @@ export async function browserUseTaskExecutor(
   // Inject simulated messages into conversation history for UI rendering
   messages.push(inProgressAssistantMsg, inProgressToolMsg);
 
-  logger.debug("Simulated showPlan tool call for UI update", {
+  logger.debug("Simulated plan tool call for UI update", {
     taskId: plan.todos[currentTaskIndex].id,
     status: "in_progress",
   });
@@ -222,13 +222,13 @@ export async function browserUseTaskExecutor(
         system: systemPrompt,
         toolChoice: {
           type: "tool",
-          toolName: "showPlan",
+          toolName: "plan",
         },
         tools: {
-          showPlan: generateSubtaskPlanTool,
+          plan: generateSubtaskPlanTool,
         },
         experimental_context: context,
-        stopWhen: [hasSuccessfulToolResult("showPlan"), stepCountIs(100)],
+        stopWhen: [hasSuccessfulToolResult("plan"), stepCountIs(100)],
         experimental_telemetry: {
           isEnabled: settingsService.settings.langfuse.enabled,
           functionId: "browser-use-task-executor",
@@ -273,18 +273,17 @@ export async function browserUseTaskExecutor(
       const allToolResults = steps.flatMap((step) => step.toolResults ?? []);
       const subtaskPlanResultData = allToolResults.find(
         (toolResult) =>
-          toolResult.toolName === "showPlan" &&
-          toolResult.type === "tool-result",
+          toolResult.toolName === "plan" && toolResult.type === "tool-result",
       )?.output as UIPlanType | undefined;
 
       if (!subtaskPlanResultData) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const anyResults = allToolResults as any[];
         const errorResults = anyResults.filter(
-          (tr) => tr.toolName === "showPlan" && tr.type === "tool-error",
+          (tr) => tr.toolName === "plan" && tr.type === "tool-error",
         );
         if (errorResults.length > 0) {
-          logger.error("showPlan tool call(s) failed with errors", {
+          logger.error("plan tool call(s) failed with errors", {
             count: errorResults.length,
             errors: errorResults.map((er) => ({
               error: er.error,
@@ -292,14 +291,14 @@ export async function browserUseTaskExecutor(
             })),
           });
         } else {
-          logger.error("No showPlan tool results found at all", {
+          logger.error("No plan tool results found at all", {
             allToolResultNames: allToolResults.map(
               (tr) => `${tr.type}:${tr.toolName}`,
             ),
           });
         }
         throw new Error(
-          "Failed to generate subtask plan: showPlan tool not called",
+          "Failed to generate subtask plan: plan tool not called",
         );
       }
 
@@ -355,7 +354,7 @@ export async function browserUseTaskExecutor(
             assistantMessage: failedAssistantMsg,
             toolMessage: failedToolMsg,
           } = await simulateToolCall({
-            toolName: "showPlan",
+            toolName: "plan",
             input: {
               title: plan.title,
               todos: plan.todos,
@@ -402,7 +401,7 @@ export async function browserUseTaskExecutor(
           assistantMessage: completedAssistantMsg,
           toolMessage: completedToolMsg,
         } = await simulateToolCall({
-          toolName: "showPlan",
+          toolName: "plan",
           input: {
             title: plan.title,
             todos: plan.todos,

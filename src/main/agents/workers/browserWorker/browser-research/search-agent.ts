@@ -177,7 +177,7 @@ export async function executeSearchQueries(
 
           // Show UI progress
           const { assistantMessage, toolMessage } = await simulateToolCall({
-            toolName: "showPlan",
+            toolName: "plan",
             input: {
               title: `Searching: "${query}"`,
               description: `Query ${i + 1} of ${plan.queries.length}`,
@@ -190,7 +190,9 @@ export async function executeSearchQueries(
                 id: `search-${sessionId}-${idx}`,
                 label: `Search: "${q.query}"`,
                 status:
-                  idx < i ? "completed" : idx === i ? "in_progress" : "pending",
+                  idx < i ? "completed"
+                  : idx === i ? "in_progress"
+                  : "pending",
                 description: q.focus,
               })),
             },
@@ -202,14 +204,17 @@ export async function executeSearchQueries(
             await navigateTo(searchUrl, sessionId, activeTabId);
 
             // Get the DOM
-            const domRepresentation = await getFlattenDOM(sessionId, activeTabId);
+            const domRepresentation = await getFlattenDOM(
+              sessionId,
+              activeTabId,
+            );
 
             // Truncate if too large (50k chars)
             const truncatedDom =
-              domRepresentation.length > 50000
-                ? domRepresentation.slice(0, 50000) +
-                  "\n\n[... content truncated ...]"
-                : domRepresentation;
+              domRepresentation.length > 50000 ?
+                domRepresentation.slice(0, 50000) +
+                "\n\n[... content truncated ...]"
+              : domRepresentation;
 
             // Analyze with LLM
             const analysisResult = streamText({
