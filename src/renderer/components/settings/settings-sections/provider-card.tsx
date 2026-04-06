@@ -1,8 +1,5 @@
 import { useState } from "react";
-import {
-  Card,
-  CardHeader,
-} from "@/components/ui/card";
+import { Card, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -268,7 +265,12 @@ export function ProviderCard({
                 ))}
               </div>
             )}
-            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={startEditing}>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={startEditing}
+            >
               <Pencil className="h-4 w-4" />
             </Button>
             {!isOnlyProvider && (

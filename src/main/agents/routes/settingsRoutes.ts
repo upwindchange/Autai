@@ -1,0 +1,135 @@
+import { Hono } from "hono";
+import { settingsService } from "@/services";
+import {
+  SettingsStateSchema,
+  TestConnectionConfigSchema,
+} from "../schemas/apiSchemas";
+import log from "electron-log/main";
+import type { SettingsState, TestConnectionConfig, LogLevel } from "@shared";
+
+const logger = log.scope("ApiServer:Settings");
+export const settingsRoutes = new Hono();
+
+// GET /settings
+settingsRoutes.get("/", (c) => {
+  try {
+    return c.json(settingsService.settings);
+  } catch (error) {
+    logger.error("Error loading settings:", error);
+    return c.json({ error: "Failed to load settings" }, 500);
+  }
+});
+
+// PUT /settings
+settingsRoutes.put("/", async (c) => {
+  try {
+    const body = await c.req.json();
+    const parsed = SettingsStateSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Invalid settings", details: parsed.error.issues },
+        400,
+      );
+    }
+    const settings = parsed.data as SettingsState;
+    settingsService.saveSettings(settings);
+
+    if (settings.logLevel) {
+      log.transports.file.level = settings.logLevel as LogLevel;
+      log.transports.console.level = settings.logLevel as LogLevel;
+      log.transports.ipc.level = settings.logLevel as LogLevel;
+    }
+
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error("Error saving settings:", error);
+    return c.json({ error: "Failed to save settings" }, 500);
+  }
+});
+
+// GET /settings/configured
+settingsRoutes.get("/configured", (c) => {
+  try {
+    return c.json({ configured: settingsService.isConfigured() });
+  } catch (error) {
+    logger.error("Error checking configuration:", error);
+    return c.json({ error: "Failed to check configuration" }, 500);
+  }
+});
+
+// POST /settings/test
+settingsRoutes.post("/test", async (c) => {
+  try {
+    const body = await c.req.json();
+    const parsed = TestConnectionConfigSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Invalid connection config", details: parsed.error.issues },
+        400,
+      );
+    }
+    await settingsService.testConnection(parsed.data as TestConnectionConfig);
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error("Error testing connection:", error);
+    return c.json({ error: "Failed to test connection" }, 500);
+  }
+});
+
+// GET /settings/log-path
+settingsRoutes.get("/log-path", (c) => {
+  try {
+    const file = log.transports.file.getFile();
+    return c.json({ path: file?.path || "" });
+  } catch (error) {
+    logger.error("Error getting log path:", error);
+    return c.json({ error: "Failed to get log path" }, 500);
+  }
+});
+
+// POST /settings/clear-logs
+settingsRoutes.post("/clear-logs", (c) => {
+  try {
+    const file = log.transports.file.getFile();
+    if (file) {
+      file.clear();
+      logger.info("Log file cleared");
+    }
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error("Error clearing logs:", error);
+    return c.json({ error: "Failed to clear logs" }, 500);
+  }
+});
+
+// POST /settings/open-log-folder
+settingsRoutes.post("/open-log-folder", async (c) => {
+  try {
+    const { shell } = await import("electron");
+    const file = log.transports.file.getFile();
+    if (file?.path) {
+      const path = await import("path");
+      const logDir = path.dirname(file.path);
+      await shell.openPath(logDir);
+    }
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error("Error opening log folder:", error);
+    return c.json({ error: "Failed to open log folder" }, 500);
+  }
+});
+
+// POST /settings/open-devtools
+settingsRoutes.post("/open-devtools", async (c) => {
+  try {
+    const { BrowserWindow } = await import("electron");
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+      win.webContents.openDevTools();
+    }
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error("Error opening DevTools:", error);
+    return c.json({ error: "Failed to open DevTools" }, 500);
+  }
+});

@@ -124,14 +124,16 @@ export async function browserResearchWorker(
             // Stage 3: Extract Results from URLs
             // ============================================================
             logger.debug("Stage 3: Extracting results from URLs");
-            const { stream: extractionStream, results: extractionResultsPromise } =
-              await extractResultsFromUrls(
-                searchResults,
-                plan.queries,
-                sessionId,
-                tabId,
-                messages,
-              );
+            const {
+              stream: extractionStream,
+              results: extractionResultsPromise,
+            } = await extractResultsFromUrls(
+              searchResults,
+              plan.queries,
+              sessionId,
+              tabId,
+              messages,
+            );
 
             await mergeStreamAndWait(extractionStream, writer);
 

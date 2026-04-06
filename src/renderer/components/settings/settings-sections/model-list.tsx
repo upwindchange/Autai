@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { RefreshCw, Check, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { ProviderConfig, ProviderType } from "@shared";
+import type { ProviderConfig } from "@shared";
 import log from "electron-log/renderer";
 
 const logger = log.scope("ModelList");
@@ -45,10 +45,7 @@ export function ModelList({
   const providerType = provider.provider;
 
   useEffect(() => {
-    if (
-      providerType === "openai-compatible" ||
-      providerType === "deepinfra"
-    ) {
+    if (providerType === "openai-compatible" || providerType === "deepinfra") {
       fetchModels();
     }
   }, [provider.id]);
@@ -113,8 +110,9 @@ export function ModelList({
   }
 
   // OpenAI-compatible / DeepInfra: browsable list with filter
-  const filteredModels = filter
-    ? availableModels.filter((m) =>
+  const filteredModels =
+    filter ?
+      availableModels.filter((m) =>
         m.toLowerCase().includes(filter.toLowerCase()),
       )
     : availableModels;
@@ -136,7 +134,7 @@ export function ModelList({
         </Button>
       </div>
 
-      {availableModels.length > 0 ? (
+      {availableModels.length > 0 ?
         <>
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
@@ -162,9 +160,7 @@ export function ModelList({
                   <Check
                     className={cn(
                       "h-4 w-4 shrink-0 ml-2",
-                      selectedModel === model
-                        ? "opacity-100"
-                        : "opacity-0",
+                      selectedModel === model ? "opacity-100" : "opacity-0",
                     )}
                   />
                 </button>
@@ -177,13 +173,12 @@ export function ModelList({
             </div>
           </ScrollArea>
         </>
-      ) : (
-        <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+      : <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
           {isLoading ?
             "Loading models..."
           : "No models loaded. Click Refresh to fetch available models."}
         </div>
-      )}
+      }
 
       <div className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">

@@ -33,7 +33,8 @@ export const AppHeader: FC<AppHeaderProps> = ({
           side="left"
           tooltip={
             theme === "system" ? "System (click for Light)"
-            : theme === "light" ? "Light (click for Dark)"
+            : theme === "light" ?
+              "Light (click for Dark)"
             : "Dark (click for System)"
           }
           onClick={() => {

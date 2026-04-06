@@ -72,9 +72,7 @@ class ThreadPersistenceService {
   createThread(id: string): ThreadRow {
     if (!this.db) throw new Error("Database not initialized");
 
-    const stmt = this.db.prepare(
-      "INSERT INTO threads (id) VALUES (?)",
-    );
+    const stmt = this.db.prepare("INSERT INTO threads (id) VALUES (?)");
     stmt.run(id);
     return this.getThread(id)!;
   }

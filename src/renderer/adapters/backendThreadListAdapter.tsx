@@ -51,10 +51,12 @@ class BackendThreadHistoryAdapter implements ThreadHistoryAdapter {
           // Convert stored UIMessage[] to MessageFormatItem<TMessage>[]
           // Backend stores UIMessages as-is, so we cast through unknown
           const typed = messages as unknown as TMessage[];
-          const items: MessageFormatItem<TMessage>[] = typed.map((msg, idx) => ({
-            parentId: idx === 0 ? null : formatAdapter.getId(typed[idx - 1]!),
-            message: msg,
-          }));
+          const items: MessageFormatItem<TMessage>[] = typed.map(
+            (msg, idx) => ({
+              parentId: idx === 0 ? null : formatAdapter.getId(typed[idx - 1]!),
+              message: msg,
+            }),
+          );
 
           return { headId: null, messages: items };
         } catch {

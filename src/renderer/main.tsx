@@ -31,9 +31,7 @@ import { AppHeader } from "@/components/app-header";
 import { useState } from "react";
 import { useSessionLifecycle } from "@/hooks";
 import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
-import {
-  useRemoteThreadListRuntime,
-} from "@assistant-ui/react";
+import { useRemoteThreadListRuntime } from "@assistant-ui/react";
 import { backendThreadListAdapter } from "@/adapters/backendThreadListAdapter";
 
 import "./index.css";

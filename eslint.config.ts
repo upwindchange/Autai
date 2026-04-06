@@ -10,6 +10,7 @@ export default defineConfig(
       ".vscode/**",
       "dist/**",
       "out/**",
+      "release/**",
       "node_modules/**",
       "*.config.js",
       "*.config.ts",
@@ -39,5 +40,5 @@ export default defineConfig(
         },
       ],
     },
-  }
+  },
 );

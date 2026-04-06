@@ -29,7 +29,9 @@ interface ProvidersModelsSectionProps {
   settings: SettingsState;
 }
 
-export function ProvidersModelsSection({ settings }: ProvidersModelsSectionProps) {
+export function ProvidersModelsSection({
+  settings,
+}: ProvidersModelsSectionProps) {
   const { addProvider, updateProvider, removeProvider, updateSettings } =
     useSettings();
   const [editingProviderId, setEditingProviderId] = useState<string | null>(

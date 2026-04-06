@@ -1,11 +1,7 @@
 /// <reference types="vite/client" />
 
 // Import types from electron/shared
-import type {
-  IpcRendererEvent,
-  AppMessage,
-  LogLevel,
-} from "@shared";
+import type { IpcRendererEvent, AppMessage, LogLevel } from "@shared";
 import { Rectangle } from "electron";
 
 // Type-safe IPC API

@@ -44,9 +44,9 @@ export async function summarizeFindings(
   const researchContext = relevantResults
     .map((result, index) => {
       const quotesText =
-        result.quotes.length > 0
-          ? result.quotes.map((q) => `> "${q}"`).join("\n")
-          : "No direct quotes extracted.";
+        result.quotes.length > 0 ?
+          result.quotes.map((q) => `> "${q}"`).join("\n")
+        : "No direct quotes extracted.";
 
       return `### Source [${index + 1}]: ${result.title}
 URL: ${result.url}

@@ -23,10 +23,7 @@ export interface ResearchPlan {
 // ===== Plan Schema =====
 
 const researchQuerySchema = z.object({
-  query: z
-    .string()
-    .min(1)
-    .describe("The Google search query string"),
+  query: z.string().min(1).describe("The Google search query string"),
   focus: z
     .string()
     .min(1)
@@ -37,10 +34,7 @@ const researchQuerySchema = z.object({
 
 const researchPlanSchema = z.object({
   title: z.string().min(1).describe("Short title for this research plan"),
-  description: z
-    .string()
-    .min(1)
-    .describe("What the user wants to find out"),
+  description: z.string().min(1).describe("What the user wants to find out"),
   queries: z
     .array(researchQuerySchema)
     .min(1)
@@ -100,10 +94,7 @@ export async function researchPlanner(
       type: "tool",
       toolName: "showResearchPlan",
     },
-    stopWhen: [
-      hasSuccessfulToolResult("showResearchPlan"),
-      stepCountIs(20),
-    ],
+    stopWhen: [hasSuccessfulToolResult("showResearchPlan"), stepCountIs(20)],
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "research-planner",
