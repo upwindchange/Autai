@@ -12,6 +12,8 @@ import log from "electron-log/renderer";
 
 const logger = log.scope("SettingsContext");
 
+const API_BASE = "http://localhost:3001";
+
 const SettingsContext = createContext<SettingsContextType | null>(null);
 
 export function useSettings() {
@@ -37,11 +39,11 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
 
   const loadSettings = async () => {
     try {
-      const loadedSettings = await window.ipcRenderer.invoke("settings:load");
+      const res = await fetch(`${API_BASE}/settings`);
+      const loadedSettings = (await res.json()) as SettingsState;
       setSettings(loadedSettings);
     } catch (error) {
       logger.error("failed to load settings", error);
-      // Create default settings if none exists
       setSettings(getDefaultSettings());
     } finally {
       setIsLoading(false);
@@ -49,16 +51,12 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
   };
 
   const updateSettings = async (newSettings: SettingsState) => {
-    // Check if log level changed
-    if (newSettings.logLevel && newSettings.logLevel !== settings.logLevel) {
-      // Apply log level change immediately
-      await window.ipcRenderer.invoke(
-        "settings:updateLogLevel",
-        newSettings.logLevel,
-      );
-    }
     setSettings(newSettings);
-    await window.ipcRenderer.invoke("settings:save", newSettings);
+    await fetch(`${API_BASE}/settings`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(newSettings),
+    });
   };
 
   const addProvider = async (provider: ProviderConfig) => {

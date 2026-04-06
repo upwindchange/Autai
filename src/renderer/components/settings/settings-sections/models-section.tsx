@@ -21,6 +21,8 @@ import { ModelConfigCard } from "@/components/settings/settings-sections/model-c
 import type { SettingsState, ModelConfig } from "@shared";
 import log from "electron-log/renderer";
 
+const API_BASE = "http://localhost:3001";
+
 const logger = log.scope("ModelsSection");
 
 interface ModelsSectionProps {
@@ -135,7 +137,11 @@ export function ModelsSection({ settings }: ModelsSectionProps) {
             ...chatProvider,
             model: chatModelConfig.modelName,
           };
-          await window.ipcRenderer.invoke("settings:test", testConfig);
+          await fetch(`${API_BASE}/settings/test`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(testConfig),
+          });
         }
       }
 
@@ -151,7 +157,11 @@ export function ModelsSection({ settings }: ModelsSectionProps) {
               ...simpleProvider,
               model: simpleModelConfig.modelName,
             };
-            await window.ipcRenderer.invoke("settings:test", testConfig);
+            await fetch(`${API_BASE}/settings/test`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(testConfig),
+            });
           }
         }
 
@@ -165,7 +175,11 @@ export function ModelsSection({ settings }: ModelsSectionProps) {
               ...complexProvider,
               model: complexModelConfig.modelName,
             };
-            await window.ipcRenderer.invoke("settings:test", testConfig);
+            await fetch(`${API_BASE}/settings/test`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(testConfig),
+            });
           }
         }
       }

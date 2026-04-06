@@ -3,10 +3,19 @@ import cors from "cors";
 import { type Server } from "http";
 import { ChatWorker } from "@agents/workers";
 import { BrowserWorker } from "@agents/workers/browserWorker/worker";
-import { SessionTabService, threadPersistenceService } from "@/services";
+import {
+  SessionTabService,
+  threadPersistenceService,
+  settingsService,
+} from "@/services";
 import { sendAlert } from "@/utils";
-import { pipeUIMessageStreamToResponse, type UIMessage, ToolSet } from "ai";
+import {
+  pipeUIMessageStreamToResponse,
+  type UIMessage,
+  ToolSet,
+} from "ai";
 import log from "electron-log/main";
+import type { SettingsState, TestConnectionConfig, LogLevel } from "@shared";
 
 export class ApiServer {
   private app: Express;
@@ -258,9 +267,124 @@ export class ApiServer {
       }
     });
 
+    // Settings endpoints
+    this.setupSettingsRoutes();
+
     // Health check endpoint
     this.app.get("/health", (_req, res) => {
       res.json({ status: "ok", port: this.port });
+    });
+  }
+
+  private setupSettingsRoutes(): void {
+    // Get settings
+    this.app.get("/settings", (_req, res) => {
+      try {
+        res.json(settingsService.settings);
+      } catch (error) {
+        this.logger.error("Error loading settings:", error);
+        res.status(500).json({ error: "Failed to load settings" });
+      }
+    });
+
+    // Save settings
+    this.app.put("/settings", (req, res) => {
+      try {
+        const settings = req.body as SettingsState;
+        settingsService.saveSettings(settings);
+
+        // Apply log level if changed
+        if (settings.logLevel) {
+          log.transports.file.level = settings.logLevel as LogLevel;
+          log.transports.console.level = settings.logLevel as LogLevel;
+          log.transports.ipc.level = settings.logLevel as LogLevel;
+        }
+
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error("Error saving settings:", error);
+        res.status(500).json({ error: "Failed to save settings" });
+      }
+    });
+
+    // Check if configured
+    this.app.get("/settings/configured", (_req, res) => {
+      try {
+        res.json({ configured: settingsService.isConfigured() });
+      } catch (error) {
+        this.logger.error("Error checking configuration:", error);
+        res.status(500).json({ error: "Failed to check configuration" });
+      }
+    });
+
+    // Test connection
+    this.app.post("/settings/test", async (req, res) => {
+      try {
+        const config = req.body as TestConnectionConfig;
+        await settingsService.testConnection(config);
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error("Error testing connection:", error);
+        res.status(500).json({ error: "Failed to test connection" });
+      }
+    });
+
+    // Get log file path
+    this.app.get("/settings/log-path", (_req, res) => {
+      try {
+        const file = log.transports.file.getFile();
+        res.json({ path: file?.path || "" });
+      } catch (error) {
+        this.logger.error("Error getting log path:", error);
+        res.status(500).json({ error: "Failed to get log path" });
+      }
+    });
+
+    // Clear logs
+    this.app.post("/settings/clear-logs", (_req, res) => {
+      try {
+        const file = log.transports.file.getFile();
+        if (file) {
+          file.clear();
+          this.logger.info("Log file cleared");
+        }
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error("Error clearing logs:", error);
+        res.status(500).json({ error: "Failed to clear logs" });
+      }
+    });
+
+    // Open log folder
+    this.app.post("/settings/open-log-folder", async (_req, res) => {
+      try {
+        const { shell } = await import("electron");
+        const file = log.transports.file.getFile();
+        if (file?.path) {
+          const path = await import("path");
+          const logDir = path.dirname(file.path);
+          await shell.openPath(logDir);
+        }
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error("Error opening log folder:", error);
+        res.status(500).json({ error: "Failed to open log folder" });
+      }
+    });
+
+    // Open DevTools
+    this.app.post("/settings/open-devtools", async (_req, res) => {
+      try {
+        const { BrowserWindow } = await import("electron");
+        const win = BrowserWindow.getFocusedWindow();
+        if (win) {
+          win.webContents.openDevTools();
+        }
+        res.json({ success: true });
+      } catch (error) {
+        this.logger.error("Error opening DevTools:", error);
+        res.status(500).json({ error: "Failed to open DevTools" });
+      }
     });
   }
 

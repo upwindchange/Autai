@@ -23,6 +23,8 @@ import { useSettings } from "@/components/settings";
 import type { SettingsState, LogLevel, LangfuseConfig } from "@shared";
 import log from "electron-log/renderer";
 
+const API_BASE = "http://localhost:3001";
+
 const logger = log.scope("DevelopmentSection");
 
 interface DevelopmentSectionProps {
@@ -53,10 +55,10 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
 
   useEffect(() => {
     // Get log file path
-    window.ipcRenderer
-      .invoke("settings:getLogPath")
-      .then((path: unknown) => {
-        setLogPath(String(path));
+    fetch(`${API_BASE}/settings/log-path`)
+      .then((res) => res.json())
+      .then((data: { path: string }) => {
+        setLogPath(data.path);
       })
       .catch((error: unknown) => {
         logger.error("Failed to get log path", error);
@@ -75,7 +77,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
 
   const handleClearLogs = async () => {
     try {
-      await window.ipcRenderer.invoke("settings:clearLogs");
+      await fetch(`${API_BASE}/settings/clear-logs`, { method: "POST" });
       logger.info("Logs cleared successfully");
     } catch (error) {
       logger.error("Failed to clear logs", error);
@@ -84,7 +86,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
 
   const handleOpenLogFolder = async () => {
     try {
-      await window.ipcRenderer.invoke("settings:openLogFolder");
+      await fetch(`${API_BASE}/settings/open-log-folder`, { method: "POST" });
     } catch (error) {
       logger.error("Failed to open log folder", error);
     }
@@ -209,7 +211,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
             <Button
               variant="outline"
               onClick={() => {
-                window.ipcRenderer.invoke("settings:openDevTools");
+                fetch(`${API_BASE}/settings/open-devtools`, { method: "POST" });
               }}
             >
               Open DevTools

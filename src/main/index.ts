@@ -16,7 +16,6 @@ import {
 import { PQueueManager } from "@agents/utils";
 import { apiServer } from "@agents";
 import { initializeTelemetry, shutdownTelemetry } from "@agents/utils";
-import { SettingsBridge } from "@/bridges/SettingsBridge";
 import { SessionTabBridge } from "@/bridges/SessionTabBridge";
 
 // const _require = createRequire(import.meta.url);
@@ -55,7 +54,6 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null;
-let settingsBridge: SettingsBridge | null = null;
 let sessionTabService: SessionTabService | null = null;
 let sessionTabBridge: SessionTabBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
@@ -103,9 +101,6 @@ async function createWindow() {
   });
 
   // Initialize bridges
-  settingsBridge = new SettingsBridge();
-  settingsBridge.setupHandlers();
-
   sessionTabBridge = new SessionTabBridge(sessionTabService);
   sessionTabBridge.setupHandlers();
 
@@ -140,11 +135,11 @@ app.whenReady().then(async () => {
     return path.join(logPath, filename);
   };
 
-  // Load settings first to get log level
-  await settingsService.initialize();
-
-  // Initialize thread persistence database
+  // Initialize thread persistence database first (settings shares the same DB)
   threadPersistenceService.initialize();
+
+  // Load settings from database
+  settingsService.initialize();
 
   // Set log levels from settings or use defaults
   const logLevel =
@@ -229,15 +224,11 @@ app.on("before-quit", async (event) => {
       logger.debug("threadViewBridge destroyed");
     }
 
-    if (settingsBridge) {
-      logger.debug("Destroying settingsBridge...");
-      settingsBridge.destroy();
-      settingsBridge = null;
-      logger.debug("settingsBridge destroyed");
-    }
-
     // Clean up ViewControlService singleton
     TabControlService.destroyInstance();
+
+    // Close settings database connection
+    settingsService.close();
 
     // Close thread persistence database
     threadPersistenceService.close();

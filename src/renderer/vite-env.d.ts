@@ -3,36 +3,15 @@
 // Import types from electron/shared
 import type {
   IpcRendererEvent,
-  SettingsState,
-  TestConnectionConfig,
   AppMessage,
   LogLevel,
 } from "@shared";
 import { Rectangle } from "electron";
 
-// Generic result type for IPC operations
-interface IPCResult {
-  success: boolean;
-  error?: string;
-}
-
 // Type-safe IPC API
 declare global {
   interface Window {
     ipcRenderer: {
-      // Settings operations
-      invoke(channel: "settings:load"): Promise<SettingsState>;
-      invoke(
-        channel: "settings:save",
-        settings: SettingsState,
-      ): Promise<IPCResult>;
-      invoke(
-        channel: "settings:test",
-        config: TestConnectionConfig,
-      ): Promise<void>;
-      invoke(channel: "settings:get"): Promise<SettingsState>;
-      invoke(channel: "settings:isConfigured"): Promise<boolean>;
-
       // Thread operations
       invoke(
         channel: "sessiontab:getActiveTab",

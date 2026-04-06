@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "YourAppID",
+  "appId": "com.upwindchange.Autai",
   "asar": false,
   "directories": {
     "output": "release/${version}"
@@ -27,17 +27,30 @@
       {
         "target": "nsis",
         "arch": [
-          "x64"
+          "x64",
+          "arm64"
         ]
       }
     ],
-    "artifactName": "${productName}_${version}.${ext}"
+    "artifactName": "${productName}_${version}_${arch}.${ext}"
   },
   "nsis": {
     "oneClick": false,
     "perMachine": false,
     "allowToChangeInstallationDirectory": true,
     "deleteAppDataOnUninstall": false
+  },
+  "linux": {
+    "target": [
+      { "target": "AppImage", "arch": ["x64", "arm64"] },
+      { "target": "snap", "arch": ["x64", "arm64"] },
+      { "target": "flatpak", "arch": ["x64", "arm64"] }
+    ],
+    "category": "Utility"
+  },
+  "flatpak": {
+    "runtimeVersion": "25.08",
+    "baseVersion": "25.08"
   },
   "publish": {
     "provider": "generic",
