@@ -11,29 +11,30 @@ import {
 } from "@/components/ui/sidebar";
 import { NavSecondary } from "@/components/side-bar/nav-secondary";
 import { useUiStore, type SettingsSection } from "@/stores/uiStore";
+import { useTranslation } from "react-i18next";
 import type { ComponentProps } from "react";
 
 interface NavigationItem {
   id: SettingsSection;
-  label: string;
+  labelKey: string;
   icon: React.ElementType;
 }
 
 const navigationItems: (NavigationItem | "separator")[] = [
   {
     id: "providers",
-    label: "Providers & Models",
+    labelKey: "sidebar.providers",
     icon: Cloud,
   },
   "separator",
   {
     id: "development",
-    label: "Development",
+    labelKey: "sidebar.development",
     icon: Code,
   },
   {
     id: "about",
-    label: "About",
+    labelKey: "sidebar.about",
     icon: Info,
   },
 ];
@@ -49,12 +50,13 @@ type SettingsSidebarProps = ComponentProps<typeof Sidebar>;
  */
 export function SettingsSidebar(props: SettingsSidebarProps) {
   const { activeSettingsSection, setActiveSettingsSection } = useUiStore();
+  const { t } = useTranslation("settings");
 
   return (
     <Sidebar className="border-r-0" {...props}>
       <SidebarContent>
         <SidebarGroup>
-          <SidebarGroupLabel>Settings</SidebarGroupLabel>
+          <SidebarGroupLabel>{t("view.title")}</SidebarGroupLabel>
           <SidebarMenu>
             {navigationItems.map((item, index) => {
               if (item === "separator") {
@@ -76,7 +78,7 @@ export function SettingsSidebar(props: SettingsSidebarProps) {
                     isActive={isActive}
                   >
                     <Icon />
-                    <span>{item.label}</span>
+                    <span>{t(item.labelKey)}</span>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               );

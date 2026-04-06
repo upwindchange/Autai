@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Label } from "@/components/ui/label";
 import { RefreshCw, Check, Search } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import type { ProviderConfig } from "@shared";
 import log from "electron-log/renderer";
@@ -41,6 +42,7 @@ export function ModelList({
   const [availableModels, setAvailableModels] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [filter, setFilter] = useState("");
+  const { t } = useTranslation("providers");
 
   const providerType = provider.provider;
 
@@ -83,7 +85,7 @@ export function ModelList({
   if (providerType === "anthropic") {
     return (
       <div className="space-y-2">
-        <Label>Model Name</Label>
+        <Label>{t("modelList.modelName")}</Label>
         <Input
           value={selectedModel}
           onChange={(e) => onModelSelect(e.target.value)}
@@ -103,7 +105,7 @@ export function ModelList({
           ))}
         </div>
         <p className="text-xs text-muted-foreground">
-          Type a model name or click a suggestion above.
+          {t("modelList.suggestion.hint")}
         </p>
       </div>
     );
@@ -120,7 +122,7 @@ export function ModelList({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <Label>Available Models</Label>
+        <Label>{t("modelList.available")}</Label>
         <Button
           variant="outline"
           size="sm"
@@ -130,7 +132,7 @@ export function ModelList({
           <RefreshCw
             className={cn("h-3.5 w-3.5 mr-1.5", isLoading && "animate-spin")}
           />
-          Refresh
+          {t("modelList.refresh")}
         </Button>
       </div>
 
@@ -141,7 +143,7 @@ export function ModelList({
             <Input
               value={filter}
               onChange={(e) => setFilter(e.target.value)}
-              placeholder="Filter models..."
+              placeholder={t("modelList.filter.placeholder")}
               className="pl-9"
             />
           </div>
@@ -167,7 +169,7 @@ export function ModelList({
               ))}
               {filteredModels.length === 0 && (
                 <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-                  No models match "{filter}"
+                  {t("modelList.noMatch", { filter })}
                 </div>
               )}
             </div>
@@ -175,14 +177,14 @@ export function ModelList({
         </>
       : <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
           {isLoading ?
-            "Loading models..."
-          : "No models loaded. Click Refresh to fetch available models."}
+            t("modelList.loading")
+          : t("modelList.empty")}
         </div>
       }
 
       <div className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">
-          Or type a model name manually:
+          {t("modelList.manual")}
         </Label>
         <Input
           value={selectedModel}

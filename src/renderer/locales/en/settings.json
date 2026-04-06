@@ -1,0 +1,9 @@
+{
+  "sidebar.providers": "Providers & Models",
+  "sidebar.development": "Development",
+  "sidebar.about": "About",
+  "view.title": "Settings",
+  "view.description.providers": "Configure AI providers and select models for different tasks",
+  "view.description.development": "Development tools and debugging options",
+  "view.description.about": "Application information and resources"
+}

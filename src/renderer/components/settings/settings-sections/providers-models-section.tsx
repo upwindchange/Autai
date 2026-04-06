@@ -19,6 +19,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { useSettings } from "@/components/settings";
+import { useTranslation } from "react-i18next";
 import { ProviderCard } from "./provider-card";
 import { ModelRoleSelector } from "./model-role-selector";
 import type { SettingsState, ModelConfig, ProviderType } from "@shared";
@@ -34,6 +35,7 @@ export function ProvidersModelsSection({
 }: ProvidersModelsSectionProps) {
   const { addProvider, updateProvider, removeProvider, updateSettings } =
     useSettings();
+  const { t } = useTranslation("providers");
   const [editingProviderId, setEditingProviderId] = useState<string | null>(
     null,
   );
@@ -160,15 +162,15 @@ export function ProvidersModelsSection({
       {/* Section Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Providers & Models</h2>
+          <h2 className="text-2xl font-bold">{t("title")}</h2>
           <p className="text-muted-foreground mt-1">
-            Configure your AI providers and select models for different tasks
+            {t("subtitle")}
           </p>
         </div>
         {!isEmpty && (
           <Button onClick={() => handleAddProvider()} size="sm">
             <Plus className="h-4 w-4 mr-2" />
-            Add Provider
+            {t("btn.addProvider")}
           </Button>
         )}
       </div>
@@ -180,10 +182,9 @@ export function ProvidersModelsSection({
             <EmptyMedia variant="icon">
               <Cloud />
             </EmptyMedia>
-            <EmptyTitle>No providers configured</EmptyTitle>
+            <EmptyTitle>{t("empty.title")}</EmptyTitle>
             <EmptyDescription>
-              Add an AI provider to get started. You'll need an API key from
-              your provider.
+              {t("empty.description")}
             </EmptyDescription>
           </EmptyHeader>
           <EmptyContent className="flex-row flex-wrap justify-center">
@@ -192,21 +193,21 @@ export function ProvidersModelsSection({
               onClick={() => handleAddProvider("openai-compatible")}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Add OpenAI Provider
+              {t("btn.addOpenai")}
             </Button>
             <Button
               variant="outline"
               onClick={() => handleAddProvider("anthropic")}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Add Anthropic Provider
+              {t("btn.addAnthropic")}
             </Button>
             <Button
               variant="outline"
               onClick={() => handleAddProvider("deepinfra")}
             >
               <Plus className="h-4 w-4 mr-2" />
-              Add DeepInfra Provider
+              {t("btn.addDeepinfra")}
             </Button>
           </EmptyContent>
         </Empty>
@@ -249,15 +250,15 @@ export function ProvidersModelsSection({
       {providers.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Model Roles</CardTitle>
+            <CardTitle>{t("roles.title")}</CardTitle>
             <CardDescription>
-              Choose which models handle different tasks in your conversations
+              {t("roles.description")}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <ModelRoleSelector
-              label="Primary Chat Model"
-              description="Used for general conversation and user interactions"
+              label={t("roles.chat.label")}
+              description={t("roles.chat.description")}
               value={chatModelConfig}
               providers={providers}
               onChange={setChatModelConfig}
@@ -270,23 +271,23 @@ export function ProvidersModelsSection({
                 onCheckedChange={setUseSameModelForAgents}
               />
               <Label htmlFor="use-same-model" className="text-sm">
-                Use the same model for all agent tasks
+                {t("roles.useSameModel")}
               </Label>
             </div>
 
             {!useSameModelForAgents && (
               <>
                 <ModelRoleSelector
-                  label="Simple Tasks Model"
-                  description="Fast operations like quick lookups"
+                  label={t("roles.simple.label")}
+                  description={t("roles.simple.description")}
                   value={simpleModelConfig}
                   providers={providers}
                   onChange={setSimpleModelConfig}
                 />
 
                 <ModelRoleSelector
-                  label="Complex Tasks Model"
-                  description="Advanced reasoning for browser automation"
+                  label={t("roles.complex.label")}
+                  description={t("roles.complex.description")}
                   value={complexModelConfig}
                   providers={providers}
                   onChange={setComplexModelConfig}
@@ -299,7 +300,7 @@ export function ProvidersModelsSection({
                 {isSaving ?
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 : <Save className="h-4 w-4 mr-2" />}
-                Save Model Roles
+                {t("btn.saveModelRoles")}
               </Button>
             </div>
           </CardContent>

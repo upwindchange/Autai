@@ -1,0 +1,16 @@
+{
+  "app.title": "Autai",
+  "app.subtitle": "Automatic AI Agent Driven Browser",
+  "header.settings": "Settings",
+  "header.aiAssistant": "AI Assistant",
+  "btn.cancel": "Cancel",
+  "btn.save": "Save",
+  "btn.loading": "Loading...",
+  "theme.system": "System (click for Light)",
+  "theme.light": "Light (click for Dark)",
+  "theme.dark": "Dark (click for System)",
+  "splitView.show": "Show Browser Workspace",
+  "splitView.hide": "Hide Browser Workspace",
+  "settings.navLabel": "Settings",
+  "value.unknown": "Unknown"
+}

@@ -21,6 +21,7 @@ import {
   TestTube,
   Plug,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { ModelList } from "./model-list";
 import type { ProviderConfig, ProviderType } from "@shared";
 import { getDefaultProvider } from "@shared";
@@ -28,10 +29,10 @@ import type { EditingProvider } from "../types";
 
 const API_BASE = "http://localhost:3001";
 
-const PROVIDER_TYPE_LABELS: Record<ProviderType, string> = {
-  "openai-compatible": "OpenAI Compatible",
-  anthropic: "Anthropic",
-  deepinfra: "DeepInfra",
+const PROVIDER_TYPE_KEYS: Record<ProviderType, string> = {
+  "openai-compatible": "type.openaiCompatible",
+  anthropic: "type.anthropic",
+  deepinfra: "type.deepinfra",
 };
 
 interface ProviderCardProps {
@@ -61,6 +62,7 @@ export function ProviderCard({
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [selectedModel, setSelectedModel] = useState("");
+  const { t } = useTranslation("providers");
 
   const startEditing = () => {
     setEditState({ ...provider, isNew: false });
@@ -110,19 +112,19 @@ export function ProviderCard({
         <CardHeader className="pb-4">
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="provider-name">Provider Name</Label>
+              <Label htmlFor="provider-name">{t("form.name.label")}</Label>
               <Input
                 id="provider-name"
                 value={editState.name}
                 onChange={(e) =>
                   setEditState({ ...editState, name: e.target.value })
                 }
-                placeholder="e.g., OpenAI Production"
+                placeholder={t("form.name.placeholder")}
               />
             </div>
 
             <div className="space-y-2">
-              <Label>Provider Type</Label>
+              <Label>{t("form.type.label")}</Label>
               <Select
                 value={editState.provider}
                 onValueChange={(value: ProviderType) => {
@@ -140,16 +142,16 @@ export function ProviderCard({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="openai-compatible">
-                    OpenAI Compatible
+                    {t("type.openaiCompatible")}
                   </SelectItem>
-                  <SelectItem value="anthropic">Anthropic</SelectItem>
-                  <SelectItem value="deepinfra">DeepInfra</SelectItem>
+                  <SelectItem value="anthropic">{t("type.anthropic")}</SelectItem>
+                  <SelectItem value="deepinfra">{t("type.deepinfra")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="api-url">API URL</Label>
+              <Label htmlFor="api-url">{t("form.apiUrl.label")}</Label>
               <Input
                 id="api-url"
                 value={editState.apiUrl || ""}
@@ -167,7 +169,7 @@ export function ProviderCard({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="api-key">API Key</Label>
+              <Label htmlFor="api-key">{t("form.apiKey.label")}</Label>
               <div className="relative">
                 <Input
                   id="api-key"
@@ -212,20 +214,20 @@ export function ProviderCard({
                   {isTesting ?
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   : <TestTube className="h-4 w-4 mr-2" />}
-                  Test Connection
+                  {t("btn.testConnection")}
                 </Button>
               </>
             )}
 
             <div className="flex justify-end gap-2 pt-2">
               <Button variant="outline" onClick={handleCancel}>
-                Cancel
+                {t("common:btn.cancel")}
               </Button>
               <Button onClick={handleSave} disabled={isSaving}>
                 {isSaving ?
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 : <Save className="h-4 w-4 mr-2" />}
-                Save
+                {t("common:btn.save")}
               </Button>
             </div>
           </div>
@@ -247,7 +249,7 @@ export function ProviderCard({
               <div className="flex items-center gap-2">
                 <span className="font-medium truncate">{provider.name}</span>
                 <Badge variant="secondary" className="shrink-0">
-                  {PROVIDER_TYPE_LABELS[provider.provider]}
+                  {t(PROVIDER_TYPE_KEYS[provider.provider])}
                 </Badge>
               </div>
               <div className="text-xs text-muted-foreground truncate">

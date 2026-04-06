@@ -1,0 +1,12 @@
+{
+  "title": "Welcome to Autai",
+  "subtitle": "Your AI-Powered Browser Automation Assistant",
+  "description": "Autai enables you to automate web browsing tasks using AI. Start a conversation, and I'll help you navigate websites, fill forms, extract data, and more.",
+  "feature.browse.title": "Browse",
+  "feature.browse.description": "Navigate any website automatically",
+  "feature.automate.title": "Automate",
+  "feature.automate.description": "Fill forms and interact with elements",
+  "feature.extract.title": "Extract",
+  "feature.extract.description": "Gather data from web pages",
+  "prompt.suggestion": "Try asking me to \"Search for the weather in San Francisco\" or \"Find the price of iPhone 17 pro max on Amazon\""
+}

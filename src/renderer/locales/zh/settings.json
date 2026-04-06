@@ -1,0 +1,9 @@
+{
+  "sidebar.providers": "提供商与模型",
+  "sidebar.development": "开发",
+  "sidebar.about": "关于",
+  "view.title": "设置",
+  "view.description.providers": "配置 AI 提供商并为不同任务选择模型",
+  "view.description.development": "开发工具和调试选项",
+  "view.description.about": "应用程序信息和资源"
+}

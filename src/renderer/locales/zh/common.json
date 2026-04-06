@@ -1,0 +1,16 @@
+{
+  "app.title": "Autai",
+  "app.subtitle": "AI驱动的浏览器自动化代理",
+  "header.settings": "设置",
+  "header.aiAssistant": "AI 助手",
+  "btn.cancel": "取消",
+  "btn.save": "保存",
+  "btn.loading": "加载中...",
+  "theme.system": "跟随系统（点击切换为浅色）",
+  "theme.light": "浅色（点击切换为深色）",
+  "theme.dark": "深色（点击切换为跟随系统）",
+  "splitView.show": "显示浏览器工作区",
+  "splitView.hide": "隐藏浏览器工作区",
+  "settings.navLabel": "设置",
+  "value.unknown": "未知"
+}

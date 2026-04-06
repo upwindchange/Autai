@@ -3,6 +3,7 @@ import { Separator } from "@/components/ui/separator";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { Moon, PanelRightIcon, Sun, SunMoon } from "lucide-react";
 import { useTheme } from "next-themes";
+import { useTranslation } from "react-i18next";
 import type { FC } from "react";
 
 interface AppHeaderProps {
@@ -17,6 +18,7 @@ export const AppHeader: FC<AppHeaderProps> = ({
   onToggleSplitView,
 }) => {
   const { theme, resolvedTheme, setTheme } = useTheme();
+  const { t } = useTranslation("common");
 
   return (
     <header className="bg-background sticky top-0 flex h-14 shrink-0 items-center gap-2">
@@ -32,10 +34,10 @@ export const AppHeader: FC<AppHeaderProps> = ({
           size="icon"
           side="left"
           tooltip={
-            theme === "system" ? "System (click for Light)"
+            theme === "system" ? t("theme.system")
             : theme === "light" ?
-              "Light (click for Dark)"
-            : "Dark (click for System)"
+              t("theme.light")
+            : t("theme.dark")
           }
           onClick={() => {
             const next =
@@ -56,7 +58,7 @@ export const AppHeader: FC<AppHeaderProps> = ({
           size="icon"
           side="left"
           tooltip={
-            showSplitView ? "Hide Browser Workspace" : "Show Browser Workspace"
+            showSplitView ? t("splitView.hide") : t("splitView.show")
           }
           onClick={onToggleSplitView}
         >

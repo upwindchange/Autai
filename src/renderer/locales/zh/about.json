@@ -1,0 +1,22 @@
+{
+  "title": "关于 Autai",
+  "subtitle": "AI驱动的浏览器自动化代理",
+  "info.title": "应用程序信息",
+  "info.version": "版本",
+  "info.platform": "平台",
+  "info.electron": "Electron",
+  "info.nodejs": "Node.js",
+  "resources.title": "资源",
+  "resources.description": "有用的链接和文档",
+  "resources.github": "GitHub 仓库",
+  "resources.reportIssue": "报告问题",
+  "resources.documentation": "文档",
+  "credits.title": "致谢",
+  "credits.description": "基于优秀的开源技术构建",
+  "credits.line1": "使用 Electron、React 和 TypeScript 构建",
+  "credits.line2": "UI 组件由 shadcn/ui 和 Radix UI 提供",
+  "credits.line3": "AI SDK 由 Vercel 提供",
+  "credits.line4": "Assistant UI 组件由 assistant-ui 提供",
+  "copyright": "\u00a9 2024 Autai. 保留所有权利。",
+  "disclaimer": "本软件按\"原样\"提供，不附带任何形式的保证。"
+}

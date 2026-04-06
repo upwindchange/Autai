@@ -6,6 +6,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { useTranslation } from "react-i18next";
 import { ModelList } from "./model-list";
 import type { ModelConfig, ProviderConfig } from "@shared";
 
@@ -24,6 +25,8 @@ export function ModelRoleSelector({
   providers,
   onChange,
 }: ModelRoleSelectorProps) {
+  const { t } = useTranslation("providers");
+
   const handleProviderSelect = (providerId: string) => {
     const provider = providers.find((p) => p.id === providerId);
     if (provider) {
@@ -56,7 +59,7 @@ export function ModelRoleSelector({
 
       <Select value={value.providerId} onValueChange={handleProviderSelect}>
         <SelectTrigger>
-          <SelectValue placeholder="Select a provider" />
+          <SelectValue placeholder={t("roleSelector.placeholder")} />
         </SelectTrigger>
         <SelectContent>
           {providers.map((provider) => (

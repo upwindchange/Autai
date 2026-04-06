@@ -20,6 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Trash2, FolderOpen, ExternalLink } from "lucide-react";
 import { useSettings } from "@/components/settings";
+import { useTranslation } from "react-i18next";
 import type { SettingsState, LogLevel, LangfuseConfig } from "@shared";
 import log from "electron-log/renderer";
 
@@ -33,6 +34,7 @@ interface DevelopmentSectionProps {
 
 export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
   const { updateSettings } = useSettings();
+  const { t } = useTranslation("development");
   const [logLevel, setLogLevel] = useState<LogLevel>(
     settings?.logLevel || "info",
   );
@@ -118,44 +120,43 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">Development Settings</h2>
+        <h2 className="text-2xl font-bold">{t("title")}</h2>
         <p className="text-muted-foreground mt-1">
-          Configure development tools and debugging options
+          {t("subtitle")}
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Logging</CardTitle>
+          <CardTitle>{t("logging.title")}</CardTitle>
           <CardDescription>
-            Configure application logging behavior
+            {t("logging.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
-            <Label htmlFor="log-level">Log Level</Label>
+            <Label htmlFor="log-level">{t("logging.level.label")}</Label>
             <Select value={logLevel} onValueChange={handleLogLevelChange}>
               <SelectTrigger id="log-level">
-                <SelectValue placeholder="Select log level" />
+                <SelectValue placeholder={t("logging.level.placeholder")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="error">Error - Only errors</SelectItem>
+                <SelectItem value="error">{t("logging.level.error")}</SelectItem>
                 <SelectItem value="warn">
-                  Warning - Errors and warnings
+                  {t("logging.level.warn")}
                 </SelectItem>
                 <SelectItem value="info">
-                  Info - General information (default)
+                  {t("logging.level.info")}
                 </SelectItem>
                 <SelectItem value="verbose">
-                  Verbose - Detailed information
+                  {t("logging.level.verbose")}
                 </SelectItem>
-                <SelectItem value="debug">Debug - Debug messages</SelectItem>
-                <SelectItem value="silly">Silly - All messages</SelectItem>
+                <SelectItem value="debug">{t("logging.level.debug")}</SelectItem>
+                <SelectItem value="silly">{t("logging.level.silly")}</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-sm text-muted-foreground">
-              Controls the verbosity of logging across the application. Higher
-              levels include all lower levels.
+              {t("logging.level.hint")}
             </p>
           </div>
 
@@ -163,16 +164,16 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
 
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Log File Location</Label>
+              <Label>{t("logging.location.label")}</Label>
               <div className="flex items-center gap-2">
                 <code className="flex-1 px-3 py-2 bg-muted rounded-md text-xs font-mono truncate">
-                  {logPath || "Loading..."}
+                  {logPath || t("common:btn.loading")}
                 </code>
                 <Button
                   variant="outline"
                   size="icon"
                   onClick={handleOpenLogFolder}
-                  title="Open log folder"
+                  title={t("logging.location.openFolder")}
                 >
                   <FolderOpen className="h-4 w-4" />
                 </Button>
@@ -186,7 +187,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
                 className="gap-2"
               >
                 <Trash2 className="h-4 w-4" />
-                Clear Logs
+                {t("logging.clearLogs")}
               </Button>
             </div>
           </div>
@@ -195,17 +196,17 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Debug Tools</CardTitle>
+          <CardTitle>{t("debug.title")}</CardTitle>
           <CardDescription>
-            Advanced debugging options for development
+            {t("debug.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label>Developer Tools</Label>
+              <Label>{t("debug.devtools.label")}</Label>
               <p className="text-sm text-muted-foreground">
-                Enable Chrome DevTools in renderer process
+                {t("debug.devtools.hint")}
               </p>
             </div>
             <Button
@@ -214,7 +215,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
                 fetch(`${API_BASE}/settings/open-devtools`, { method: "POST" });
               }}
             >
-              Open DevTools
+              {t("debug.devtools.open")}
             </Button>
           </div>
         </CardContent>
@@ -222,17 +223,17 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Langfuse Observability</CardTitle>
+          <CardTitle>{t("langfuse.title")}</CardTitle>
           <CardDescription>
-            Configure Langfuse for AI agent tracing and analytics
+            {t("langfuse.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label htmlFor="langfuse-enabled">Enable Langfuse</Label>
+              <Label htmlFor="langfuse-enabled">{t("langfuse.enabled.label")}</Label>
               <p className="text-sm text-muted-foreground">
-                Send telemetry data to Langfuse for observability
+                {t("langfuse.enabled.hint")}
               </p>
             </div>
             <Switch
@@ -248,7 +249,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="langfuse-public-key">Public Key</Label>
+                  <Label htmlFor="langfuse-public-key">{t("langfuse.publicKey.label")}</Label>
                   <Input
                     id="langfuse-public-key"
                     type="text"
@@ -259,12 +260,12 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
                     }
                   />
                   <p className="text-sm text-muted-foreground">
-                    Your Langfuse public key from the project settings
+                    {t("langfuse.publicKey.hint")}
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="langfuse-secret-key">Secret Key</Label>
+                  <Label htmlFor="langfuse-secret-key">{t("langfuse.secretKey.label")}</Label>
                   <Input
                     id="langfuse-secret-key"
                     type="password"
@@ -275,12 +276,12 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
                     }
                   />
                   <p className="text-sm text-muted-foreground">
-                    Your Langfuse secret key from the project settings
+                    {t("langfuse.secretKey.hint")}
                   </p>
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="langfuse-host">Host URL (Optional)</Label>
+                  <Label htmlFor="langfuse-host">{t("langfuse.host.label")}</Label>
                   <Input
                     id="langfuse-host"
                     type="url"
@@ -291,7 +292,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
                     }
                   />
                   <p className="text-sm text-muted-foreground">
-                    Leave empty for cloud version or enter your self-hosted URL
+                    {t("langfuse.host.hint")}
                   </p>
                 </div>
 
@@ -307,7 +308,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
                     }
                   >
                     <ExternalLink className="h-4 w-4" />
-                    Open Langfuse Dashboard
+                    {t("langfuse.openDashboard")}
                   </Button>
                 </div>
               </div>

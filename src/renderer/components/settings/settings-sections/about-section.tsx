@@ -9,12 +9,14 @@ import {
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ExternalLink, Code, FileText, Heart } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export function AboutSection() {
-  const [appVersion, setAppVersion] = useState<string>("Loading...");
-  const [platform, setPlatform] = useState<string>("Loading...");
-  const [electronVersion, setElectronVersion] = useState<string>("Loading...");
-  const [nodeVersion, setNodeVersion] = useState<string>("Loading...");
+  const { t } = useTranslation("about");
+  const [appVersion, setAppVersion] = useState<string>(t("common:btn.loading"));
+  const [platform, setPlatform] = useState<string>(t("common:btn.loading"));
+  const [electronVersion, setElectronVersion] = useState<string>(t("common:btn.loading"));
+  const [nodeVersion, setNodeVersion] = useState<string>(t("common:btn.loading"));
 
   useEffect(() => {
     // Get app version from main process
@@ -24,7 +26,7 @@ export function AboutSection() {
         setAppVersion(String(version));
       })
       .catch(() => {
-        setAppVersion("Unknown");
+        setAppVersion(t("common:value.unknown"));
       });
 
     // Get system info from main process
@@ -39,21 +41,21 @@ export function AboutSection() {
             chromeVersion?: string;
             v8Version?: string;
           };
-          setPlatform(systemInfo.platform || "Unknown");
-          setElectronVersion(systemInfo.electronVersion || "Unknown");
-          setNodeVersion(systemInfo.nodeVersion || "Unknown");
+          setPlatform(systemInfo.platform || t("common:value.unknown"));
+          setElectronVersion(systemInfo.electronVersion || t("common:value.unknown"));
+          setNodeVersion(systemInfo.nodeVersion || t("common:value.unknown"));
         } else {
-          setPlatform("Unknown");
-          setElectronVersion("Unknown");
-          setNodeVersion("Unknown");
+          setPlatform(t("common:value.unknown"));
+          setElectronVersion(t("common:value.unknown"));
+          setNodeVersion(t("common:value.unknown"));
         }
       })
       .catch(() => {
-        setPlatform("Unknown");
-        setElectronVersion("Unknown");
-        setNodeVersion("Unknown");
+        setPlatform(t("common:value.unknown"));
+        setElectronVersion(t("common:value.unknown"));
+        setNodeVersion(t("common:value.unknown"));
       });
-  }, []);
+  }, [t]);
 
   const openExternal = (url: string) => {
     window.ipcRenderer.invoke("shell:openExternal", url);
@@ -62,32 +64,32 @@ export function AboutSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">About Autai</h2>
+        <h2 className="text-2xl font-bold">{t("title")}</h2>
         <p className="text-muted-foreground mt-1">
-          Automatic AI Agent Driven Browser
+          {t("subtitle")}
         </p>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Application Information</CardTitle>
+          <CardTitle>{t("info.title")}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-sm text-muted-foreground">Version</p>
+              <p className="text-sm text-muted-foreground">{t("info.version")}</p>
               <p className="font-mono">{appVersion}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Platform</p>
+              <p className="text-sm text-muted-foreground">{t("info.platform")}</p>
               <p className="font-mono">{platform}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Electron</p>
+              <p className="text-sm text-muted-foreground">{t("info.electron")}</p>
               <p className="font-mono">{electronVersion}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">Node.js</p>
+              <p className="text-sm text-muted-foreground">{t("info.nodejs")}</p>
               <p className="font-mono">{nodeVersion}</p>
             </div>
           </div>
@@ -96,8 +98,8 @@ export function AboutSection() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Resources</CardTitle>
-          <CardDescription>Helpful links and documentation</CardDescription>
+          <CardTitle>{t("resources.title")}</CardTitle>
+          <CardDescription>{t("resources.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <Button
@@ -108,7 +110,7 @@ export function AboutSection() {
             }
           >
             <Code className="h-4 w-4" />
-            GitHub Repository
+            {t("resources.github")}
             <ExternalLink className="h-3 w-3 ml-auto" />
           </Button>
           <Button
@@ -119,7 +121,7 @@ export function AboutSection() {
             }
           >
             <FileText className="h-4 w-4" />
-            Report an Issue
+            {t("resources.reportIssue")}
             <ExternalLink className="h-3 w-3 ml-auto" />
           </Button>
           <Button
@@ -130,7 +132,7 @@ export function AboutSection() {
             }
           >
             <FileText className="h-4 w-4" />
-            Documentation
+            {t("resources.documentation")}
             <ExternalLink className="h-3 w-3 ml-auto" />
           </Button>
         </CardContent>
@@ -138,30 +140,30 @@ export function AboutSection() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Credits</CardTitle>
+          <CardTitle>{t("credits.title")}</CardTitle>
           <CardDescription>
-            Built with amazing open source technologies
+            {t("credits.description")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2 text-sm">
             <p className="flex items-center gap-2">
               <Heart className="h-3 w-3 text-red-500" />
-              Built with Electron, React, and TypeScript
+              {t("credits.line1")}
             </p>
             <p className="text-muted-foreground">
-              UI components by shadcn/ui and Radix UI
+              {t("credits.line2")}
             </p>
-            <p className="text-muted-foreground">AI SDK by Vercel</p>
+            <p className="text-muted-foreground">{t("credits.line3")}</p>
             <p className="text-muted-foreground">
-              Assistant UI components by assistant-ui
+              {t("credits.line4")}
             </p>
           </div>
           <Separator />
           <div className="text-xs text-muted-foreground">
-            <p>© 2024 Autai. All rights reserved.</p>
+            <p>{t("copyright")}</p>
             <p className="mt-1">
-              This software is provided as-is without warranty of any kind.
+              {t("disclaimer")}
             </p>
           </div>
         </CardContent>

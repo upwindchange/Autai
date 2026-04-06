@@ -6,6 +6,7 @@ import { useUiStore } from "@/stores/uiStore";
 import { ProvidersModelsSection } from "@/components/settings/settings-sections";
 import { DevelopmentSection } from "@/components/settings/settings-sections";
 import { AboutSection } from "@/components/settings/settings-sections";
+import { useTranslation } from "react-i18next";
 
 interface SettingsViewProps {
   onClose: () => void;
@@ -14,6 +15,7 @@ interface SettingsViewProps {
 export function SettingsView({ onClose }: SettingsViewProps) {
   const { settings } = useSettings();
   const { activeSettingsSection } = useUiStore();
+  const { t } = useTranslation("settings");
 
   // Render the active section
   const renderSection = () => {
@@ -42,14 +44,9 @@ export function SettingsView({ onClose }: SettingsViewProps) {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h2 className="text-lg font-semibold">Settings</h2>
+          <h2 className="text-lg font-semibold">{t("view.title")}</h2>
           <p className="text-sm text-muted-foreground">
-            {activeSettingsSection === "providers" &&
-              "Configure AI providers and select models for different tasks"}
-            {activeSettingsSection === "development" &&
-              "Development tools and debugging options"}
-            {activeSettingsSection === "about" &&
-              "Application information and resources"}
+            {t(`view.description.${activeSettingsSection}`)}
           </p>
         </div>
       </div>
