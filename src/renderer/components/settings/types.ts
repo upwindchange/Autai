@@ -30,4 +30,4 @@ export type EditingProvider =
   | (AnthropicProviderConfig & { isNew?: boolean })
   | (DeepInfraProviderConfig & { isNew?: boolean });
 
-export type SectionType = "providers" | "models" | "development" | "about";
+export type SectionType = "providers" | "development" | "about";

@@ -3,8 +3,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSettings } from "@/components/settings";
 import { useUiStore } from "@/stores/uiStore";
-import { ProvidersSection } from "@/components/settings/settings-sections";
-import { ModelsSection } from "@/components/settings/settings-sections";
+import { ProvidersModelsSection } from "@/components/settings/settings-sections";
 import { DevelopmentSection } from "@/components/settings/settings-sections";
 import { AboutSection } from "@/components/settings/settings-sections";
 
@@ -20,9 +19,7 @@ export function SettingsView({ onClose }: SettingsViewProps) {
   const renderSection = () => {
     switch (activeSettingsSection) {
       case "providers":
-        return <ProvidersSection settings={settings} />;
-      case "models":
-        return <ModelsSection settings={settings} />;
+        return <ProvidersModelsSection settings={settings} />;
       case "development":
         return <DevelopmentSection settings={settings} />;
       case "about":
@@ -48,9 +45,7 @@ export function SettingsView({ onClose }: SettingsViewProps) {
           <h2 className="text-lg font-semibold">Settings</h2>
           <p className="text-sm text-muted-foreground">
             {activeSettingsSection === "providers" &&
-              "Manage AI provider configurations"}
-            {activeSettingsSection === "models" &&
-              "Configure AI models for different use cases"}
+              "Configure AI providers and select models for different tasks"}
             {activeSettingsSection === "development" &&
               "Development tools and debugging options"}
             {activeSettingsSection === "about" &&
