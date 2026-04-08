@@ -331,3 +331,38 @@ export async function simulateToolCall({
     toolCallId,
   };
 }
+
+/**
+ * Writes simulated tool call chunks to a UI message stream writer.
+ *
+ * This is the stream companion to simulateToolCall(). While simulateToolCall
+ * creates ModelMessage objects for the LLM context array, this function
+ * writes the equivalent UIMessageChunk objects to the SSE writer so the
+ * frontend can render the simulated tool call.
+ */
+export function writeSimulatedToolCallToStream({
+  writer,
+  toolCallId,
+  toolName,
+  input,
+  output,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  writer: { write: (chunk: any) => void };
+  toolCallId: string;
+  toolName: string;
+  input: unknown;
+  output: unknown;
+}): void {
+  writer.write({
+    type: "tool-input-available",
+    toolCallId,
+    toolName,
+    input,
+  });
+  writer.write({
+    type: "tool-output-available",
+    toolCallId,
+    output,
+  });
+}

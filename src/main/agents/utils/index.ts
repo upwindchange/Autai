@@ -11,6 +11,7 @@ export {
   repairToolCall,
   executeToolDirectly,
   simulateToolCall,
+  writeSimulatedToolCallToStream,
   type Tool,
   type ToolExecutionOptions,
   type ToolExecutionResult,

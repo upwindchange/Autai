@@ -7,14 +7,18 @@ import {
 } from "ai";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
-import { simulateToolCall, mergeStreamAndWait } from "@agents/utils";
+import {
+  simulateToolCall,
+  mergeStreamAndWait,
+  writeSimulatedToolCallToStream,
+} from "@agents/utils";
 import log from "electron-log/main";
 import { planInputSchema } from "./planner";
 import type { UIPlanType, UIPlanTodo } from "./planner";
 import { executeSubtasks } from "./action-executor";
 import { hasSuccessfulToolResult } from "@/agents/utils";
 
-const logger = log.scope("browser-action-task-executor");
+const logger = log.scope("browser-use-task-executor");
 
 // ============================================================================
 // Helper Functions
@@ -176,6 +180,7 @@ export async function browserUseTaskExecutor(
   const {
     assistantMessage: inProgressAssistantMsg,
     toolMessage: inProgressToolMsg,
+    toolCallId: inProgressToolCallId,
   } = await simulateToolCall({
     toolName: "plan",
     input: {
@@ -207,6 +212,19 @@ export async function browserUseTaskExecutor(
   // ============================================================================
   return createUIMessageStream({
     execute: async ({ writer }) => {
+      // Stream the in_progress simulated tool call to the frontend
+      writeSimulatedToolCallToStream({
+        writer,
+        toolCallId: inProgressToolCallId,
+        toolName: "plan",
+        input: {
+          title: plan.title,
+          description: plan.description,
+          todos: plan.todos,
+        },
+        output: plan,
+      });
+
       const context = {
         sessionId,
       };
@@ -353,6 +371,7 @@ export async function browserUseTaskExecutor(
           const {
             assistantMessage: failedAssistantMsg,
             toolMessage: failedToolMsg,
+            toolCallId: failedToolCallId,
           } = await simulateToolCall({
             toolName: "plan",
             input: {
@@ -364,6 +383,18 @@ export async function browserUseTaskExecutor(
 
           // Inject simulated messages into conversation history
           messages.push(failedAssistantMsg, failedToolMsg);
+
+          // Stream the cancelled simulated tool call to the frontend
+          writeSimulatedToolCallToStream({
+            writer,
+            toolCallId: failedToolCallId,
+            toolName: "plan",
+            input: {
+              title: plan.title,
+              todos: plan.todos,
+            },
+            output: plan,
+          });
         } else {
           // Store failure information in current task
           plan.todos[currentTaskIndex].receipt = subtaskPlanResultData.receipt;
@@ -400,6 +431,7 @@ export async function browserUseTaskExecutor(
         const {
           assistantMessage: completedAssistantMsg,
           toolMessage: completedToolMsg,
+          toolCallId: completedToolCallId,
         } = await simulateToolCall({
           toolName: "plan",
           input: {
@@ -411,6 +443,18 @@ export async function browserUseTaskExecutor(
 
         // Inject simulated messages into conversation history
         messages.push(completedAssistantMsg, completedToolMsg);
+
+        // Stream the completed simulated tool call to the frontend
+        writeSimulatedToolCallToStream({
+          writer,
+          toolCallId: completedToolCallId,
+          toolName: "plan",
+          input: {
+            title: plan.title,
+            todos: plan.todos,
+          },
+          output: plan,
+        });
       }
     },
     onError: (error) => {

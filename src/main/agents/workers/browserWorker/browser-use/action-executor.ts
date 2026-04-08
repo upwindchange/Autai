@@ -9,7 +9,11 @@ import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
 import { SessionTabService } from "@/services";
-import { simulateToolCall, mergeStreamAndWait } from "@agents/utils";
+import {
+  simulateToolCall,
+  mergeStreamAndWait,
+  writeSimulatedToolCallToStream,
+} from "@agents/utils";
 import log from "electron-log/main";
 import { interactiveTools } from "@agents/tools/InteractiveTools";
 import { navigationTools } from "@agents/tools/TabControlTools";
@@ -303,6 +307,7 @@ export async function executeSubtasks(
           const {
             assistantMessage: subtaskAssistantMsg,
             toolMessage: subtaskToolMsg,
+            toolCallId: subtaskToolCallId,
           } = await simulateToolCall({
             toolName: "plan",
             input: {
@@ -314,6 +319,18 @@ export async function executeSubtasks(
 
           // Inject simulated messages into conversation history
           messages.push(subtaskAssistantMsg, subtaskToolMsg);
+
+          // Stream the subtask status simulated tool call to the frontend
+          writeSimulatedToolCallToStream({
+            writer,
+            toolCallId: subtaskToolCallId,
+            toolName: "plan",
+            input: {
+              title: subtaskPlan.title,
+              todos: subtaskPlan.todos,
+            },
+            output: subtaskPlan,
+          });
 
           logger.debug("Simulated plan tool call for subtask status", {
             subtaskId: subtask.id,

@@ -5,7 +5,7 @@ import { hasSuccessfulToolResult } from "@/agents/utils";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
 
-const logger = log.scope("browser-action-planner");
+const logger = log.scope("browser-use-planner");
 
 // ===== Local Type Definitions =====
 // These match the renderer's ToolUIReceipt schema but are defined locally
@@ -153,7 +153,7 @@ export async function browserUsePlanner(
     experimental_context: context,
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
-      functionId: "browser-action-planner",
+      functionId: "browser-use-planner",
     },
   });
 

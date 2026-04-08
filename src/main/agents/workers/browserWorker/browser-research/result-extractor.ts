@@ -12,6 +12,7 @@ import {
   mergeStreamAndWait,
   hasSuccessfulToolResult,
   simulateToolCall,
+  writeSimulatedToolCallToStream,
 } from "@agents/utils";
 import { navigateTool } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
@@ -150,7 +151,11 @@ export async function extractResultsFromUrls(
           });
 
           // Show UI progress
-          const { assistantMessage, toolMessage } = await simulateToolCall({
+          const {
+            assistantMessage,
+            toolMessage,
+            toolCallId: extractToolCallId,
+          } = await simulateToolCall({
             toolName: "plan",
             input: {
               title: `Reading: ${searchResult.title}`,
@@ -172,6 +177,31 @@ export async function extractResultsFromUrls(
             },
           });
           messages.push(assistantMessage, toolMessage);
+
+          // Stream the extraction progress to the frontend
+          writeSimulatedToolCallToStream({
+            writer,
+            toolCallId: extractToolCallId,
+            toolName: "plan",
+            input: {
+              title: `Reading: ${searchResult.title}`,
+              description: searchResult.url,
+            },
+            output: {
+              id: `extraction-${sessionId}`,
+              title: "Extracting Results",
+              description: "Reading and analyzing web pages",
+              todos: searchResults.map((sr, idx) => ({
+                id: `extract-${sessionId}-${idx}`,
+                label: `Read: ${sr.title}`,
+                status:
+                  idx < i ? "completed"
+                  : idx === i ? "in_progress"
+                  : "pending",
+                description: sr.url,
+              })),
+            },
+          });
 
           try {
             // Navigate to the URL
