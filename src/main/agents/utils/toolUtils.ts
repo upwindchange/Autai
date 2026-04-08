@@ -43,12 +43,6 @@ export type ToolExecutionResult = {
   output: unknown;
 };
 
-export type ToolSimulationResult = {
-  assistantMessage: AssistantModelMessage;
-  toolMessage: ToolModelMessage;
-  toolCallId: string;
-};
-
 // ── Stream Utilities ───────────────────────────────────────────────────────
 
 /**
@@ -276,69 +270,10 @@ export async function executeToolDirectly({
 }
 
 /**
- * Simulates a tool call without executing it, using provided output.
- */
-export async function simulateToolCall({
-  toolName,
-  input,
-  output,
-}: {
-  toolName: string;
-  input: unknown;
-  output: unknown;
-}): Promise<ToolSimulationResult> {
-  const toolCallId = generateId();
-
-  logger.debug("Simulating tool call", {
-    toolName,
-    toolCallId,
-    input,
-    output,
-  });
-
-  // Create assistant message with tool call
-  const assistantMessage: AssistantModelMessage = {
-    role: "assistant",
-    content: [
-      {
-        type: "tool-call",
-        toolCallId,
-        toolName,
-        input,
-      },
-    ],
-  };
-
-  // Create tool message with result
-  const toolMessage: ToolModelMessage = {
-    role: "tool",
-    content: [
-      {
-        type: "tool-result",
-        toolCallId,
-        toolName,
-        output: {
-          type: "json",
-          value: output,
-        } as ToolResultOutput,
-      },
-    ],
-  };
-
-  return {
-    assistantMessage,
-    toolMessage,
-    toolCallId,
-  };
-}
-
-/**
  * Writes simulated tool call chunks to a UI message stream writer.
  *
- * This is the stream companion to simulateToolCall(). While simulateToolCall
- * creates ModelMessage objects for the LLM context array, this function
- * writes the equivalent UIMessageChunk objects to the SSE writer so the
- * frontend can render the simulated tool call.
+ * Writes tool-input-available and tool-output-available UIMessageChunk objects
+ * to the SSE writer so the frontend can render the simulated tool call.
  */
 export function writeSimulatedToolCallToStream({
   writer,

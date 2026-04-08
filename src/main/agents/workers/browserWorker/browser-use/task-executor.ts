@@ -8,10 +8,10 @@ import {
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
 import {
-  simulateToolCall,
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
 } from "@agents/utils";
+import { generateId } from "@ai-sdk/provider-utils";
 import log from "electron-log/main";
 import { planInputSchema } from "./planner";
 import type { UIPlanType, UIPlanTodo } from "./planner";
@@ -175,26 +175,9 @@ export async function browserUseTaskExecutor(
   // Set current task to in_progress
   // ============================================================================
   plan.todos[currentTaskIndex].status = "in_progress";
+  const inProgressToolCallId = generateId();
 
-  // Generate simulated tool call messages to trigger UI update
-  const {
-    assistantMessage: inProgressAssistantMsg,
-    toolMessage: inProgressToolMsg,
-    toolCallId: inProgressToolCallId,
-  } = await simulateToolCall({
-    toolName: "plan",
-    input: {
-      title: plan.title,
-      description: plan.description,
-      todos: plan.todos,
-    },
-    output: plan, // The updated plan with status="in_progress"
-  });
-
-  // Inject simulated messages into conversation history for UI rendering
-  messages.push(inProgressAssistantMsg, inProgressToolMsg);
-
-  logger.debug("Simulated plan tool call for UI update", {
+  logger.debug("Plan status update", {
     taskId: plan.todos[currentTaskIndex].id,
     status: "in_progress",
   });
@@ -335,7 +318,6 @@ export async function browserUseTaskExecutor(
       const actionExecutorStream = await executeSubtasks(
         subtaskPlanResultData, // Modified in-place during execution
         sessionId,
-        messages,
       );
 
       // Merge action executor stream and wait for completion
@@ -367,27 +349,10 @@ export async function browserUseTaskExecutor(
             maxRetries,
           });
 
-          // Generate simulated tool call messages to trigger UI update
-          const {
-            assistantMessage: failedAssistantMsg,
-            toolMessage: failedToolMsg,
-            toolCallId: failedToolCallId,
-          } = await simulateToolCall({
-            toolName: "plan",
-            input: {
-              title: plan.title,
-              todos: plan.todos,
-            },
-            output: plan, // The updated plan with cancelled task
-          });
-
-          // Inject simulated messages into conversation history
-          messages.push(failedAssistantMsg, failedToolMsg);
-
-          // Stream the cancelled simulated tool call to the frontend
+          // Stream the cancelled plan status to the frontend
           writeSimulatedToolCallToStream({
             writer,
-            toolCallId: failedToolCallId,
+            toolCallId: generateId(),
             toolName: "plan",
             input: {
               title: plan.title,
@@ -427,27 +392,10 @@ export async function browserUseTaskExecutor(
           taskLabel: plan.todos[currentTaskIndex].label,
         });
 
-        // Generate simulated tool call messages to trigger UI update
-        const {
-          assistantMessage: completedAssistantMsg,
-          toolMessage: completedToolMsg,
-          toolCallId: completedToolCallId,
-        } = await simulateToolCall({
-          toolName: "plan",
-          input: {
-            title: plan.title,
-            todos: plan.todos,
-          },
-          output: plan, // The updated plan with completed task
-        });
-
-        // Inject simulated messages into conversation history
-        messages.push(completedAssistantMsg, completedToolMsg);
-
-        // Stream the completed simulated tool call to the frontend
+        // Stream the completed plan status to the frontend
         writeSimulatedToolCallToStream({
           writer,
-          toolCallId: completedToolCallId,
+          toolCallId: generateId(),
           toolName: "plan",
           input: {
             title: plan.title,

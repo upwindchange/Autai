@@ -3,7 +3,6 @@ import {
   createUIMessageStream,
   stepCountIs,
   tool,
-  type ModelMessage,
 } from "ai";
 import { z } from "zod";
 import { createIdGenerator } from "@ai-sdk/provider-utils";
@@ -11,7 +10,6 @@ import { complexModel } from "@agents/providers";
 import {
   mergeStreamAndWait,
   hasSuccessfulToolResult,
-  simulateToolCall,
   writeSimulatedToolCallToStream,
 } from "@agents/utils";
 import { navigateTool } from "@agents/tools/TabControlTools";
@@ -156,7 +154,6 @@ export async function executeSearchQueries(
   plan: ResearchPlan,
   sessionId: string,
   activeTabId: string,
-  messages: ModelMessage[],
 ): Promise<{
   stream: ReturnType<typeof createUIMessageStream>;
   results: Promise<SearchResultItem[]>;
@@ -177,37 +174,9 @@ export async function executeSearchQueries(
           logger.debug("Searching", { query, searchUrl });
 
           // Show UI progress
-          const {
-            assistantMessage,
-            toolMessage,
-            toolCallId: searchToolCallId,
-          } = await simulateToolCall({
-            toolName: "plan",
-            input: {
-              title: `Searching: "${query}"`,
-              description: `Query ${i + 1} of ${plan.queries.length}`,
-            },
-            output: {
-              id: `search-${sessionId}`,
-              title: plan.title,
-              description: plan.description,
-              todos: plan.queries.map((q, idx) => ({
-                id: `search-${sessionId}-${idx}`,
-                label: `Search: "${q.query}"`,
-                status:
-                  idx < i ? "completed"
-                  : idx === i ? "in_progress"
-                  : "pending",
-                description: q.focus,
-              })),
-            },
-          });
-          messages.push(assistantMessage, toolMessage);
-
-          // Stream the search progress to the frontend
           writeSimulatedToolCallToStream({
             writer,
-            toolCallId: searchToolCallId,
+            toolCallId: generateId(),
             toolName: "plan",
             input: {
               title: `Searching: "${query}"`,

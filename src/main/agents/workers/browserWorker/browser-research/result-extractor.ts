@@ -3,7 +3,6 @@ import {
   createUIMessageStream,
   stepCountIs,
   tool,
-  type ModelMessage,
 } from "ai";
 import { z } from "zod";
 import { createIdGenerator } from "@ai-sdk/provider-utils";
@@ -11,7 +10,6 @@ import { complexModel } from "@agents/providers";
 import {
   mergeStreamAndWait,
   hasSuccessfulToolResult,
-  simulateToolCall,
   writeSimulatedToolCallToStream,
 } from "@agents/utils";
 import { navigateTool } from "@agents/tools/TabControlTools";
@@ -127,7 +125,6 @@ export async function extractResultsFromUrls(
   researchFocus: ResearchQuery[],
   sessionId: string,
   activeTabId: string,
-  messages: ModelMessage[],
 ): Promise<{
   stream: ReturnType<typeof createUIMessageStream>;
   results: Promise<ExtractionResult[]>;
@@ -151,37 +148,9 @@ export async function extractResultsFromUrls(
           });
 
           // Show UI progress
-          const {
-            assistantMessage,
-            toolMessage,
-            toolCallId: extractToolCallId,
-          } = await simulateToolCall({
-            toolName: "plan",
-            input: {
-              title: `Reading: ${searchResult.title}`,
-              description: searchResult.url,
-            },
-            output: {
-              id: `extraction-${sessionId}`,
-              title: "Extracting Results",
-              description: "Reading and analyzing web pages",
-              todos: searchResults.map((sr, idx) => ({
-                id: `extract-${sessionId}-${idx}`,
-                label: `Read: ${sr.title}`,
-                status:
-                  idx < i ? "completed"
-                  : idx === i ? "in_progress"
-                  : "pending",
-                description: sr.url,
-              })),
-            },
-          });
-          messages.push(assistantMessage, toolMessage);
-
-          // Stream the extraction progress to the frontend
           writeSimulatedToolCallToStream({
             writer,
-            toolCallId: extractToolCallId,
+            toolCallId: generateId(),
             toolName: "plan",
             input: {
               title: `Reading: ${searchResult.title}`,

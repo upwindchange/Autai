@@ -91,7 +91,7 @@ export async function browserResearchWorker(
             // ============================================================
             logger.debug("Stage 2: Executing search queries");
             const { stream: searchStream, results: searchResultsPromise } =
-              await executeSearchQueries(plan, sessionId, tabId, messages);
+              await executeSearchQueries(plan, sessionId, tabId);
 
             await mergeStreamAndWait(searchStream, writer);
 
@@ -132,7 +132,6 @@ export async function browserResearchWorker(
               plan.queries,
               sessionId,
               tabId,
-              messages,
             );
 
             await mergeStreamAndWait(extractionStream, writer);

@@ -3,17 +3,16 @@ import {
   streamText,
   tool,
   createUIMessageStream,
-  type ModelMessage,
 } from "ai";
 import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
 import { SessionTabService } from "@/services";
 import {
-  simulateToolCall,
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
 } from "@agents/utils";
+import { generateId } from "@ai-sdk/provider-utils";
 import log from "electron-log/main";
 import { interactiveTools } from "@agents/tools/InteractiveTools";
 import { navigationTools } from "@agents/tools/TabControlTools";
@@ -141,13 +140,11 @@ function buildSubtaskContext(
  *
  * @param subtaskPlan - The subtask plan to execute (modified in-place)
  * @param sessionId - The current session ID
- * @param messages - The conversation messages
  * @returns StreamTextResult that streams all subtask executions
  */
 export async function executeSubtasks(
   subtaskPlan: UIPlanType,
   sessionId: string,
-  messages: ModelMessage[],
 ): Promise<ReturnType<typeof createUIMessageStream>> {
   logger.debug("Starting subtask execution stream", {
     sessionId,
@@ -303,27 +300,10 @@ export async function executeSubtasks(
             at: new Date().toISOString(),
           };
 
-          // Generate simulated tool call messages to trigger UI update
-          const {
-            assistantMessage: subtaskAssistantMsg,
-            toolMessage: subtaskToolMsg,
-            toolCallId: subtaskToolCallId,
-          } = await simulateToolCall({
-            toolName: "plan",
-            input: {
-              title: subtaskPlan.title,
-              todos: subtaskPlan.todos,
-            },
-            output: subtaskPlan, // The updated subtask plan with new status
-          });
-
-          // Inject simulated messages into conversation history
-          messages.push(subtaskAssistantMsg, subtaskToolMsg);
-
-          // Stream the subtask status simulated tool call to the frontend
+          // Stream the subtask status to the frontend
           writeSimulatedToolCallToStream({
             writer,
-            toolCallId: subtaskToolCallId,
+            toolCallId: generateId(),
             toolName: "plan",
             input: {
               title: subtaskPlan.title,
