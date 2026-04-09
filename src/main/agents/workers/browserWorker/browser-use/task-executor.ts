@@ -4,7 +4,6 @@ import {
   ModelMessage,
   tool,
   stepCountIs,
-  generateId,
 } from "ai";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
@@ -402,10 +401,11 @@ export async function browserUseTaskExecutor(
         // Stream the completed plan status to the frontend
         writeSimulatedToolCallToStream({
           writer,
-          toolCallId: generateId(),
+          toolCallId: inProgressToolCallId,
           toolName: "plan",
           input: {
             title: plan.title,
+            description: plan.description,
             todos: plan.todos,
           },
           output: plan,

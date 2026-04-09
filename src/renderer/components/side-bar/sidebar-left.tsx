@@ -17,6 +17,7 @@ export function SidebarLeft(props: SidebarLeftProps) {
   return (
     <Sidebar className="border-r-0" {...props}>
       <SidebarContent>
+        <div className="py-1"></div>
         <ThreadList />
         <NavSecondary className="mt-auto" />
       </SidebarContent>
