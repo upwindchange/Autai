@@ -4,6 +4,7 @@ import {
   ArrowUpIcon,
   AudioLinesIcon,
   CheckIcon,
+  ChevronDownIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   CopyIcon,
@@ -22,6 +23,7 @@ import {
   ActionBarPrimitive,
   AuiIf,
   BranchPickerPrimitive,
+  ChainOfThoughtPrimitive,
   ComposerPrimitive,
   ErrorPrimitive,
   MessagePrimitive,
@@ -48,7 +50,6 @@ import {
   ComposerAttachments,
   UserMessageAttachments,
 } from "@/components/assistant-ui/attachment";
-import { Reasoning, ReasoningGroup } from "@/components/assistant-ui/reasoning";
 import { MessageTiming } from "@/components/assistant-ui/message-timing";
 import {
   QuoteBlock,
@@ -58,6 +59,8 @@ import {
 import { Sources } from "@/components/assistant-ui/sources";
 import { Image } from "@/components/assistant-ui/image";
 import { File } from "@/components/assistant-ui/file";
+import { Plan } from "@/components/tool-ui/plan";
+import { safeParseSerializablePlan } from "@/components/tool-ui/plan/schema";
 import { WorkspaceWelcome } from "@/components/ai-chat/workspace-welcome";
 import { useUiStore } from "@/stores/uiStore";
 import { useTabVisibility } from "@/hooks";
@@ -362,6 +365,66 @@ const MessageError: FC = () => {
   );
 };
 
+const AutaiChainOfThought: FC = () => {
+  return (
+    <ChainOfThoughtPrimitive.Root className="my-2 rounded-lg border">
+      <ChainOfThoughtPrimitive.AccordionTrigger className="flex w-full cursor-pointer items-center gap-2 px-4 py-2.5 font-medium text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground">
+        <ChevronDownIcon
+          className={cn(
+            "size-4 shrink-0 transition-transform",
+            "group-data-[state=closed]/trigger:-rotate-90",
+          )}
+        />
+        Thinking
+      </ChainOfThoughtPrimitive.AccordionTrigger>
+      <AuiIf condition={(s) => !s.chainOfThought.collapsed}>
+        <ChainOfThoughtPrimitive.Parts>
+          {({ part }) => {
+            if (part.type === "tool-call" && part.toolName === "plan")
+              return null;
+            if (part.type === "reasoning") return <MarkdownText />;
+            if (part.type === "tool-call")
+              return (
+                <ToolFallback
+                  type={part.type}
+                  toolCallId={part.toolCallId}
+                  toolName={part.toolName}
+                  args={part.args}
+                  argsText={part.argsText}
+                  result={part.result}
+                  status={part.status}
+                  addResult={() => {}}
+                  resume={() => {}}
+                />
+              );
+            return null;
+          }}
+        </ChainOfThoughtPrimitive.Parts>
+      </AuiIf>
+      <ChainOfThoughtPlanExtractor />
+    </ChainOfThoughtPrimitive.Root>
+  );
+};
+
+const ChainOfThoughtPlanExtractor: FC = () => {
+  return (
+    <ChainOfThoughtPrimitive.Parts>
+      {({ part }) => {
+        if (
+          part.type === "tool-call" &&
+          part.toolName === "plan" &&
+          part.result
+        ) {
+          const parsed = safeParseSerializablePlan(part.result);
+          if (!parsed) return null;
+          return <Plan {...parsed} />;
+        }
+        return null;
+      }}
+    </ChainOfThoughtPrimitive.Parts>
+  );
+};
+
 const AssistantMessage: FC = () => {
   return (
     <MessagePrimitive.Root
@@ -372,11 +435,7 @@ const AssistantMessage: FC = () => {
         <MessagePrimitive.Parts
           components={{
             Text: () => <MarkdownText />,
-            Reasoning,
-            ReasoningGroup,
-            tools: {
-              Fallback: (props) => <ToolFallback {...props} />,
-            },
+            ChainOfThought: AutaiChainOfThought,
             Source: (props) => <Sources {...props} />,
             Image: (props) => <Image {...props} />,
             File: (props) => <File {...props} />,

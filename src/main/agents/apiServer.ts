@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import { serve, type ServerType } from "@hono/node-server";
 import { chatRoutes } from "./routes/chatRoutes";
 import { threadRoutes } from "./routes/threadRoutes";
+import { tagRoutes } from "./routes/tagRoutes";
 import { settingsRoutes } from "./routes/settingsRoutes";
 import log from "electron-log/main";
 
@@ -30,6 +31,7 @@ export class ApiServer {
   private setupRoutes(): void {
     this.app.route("/chat", chatRoutes);
     this.app.route("/threads", threadRoutes);
+    this.app.route("/tags", tagRoutes);
     this.app.route("/settings", settingsRoutes);
 
     // Health check endpoint

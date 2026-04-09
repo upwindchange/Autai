@@ -20,5 +20,21 @@ export const UpdateThreadSchema = z.object({
   status: z.enum(["archived", "regular"]).optional(),
 });
 
+// Tag creation schema
+export const CreateTagSchema = z.object({
+  name: z.string().min(1).max(50),
+  sortOrder: z.number().int().optional(),
+});
+
+// Tag update schema
+export const UpdateTagSchema = z.object({
+  name: z.string().min(1).max(50),
+});
+
+// Add tag to thread schema
+export const AddThreadTagSchema = z.object({
+  tagId: z.number().int().positive(),
+});
+
 // Reuse existing schemas for settings endpoints
 export { SettingsStateSchema, TestConnectionConfigSchema };

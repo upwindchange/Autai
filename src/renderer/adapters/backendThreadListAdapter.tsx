@@ -12,6 +12,8 @@ import {
 } from "@assistant-ui/react";
 import { createAssistantStream } from "assistant-stream";
 import type { UIMessage } from "ai";
+import type { TagRow } from "@shared/tag";
+import { useTagStore, type ThreadInfo } from "@/stores/tagStore";
 
 const API_BASE = "http://localhost:3001";
 
@@ -78,7 +80,36 @@ class BackendThreadHistoryAdapter implements ThreadHistoryAdapter {
 export const backendThreadListAdapter: RemoteThreadListAdapter = {
   async list() {
     const res = await fetch(`${API_BASE}/threads`);
-    return res.json();
+    const data = (await res.json()) as {
+      threads: {
+        remoteId: string;
+        title: string | null;
+        status: "regular" | "archived";
+        tags: TagRow[];
+      }[];
+    };
+
+    // Populate tag store with thread data
+    const threadTags: Record<string, TagRow[]> = {};
+    const threads: ThreadInfo[] = [];
+    for (const t of data.threads) {
+      threadTags[t.remoteId] = t.tags;
+      threads.push({
+        remoteId: t.remoteId,
+        title: t.title ?? undefined,
+        tags: t.tags,
+      });
+    }
+    useTagStore.getState().setThreadTags(threadTags, threads);
+
+    return {
+      threads: data.threads.map((t) => ({
+        remoteId: t.remoteId,
+        title: t.title ?? undefined,
+        status: t.status,
+        tags: t.tags,
+      })),
+    };
   },
 
   async initialize(threadId: string) {

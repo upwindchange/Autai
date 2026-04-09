@@ -1,6 +1,10 @@
 import { Hono } from "hono";
 import { threadPersistenceService } from "@/services";
-import { CreateThreadSchema, UpdateThreadSchema } from "../schemas/apiSchemas";
+import {
+  CreateThreadSchema,
+  UpdateThreadSchema,
+  AddThreadTagSchema,
+} from "../schemas/apiSchemas";
 import log from "electron-log/main";
 
 const logger = log.scope("ApiServer:Threads");
@@ -15,6 +19,7 @@ threadRoutes.get("/", (c) => {
         remoteId: t.id,
         status: t.status,
         title: t.title,
+        tags: t.tags,
       })),
     });
   } catch (error) {
@@ -104,5 +109,38 @@ threadRoutes.get("/:id/messages", (c) => {
   } catch (error) {
     logger.error("Error loading messages:", error);
     return c.json({ error: "Failed to load messages" }, 500);
+  }
+});
+
+// POST /threads/:id/tags - add tag to thread
+threadRoutes.post("/:id/tags", async (c) => {
+  try {
+    const threadId = c.req.param("id");
+    const body = await c.req.json();
+    const parsed = AddThreadTagSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Invalid data", details: parsed.error.issues },
+        400,
+      );
+    }
+    threadPersistenceService.addTagToThread(threadId, parsed.data.tagId);
+    return c.json({ success: true }, 201);
+  } catch (error) {
+    logger.error("Error adding tag to thread:", error);
+    return c.json({ error: "Failed to add tag to thread" }, 500);
+  }
+});
+
+// DELETE /threads/:id/tags/:tagId - remove tag from thread
+threadRoutes.delete("/:id/tags/:tagId", (c) => {
+  try {
+    const threadId = c.req.param("id");
+    const tagId = Number(c.req.param("tagId"));
+    threadPersistenceService.removeTagFromThread(threadId, tagId);
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error("Error removing tag from thread:", error);
+    return c.json({ error: "Failed to remove tag from thread" }, 500);
   }
 });

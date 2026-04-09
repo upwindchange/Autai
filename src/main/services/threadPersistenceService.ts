@@ -26,6 +26,17 @@ interface MessageRow {
   created_at: string;
 }
 
+interface TagRow {
+  id: number;
+  name: string;
+  sort_order: number;
+  created_at: string;
+}
+
+interface ThreadWithTags extends ThreadRow {
+  tags: TagRow[];
+}
+
 class ThreadPersistenceService {
   private db: Database.Database | null = null;
 
@@ -66,6 +77,23 @@ class ThreadPersistenceService {
       );
 
       CREATE INDEX IF NOT EXISTS idx_messages_thread_id ON messages(thread_id);
+
+      CREATE TABLE IF NOT EXISTS tags (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS thread_tags (
+        thread_id TEXT NOT NULL,
+        tag_id INTEGER NOT NULL,
+        PRIMARY KEY (thread_id, tag_id),
+        FOREIGN KEY (thread_id) REFERENCES threads(id) ON DELETE CASCADE,
+        FOREIGN KEY (tag_id) REFERENCES tags(id) ON DELETE CASCADE
+      );
+
+      CREATE INDEX IF NOT EXISTS idx_thread_tags_tag_id ON thread_tags(tag_id);
     `);
   }
 
@@ -77,13 +105,18 @@ class ThreadPersistenceService {
     return this.getThread(id)!;
   }
 
-  listThreads(): ThreadRow[] {
+  listThreads(): ThreadWithTags[] {
     if (!this.db) throw new Error("Database not initialized");
 
     const stmt = this.db.prepare(
       "SELECT * FROM threads WHERE status = 'regular' ORDER BY updated_at DESC",
     );
-    return stmt.all() as ThreadRow[];
+    const threads = stmt.all() as ThreadRow[];
+
+    return threads.map((thread) => ({
+      ...thread,
+      tags: this.getTagsForThread(thread.id),
+    }));
   }
 
   getThread(id: string): ThreadRow | undefined {
@@ -163,6 +196,75 @@ class ThreadPersistenceService {
     const rows = stmt.all(threadId) as MessageRow[];
 
     return rows.map((row) => JSON.parse(row.content) as UIMessage);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Tag operations
+  // ---------------------------------------------------------------------------
+
+  createTag(name: string, sortOrder?: number): TagRow {
+    if (!this.db) throw new Error("Database not initialized");
+
+    const stmt = this.db.prepare(
+      "INSERT INTO tags (name, sort_order) VALUES (?, ?)",
+    );
+    const result = stmt.run(name, sortOrder ?? 0);
+    return this.getTag(result.lastInsertRowid as number)!;
+  }
+
+  listTags(): TagRow[] {
+    if (!this.db) throw new Error("Database not initialized");
+
+    const stmt = this.db.prepare("SELECT * FROM tags ORDER BY sort_order ASC, name ASC");
+    return stmt.all() as TagRow[];
+  }
+
+  getTag(id: number): TagRow | undefined {
+    if (!this.db) throw new Error("Database not initialized");
+
+    const stmt = this.db.prepare("SELECT * FROM tags WHERE id = ?");
+    return stmt.get(id) as TagRow | undefined;
+  }
+
+  renameTag(id: number, name: string): void {
+    if (!this.db) throw new Error("Database not initialized");
+
+    const stmt = this.db.prepare("UPDATE tags SET name = ? WHERE id = ?");
+    stmt.run(name, id);
+  }
+
+  deleteTag(id: number): void {
+    if (!this.db) throw new Error("Database not initialized");
+
+    const stmt = this.db.prepare("DELETE FROM tags WHERE id = ?");
+    stmt.run(id);
+  }
+
+  addTagToThread(threadId: string, tagId: number): void {
+    if (!this.db) throw new Error("Database not initialized");
+
+    const stmt = this.db.prepare(
+      "INSERT OR IGNORE INTO thread_tags (thread_id, tag_id) VALUES (?, ?)",
+    );
+    stmt.run(threadId, tagId);
+  }
+
+  removeTagFromThread(threadId: string, tagId: number): void {
+    if (!this.db) throw new Error("Database not initialized");
+
+    const stmt = this.db.prepare(
+      "DELETE FROM thread_tags WHERE thread_id = ? AND tag_id = ?",
+    );
+    stmt.run(threadId, tagId);
+  }
+
+  getTagsForThread(threadId: string): TagRow[] {
+    if (!this.db) throw new Error("Database not initialized");
+
+    const stmt = this.db.prepare(
+      "SELECT t.* FROM tags t INNER JOIN thread_tags tt ON t.id = tt.tag_id WHERE tt.thread_id = ? ORDER BY t.sort_order ASC, t.name ASC",
+    );
+    return stmt.all(threadId) as TagRow[];
   }
 
   close(): void {
