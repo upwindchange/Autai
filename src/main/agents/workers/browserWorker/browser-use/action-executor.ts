@@ -12,7 +12,6 @@ import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
 } from "@agents/utils";
-import { generateId } from "@ai-sdk/provider-utils";
 import log from "electron-log/main";
 import { interactiveTools } from "@agents/tools/InteractiveTools";
 import { navigationTools } from "@agents/tools/TabControlTools";
@@ -140,11 +139,13 @@ function buildSubtaskContext(
  *
  * @param subtaskPlan - The subtask plan to execute (modified in-place)
  * @param sessionId - The current session ID
+ * @param subtaskPlanToolCallId - The toolCallId from the subtask planner's plan tool call, used to update the subtask plan UI in-place
  * @returns StreamTextResult that streams all subtask executions
  */
 export async function executeSubtasks(
   subtaskPlan: UIPlanType,
   sessionId: string,
+  subtaskPlanToolCallId: string,
 ): Promise<ReturnType<typeof createUIMessageStream>> {
   logger.debug("Starting subtask execution stream", {
     sessionId,
@@ -303,7 +304,7 @@ export async function executeSubtasks(
           // Stream the subtask status to the frontend
           writeSimulatedToolCallToStream({
             writer,
-            toolCallId: generateId(),
+            toolCallId: subtaskPlanToolCallId,
             toolName: "plan",
             input: {
               title: subtaskPlan.title,

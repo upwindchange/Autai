@@ -53,8 +53,11 @@ export async function browserUseWorker(
               writer,
             );
 
-            // Extract plan from tool result
+            // Extract plan from tool result and its toolCallId
             const steps = await planResult.steps;
+            const planToolCallId = steps
+              .flatMap((s) => s.toolCalls ?? [])
+              .find((tc) => tc.toolName === "plan")!.toolCallId;
             const planToolResult = steps
               .flatMap((s) => s.toolResults ?? [])
               .find((tr) => tr.toolName === "plan");
@@ -86,6 +89,7 @@ export async function browserUseWorker(
                 sessionId,
                 plan,
                 currentTaskIndex,
+                planToolCallId,
               );
 
               // Merge task execution stream and wait for completion

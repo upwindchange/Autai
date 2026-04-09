@@ -4,6 +4,7 @@ import {
   ModelMessage,
   tool,
   stepCountIs,
+  generateId,
 } from "ai";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
@@ -11,7 +12,6 @@ import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
 } from "@agents/utils";
-import { generateId } from "@ai-sdk/provider-utils";
 import log from "electron-log/main";
 import { planInputSchema } from "./planner";
 import type { UIPlanType, UIPlanTodo } from "./planner";
@@ -135,6 +135,7 @@ const generateSubtaskPlanTool = tool({
  * @param sessionId - The current session ID
  * @param plan - The high-level task plan from the planner
  * @param currentTaskIndex - Index of the current task to expand
+ * @param planToolCallId - The toolCallId from the initial planner's plan tool call, used to update the plan UI in-place
  * @param maxRetries - Maximum number of replanning attempts (default: 3)
  * @param attemptCount - Current retry attempt count (default: 0)
  * @returns StreamTextResult that includes subtask planning and execution
@@ -144,6 +145,7 @@ export async function browserUseTaskExecutor(
   sessionId: string,
   plan: UIPlanType,
   currentTaskIndex: number,
+  planToolCallId: string,
   maxRetries: number = 3,
   attemptCount: number = 0,
 ): Promise<ReturnType<typeof createUIMessageStream>> {
@@ -175,7 +177,7 @@ export async function browserUseTaskExecutor(
   // Set current task to in_progress
   // ============================================================================
   plan.todos[currentTaskIndex].status = "in_progress";
-  const inProgressToolCallId = generateId();
+  const inProgressToolCallId = planToolCallId;
 
   logger.debug("Plan status update", {
     taskId: plan.todos[currentTaskIndex].id,
@@ -272,6 +274,9 @@ export async function browserUseTaskExecutor(
       });
 
       const allToolResults = steps.flatMap((step) => step.toolResults ?? []);
+      const subtaskPlanToolCallId = steps
+        .flatMap((s) => s.toolCalls ?? [])
+        .find((tc) => tc.toolName === "plan")!.toolCallId;
       const subtaskPlanResultData = allToolResults.find(
         (toolResult) =>
           toolResult.toolName === "plan" && toolResult.type === "tool-result",
@@ -318,6 +323,7 @@ export async function browserUseTaskExecutor(
       const actionExecutorStream = await executeSubtasks(
         subtaskPlanResultData, // Modified in-place during execution
         sessionId,
+        subtaskPlanToolCallId,
       );
 
       // Merge action executor stream and wait for completion
@@ -352,7 +358,7 @@ export async function browserUseTaskExecutor(
           // Stream the cancelled plan status to the frontend
           writeSimulatedToolCallToStream({
             writer,
-            toolCallId: generateId(),
+            toolCallId: inProgressToolCallId,
             toolName: "plan",
             input: {
               title: plan.title,
@@ -376,6 +382,7 @@ export async function browserUseTaskExecutor(
             sessionId,
             plan,
             currentTaskIndex,
+            inProgressToolCallId,
             maxRetries,
             attemptCount + 1,
           );
