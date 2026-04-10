@@ -3,6 +3,7 @@ import {
   ArrowDownIcon,
   ArrowUpIcon,
   AudioLinesIcon,
+  BrainIcon,
   CheckIcon,
   ChevronDownIcon,
   ChevronLeftIcon,
@@ -365,41 +366,59 @@ const MessageError: FC = () => {
   );
 };
 
+const ReasoningBlock: FC<{ text: string }> = ({ text }) => {
+  return (
+    <div className="flex gap-3 px-4 py-2">
+      <div className="flex size-5 shrink-0 items-center justify-center rounded-full bg-muted">
+        <BrainIcon className="size-3 text-muted-foreground" />
+      </div>
+      <p className="text-muted-foreground text-sm italic leading-relaxed">
+        {text}
+      </p>
+    </div>
+  );
+};
+
 const AutaiChainOfThought: FC = () => {
   return (
-    <ChainOfThoughtPrimitive.Root className="my-2 rounded-lg border">
-      <ChainOfThoughtPrimitive.AccordionTrigger className="flex w-full cursor-pointer items-center gap-2 px-4 py-2.5 font-medium text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground">
-        <ChevronDownIcon
-          className={cn(
-            "size-4 shrink-0 transition-transform",
-            "group-data-[state=closed]/trigger:-rotate-90",
-          )}
-        />
+    <ChainOfThoughtPrimitive.Root className="my-2 overflow-hidden rounded-xl border border-border/80 bg-background/90 shadow-sm">
+      <ChainOfThoughtPrimitive.AccordionTrigger className="flex w-full cursor-pointer items-center gap-2 px-4 py-2.5 font-medium text-sm text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground">
+        <AuiIf condition={(s) => s.chainOfThought.collapsed}>
+          <ChevronRightIcon className="size-4 shrink-0" />
+        </AuiIf>
+        <AuiIf condition={(s) => !s.chainOfThought.collapsed}>
+          <ChevronDownIcon className="size-4 shrink-0" />
+        </AuiIf>
         Thinking
       </ChainOfThoughtPrimitive.AccordionTrigger>
       <AuiIf condition={(s) => !s.chainOfThought.collapsed}>
-        <ChainOfThoughtPrimitive.Parts>
-          {({ part }) => {
-            if (part.type === "tool-call" && part.toolName === "plan")
-              return null;
-            if (part.type === "reasoning") return <MarkdownText />;
-            if (part.type === "tool-call")
-              return (
-                <ToolFallback
-                  type={part.type}
-                  toolCallId={part.toolCallId}
-                  toolName={part.toolName}
-                  args={part.args}
-                  argsText={part.argsText}
-                  result={part.result}
-                  status={part.status}
-                  addResult={() => {}}
-                  resume={() => {}}
-                />
-              );
-            return null;
-          }}
-        </ChainOfThoughtPrimitive.Parts>
+        <div className="border-t pb-3">
+          <ChainOfThoughtPrimitive.Parts
+            components={{
+              Reasoning: ({ text }) => <ReasoningBlock text={text} />,
+              tools: {
+                Fallback: ({ toolName, argsText, result, status }) => {
+                  if (toolName === "plan") return null;
+                  return (
+                    <div className="px-4 py-2">
+                      <ToolFallback
+                        type="tool-call"
+                        toolCallId=""
+                        toolName={toolName}
+                        args={undefined}
+                        argsText={argsText}
+                        result={result}
+                        status={status}
+                        addResult={() => {}}
+                        resume={() => {}}
+                      />
+                    </div>
+                  );
+                },
+              },
+            }}
+          />
+        </div>
       </AuiIf>
       <ChainOfThoughtPlanExtractor />
     </ChainOfThoughtPrimitive.Root>
@@ -417,7 +436,11 @@ const ChainOfThoughtPlanExtractor: FC = () => {
         ) {
           const parsed = safeParseSerializablePlan(part.result);
           if (!parsed) return null;
-          return <Plan {...parsed} />;
+          return (
+            <div className="border-t mx-auto w-full max-w-md px-4 py-3">
+              <Plan {...parsed} />
+            </div>
+          );
         }
         return null;
       }}
