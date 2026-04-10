@@ -8,15 +8,20 @@ import {
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { ExternalLink, Code, FileText, Heart } from "lucide-react";
+import { ExternalLink, FileText, Heart } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { GitHubIcon } from "@/components/assistant-ui/github";
 
 export function AboutSection() {
   const { t } = useTranslation("about");
   const [appVersion, setAppVersion] = useState<string>(t("common:btn.loading"));
   const [platform, setPlatform] = useState<string>(t("common:btn.loading"));
-  const [electronVersion, setElectronVersion] = useState<string>(t("common:btn.loading"));
-  const [nodeVersion, setNodeVersion] = useState<string>(t("common:btn.loading"));
+  const [electronVersion, setElectronVersion] = useState<string>(
+    t("common:btn.loading"),
+  );
+  const [nodeVersion, setNodeVersion] = useState<string>(
+    t("common:btn.loading"),
+  );
 
   useEffect(() => {
     // Get app version from main process
@@ -42,7 +47,9 @@ export function AboutSection() {
             v8Version?: string;
           };
           setPlatform(systemInfo.platform || t("common:value.unknown"));
-          setElectronVersion(systemInfo.electronVersion || t("common:value.unknown"));
+          setElectronVersion(
+            systemInfo.electronVersion || t("common:value.unknown"),
+          );
           setNodeVersion(systemInfo.nodeVersion || t("common:value.unknown"));
         } else {
           setPlatform(t("common:value.unknown"));
@@ -65,9 +72,7 @@ export function AboutSection() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold">{t("title")}</h2>
-        <p className="text-muted-foreground mt-1">
-          {t("subtitle")}
-        </p>
+        <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
       </div>
 
       <Card>
@@ -77,19 +82,27 @@ export function AboutSection() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-sm text-muted-foreground">{t("info.version")}</p>
+              <p className="text-sm text-muted-foreground">
+                {t("info.version")}
+              </p>
               <p className="font-mono">{appVersion}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">{t("info.platform")}</p>
+              <p className="text-sm text-muted-foreground">
+                {t("info.platform")}
+              </p>
               <p className="font-mono">{platform}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">{t("info.electron")}</p>
+              <p className="text-sm text-muted-foreground">
+                {t("info.electron")}
+              </p>
               <p className="font-mono">{electronVersion}</p>
             </div>
             <div>
-              <p className="text-sm text-muted-foreground">{t("info.nodejs")}</p>
+              <p className="text-sm text-muted-foreground">
+                {t("info.nodejs")}
+              </p>
               <p className="font-mono">{nodeVersion}</p>
             </div>
           </div>
@@ -109,7 +122,7 @@ export function AboutSection() {
               openExternal("https://github.com/yourusername/autai")
             }
           >
-            <Code className="h-4 w-4" />
+            <GitHubIcon className="h-4 w-4" />
             {t("resources.github")}
             <ExternalLink className="h-3 w-3 ml-auto" />
           </Button>
@@ -141,9 +154,7 @@ export function AboutSection() {
       <Card>
         <CardHeader>
           <CardTitle>{t("credits.title")}</CardTitle>
-          <CardDescription>
-            {t("credits.description")}
-          </CardDescription>
+          <CardDescription>{t("credits.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2 text-sm">
@@ -151,20 +162,14 @@ export function AboutSection() {
               <Heart className="h-3 w-3 text-red-500" />
               {t("credits.line1")}
             </p>
-            <p className="text-muted-foreground">
-              {t("credits.line2")}
-            </p>
+            <p className="text-muted-foreground">{t("credits.line2")}</p>
             <p className="text-muted-foreground">{t("credits.line3")}</p>
-            <p className="text-muted-foreground">
-              {t("credits.line4")}
-            </p>
+            <p className="text-muted-foreground">{t("credits.line4")}</p>
           </div>
           <Separator />
           <div className="text-xs text-muted-foreground">
             <p>{t("copyright")}</p>
-            <p className="mt-1">
-              {t("disclaimer")}
-            </p>
+            <p className="mt-1">{t("disclaimer")}</p>
           </div>
         </CardContent>
       </Card>

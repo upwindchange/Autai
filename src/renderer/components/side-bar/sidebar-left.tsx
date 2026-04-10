@@ -3,7 +3,7 @@ import type { ComponentProps } from "react";
 
 import { Sidebar, SidebarContent } from "@/components/ui/sidebar";
 import { NavSecondary } from "@/components/side-bar/nav-secondary";
-import { ThreadList } from "@/components/assistant-ui/thread-list";
+import { ThreadList } from "@/components/side-bar/thread-list";
 import { TagFilterBar } from "@/components/side-bar/tag-filter";
 
 /**

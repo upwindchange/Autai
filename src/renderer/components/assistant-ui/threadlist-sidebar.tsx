@@ -1,6 +1,6 @@
 import * as React from "react";
 import { MessagesSquare } from "lucide-react";
-import { GitHubIcon } from "@/components/icons/github";
+import { GitHubIcon } from "@/components/assistant-ui/github";
 import {
   Sidebar,
   SidebarContent,

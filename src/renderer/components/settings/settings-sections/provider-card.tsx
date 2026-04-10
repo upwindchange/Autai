@@ -144,8 +144,12 @@ export function ProviderCard({
                   <SelectItem value="openai-compatible">
                     {t("type.openaiCompatible")}
                   </SelectItem>
-                  <SelectItem value="anthropic">{t("type.anthropic")}</SelectItem>
-                  <SelectItem value="deepinfra">{t("type.deepinfra")}</SelectItem>
+                  <SelectItem value="anthropic">
+                    {t("type.anthropic")}
+                  </SelectItem>
+                  <SelectItem value="deepinfra">
+                    {t("type.deepinfra")}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>

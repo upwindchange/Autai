@@ -176,9 +176,7 @@ export function ModelList({
           </ScrollArea>
         </>
       : <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-          {isLoading ?
-            t("modelList.loading")
-          : t("modelList.empty")}
+          {isLoading ? t("modelList.loading") : t("modelList.empty")}
         </div>
       }
 

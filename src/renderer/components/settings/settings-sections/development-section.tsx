@@ -121,17 +121,13 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold">{t("title")}</h2>
-        <p className="text-muted-foreground mt-1">
-          {t("subtitle")}
-        </p>
+        <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>{t("logging.title")}</CardTitle>
-          <CardDescription>
-            {t("logging.description")}
-          </CardDescription>
+          <CardDescription>{t("logging.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="space-y-2">
@@ -141,18 +137,20 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
                 <SelectValue placeholder={t("logging.level.placeholder")} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="error">{t("logging.level.error")}</SelectItem>
-                <SelectItem value="warn">
-                  {t("logging.level.warn")}
+                <SelectItem value="error">
+                  {t("logging.level.error")}
                 </SelectItem>
-                <SelectItem value="info">
-                  {t("logging.level.info")}
-                </SelectItem>
+                <SelectItem value="warn">{t("logging.level.warn")}</SelectItem>
+                <SelectItem value="info">{t("logging.level.info")}</SelectItem>
                 <SelectItem value="verbose">
                   {t("logging.level.verbose")}
                 </SelectItem>
-                <SelectItem value="debug">{t("logging.level.debug")}</SelectItem>
-                <SelectItem value="silly">{t("logging.level.silly")}</SelectItem>
+                <SelectItem value="debug">
+                  {t("logging.level.debug")}
+                </SelectItem>
+                <SelectItem value="silly">
+                  {t("logging.level.silly")}
+                </SelectItem>
               </SelectContent>
             </Select>
             <p className="text-sm text-muted-foreground">
@@ -197,9 +195,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
       <Card>
         <CardHeader>
           <CardTitle>{t("debug.title")}</CardTitle>
-          <CardDescription>
-            {t("debug.description")}
-          </CardDescription>
+          <CardDescription>{t("debug.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
@@ -224,14 +220,14 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
       <Card>
         <CardHeader>
           <CardTitle>{t("langfuse.title")}</CardTitle>
-          <CardDescription>
-            {t("langfuse.description")}
-          </CardDescription>
+          <CardDescription>{t("langfuse.description")}</CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
           <div className="flex items-center justify-between">
             <div className="space-y-0.5">
-              <Label htmlFor="langfuse-enabled">{t("langfuse.enabled.label")}</Label>
+              <Label htmlFor="langfuse-enabled">
+                {t("langfuse.enabled.label")}
+              </Label>
               <p className="text-sm text-muted-foreground">
                 {t("langfuse.enabled.hint")}
               </p>
@@ -249,7 +245,9 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
 
               <div className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="langfuse-public-key">{t("langfuse.publicKey.label")}</Label>
+                  <Label htmlFor="langfuse-public-key">
+                    {t("langfuse.publicKey.label")}
+                  </Label>
                   <Input
                     id="langfuse-public-key"
                     type="text"
@@ -265,7 +263,9 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="langfuse-secret-key">{t("langfuse.secretKey.label")}</Label>
+                  <Label htmlFor="langfuse-secret-key">
+                    {t("langfuse.secretKey.label")}
+                  </Label>
                   <Input
                     id="langfuse-secret-key"
                     type="password"
@@ -281,7 +281,9 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="langfuse-host">{t("langfuse.host.label")}</Label>
+                  <Label htmlFor="langfuse-host">
+                    {t("langfuse.host.label")}
+                  </Label>
                   <Input
                     id="langfuse-host"
                     type="url"

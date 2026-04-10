@@ -15,10 +15,7 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
-import {
-  useTagStore,
-  type ViewMode,
-} from "@/stores/tagStore";
+import { useTagStore, type ViewMode } from "@/stores/tagStore";
 
 const TAG_COLORS = [
   "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
@@ -89,9 +86,7 @@ export function TagFilterBar() {
                   color={getTagColor(tag.id)}
                   selected={selectedTagId === tag.id}
                   onClick={() =>
-                    setSelectedTagId(
-                      selectedTagId === tag.id ? null : tag.id,
-                    )
+                    setSelectedTagId(selectedTagId === tag.id ? null : tag.id)
                   }
                 />
               </div>

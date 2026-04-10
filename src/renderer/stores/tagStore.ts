@@ -38,7 +38,10 @@ interface TagState {
   renameTag: (id: number, name: string) => Promise<void>;
   setSelectedTagId: (id: number | null) => void;
   setViewMode: (mode: ViewMode) => void;
-  setThreadTags: (threadTags: Record<string, TagRow[]>, threads: ThreadInfo[]) => void;
+  setThreadTags: (
+    threadTags: Record<string, TagRow[]>,
+    threads: ThreadInfo[],
+  ) => void;
   getTagsForThread: (remoteId: string | undefined) => TagRow[];
 }
 

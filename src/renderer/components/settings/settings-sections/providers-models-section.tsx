@@ -163,9 +163,7 @@ export function ProvidersModelsSection({
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold">{t("title")}</h2>
-          <p className="text-muted-foreground mt-1">
-            {t("subtitle")}
-          </p>
+          <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
         </div>
         {!isEmpty && (
           <Button onClick={() => handleAddProvider()} size="sm">
@@ -183,9 +181,7 @@ export function ProvidersModelsSection({
               <Cloud />
             </EmptyMedia>
             <EmptyTitle>{t("empty.title")}</EmptyTitle>
-            <EmptyDescription>
-              {t("empty.description")}
-            </EmptyDescription>
+            <EmptyDescription>{t("empty.description")}</EmptyDescription>
           </EmptyHeader>
           <EmptyContent className="flex-row flex-wrap justify-center">
             <Button
@@ -251,9 +247,7 @@ export function ProvidersModelsSection({
         <Card>
           <CardHeader>
             <CardTitle>{t("roles.title")}</CardTitle>
-            <CardDescription>
-              {t("roles.description")}
-            </CardDescription>
+            <CardDescription>{t("roles.description")}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
             <ModelRoleSelector

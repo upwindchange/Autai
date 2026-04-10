@@ -215,7 +215,9 @@ class ThreadPersistenceService {
   listTags(): TagRow[] {
     if (!this.db) throw new Error("Database not initialized");
 
-    const stmt = this.db.prepare("SELECT * FROM tags ORDER BY sort_order ASC, name ASC");
+    const stmt = this.db.prepare(
+      "SELECT * FROM tags ORDER BY sort_order ASC, name ASC",
+    );
     return stmt.all() as TagRow[];
   }
 
