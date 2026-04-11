@@ -11,7 +11,10 @@ import { trace, context } from "@opentelemetry/api";
 import log from "electron-log/main";
 import { browserUsePlanner, type UIPlanType } from "./planner";
 import { browserUseTaskExecutor } from "./task-executor";
-import { mergeStreamAndWait } from "@agents/utils";
+import {
+  mergeStreamAndWait,
+  writeSimulatedToolCallToStream,
+} from "@agents/utils";
 
 const logger = log.scope("Browser Use Worker");
 
@@ -47,13 +50,7 @@ export async function browserUseWorker(
             logger.debug("Stage 1: Generating high-level plan");
             const planResult = await browserUsePlanner(messages, sessionId);
 
-            // Merge planning stream and wait for completion
-            await mergeStreamAndWait(
-              planResult.toUIMessageStream({ sendStart: false }),
-              writer,
-            );
-
-            // Extract plan from tool result and its toolCallId
+            // Wait for plan to complete (programmatic access only, not streamed)
             const steps = await planResult.steps;
             const planToolCallId = steps
               .flatMap((s) => s.toolCalls ?? [])
@@ -70,6 +67,15 @@ export async function browserUseWorker(
 
             logger.info("Plan generated successfully", {
               taskCount: plan.todos.length,
+            });
+
+            // Stream only the plan to the frontend (not the LLM's reasoning/text)
+            writeSimulatedToolCallToStream({
+              writer,
+              toolCallId: planToolCallId,
+              toolName: "plan",
+              input: plan,
+              output: plan,
             });
 
             // ============================================================

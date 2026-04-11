@@ -241,36 +241,8 @@ export async function browserUseTaskExecutor(
         },
       });
 
-      // Merge subtask planning stream and wait for completion
-      await mergeStreamAndWait(
-        subtaskPlanResult.toUIMessageStream({ sendStart: false }),
-        writer,
-      );
-
-      // Wait for subtask plan to complete and extract it
-      const finishReason = await subtaskPlanResult.finishReason;
+      // Wait for subtask plan to complete (programmatic access only, not streamed)
       const steps = await subtaskPlanResult.steps;
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const anySteps = steps as any[];
-      logger.info("Subtask plan stream finished", {
-        finishReason,
-        stepCount: steps.length,
-        steps: anySteps.map((step, i) => ({
-          index: i,
-          toolCalls: (step.toolCalls ?? []).map((tc) => ({
-            toolName: tc.toolName,
-            args: tc.args,
-          })),
-          toolResults: (step.toolResults ?? []).map((tr) => ({
-            type: tr.type,
-            toolName: tr.toolName,
-            hasOutput: tr.output != null,
-            output: tr.output,
-            error: tr.error,
-          })),
-        })),
-      });
 
       const allToolResults = steps.flatMap((step) => step.toolResults ?? []);
       const subtaskPlanToolCallId = steps
@@ -310,6 +282,15 @@ export async function browserUseTaskExecutor(
       logger.info("Subtask plan generated successfully", {
         title: subtaskPlanResultData.title,
         todoCount: subtaskPlanResultData.todos.length,
+      });
+
+      // Stream only the plan to the frontend (not the LLM's reasoning/text)
+      writeSimulatedToolCallToStream({
+        writer,
+        toolCallId: subtaskPlanToolCallId,
+        toolName: "plan",
+        input: subtaskPlanResultData,
+        output: subtaskPlanResultData,
       });
 
       // ============================================================================
