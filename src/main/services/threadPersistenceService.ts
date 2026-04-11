@@ -119,6 +119,41 @@ class ThreadPersistenceService {
     }));
   }
 
+  listAllThreads(): ThreadWithTags[] {
+    if (!this.db) throw new Error("Database not initialized");
+
+    const stmt = this.db.prepare(
+      "SELECT * FROM threads ORDER BY updated_at DESC",
+    );
+    const threads = stmt.all() as ThreadRow[];
+
+    return threads.map((thread) => ({
+      ...thread,
+      tags: this.getTagsForThread(thread.id),
+    }));
+  }
+
+  deleteAllThreads(status?: "regular" | "archived"): void {
+    if (!this.db) throw new Error("Database not initialized");
+
+    if (status) {
+      const stmt = this.db.prepare("DELETE FROM threads WHERE status = ?");
+      stmt.run(status);
+    } else {
+      const stmt = this.db.prepare("DELETE FROM threads");
+      stmt.run();
+    }
+  }
+
+  archiveAllThreads(): void {
+    if (!this.db) throw new Error("Database not initialized");
+
+    const stmt = this.db.prepare(
+      "UPDATE threads SET status = 'archived', updated_at = datetime('now') WHERE status = 'regular'",
+    );
+    stmt.run();
+  }
+
   getThread(id: string): ThreadRow | undefined {
     if (!this.db) throw new Error("Database not initialized");
 

@@ -10,10 +10,10 @@ import log from "electron-log/main";
 const logger = log.scope("ApiServer:Threads");
 export const threadRoutes = new Hono();
 
-// GET /threads - list all threads
+// GET /threads - list all threads (regular + archived)
 threadRoutes.get("/", (c) => {
   try {
-    const threads = threadPersistenceService.listThreads();
+    const threads = threadPersistenceService.listAllThreads();
     return c.json({
       threads: threads.map((t) => ({
         remoteId: t.id,
@@ -41,6 +41,30 @@ threadRoutes.post("/", async (c) => {
   } catch (error) {
     logger.error("Error creating thread:", error);
     return c.json({ error: "Failed to create thread" }, 500);
+  }
+});
+
+// POST /threads/archive-all - archive all regular threads
+threadRoutes.post("/archive-all", (c) => {
+  try {
+    threadPersistenceService.archiveAllThreads();
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error("Error archiving all threads:", error);
+    return c.json({ error: "Failed to archive threads" }, 500);
+  }
+});
+
+// DELETE /threads/bulk - bulk delete threads by status
+threadRoutes.delete("/bulk", async (c) => {
+  try {
+    const body = await c.req.json();
+    const status = body?.status as "regular" | "archived" | undefined;
+    threadPersistenceService.deleteAllThreads(status);
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error("Error deleting threads:", error);
+    return c.json({ error: "Failed to delete threads" }, 500);
   }
 });
 

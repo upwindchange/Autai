@@ -12,5 +12,22 @@
   "splitView.show": "Show Browser Workspace",
   "splitView.hide": "Hide Browser Workspace",
   "settings.navLabel": "Settings",
-  "value.unknown": "Unknown"
+  "value.unknown": "Unknown",
+  "sidebar.newConversation": "New Conversation",
+  "sidebar.tags": "Tags",
+  "sidebar.search": "Search",
+  "sidebar.searchPlaceholder": "Search conversations...",
+  "sidebar.listView": "List view",
+  "sidebar.groupedView": "Grouped view",
+  "sidebar.tagAll": "All",
+  "sidebar.createTagPlaceholder": "Create tag",
+  "sidebar.tagRename": "Rename",
+  "sidebar.tagDelete": "Delete",
+  "sidebar.archive": "Archive",
+  "sidebar.unarchive": "Unarchive",
+  "sidebar.archiveView": "Archive view",
+  "sidebar.deleteAll": "Delete All",
+  "sidebar.archiveAll": "Archive All",
+  "sidebar.deleteAllDesc": "This will permanently delete all active conversations, or you can archive them instead.",
+  "sidebar.deleteAllArchivedDesc": "This will permanently delete all archived conversations. This action cannot be undone."
 }

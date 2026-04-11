@@ -16,18 +16,18 @@ import {
   useAui,
   useAuiState,
 } from "@assistant-ui/react";
+import { useTranslation } from "react-i18next";
 import {
   ArchiveIcon,
   BookmarkIcon,
   ChevronRightIcon,
   MoreHorizontalIcon,
-  PlusIcon,
   TrashIcon,
   XIcon,
 } from "lucide-react";
 import { useMemo, useState, type FC } from "react";
 import { useTagStore, type ThreadInfo } from "@/stores/tagStore";
-import { getTagColor } from "@/components/side-bar/tag-filter";
+import { getTagColor } from "@/components/side-bar/sidebar-toolbar";
 import { addTagToThread, removeTagFromThread } from "@/lib/tagApi";
 import type { TagRow } from "@shared/tag";
 
@@ -37,7 +37,6 @@ export const ThreadList: FC = () => {
 
   return (
     <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col gap-1">
-      <ThreadListNew />
       <AuiIf condition={(s) => s.threads.isLoading}>
         <ThreadListSkeleton />
       </AuiIf>
@@ -57,10 +56,10 @@ export const ThreadList: FC = () => {
 const FlatThreadList: FC<{ selectedTagId: number | null }> = ({
   selectedTagId,
 }) => {
+  const viewingArchive = useTagStore((s) => s.viewingArchive);
   return (
-    <ThreadListPrimitive.Items>
+    <ThreadListPrimitive.Items archived={viewingArchive}>
       {() => {
-        // Filter is handled by checking tags inside ThreadListItem
         return <ThreadListItem selectedTagId={selectedTagId} />;
       }}
     </ThreadListPrimitive.Items>
@@ -84,6 +83,7 @@ const GroupedThreadList: FC<{ selectedTagId: number | null }> = ({
   const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
   const threads = useTagStore((s) => s.threads);
   const allTags = useTagStore((s) => s.tags);
+  const viewingArchive = useTagStore((s) => s.viewingArchive);
 
   // Group threads by tag
   const { tagGroups, untagged } = useMemo(() => {
@@ -91,6 +91,10 @@ const GroupedThreadList: FC<{ selectedTagId: number | null }> = ({
     const untaggedList: ThreadInfo[] = [];
 
     for (const thread of threads) {
+      // Filter by archive view status
+      if (viewingArchive && thread.status !== "archived") continue;
+      if (!viewingArchive && thread.status !== "regular") continue;
+
       if (
         selectedTagId !== null &&
         !thread.tags.some((t) => t.id === selectedTagId)
@@ -121,7 +125,7 @@ const GroupedThreadList: FC<{ selectedTagId: number | null }> = ({
       .filter(Boolean);
 
     return { tagGroups, untagged: untaggedList };
-  }, [threads, allTags, selectedTagId]);
+  }, [threads, allTags, selectedTagId, viewingArchive]);
 
   return (
     <div className="flex flex-col gap-1">
@@ -197,24 +201,6 @@ const CollapsibleTagGroup: FC<{
         </div>
       )}
     </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// New thread button
-// ---------------------------------------------------------------------------
-
-const ThreadListNew: FC = () => {
-  return (
-    <ThreadListPrimitive.New asChild>
-      <Button
-        variant="outline"
-        className="aui-thread-list-new h-9 justify-start gap-2 rounded-lg px-3 text-sm hover:bg-muted data-active:bg-muted"
-      >
-        <PlusIcon className="size-4" />
-        New Conversation
-      </Button>
-    </ThreadListPrimitive.New>
   );
 };
 
@@ -313,12 +299,18 @@ const ThreadTagChip: FC<{
     >
       {tag.name}
       {hovered && (
-        <button
+        <span
+          role="button"
+          tabIndex={0}
           onClick={handleRemove}
-          className="ml-0.5 inline-flex size-3 items-center justify-center rounded-full opacity-60 hover:opacity-100"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ')
+              handleRemove(e as unknown as React.MouseEvent);
+          }}
+          className="ml-0.5 inline-flex size-3 cursor-pointer items-center justify-center rounded-full opacity-60 hover:opacity-100"
         >
           <XIcon className="size-2" />
-        </button>
+        </span>
       )}
     </span>
   );
@@ -331,7 +323,9 @@ const ThreadTagChip: FC<{
 const ThreadListItemMore: FC<{ threadRemoteId: string | undefined }> = ({
   threadRemoteId,
 }) => {
+  const { t } = useTranslation("common");
   const tags = useTagStore((s) => s.tags);
+  const viewingArchive = useTagStore((s) => s.viewingArchive);
   const threadTags = useTagStore((s) =>
     threadRemoteId ? (s.threadTags[threadRemoteId] ?? []) : [],
   );
@@ -389,12 +383,21 @@ const ThreadListItemMore: FC<{ threadRemoteId: string | undefined }> = ({
             ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        <ThreadListItemPrimitive.Archive asChild>
-          <DropdownMenuItem>
-            <ArchiveIcon className="size-4" />
-            Archive
-          </DropdownMenuItem>
-        </ThreadListItemPrimitive.Archive>
+        {viewingArchive ? (
+          <ThreadListItemPrimitive.Unarchive asChild>
+            <DropdownMenuItem>
+              <ArchiveIcon className="size-4" />
+              {t("sidebar.unarchive")}
+            </DropdownMenuItem>
+          </ThreadListItemPrimitive.Unarchive>
+        ) : (
+          <ThreadListItemPrimitive.Archive asChild>
+            <DropdownMenuItem>
+              <ArchiveIcon className="size-4" />
+              {t("sidebar.archive")}
+            </DropdownMenuItem>
+          </ThreadListItemPrimitive.Archive>
+        )}
         <ThreadListItemPrimitive.Delete asChild>
           <DropdownMenuItem variant="destructive">
             <TrashIcon className="size-4" />

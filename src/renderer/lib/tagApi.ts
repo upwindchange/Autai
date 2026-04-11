@@ -49,3 +49,17 @@ export async function removeTagFromThread(
     method: "DELETE",
   });
 }
+
+export async function deleteAllThreads(
+  status?: "regular" | "archived",
+): Promise<void> {
+  await fetch(`${API_BASE}/threads/bulk`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status }),
+  });
+}
+
+export async function archiveAllThreads(): Promise<void> {
+  await fetch(`${API_BASE}/threads/archive-all`, { method: "POST" });
+}

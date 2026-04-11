@@ -12,5 +12,22 @@
   "splitView.show": "显示浏览器工作区",
   "splitView.hide": "隐藏浏览器工作区",
   "settings.navLabel": "设置",
-  "value.unknown": "未知"
+  "value.unknown": "未知",
+  "sidebar.newConversation": "新建对话",
+  "sidebar.tags": "标签",
+  "sidebar.search": "搜索",
+  "sidebar.searchPlaceholder": "搜索对话...",
+  "sidebar.listView": "列表视图",
+  "sidebar.groupedView": "分组视图",
+  "sidebar.tagAll": "全部",
+  "sidebar.createTagPlaceholder": "创建标签",
+  "sidebar.tagRename": "重命名",
+  "sidebar.tagDelete": "删除",
+  "sidebar.archive": "归档",
+  "sidebar.unarchive": "取消归档",
+  "sidebar.archiveView": "归档视图",
+  "sidebar.deleteAll": "全部删除",
+  "sidebar.archiveAll": "全部归档",
+  "sidebar.deleteAllDesc": "此操作将永久删除所有活跃对话，您也可以选择归档。",
+  "sidebar.deleteAllArchivedDesc": "此操作将永久删除所有已归档对话，无法撤销。"
 }

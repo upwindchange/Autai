@@ -4,22 +4,21 @@ import type { ComponentProps } from "react";
 import { Sidebar, SidebarContent } from "@/components/ui/sidebar";
 import { NavSecondary } from "@/components/side-bar/nav-secondary";
 import { ThreadList } from "@/components/side-bar/thread-list";
-import { TagFilterBar } from "@/components/side-bar/tag-filter";
+import { SidebarToolbar } from "@/components/side-bar/sidebar-toolbar";
+import { NewConversationButton } from "@/components/side-bar/new-conversation-button";
 
-/**
- * Props for the SidebarLeft component
- */
 type SidebarLeftProps = ComponentProps<typeof Sidebar>;
 
-/**
- * Left sidebar component that manages AI conversation threads.
- */
 export function SidebarLeft(props: SidebarLeftProps) {
   return (
     <Sidebar className="border-r-0" {...props}>
       <SidebarContent>
-        <TagFilterBar />
-        <div className="mx-2 my-2 border-t" />
+        <div className="px-2 pt-2">
+          <NewConversationButton />
+        </div>
+        <div className="mx-2 border-t" />
+        <SidebarToolbar />
+        <div className="mx-2 border-t" />
         <ThreadList />
         <NavSecondary className="mt-auto" />
       </SidebarContent>

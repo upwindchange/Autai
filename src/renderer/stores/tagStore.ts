@@ -14,6 +14,7 @@ export interface ThreadInfo {
   remoteId: string;
   title: string | undefined;
   tags: TagRow[];
+  status: "regular" | "archived";
 }
 
 interface TagState {
@@ -30,6 +31,7 @@ interface TagState {
   // View state
   selectedTagId: number | null; // null = show all
   viewMode: ViewMode;
+  viewingArchive: boolean;
 
   // Actions
   fetchTags: () => Promise<void>;
@@ -38,6 +40,7 @@ interface TagState {
   renameTag: (id: number, name: string) => Promise<void>;
   setSelectedTagId: (id: number | null) => void;
   setViewMode: (mode: ViewMode) => void;
+  setViewingArchive: (viewing: boolean) => void;
   setThreadTags: (
     threadTags: Record<string, TagRow[]>,
     threads: ThreadInfo[],
@@ -53,6 +56,7 @@ export const useTagStore = create<TagState>()(
     threads: [],
     selectedTagId: null,
     viewMode: "flat",
+    viewingArchive: false,
 
     fetchTags: async () => {
       set({ loading: true });
@@ -87,6 +91,7 @@ export const useTagStore = create<TagState>()(
 
     setSelectedTagId: (id) => set({ selectedTagId: id }),
     setViewMode: (mode) => set({ viewMode: mode }),
+    setViewingArchive: (viewing) => set({ viewingArchive: viewing }),
 
     setThreadTags: (threadTags, threads) => set({ threadTags, threads }),
 

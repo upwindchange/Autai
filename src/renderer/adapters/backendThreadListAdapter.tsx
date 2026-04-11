@@ -98,6 +98,7 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
         remoteId: t.remoteId,
         title: t.title ?? undefined,
         tags: t.tags,
+        status: t.status,
       });
     }
     useTagStore.getState().setThreadTags(threadTags, threads);
