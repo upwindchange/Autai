@@ -57,9 +57,7 @@ export const AppHeader: FC<AppHeaderProps> = ({
           variant="ghost"
           size="icon"
           side="left"
-          tooltip={
-            showSplitView ? t("splitView.hide") : t("splitView.show")
-          }
+          tooltip={showSplitView ? t("splitView.hide") : t("splitView.show")}
           onClick={onToggleSplitView}
         >
           <PanelRightIcon className="size-4" />

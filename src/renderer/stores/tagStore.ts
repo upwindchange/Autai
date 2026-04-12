@@ -6,6 +6,8 @@ import {
   createTag as apiCreateTag,
   deleteTag as apiDeleteTag,
   renameTag as apiRenameTag,
+  addTagToThread as apiAddTagToThread,
+  removeTagFromThread as apiRemoveTagFromThread,
 } from "@/lib/tagApi";
 
 export type ViewMode = "flat" | "grouped";
@@ -49,6 +51,8 @@ interface TagState {
     threadTags: Record<string, TagRow[]>,
     threads: ThreadInfo[],
   ) => void;
+  addTagToThread: (threadRemoteId: string, tagId: number) => Promise<void>;
+  removeTagFromThread: (threadRemoteId: string, tagId: number) => Promise<void>;
   getTagsForThread: (remoteId: string | undefined) => TagRow[];
 
   // Multi-select actions
@@ -107,12 +111,48 @@ export const useTagStore = create<TagState>()(
     setSelectedTagId: (id) => set({ selectedTagId: id }),
 
     setViewMode: (mode) =>
-      set({ viewMode: mode, isMultiSelectMode: false, selectedThreadIds: new Set<string>() }),
+      set({
+        viewMode: mode,
+        isMultiSelectMode: false,
+        selectedThreadIds: new Set<string>(),
+      }),
 
     setViewingArchive: (viewing) =>
-      set({ viewingArchive: viewing, isMultiSelectMode: false, selectedThreadIds: new Set<string>() }),
+      set({
+        viewingArchive: viewing,
+        isMultiSelectMode: false,
+        selectedThreadIds: new Set<string>(),
+      }),
 
     setThreadTags: (threadTags, threads) => set({ threadTags, threads }),
+
+    addTagToThread: async (threadRemoteId, tagId) => {
+      await apiAddTagToThread(threadRemoteId, tagId);
+      const state = get();
+      const tag = state.tags.find((t) => t.id === tagId);
+      if (!tag) return;
+      const newTags = [...(state.threadTags[threadRemoteId] ?? []), tag];
+      set({
+        threadTags: { ...state.threadTags, [threadRemoteId]: newTags },
+        threads: state.threads.map((th) =>
+          th.remoteId === threadRemoteId ? { ...th, tags: newTags } : th,
+        ),
+      });
+    },
+
+    removeTagFromThread: async (threadRemoteId, tagId) => {
+      await apiRemoveTagFromThread(threadRemoteId, tagId);
+      const state = get();
+      const newTags = (state.threadTags[threadRemoteId] ?? []).filter(
+        (t) => t.id !== tagId,
+      );
+      set({
+        threadTags: { ...state.threadTags, [threadRemoteId]: newTags },
+        threads: state.threads.map((th) =>
+          th.remoteId === threadRemoteId ? { ...th, tags: newTags } : th,
+        ),
+      });
+    },
 
     getTagsForThread: (remoteId) => {
       if (!remoteId) return [];
@@ -123,7 +163,8 @@ export const useTagStore = create<TagState>()(
     setMultiSelectMode: (enabled) =>
       set({
         isMultiSelectMode: enabled,
-        selectedThreadIds: enabled ? get().selectedThreadIds : new Set<string>(),
+        selectedThreadIds:
+          enabled ? get().selectedThreadIds : new Set<string>(),
       }),
 
     toggleThreadSelection: (threadId) => {
@@ -144,9 +185,7 @@ export const useTagStore = create<TagState>()(
 
     invertSelection: (allThreadIds) => {
       const current = get().selectedThreadIds;
-      const next = new Set(
-        allThreadIds.filter((id) => !current.has(id)),
-      );
+      const next = new Set(allThreadIds.filter((id) => !current.has(id)));
       set({ selectedThreadIds: next });
     },
 

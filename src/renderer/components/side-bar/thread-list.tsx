@@ -30,7 +30,6 @@ import {
 import { useMemo, useRef, useState, type FC } from "react";
 import { useTagStore, type ThreadInfo } from "@/stores/tagStore";
 import { getTagColor } from "@/components/side-bar/sidebar-toolbar";
-import { addTagToThread, removeTagFromThread } from "@/lib/tagApi";
 import { cn } from "@/lib/utils";
 import type { TagRow } from "@shared/tag";
 
@@ -56,9 +55,56 @@ function useLongPress(callback: () => void, delay = 500) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Shared multi-select handlers for thread items
+// ---------------------------------------------------------------------------
+
+function useMultiSelectHandlers(threadRemoteId: string | undefined) {
+  const isMultiSelectMode = useTagStore((s) => s.isMultiSelectMode);
+  const selectedThreadIds = useTagStore((s) => s.selectedThreadIds);
+  const toggleThreadSelection = useTagStore((s) => s.toggleThreadSelection);
+  const setMultiSelectMode = useTagStore((s) => s.setMultiSelectMode);
+
+  const isSelected =
+    threadRemoteId ? selectedThreadIds.has(threadRemoteId) : false;
+
+  const longPress = useLongPress(() => {
+    if (threadRemoteId) {
+      setMultiSelectMode(true);
+      toggleThreadSelection(threadRemoteId);
+    }
+  });
+
+  const handleClick = () => {
+    if (threadRemoteId) toggleThreadSelection(threadRemoteId);
+  };
+
+  const selectionIndicator =
+    isMultiSelectMode ?
+      <span className={cn("shrink-0", !threadRemoteId && "pl-1")}>
+        {isSelected ?
+          <CheckSquare className="size-4 text-primary" />
+        : <Square className="size-4 text-muted-foreground" />}
+      </span>
+    : null;
+
+  const activeStyles =
+    isMultiSelectMode && isSelected ?
+      "bg-accent border-l-2 border-primary"
+    : "";
+
+  return {
+    isMultiSelectMode,
+    isSelected,
+    longPress,
+    handleClick,
+    selectionIndicator,
+    activeStyles,
+  };
+}
+
 export const ThreadList: FC = () => {
   const viewMode = useTagStore((s) => s.viewMode);
-  const selectedTagId = useTagStore((s) => s.selectedTagId);
 
   return (
     <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col gap-1">
@@ -67,8 +113,8 @@ export const ThreadList: FC = () => {
       </AuiIf>
       <AuiIf condition={(s) => !s.threads.isLoading}>
         {viewMode === "grouped" ?
-          <GroupedThreadList selectedTagId={selectedTagId} />
-        : <FlatThreadList selectedTagId={selectedTagId} />}
+          <GroupedThreadList />
+        : <FlatThreadList />}
       </AuiIf>
     </ThreadListPrimitive.Root>
   );
@@ -78,15 +124,11 @@ export const ThreadList: FC = () => {
 // Flat thread list (with tag filter)
 // ---------------------------------------------------------------------------
 
-const FlatThreadList: FC<{ selectedTagId: number | null }> = ({
-  selectedTagId,
-}) => {
+const FlatThreadList: FC = () => {
   const viewingArchive = useTagStore((s) => s.viewingArchive);
   return (
     <ThreadListPrimitive.Items archived={viewingArchive}>
-      {() => {
-        return <ThreadListItem selectedTagId={selectedTagId} />;
-      }}
+      {() => <ThreadListItem />}
     </ThreadListPrimitive.Items>
   );
 };
@@ -101,14 +143,14 @@ interface TagGroup {
   threads: ThreadInfo[];
 }
 
-const GroupedThreadList: FC<{ selectedTagId: number | null }> = ({
-  selectedTagId,
-}) => {
+const GroupedThreadList: FC = () => {
   const aui = useAui();
+  const { t } = useTranslation("common");
   const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
   const threads = useTagStore((s) => s.threads);
   const allTags = useTagStore((s) => s.tags);
   const viewingArchive = useTagStore((s) => s.viewingArchive);
+  const selectedTagId = useTagStore((s) => s.selectedTagId);
 
   // Group threads by tag
   const { tagGroups, untagged } = useMemo(() => {
@@ -165,7 +207,7 @@ const GroupedThreadList: FC<{ selectedTagId: number | null }> = ({
       {untagged.length > 0 && (
         <CollapsibleTagGroup
           group={{
-            tagName: "Untagged",
+            tagName: t("sidebar.untagged"),
             tagColor: "bg-muted text-muted-foreground",
             threads: untagged,
           }}
@@ -227,7 +269,8 @@ const CollapsibleTagGroup: FC<{
             tabIndex={0}
             onClick={handleGroupSelectAll}
             onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") handleGroupSelectAll(e as unknown as React.MouseEvent);
+              if (e.key === "Enter" || e.key === " ")
+                handleGroupSelectAll(e as unknown as React.MouseEvent);
             }}
             className="ml-auto"
           >
@@ -258,23 +301,19 @@ const GroupedThreadItem: FC<{
   activeThreadId: string;
   onSwitch: (threadId: string) => void;
 }> = ({ thread, activeThreadId, onSwitch }) => {
-  const isMultiSelectMode = useTagStore((s) => s.isMultiSelectMode);
-  const selectedThreadIds = useTagStore((s) => s.selectedThreadIds);
-  const toggleThreadSelection = useTagStore((s) => s.toggleThreadSelection);
-  const setMultiSelectMode = useTagStore((s) => s.setMultiSelectMode);
-
-  const isSelected = selectedThreadIds.has(thread.remoteId);
-
-  const longPress = useLongPress(() => {
-    setMultiSelectMode(true);
-    toggleThreadSelection(thread.remoteId);
-  });
+  const {
+    isMultiSelectMode,
+    longPress,
+    handleClick,
+    selectionIndicator,
+    activeStyles,
+  } = useMultiSelectHandlers(thread.remoteId);
 
   return (
     <button
       onClick={() => {
         if (isMultiSelectMode) {
-          toggleThreadSelection(thread.remoteId);
+          handleClick();
         } else {
           onSwitch(thread.remoteId);
         }
@@ -282,17 +321,11 @@ const GroupedThreadItem: FC<{
       className={cn(
         "flex min-h-9 items-center gap-2 rounded-lg px-3 py-1 text-start text-sm transition-colors hover:bg-muted",
         activeThreadId === thread.remoteId && !isMultiSelectMode && "bg-muted",
-        isMultiSelectMode && isSelected && "bg-accent border-l-2 border-primary",
+        activeStyles,
       )}
       {...(!isMultiSelectMode ? longPress : {})}
     >
-      {isMultiSelectMode && (
-        <span className="shrink-0">
-          {isSelected ?
-            <CheckSquare className="size-4 text-primary" />
-          : <Square className="size-4 text-muted-foreground" />}
-        </span>
-      )}
+      {selectionIndicator}
       <span className="min-w-0 flex-1 truncate">
         {thread.title ?? "New Chat"}
       </span>
@@ -333,26 +366,19 @@ const ThreadListSkeleton: FC = () => {
 // Thread list item with inline tag chips
 // ---------------------------------------------------------------------------
 
-const ThreadListItem: FC<{ selectedTagId?: number | null }> = ({
-  selectedTagId = null,
-}) => {
+const ThreadListItem: FC = () => {
   const remoteId = useAuiState((s) => s.threadListItem.remoteId);
   const threadTags = useTagStore((s) =>
     remoteId ? (s.threadTags[remoteId] ?? []) : [],
   );
-  const isMultiSelectMode = useTagStore((s) => s.isMultiSelectMode);
-  const selectedThreadIds = useTagStore((s) => s.selectedThreadIds);
-  const toggleThreadSelection = useTagStore((s) => s.toggleThreadSelection);
-  const setMultiSelectMode = useTagStore((s) => s.setMultiSelectMode);
-
-  const isSelected = remoteId ? selectedThreadIds.has(remoteId) : false;
-
-  const longPress = useLongPress(() => {
-    if (remoteId) {
-      setMultiSelectMode(true);
-      toggleThreadSelection(remoteId);
-    }
-  });
+  const selectedTagId = useTagStore((s) => s.selectedTagId);
+  const {
+    isMultiSelectMode,
+    longPress,
+    handleClick,
+    selectionIndicator,
+    activeStyles,
+  } = useMultiSelectHandlers(remoteId);
 
   // Filter by selected tag
   if (
@@ -366,23 +392,17 @@ const ThreadListItem: FC<{ selectedTagId?: number | null }> = ({
     <ThreadListItemPrimitive.Root
       className={cn(
         "aui-thread-list-item group/thread relative flex min-h-9 items-center gap-2 rounded-lg border border-transparent px-2 py-0.5 transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none data-active:border-l-2 data-active:border-primary data-active:bg-accent",
-        isMultiSelectMode && isSelected && "bg-accent border-l-2 border-primary",
+        activeStyles,
       )}
       onClickCapture={(e) => {
         if (isMultiSelectMode && remoteId) {
           e.stopPropagation();
-          toggleThreadSelection(remoteId);
+          handleClick();
         }
       }}
       {...(!isMultiSelectMode ? longPress : {})}
     >
-      {isMultiSelectMode && (
-        <span className="shrink-0 pl-1">
-          {isSelected ?
-            <CheckSquare className="size-4 text-primary" />
-          : <Square className="size-4 text-muted-foreground" />}
-        </span>
-      )}
+      {selectionIndicator}
       <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger relative flex min-w-0 flex-1 flex-col items-start px-1 py-1 text-start text-sm">
         <div className="flex w-full items-center">
           <span className="aui-thread-list-item-title min-w-0 flex-1 truncate">
@@ -414,17 +434,7 @@ const ThreadTagChip: FC<{
   const handleRemove = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!threadRemoteId) return;
-    await removeTagFromThread(threadRemoteId, tag.id);
-    // Update local store
-    const store = useTagStore.getState();
-    const newTags = (store.threadTags[threadRemoteId] ?? []).filter(
-      (t) => t.id !== tag.id,
-    );
-    const newThreadTags = { ...store.threadTags, [threadRemoteId]: newTags };
-    const newThreads = store.threads.map((th) =>
-      th.remoteId === threadRemoteId ? { ...th, tags: newTags } : th,
-    );
-    useTagStore.getState().setThreadTags(newThreadTags, newThreads);
+    await useTagStore.getState().removeTagFromThread(threadRemoteId, tag.id);
   };
 
   return (
@@ -440,7 +450,7 @@ const ThreadTagChip: FC<{
           tabIndex={0}
           onClick={handleRemove}
           onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ')
+            if (e.key === "Enter" || e.key === " ")
               handleRemove(e as unknown as React.MouseEvent);
           }}
           className="ml-0.5 inline-flex size-3 cursor-pointer items-center justify-center rounded-full opacity-60 hover:opacity-100"
@@ -470,17 +480,7 @@ const ThreadListItemMore: FC<{ threadRemoteId: string | undefined }> = ({
 
   const handleAddTag = async (tagId: number) => {
     if (!threadRemoteId) return;
-    await addTagToThread(threadRemoteId, tagId);
-    const store = useTagStore.getState();
-    const tag = tags.find((t) => t.id === tagId);
-    if (tag) {
-      const newTags = [...(store.threadTags[threadRemoteId] ?? []), tag];
-      const newThreadTags = { ...store.threadTags, [threadRemoteId]: newTags };
-      const newThreads = store.threads.map((th) =>
-        th.remoteId === threadRemoteId ? { ...th, tags: newTags } : th,
-      );
-      useTagStore.getState().setThreadTags(newThreadTags, newThreads);
-    }
+    await useTagStore.getState().addTagToThread(threadRemoteId, tagId);
   };
 
   return (
@@ -502,7 +502,7 @@ const ThreadListItemMore: FC<{ threadRemoteId: string | undefined }> = ({
             className="data-disabled:pointer-events-none data-disabled:opacity-50"
           >
             <BookmarkIcon className="size-4" />
-            Add Tag
+            {t("sidebar.addTag")}
           </DropdownMenuSubTrigger>
           <DropdownMenuSubContent>
             {availableTags.map((tag) => (
@@ -519,25 +519,24 @@ const ThreadListItemMore: FC<{ threadRemoteId: string | undefined }> = ({
             ))}
           </DropdownMenuSubContent>
         </DropdownMenuSub>
-        {viewingArchive ? (
+        {viewingArchive ?
           <ThreadListItemPrimitive.Unarchive asChild>
             <DropdownMenuItem>
               <ArchiveIcon className="size-4" />
               {t("sidebar.unarchive")}
             </DropdownMenuItem>
           </ThreadListItemPrimitive.Unarchive>
-        ) : (
-          <ThreadListItemPrimitive.Archive asChild>
+        : <ThreadListItemPrimitive.Archive asChild>
             <DropdownMenuItem>
               <ArchiveIcon className="size-4" />
               {t("sidebar.archive")}
             </DropdownMenuItem>
           </ThreadListItemPrimitive.Archive>
-        )}
+        }
         <ThreadListItemPrimitive.Delete asChild>
           <DropdownMenuItem variant="destructive">
             <TrashIcon className="size-4" />
-            Delete
+            {t("sidebar.delete")}
           </DropdownMenuItem>
         </ThreadListItemPrimitive.Delete>
       </DropdownMenuContent>

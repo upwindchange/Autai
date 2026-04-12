@@ -41,5 +41,8 @@
   "sidebar.selectedCount": "{{count}} selected",
   "sidebar.restore": "Restore",
   "sidebar.restoreAll": "Restore All",
-  "sidebar.restoreAllDesc": "This will restore all archived conversations to active status."
+  "sidebar.restoreAllDesc": "This will restore all archived conversations to active status.",
+  "sidebar.addTag": "Add Tag",
+  "sidebar.delete": "Delete",
+  "sidebar.untagged": "Untagged"
 }

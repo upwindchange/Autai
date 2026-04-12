@@ -97,9 +97,9 @@ export function SidebarToolbar() {
   const setMultiSelectMode = useTagStore((s) => s.setMultiSelectMode);
 
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
-  const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
-  const [archiveAllDialogOpen, setArchiveAllDialogOpen] = useState(false);
-  const [restoreAllDialogOpen, setRestoreAllDialogOpen] = useState(false);
+  const [activeDialog, setActiveDialog] = useState<
+    "delete" | "archive" | "restore" | null
+  >(null);
 
   useEffect(() => {
     fetchTags();
@@ -126,21 +126,21 @@ export function SidebarToolbar() {
     setActivePanel((prev) => (prev === panel ? null : panel));
   };
 
-  const handleDeleteAll = async () => {
-    await deleteAllThreads(viewingArchive ? "archived" : "regular");
-    setDeleteAllDialogOpen(false);
-    window.location.reload();
-  };
-
-  const handleArchiveAll = async () => {
-    await archiveAllThreads();
-    setArchiveAllDialogOpen(false);
-    window.location.reload();
-  };
-
-  const handleRestoreAll = async () => {
-    await bulkUpdateThreadStatus(allVisibleThreadIds, "regular");
-    setRestoreAllDialogOpen(false);
+  const handleBulkActionAll = async (
+    action: "delete" | "archive" | "restore",
+  ) => {
+    switch (action) {
+      case "delete":
+        await deleteAllThreads(viewingArchive ? "archived" : "regular");
+        break;
+      case "archive":
+        await archiveAllThreads();
+        break;
+      case "restore":
+        await bulkUpdateThreadStatus(allVisibleThreadIds, "regular");
+        break;
+    }
+    setActiveDialog(null);
     window.location.reload();
   };
 
@@ -186,9 +186,9 @@ export function SidebarToolbar() {
         {/* Overflow menu: archive all, delete all, restore all */}
         <MoreMenu
           viewingArchive={viewingArchive}
-          onArchiveAll={() => setArchiveAllDialogOpen(true)}
-          onDeleteAll={() => setDeleteAllDialogOpen(true)}
-          onRestoreAll={() => setRestoreAllDialogOpen(true)}
+          onArchiveAll={() => setActiveDialog("archive")}
+          onDeleteAll={() => setActiveDialog("delete")}
+          onRestoreAll={() => setActiveDialog("restore")}
         />
       </div>
 
@@ -210,26 +210,13 @@ export function SidebarToolbar() {
         </div>
       )}
 
-      {/* Delete all dialog */}
-      <DeleteAllDialog
-        open={deleteAllDialogOpen}
-        onOpenChange={setDeleteAllDialogOpen}
+      {/* Confirmation dialog for bulk actions */}
+      <BulkActionDialog
+        open={activeDialog !== null}
+        onOpenChange={(open) => !open && setActiveDialog(null)}
+        action={activeDialog}
         viewingArchive={viewingArchive}
-        onDeleteAll={handleDeleteAll}
-      />
-
-      {/* Archive all dialog */}
-      <ArchiveAllDialog
-        open={archiveAllDialogOpen}
-        onOpenChange={setArchiveAllDialogOpen}
-        onArchiveAll={handleArchiveAll}
-      />
-
-      {/* Restore all dialog */}
-      <RestoreAllDialog
-        open={restoreAllDialogOpen}
-        onOpenChange={setRestoreAllDialogOpen}
-        onRestoreAll={handleRestoreAll}
+        onConfirm={() => handleBulkActionAll(activeDialog!)}
       />
     </div>
   );
@@ -578,20 +565,19 @@ function MultiSelectPanel({
   const selectThreadsDownward = useTagStore((s) => s.selectThreadsDownward);
   const exitMultiSelectMode = useTagStore((s) => s.exitMultiSelectMode);
 
-  const handleBulkArchive = async () => {
-    await bulkUpdateThreadStatus([...selectedThreadIds], "archived");
-    exitMultiSelectMode();
-    window.location.reload();
-  };
-
-  const handleBulkDelete = async () => {
-    await bulkDeleteThreadsByIds([...selectedThreadIds]);
-    exitMultiSelectMode();
-    window.location.reload();
-  };
-
-  const handleBulkRestore = async () => {
-    await bulkUpdateThreadStatus([...selectedThreadIds], "regular");
+  const handleBulkAction = async (action: "archive" | "delete" | "restore") => {
+    const ids = [...selectedThreadIds];
+    switch (action) {
+      case "archive":
+        await bulkUpdateThreadStatus(ids, "archived");
+        break;
+      case "delete":
+        await bulkDeleteThreadsByIds(ids);
+        break;
+      case "restore":
+        await bulkUpdateThreadStatus(ids, "regular");
+        break;
+    }
     exitMultiSelectMode();
     window.location.reload();
   };
@@ -634,7 +620,7 @@ function MultiSelectPanel({
           icon={ArchiveIcon}
           label={t("sidebar.archiveSelected")}
           active={false}
-          onClick={handleBulkArchive}
+          onClick={() => handleBulkAction("archive")}
           disabled={selectedThreadIds.size === 0}
         />
       )}
@@ -643,7 +629,7 @@ function MultiSelectPanel({
           icon={RotateCcw}
           label={t("sidebar.restoreSelected")}
           active={false}
-          onClick={handleBulkRestore}
+          onClick={() => handleBulkAction("restore")}
           disabled={selectedThreadIds.size === 0}
         />
       )}
@@ -651,7 +637,7 @@ function MultiSelectPanel({
         icon={TrashIcon}
         label={t("sidebar.deleteSelected")}
         active={false}
-        onClick={handleBulkDelete}
+        onClick={() => handleBulkAction("delete")}
         disabled={selectedThreadIds.size === 0}
       />
       <span className="ml-auto text-xs text-muted-foreground">
@@ -662,115 +648,77 @@ function MultiSelectPanel({
 }
 
 // ---------------------------------------------------------------------------
-// Delete all confirmation dialog
+// Bulk action confirmation dialog (archive all / restore all / delete all)
 // ---------------------------------------------------------------------------
 
-function DeleteAllDialog({
+const BULK_ACTION_CONFIGS: Record<
+  "delete" | "archive" | "restore",
+  {
+    icon: React.ComponentType<{ className?: string }>;
+    iconClassName: string;
+    titleKey: string;
+    descKey: string;
+    actionVariant?: "destructive" | "default";
+  }
+> = {
+  delete: {
+    icon: TrashIcon,
+    iconClassName: "text-destructive",
+    titleKey: "sidebar.deleteAll",
+    descKey: "sidebar.deleteAllDesc",
+    actionVariant: "destructive",
+  },
+  archive: {
+    icon: ArchiveIcon,
+    iconClassName: "text-primary",
+    titleKey: "sidebar.archiveAll",
+    descKey: "sidebar.archiveAllDesc",
+  },
+  restore: {
+    icon: RotateCcw,
+    iconClassName: "text-primary",
+    titleKey: "sidebar.restoreAll",
+    descKey: "sidebar.restoreAllDesc",
+  },
+};
+
+function BulkActionDialog({
   open,
   onOpenChange,
+  action,
   viewingArchive,
-  onDeleteAll,
+  onConfirm,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  viewingArchive: boolean;
-  onDeleteAll: () => void;
+  action: "delete" | "archive" | "restore" | null;
+  viewingArchive?: boolean;
+  onConfirm: () => void;
 }) {
   const { t } = useTranslation("common");
+  if (!action) return null;
+
+  const config = BULK_ACTION_CONFIGS[action];
+  const Icon = config.icon;
+
+  const description =
+    action === "delete" && viewingArchive ?
+      t("sidebar.deleteAllArchivedDesc")
+    : t(config.descKey);
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent size="sm">
         <AlertDialogHeader>
           <AlertDialogMedia>
-            <TrashIcon className="text-destructive" />
+            <Icon className={config.iconClassName} />
           </AlertDialogMedia>
-          <AlertDialogTitle>{t("sidebar.deleteAll")}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {viewingArchive ?
-              t("sidebar.deleteAllArchivedDesc")
-            : t("sidebar.deleteAllDesc")}
-          </AlertDialogDescription>
+          <AlertDialogTitle>{t(config.titleKey)}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogAction variant="destructive" onClick={onDeleteAll}>
-            {t("sidebar.deleteAll")}
-          </AlertDialogAction>
-          <AlertDialogCancel>{t("btn.cancel")}</AlertDialogCancel>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Archive all confirmation dialog
-// ---------------------------------------------------------------------------
-
-function ArchiveAllDialog({
-  open,
-  onOpenChange,
-  onArchiveAll,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onArchiveAll: () => void;
-}) {
-  const { t } = useTranslation("common");
-
-  return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent size="sm">
-        <AlertDialogHeader>
-          <AlertDialogMedia>
-            <ArchiveIcon className="text-primary" />
-          </AlertDialogMedia>
-          <AlertDialogTitle>{t("sidebar.archiveAll")}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {t("sidebar.archiveAllDesc")}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogAction onClick={onArchiveAll}>
-            {t("sidebar.archiveAll")}
-          </AlertDialogAction>
-          <AlertDialogCancel>{t("btn.cancel")}</AlertDialogCancel>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Restore all confirmation dialog
-// ---------------------------------------------------------------------------
-
-function RestoreAllDialog({
-  open,
-  onOpenChange,
-  onRestoreAll,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onRestoreAll: () => void;
-}) {
-  const { t } = useTranslation("common");
-
-  return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent size="sm">
-        <AlertDialogHeader>
-          <AlertDialogMedia>
-            <RotateCcw className="text-primary" />
-          </AlertDialogMedia>
-          <AlertDialogTitle>{t("sidebar.restoreAll")}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {t("sidebar.restoreAllDesc")}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogAction onClick={onRestoreAll}>
-            {t("sidebar.restoreAll")}
+          <AlertDialogAction variant={config.actionVariant} onClick={onConfirm}>
+            {t(config.titleKey)}
           </AlertDialogAction>
           <AlertDialogCancel>{t("btn.cancel")}</AlertDialogCancel>
         </AlertDialogFooter>
