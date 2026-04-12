@@ -59,6 +59,12 @@ declare global {
       invoke(channel: "logger:setLevel", level: LogLevel): Promise<void>;
       invoke(channel: "logger:getLogPath"): Promise<string>;
       invoke(channel: "logger:clearLogs"): Promise<void>;
+
+      // Approval operations
+      invoke(
+        channel: "approval:respond",
+        response: { planId: string; decision: "approved" | "rejected" },
+      ): Promise<void>;
     };
   }
 }

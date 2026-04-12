@@ -38,6 +38,7 @@ export interface UIPlanType {
   todos: UIPlanTodo[];
   maxVisibleTodos?: number;
   receipt?: ToolUIReceipt;
+  requiresApproval?: boolean;
 }
 
 // ===== Plan Schema =====

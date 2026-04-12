@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { calculateToolSchema, answerToolSchema } from "@shared/tools";
 import { Plan } from "@/components/tool-ui/plan";
 import { safeParseSerializablePlan } from "@/components/tool-ui/plan/schema";
+import { ToolUI } from "@/components/tool-ui/shared";
 
 export const frontendToolkit: Toolkit = {
   // Calculator tool - executes on frontend
@@ -96,7 +97,42 @@ export const frontendToolkit: Toolkit = {
     render: ({ result }) => {
       const parsed = safeParseSerializablePlan(result);
       if (!parsed) return null;
-      return <Plan {...parsed} />;
+
+      // Check raw result for approval flag (backend sets this, not in schema)
+      const needsApproval =
+        (result as Record<string, unknown>)?.requiresApproval === true;
+
+      if (!needsApproval) {
+        return <Plan {...parsed} />;
+      }
+
+      return (
+        <ToolUI id={parsed.id}>
+          <ToolUI.Surface>
+            <Plan {...parsed} />
+          </ToolUI.Surface>
+          <ToolUI.Actions>
+            <ToolUI.LocalActions
+              actions={[
+                { id: "approve", label: "Approve Plan" },
+                {
+                  id: "revise",
+                  label: "Request Changes",
+                  variant: "secondary",
+                },
+              ]}
+              onAction={(actionId) => {
+                const decision =
+                  actionId === "approve" ? "approved" : "rejected";
+                window.ipcRenderer.invoke("approval:respond", {
+                  planId: parsed.id,
+                  decision,
+                });
+              }}
+            />
+          </ToolUI.Actions>
+        </ToolUI>
+      );
     },
   },
 };

@@ -8,6 +8,7 @@ import log from "electron-log/main";
 import type { LogLevel } from "@shared";
 import { update } from "./update";
 import {
+  ApprovalService,
   settingsService,
   SessionTabService,
   TabControlService,
@@ -17,6 +18,7 @@ import { PQueueManager } from "@agents/utils";
 import { apiServer } from "@agents";
 import { initializeTelemetry, shutdownTelemetry } from "@agents/utils";
 import { SessionTabBridge } from "@/bridges/SessionTabBridge";
+import { ApprovalBridge } from "@/bridges/ApprovalBridge";
 
 // const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -56,6 +58,7 @@ if (!app.requestSingleInstanceLock()) {
 let win: BrowserWindow | null = null;
 let sessionTabService: SessionTabService | null = null;
 let sessionTabBridge: SessionTabBridge | null = null;
+let approvalBridge: ApprovalBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
 
@@ -103,6 +106,9 @@ async function createWindow() {
   // Initialize bridges
   sessionTabBridge = new SessionTabBridge(sessionTabService);
   sessionTabBridge.setupHandlers();
+
+  approvalBridge = new ApprovalBridge(ApprovalService.getInstance());
+  approvalBridge.setupHandlers();
 
   // Create initial default session so activeTab is never null
   // This ensures bounds/visibility updates always have a tab to target
@@ -222,6 +228,15 @@ app.on("before-quit", async (event) => {
       sessionTabBridge.destroy();
       sessionTabBridge = null;
       logger.debug("threadViewBridge destroyed");
+    }
+
+    // Reject any pending approvals and destroy bridge
+    ApprovalService.getInstance().rejectAll("Application shutting down");
+    if (approvalBridge) {
+      logger.debug("Destroying approvalBridge...");
+      approvalBridge.destroy();
+      approvalBridge = null;
+      logger.debug("approvalBridge destroyed");
     }
 
     // Clean up ViewControlService singleton

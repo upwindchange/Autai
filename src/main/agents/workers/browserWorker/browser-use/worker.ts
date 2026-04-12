@@ -6,7 +6,7 @@ import {
   type UIMessage,
 } from "ai";
 import { chatModel } from "@agents/providers";
-import { settingsService } from "@/services";
+import { settingsService, ApprovalService } from "@/services";
 import { trace, context } from "@opentelemetry/api";
 import log from "electron-log/main";
 import { browserUsePlanner, type UIPlanType } from "./planner";
@@ -69,7 +69,42 @@ export async function browserUseWorker(
               taskCount: plan.todos.length,
             });
 
-            // Stream only the plan to the frontend (not the LLM's reasoning/text)
+            // ============================================================
+            // Approval Point 1: Wait for user to approve the plan
+            // ============================================================
+            plan.requiresApproval = true;
+            writeSimulatedToolCallToStream({
+              writer,
+              toolCallId: planToolCallId,
+              toolName: "plan",
+              input: plan,
+              output: plan,
+            });
+
+            logger.info("Waiting for plan approval", { planId: plan.id });
+            const approvalDecision =
+              await ApprovalService.getInstance().request(plan.id);
+
+            if (approvalDecision === "rejected") {
+              logger.info("Plan rejected by user", { planId: plan.id });
+              // Mark all todos as cancelled
+              for (const todo of plan.todos) {
+                todo.status = "cancelled";
+              }
+              plan.requiresApproval = false;
+              writeSimulatedToolCallToStream({
+                writer,
+                toolCallId: planToolCallId,
+                toolName: "plan",
+                input: plan,
+                output: plan,
+              });
+              rootSpan.end();
+              return;
+            }
+
+            logger.info("Plan approved by user", { planId: plan.id });
+            plan.requiresApproval = false;
             writeSimulatedToolCallToStream({
               writer,
               toolCallId: planToolCallId,
