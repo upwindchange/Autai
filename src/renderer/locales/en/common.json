@@ -28,6 +28,18 @@
   "sidebar.archiveView": "Archive view",
   "sidebar.deleteAll": "Delete All",
   "sidebar.archiveAll": "Archive All",
+  "sidebar.archiveAllDesc": "This will archive all active conversations. You can restore them from the archive view.",
+  "sidebar.archiveSelected": "Archive Selected",
+  "sidebar.deleteSelected": "Delete Selected",
+  "sidebar.restoreSelected": "Restore Selected",
   "sidebar.deleteAllDesc": "This will permanently delete all active conversations, or you can archive them instead.",
-  "sidebar.deleteAllArchivedDesc": "This will permanently delete all archived conversations. This action cannot be undone."
+  "sidebar.deleteAllArchivedDesc": "This will permanently delete all archived conversations. This action cannot be undone.",
+  "sidebar.multiSelect": "Multi-select",
+  "sidebar.selectAll": "Select All",
+  "sidebar.selectAllDownward": "Select All Below",
+  "sidebar.invertSelection": "Invert Selection",
+  "sidebar.selectedCount": "{{count}} selected",
+  "sidebar.restore": "Restore",
+  "sidebar.restoreAll": "Restore All",
+  "sidebar.restoreAllDesc": "This will restore all archived conversations to active status."
 }

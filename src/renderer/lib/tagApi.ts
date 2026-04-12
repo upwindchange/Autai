@@ -63,3 +63,24 @@ export async function deleteAllThreads(
 export async function archiveAllThreads(): Promise<void> {
   await fetch(`${API_BASE}/threads/archive-all`, { method: "POST" });
 }
+
+export async function bulkUpdateThreadStatus(
+  threadIds: string[],
+  status: "regular" | "archived",
+): Promise<void> {
+  await fetch(`${API_BASE}/threads/bulk-status`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ threadIds, status }),
+  });
+}
+
+export async function bulkDeleteThreadsByIds(
+  threadIds: string[],
+): Promise<void> {
+  await fetch(`${API_BASE}/threads/bulk-delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ threadIds }),
+  });
+}

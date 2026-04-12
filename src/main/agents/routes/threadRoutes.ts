@@ -68,6 +68,49 @@ threadRoutes.delete("/bulk", async (c) => {
   }
 });
 
+// PATCH /threads/bulk-status - bulk update thread status (archive/unarchive)
+threadRoutes.patch("/bulk-status", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { threadIds, status } = body as {
+      threadIds: string[];
+      status: "regular" | "archived";
+    };
+    if (!Array.isArray(threadIds) || !status) {
+      return c.json({ error: "threadIds array and status are required" }, 400);
+    }
+    for (const id of threadIds) {
+      if (status === "archived") {
+        threadPersistenceService.archiveThread(id);
+      } else {
+        threadPersistenceService.unarchiveThread(id);
+      }
+    }
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error("Error bulk updating thread status:", error);
+    return c.json({ error: "Failed to update thread statuses" }, 500);
+  }
+});
+
+// POST /threads/bulk-delete - bulk delete threads by IDs
+threadRoutes.post("/bulk-delete", async (c) => {
+  try {
+    const body = await c.req.json();
+    const { threadIds } = body as { threadIds: string[] };
+    if (!Array.isArray(threadIds)) {
+      return c.json({ error: "threadIds array is required" }, 400);
+    }
+    for (const id of threadIds) {
+      threadPersistenceService.deleteThread(id);
+    }
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error("Error bulk deleting threads:", error);
+    return c.json({ error: "Failed to delete threads" }, 500);
+  }
+});
+
 // GET /threads/:id - get thread
 threadRoutes.get("/:id", (c) => {
   try {

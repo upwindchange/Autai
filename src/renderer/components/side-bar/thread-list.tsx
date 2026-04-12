@@ -20,16 +20,41 @@ import { useTranslation } from "react-i18next";
 import {
   ArchiveIcon,
   BookmarkIcon,
+  CheckSquare,
   ChevronRightIcon,
   MoreHorizontalIcon,
+  Square,
   TrashIcon,
   XIcon,
 } from "lucide-react";
-import { useMemo, useState, type FC } from "react";
+import { useMemo, useRef, useState, type FC } from "react";
 import { useTagStore, type ThreadInfo } from "@/stores/tagStore";
 import { getTagColor } from "@/components/side-bar/sidebar-toolbar";
 import { addTagToThread, removeTagFromThread } from "@/lib/tagApi";
+import { cn } from "@/lib/utils";
 import type { TagRow } from "@shared/tag";
+
+// ---------------------------------------------------------------------------
+// Long press hook for multi-select activation
+// ---------------------------------------------------------------------------
+
+function useLongPress(callback: () => void, delay = 500) {
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  return {
+    onPointerDown: () => {
+      timerRef.current = setTimeout(callback, delay);
+    },
+    onPointerUp: () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    onPointerLeave: () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+    onPointerCancel: () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    },
+  };
+}
 
 export const ThreadList: FC = () => {
   const viewMode = useTagStore((s) => s.viewMode);
@@ -158,6 +183,26 @@ const CollapsibleTagGroup: FC<{
   onSwitch: (threadId: string) => void;
 }> = ({ group, activeThreadId, onSwitch }) => {
   const [open, setOpen] = useState(true);
+  const isMultiSelectMode = useTagStore((s) => s.isMultiSelectMode);
+  const selectedThreadIds = useTagStore((s) => s.selectedThreadIds);
+  const selectAllThreads = useTagStore((s) => s.selectAllThreads);
+
+  const groupIds = group.threads.map((t) => t.remoteId);
+  const allGroupSelected =
+    groupIds.length > 0 && groupIds.every((id) => selectedThreadIds.has(id));
+
+  const handleGroupSelectAll = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (allGroupSelected) {
+      const remaining = [...selectedThreadIds].filter(
+        (id) => !groupIds.includes(id),
+      );
+      selectAllThreads(remaining);
+    } else {
+      const merged = new Set([...selectedThreadIds, ...groupIds]);
+      selectAllThreads([...merged]);
+    }
+  };
 
   return (
     <div className="flex flex-col">
@@ -176,31 +221,90 @@ const CollapsibleTagGroup: FC<{
         <span className="text-[10px] font-normal">
           ({group.threads.length})
         </span>
+        {isMultiSelectMode && (
+          <span
+            role="button"
+            tabIndex={0}
+            onClick={handleGroupSelectAll}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") handleGroupSelectAll(e as unknown as React.MouseEvent);
+            }}
+            className="ml-auto"
+          >
+            {allGroupSelected ?
+              <CheckSquare className="size-3.5 text-primary" />
+            : <Square className="size-3.5 text-muted-foreground" />}
+          </span>
+        )}
       </button>
       {open && (
         <div className="ml-2 flex flex-col gap-0.5 border-l pl-2">
           {group.threads.map((thread) => (
-            <button
+            <GroupedThreadItem
               key={thread.remoteId}
-              onClick={() => onSwitch(thread.remoteId)}
-              className={`flex min-h-9 items-center gap-2 rounded-lg px-3 py-1 text-start text-sm transition-colors hover:bg-muted ${activeThreadId === thread.remoteId ? "bg-muted" : ""}`}
-            >
-              <span className="min-w-0 flex-1 truncate">
-                {thread.title ?? "New Chat"}
-              </span>
-              {thread.tags.map((tag) => (
-                <span
-                  key={tag.id}
-                  className={`inline-flex rounded px-1 py-0 text-[10px] font-medium ${getTagColor(tag.id)}`}
-                >
-                  {tag.name}
-                </span>
-              ))}
-            </button>
+              thread={thread}
+              activeThreadId={activeThreadId}
+              onSwitch={onSwitch}
+            />
           ))}
         </div>
       )}
     </div>
+  );
+};
+
+const GroupedThreadItem: FC<{
+  thread: ThreadInfo;
+  activeThreadId: string;
+  onSwitch: (threadId: string) => void;
+}> = ({ thread, activeThreadId, onSwitch }) => {
+  const isMultiSelectMode = useTagStore((s) => s.isMultiSelectMode);
+  const selectedThreadIds = useTagStore((s) => s.selectedThreadIds);
+  const toggleThreadSelection = useTagStore((s) => s.toggleThreadSelection);
+  const setMultiSelectMode = useTagStore((s) => s.setMultiSelectMode);
+
+  const isSelected = selectedThreadIds.has(thread.remoteId);
+
+  const longPress = useLongPress(() => {
+    setMultiSelectMode(true);
+    toggleThreadSelection(thread.remoteId);
+  });
+
+  return (
+    <button
+      onClick={() => {
+        if (isMultiSelectMode) {
+          toggleThreadSelection(thread.remoteId);
+        } else {
+          onSwitch(thread.remoteId);
+        }
+      }}
+      className={cn(
+        "flex min-h-9 items-center gap-2 rounded-lg px-3 py-1 text-start text-sm transition-colors hover:bg-muted",
+        activeThreadId === thread.remoteId && !isMultiSelectMode && "bg-muted",
+        isMultiSelectMode && isSelected && "bg-accent border-l-2 border-primary",
+      )}
+      {...(!isMultiSelectMode ? longPress : {})}
+    >
+      {isMultiSelectMode && (
+        <span className="shrink-0">
+          {isSelected ?
+            <CheckSquare className="size-4 text-primary" />
+          : <Square className="size-4 text-muted-foreground" />}
+        </span>
+      )}
+      <span className="min-w-0 flex-1 truncate">
+        {thread.title ?? "New Chat"}
+      </span>
+      {thread.tags.map((tag) => (
+        <span
+          key={tag.id}
+          className={`inline-flex rounded px-1 py-0 text-[10px] font-medium ${getTagColor(tag.id)}`}
+        >
+          {tag.name}
+        </span>
+      ))}
+    </button>
   );
 };
 
@@ -236,6 +340,19 @@ const ThreadListItem: FC<{ selectedTagId?: number | null }> = ({
   const threadTags = useTagStore((s) =>
     remoteId ? (s.threadTags[remoteId] ?? []) : [],
   );
+  const isMultiSelectMode = useTagStore((s) => s.isMultiSelectMode);
+  const selectedThreadIds = useTagStore((s) => s.selectedThreadIds);
+  const toggleThreadSelection = useTagStore((s) => s.toggleThreadSelection);
+  const setMultiSelectMode = useTagStore((s) => s.setMultiSelectMode);
+
+  const isSelected = remoteId ? selectedThreadIds.has(remoteId) : false;
+
+  const longPress = useLongPress(() => {
+    if (remoteId) {
+      setMultiSelectMode(true);
+      toggleThreadSelection(remoteId);
+    }
+  });
 
   // Filter by selected tag
   if (
@@ -246,7 +363,26 @@ const ThreadListItem: FC<{ selectedTagId?: number | null }> = ({
   }
 
   return (
-    <ThreadListItemPrimitive.Root className="aui-thread-list-item group/thread relative flex min-h-9 items-center gap-2 rounded-lg border border-transparent px-2 py-0.5 transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none data-active:border-l-2 data-active:border-primary data-active:bg-accent">
+    <ThreadListItemPrimitive.Root
+      className={cn(
+        "aui-thread-list-item group/thread relative flex min-h-9 items-center gap-2 rounded-lg border border-transparent px-2 py-0.5 transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none data-active:border-l-2 data-active:border-primary data-active:bg-accent",
+        isMultiSelectMode && isSelected && "bg-accent border-l-2 border-primary",
+      )}
+      onClickCapture={(e) => {
+        if (isMultiSelectMode && remoteId) {
+          e.stopPropagation();
+          toggleThreadSelection(remoteId);
+        }
+      }}
+      {...(!isMultiSelectMode ? longPress : {})}
+    >
+      {isMultiSelectMode && (
+        <span className="shrink-0 pl-1">
+          {isSelected ?
+            <CheckSquare className="size-4 text-primary" />
+          : <Square className="size-4 text-muted-foreground" />}
+        </span>
+      )}
       <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger relative flex min-w-0 flex-1 flex-col items-start px-1 py-1 text-start text-sm">
         <div className="flex w-full items-center">
           <span className="aui-thread-list-item-title min-w-0 flex-1 truncate">

@@ -18,7 +18,6 @@ export function SidebarLeft(props: SidebarLeftProps) {
         </div>
         <div className="mx-2 border-t" />
         <SidebarToolbar />
-        <div className="mx-2 border-t" />
         <ThreadList />
         <NavSecondary className="mt-auto" />
       </SidebarContent>

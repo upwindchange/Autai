@@ -28,6 +28,18 @@
   "sidebar.archiveView": "归档视图",
   "sidebar.deleteAll": "全部删除",
   "sidebar.archiveAll": "全部归档",
+  "sidebar.archiveAllDesc": "此操作将归档所有活跃对话。您可以在归档视图中恢复它们。",
+  "sidebar.archiveSelected": "归档所选",
+  "sidebar.deleteSelected": "删除所选",
+  "sidebar.restoreSelected": "恢复所选",
   "sidebar.deleteAllDesc": "此操作将永久删除所有活跃对话，您也可以选择归档。",
-  "sidebar.deleteAllArchivedDesc": "此操作将永久删除所有已归档对话，无法撤销。"
+  "sidebar.deleteAllArchivedDesc": "此操作将永久删除所有已归档对话，无法撤销。",
+  "sidebar.multiSelect": "多选",
+  "sidebar.selectAll": "全选",
+  "sidebar.selectAllDownward": "选择以下全部",
+  "sidebar.invertSelection": "反选",
+  "sidebar.selectedCount": "已选 {{count}} 项",
+  "sidebar.restore": "恢复",
+  "sidebar.restoreAll": "全部恢复",
+  "sidebar.restoreAllDesc": "此操作将恢复所有已归档对话至活跃状态。"
 }

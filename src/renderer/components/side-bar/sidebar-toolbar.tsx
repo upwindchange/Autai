@@ -1,10 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArchiveIcon,
+  ArrowDownToLine,
+  ArrowRightLeft,
   BookmarkIcon,
-  ListIcon,
+  CheckSquare,
   FolderTreeIcon,
+  ListIcon,
+  MoreHorizontalIcon,
   PencilIcon,
+  RotateCcw,
   Search,
   TrashIcon,
   XIcon,
@@ -17,6 +22,13 @@ import {
   ContextMenuItem,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -34,8 +46,14 @@ import {
   AlertDialogMedia,
 } from "@/components/ui/alert-dialog";
 import { useTagStore, type ViewMode } from "@/stores/tagStore";
-import { deleteAllThreads, archiveAllThreads } from "@/lib/tagApi";
+import {
+  deleteAllThreads,
+  archiveAllThreads,
+  bulkUpdateThreadStatus,
+  bulkDeleteThreadsByIds,
+} from "@/lib/tagApi";
 import { useTranslation } from "react-i18next";
+import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
 // Tag color utilities (re-exported for use by thread-list.tsx)
@@ -73,13 +91,36 @@ export function SidebarToolbar() {
   const viewingArchive = useTagStore((s) => s.viewingArchive);
   const setViewingArchive = useTagStore((s) => s.setViewingArchive);
   const fetchTags = useTagStore((s) => s.fetchTags);
+  const threads = useTagStore((s) => s.threads);
+  const selectedTagId = useTagStore((s) => s.selectedTagId);
+  const isMultiSelectMode = useTagStore((s) => s.isMultiSelectMode);
+  const setMultiSelectMode = useTagStore((s) => s.setMultiSelectMode);
 
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [deleteAllDialogOpen, setDeleteAllDialogOpen] = useState(false);
+  const [archiveAllDialogOpen, setArchiveAllDialogOpen] = useState(false);
+  const [restoreAllDialogOpen, setRestoreAllDialogOpen] = useState(false);
 
   useEffect(() => {
     fetchTags();
   }, [fetchTags]);
+
+  const allVisibleThreadIds = useMemo(
+    () =>
+      threads
+        .filter((t) => {
+          if (viewingArchive && t.status !== "archived") return false;
+          if (!viewingArchive && t.status !== "regular") return false;
+          if (
+            selectedTagId !== null &&
+            !t.tags.some((tag) => tag.id === selectedTagId)
+          )
+            return false;
+          return true;
+        })
+        .map((t) => t.remoteId),
+    [threads, viewingArchive, selectedTagId],
+  );
 
   const handleToggle = (panel: ActivePanel) => {
     setActivePanel((prev) => (prev === panel ? null : panel));
@@ -93,14 +134,21 @@ export function SidebarToolbar() {
 
   const handleArchiveAll = async () => {
     await archiveAllThreads();
-    setDeleteAllDialogOpen(false);
+    setArchiveAllDialogOpen(false);
+    window.location.reload();
+  };
+
+  const handleRestoreAll = async () => {
+    await bulkUpdateThreadStatus(allVisibleThreadIds, "regular");
+    setRestoreAllDialogOpen(false);
     window.location.reload();
   };
 
   return (
     <div className="flex flex-col px-2">
-      {/* Toolbar row */}
+      {/* Single toolbar row */}
       <div className="flex items-center gap-1">
+        {/* View controls: List | Grouped | Archive */}
         <ViewModeToggle mode={viewMode} onChange={setViewMode} />
         <ToolbarIconButton
           icon={ArchiveIcon}
@@ -108,11 +156,16 @@ export function SidebarToolbar() {
           active={viewingArchive}
           onClick={() => setViewingArchive(!viewingArchive)}
         />
+
+        <div className="mx-0.5 h-4 w-px bg-border" />
+
+        {/* Core navigation tools */}
         <ToolbarIconButton
           icon={BookmarkIcon}
           label={t("sidebar.tags")}
           active={activePanel === "tags"}
           onClick={() => handleToggle("tags")}
+          disabled={viewingArchive}
         />
         <ToolbarIconButton
           icon={Search}
@@ -121,12 +174,31 @@ export function SidebarToolbar() {
           onClick={() => handleToggle("search")}
         />
         <ToolbarIconButton
-          icon={TrashIcon}
-          label={t("sidebar.deleteAll")}
-          active={false}
-          onClick={() => setDeleteAllDialogOpen(true)}
+          icon={CheckSquare}
+          label={t("sidebar.multiSelect")}
+          active={isMultiSelectMode}
+          onClick={() => setMultiSelectMode(!isMultiSelectMode)}
+        />
+
+        {/* Spacer pushes "more" to the right */}
+        <div className="flex-1" />
+
+        {/* Overflow menu: archive all, delete all, restore all */}
+        <MoreMenu
+          viewingArchive={viewingArchive}
+          onArchiveAll={() => setArchiveAllDialogOpen(true)}
+          onDeleteAll={() => setDeleteAllDialogOpen(true)}
+          onRestoreAll={() => setRestoreAllDialogOpen(true)}
         />
       </div>
+
+      {/* Multi-select panel */}
+      {isMultiSelectMode && (
+        <MultiSelectPanel
+          allVisibleThreadIds={allVisibleThreadIds}
+          viewingArchive={viewingArchive}
+        />
+      )}
 
       {/* Conditional panel */}
       {activePanel && (
@@ -144,7 +216,20 @@ export function SidebarToolbar() {
         onOpenChange={setDeleteAllDialogOpen}
         viewingArchive={viewingArchive}
         onDeleteAll={handleDeleteAll}
+      />
+
+      {/* Archive all dialog */}
+      <ArchiveAllDialog
+        open={archiveAllDialogOpen}
+        onOpenChange={setArchiveAllDialogOpen}
         onArchiveAll={handleArchiveAll}
+      />
+
+      {/* Restore all dialog */}
+      <RestoreAllDialog
+        open={restoreAllDialogOpen}
+        onOpenChange={setRestoreAllDialogOpen}
+        onRestoreAll={handleRestoreAll}
       />
     </div>
   );
@@ -159,26 +244,78 @@ function ToolbarIconButton({
   label,
   active,
   onClick,
+  disabled,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   active: boolean;
   onClick: () => void;
+  disabled?: boolean;
 }) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          variant={active ? "secondary" : "ghost"}
+          variant="ghost"
           size="icon"
-          className="size-6"
+          className={cn("size-6", active && "bg-muted hover:bg-muted")}
           onClick={onClick}
+          disabled={disabled}
         >
-          <Icon className="size-3.5" />
+          <Icon className={cn("size-3.5", active && "text-blue-500")} />
         </Button>
       </TooltipTrigger>
       <TooltipContent side="bottom">{label}</TooltipContent>
     </Tooltip>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// More menu (overflow dropdown for archive, restore, delete)
+// ---------------------------------------------------------------------------
+
+function MoreMenu({
+  viewingArchive,
+  onArchiveAll,
+  onDeleteAll,
+  onRestoreAll,
+}: {
+  viewingArchive: boolean;
+  onArchiveAll: () => void;
+  onDeleteAll: () => void;
+  onRestoreAll: () => void;
+}) {
+  const { t } = useTranslation("common");
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost" size="icon" className="size-6">
+          <MoreHorizontalIcon className="size-3.5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="bottom" align="end" className="min-w-40">
+        {!viewingArchive && (
+          <DropdownMenuItem onClick={onArchiveAll}>
+            <ArchiveIcon className="size-4" />
+            {t("sidebar.archiveAll")}
+          </DropdownMenuItem>
+        )}
+        {viewingArchive && (
+          <DropdownMenuItem onClick={onRestoreAll}>
+            <RotateCcw className="size-4" />
+            {t("sidebar.restoreAll")}
+          </DropdownMenuItem>
+        )}
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem variant="destructive" onClick={onDeleteAll}>
+          <TrashIcon className="size-4" />
+          {t("sidebar.deleteAll")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -200,12 +337,17 @@ function ViewModeToggle({
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant={mode === "flat" ? "secondary" : "ghost"}
+            variant="ghost"
             size="icon"
-            className="size-6 rounded-r-none"
+            className={cn(
+              "size-6 rounded-r-none",
+              mode === "flat" && "bg-muted hover:bg-muted",
+            )}
             onClick={() => onChange("flat")}
           >
-            <ListIcon className="size-3.5" />
+            <ListIcon
+              className={cn("size-3.5", mode === "flat" && "text-blue-500")}
+            />
           </Button>
         </TooltipTrigger>
         <TooltipContent side="bottom">{t("sidebar.listView")}</TooltipContent>
@@ -213,12 +355,17 @@ function ViewModeToggle({
       <Tooltip>
         <TooltipTrigger asChild>
           <Button
-            variant={mode === "grouped" ? "secondary" : "ghost"}
+            variant="ghost"
             size="icon"
-            className="size-6 rounded-l-none"
+            className={cn(
+              "size-6 rounded-l-none",
+              mode === "grouped" && "bg-muted hover:bg-muted",
+            )}
             onClick={() => onChange("grouped")}
           >
-            <FolderTreeIcon className="size-3.5" />
+            <FolderTreeIcon
+              className={cn("size-3.5", mode === "grouped" && "text-blue-500")}
+            />
           </Button>
         </TooltipTrigger>
         <TooltipContent side="bottom">
@@ -414,6 +561,107 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
 }
 
 // ---------------------------------------------------------------------------
+// Multi-select panel
+// ---------------------------------------------------------------------------
+
+function MultiSelectPanel({
+  allVisibleThreadIds,
+  viewingArchive,
+}: {
+  allVisibleThreadIds: string[];
+  viewingArchive: boolean;
+}) {
+  const { t } = useTranslation("common");
+  const selectedThreadIds = useTagStore((s) => s.selectedThreadIds);
+  const selectAllThreads = useTagStore((s) => s.selectAllThreads);
+  const invertSelection = useTagStore((s) => s.invertSelection);
+  const selectThreadsDownward = useTagStore((s) => s.selectThreadsDownward);
+  const exitMultiSelectMode = useTagStore((s) => s.exitMultiSelectMode);
+
+  const handleBulkArchive = async () => {
+    await bulkUpdateThreadStatus([...selectedThreadIds], "archived");
+    exitMultiSelectMode();
+    window.location.reload();
+  };
+
+  const handleBulkDelete = async () => {
+    await bulkDeleteThreadsByIds([...selectedThreadIds]);
+    exitMultiSelectMode();
+    window.location.reload();
+  };
+
+  const handleBulkRestore = async () => {
+    await bulkUpdateThreadStatus([...selectedThreadIds], "regular");
+    exitMultiSelectMode();
+    window.location.reload();
+  };
+
+  const handleSelectAllDownward = () => {
+    if (selectedThreadIds.size === 0) {
+      selectThreadsDownward(allVisibleThreadIds, 0);
+      return;
+    }
+    const indices = [...selectedThreadIds]
+      .map((id) => allVisibleThreadIds.indexOf(id))
+      .filter((i) => i >= 0);
+    const minIndex = Math.min(...indices);
+    selectThreadsDownward(allVisibleThreadIds, minIndex);
+  };
+
+  return (
+    <div className="flex items-center gap-1 py-1">
+      <ToolbarIconButton
+        icon={CheckSquare}
+        label={t("sidebar.selectAll")}
+        active={false}
+        onClick={() => selectAllThreads(allVisibleThreadIds)}
+      />
+      <ToolbarIconButton
+        icon={ArrowDownToLine}
+        label={t("sidebar.selectAllDownward")}
+        active={false}
+        onClick={handleSelectAllDownward}
+      />
+      <ToolbarIconButton
+        icon={ArrowRightLeft}
+        label={t("sidebar.invertSelection")}
+        active={false}
+        onClick={() => invertSelection(allVisibleThreadIds)}
+      />
+      <div className="mx-0.5 h-4 w-px bg-border" />
+      {!viewingArchive && (
+        <ToolbarIconButton
+          icon={ArchiveIcon}
+          label={t("sidebar.archiveSelected")}
+          active={false}
+          onClick={handleBulkArchive}
+          disabled={selectedThreadIds.size === 0}
+        />
+      )}
+      {viewingArchive && (
+        <ToolbarIconButton
+          icon={RotateCcw}
+          label={t("sidebar.restoreSelected")}
+          active={false}
+          onClick={handleBulkRestore}
+          disabled={selectedThreadIds.size === 0}
+        />
+      )}
+      <ToolbarIconButton
+        icon={TrashIcon}
+        label={t("sidebar.deleteSelected")}
+        active={false}
+        onClick={handleBulkDelete}
+        disabled={selectedThreadIds.size === 0}
+      />
+      <span className="ml-auto text-xs text-muted-foreground">
+        {t("sidebar.selectedCount", { count: selectedThreadIds.size })}
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Delete all confirmation dialog
 // ---------------------------------------------------------------------------
 
@@ -422,13 +670,11 @@ function DeleteAllDialog({
   onOpenChange,
   viewingArchive,
   onDeleteAll,
-  onArchiveAll,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   viewingArchive: boolean;
   onDeleteAll: () => void;
-  onArchiveAll: () => void;
 }) {
   const { t } = useTranslation("common");
 
@@ -447,13 +693,84 @@ function DeleteAllDialog({
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          {!viewingArchive && (
-            <AlertDialogAction onClick={onArchiveAll}>
-              {t("sidebar.archiveAll")}
-            </AlertDialogAction>
-          )}
           <AlertDialogAction variant="destructive" onClick={onDeleteAll}>
             {t("sidebar.deleteAll")}
+          </AlertDialogAction>
+          <AlertDialogCancel>{t("btn.cancel")}</AlertDialogCancel>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Archive all confirmation dialog
+// ---------------------------------------------------------------------------
+
+function ArchiveAllDialog({
+  open,
+  onOpenChange,
+  onArchiveAll,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onArchiveAll: () => void;
+}) {
+  const { t } = useTranslation("common");
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent size="sm">
+        <AlertDialogHeader>
+          <AlertDialogMedia>
+            <ArchiveIcon className="text-primary" />
+          </AlertDialogMedia>
+          <AlertDialogTitle>{t("sidebar.archiveAll")}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("sidebar.archiveAllDesc")}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogAction onClick={onArchiveAll}>
+            {t("sidebar.archiveAll")}
+          </AlertDialogAction>
+          <AlertDialogCancel>{t("btn.cancel")}</AlertDialogCancel>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Restore all confirmation dialog
+// ---------------------------------------------------------------------------
+
+function RestoreAllDialog({
+  open,
+  onOpenChange,
+  onRestoreAll,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onRestoreAll: () => void;
+}) {
+  const { t } = useTranslation("common");
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      <AlertDialogContent size="sm">
+        <AlertDialogHeader>
+          <AlertDialogMedia>
+            <RotateCcw className="text-primary" />
+          </AlertDialogMedia>
+          <AlertDialogTitle>{t("sidebar.restoreAll")}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {t("sidebar.restoreAllDesc")}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogAction onClick={onRestoreAll}>
+            {t("sidebar.restoreAll")}
           </AlertDialogAction>
           <AlertDialogCancel>{t("btn.cancel")}</AlertDialogCancel>
         </AlertDialogFooter>
