@@ -72,7 +72,7 @@ You MUST call the plan tool to provide your subtask plan. Do not just describe t
 ## Previous Attempt Failed
 The previous attempt to accomplish this task failed. Here's what happened:
 
-Task Receipt:
+Task Failure Reason:
 ${JSON.stringify(currentTask.receipt, null, 2)}
 
 ## Your Responsibility
@@ -176,7 +176,6 @@ export async function browserUseTaskExecutor(
   // Set current task to in_progress
   // ============================================================================
   plan.todos[currentTaskIndex].status = "in_progress";
-  const inProgressToolCallId = planToolCallId;
 
   logger.debug("Plan status update", {
     taskId: plan.todos[currentTaskIndex].id,
@@ -199,7 +198,7 @@ export async function browserUseTaskExecutor(
       // Stream the in_progress simulated tool call to the frontend
       writeSimulatedToolCallToStream({
         writer,
-        toolCallId: inProgressToolCallId,
+        toolCallId: planToolCallId,
         toolName: "plan",
         input: {
           title: plan.title,
@@ -338,7 +337,7 @@ export async function browserUseTaskExecutor(
           // Stream the cancelled plan status to the frontend
           writeSimulatedToolCallToStream({
             writer,
-            toolCallId: inProgressToolCallId,
+            toolCallId: planToolCallId,
             toolName: "plan",
             input: {
               title: plan.title,
@@ -362,7 +361,7 @@ export async function browserUseTaskExecutor(
             sessionId,
             plan,
             currentTaskIndex,
-            inProgressToolCallId,
+            planToolCallId,
             maxRetries,
             attemptCount + 1,
           );
@@ -382,7 +381,7 @@ export async function browserUseTaskExecutor(
         // Stream the completed plan status to the frontend
         writeSimulatedToolCallToStream({
           writer,
-          toolCallId: inProgressToolCallId,
+          toolCallId: planToolCallId,
           toolName: "plan",
           input: {
             title: plan.title,

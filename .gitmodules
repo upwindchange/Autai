@@ -10,9 +10,6 @@
 [submodule "reference/p-queue"]
 	path = reference/p-queue
 	url = https://github.com/sindresorhus/p-queue.git
-[submodule "reference/langchainjs"]
-	path = reference/langchainjs
-	url = git@github.com:langchain-ai/langchainjs.git
 [submodule "reference/electron-vite-docs"]
 	path = reference/electron-vite-docs
 	url = git@github.com:alex8088/electron-vite-docs.git
@@ -22,15 +19,6 @@
 [submodule "reference/langfuse-docs"]
 	path = reference/langfuse-docs
 	url = git@github.com:langfuse/langfuse-docs.git
-[submodule "reference/langchain-docs"]
-	path = reference/langchain-docs
-	url = https://github.com/langchain-ai/docs
-[submodule "reference/langgraphjs"]
-	path = reference/langgraphjs
-	url = git@github.com:langchain-ai/langgraphjs.git
-[submodule "reference/pglite"]
-	path = reference/pglite
-	url = git@github.com:electric-sql/pglite.git
 [submodule "reference/tool-ui"]
 	path = reference/tool-ui
 	url = git@github.com:assistant-ui/tool-ui.git

@@ -405,7 +405,7 @@ const AutaiChainOfThought: FC = () => {
                         type="tool-call"
                         toolCallId=""
                         toolName={toolName}
-                        args={undefined}
+                        args={{}}
                         argsText={argsText}
                         result={result}
                         status={status}
