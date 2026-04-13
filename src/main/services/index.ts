@@ -1,4 +1,4 @@
-export { ApprovalService } from "./ApprovalService";
+export { HitlService } from "./HitlService";
 export { settingsService } from "./settingsService";
 export { SessionTabService } from "./SessionTabService";
 export { TabControlService } from "./TabControlService";

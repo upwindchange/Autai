@@ -6,7 +6,7 @@ import {
   type UIMessage,
 } from "ai";
 import { chatModel } from "@agents/providers";
-import { settingsService, ApprovalService } from "@/services";
+import { settingsService, HitlService } from "@/services";
 import { flushTelemetry } from "@/agents/utils/telemetry";
 import log from "electron-log/main";
 import { observe } from "@langfuse/tracing";
@@ -80,7 +80,7 @@ export async function browserUseWorker(
 
             logger.info("Waiting for plan approval", { planId: plan.id });
             const approvalDecision =
-              await ApprovalService.getInstance().request(plan.id);
+              await HitlService.getInstance().request<"approved" | "rejected">(plan.id);
 
             if (approvalDecision === "rejected") {
               logger.info("Plan rejected by user", { planId: plan.id });

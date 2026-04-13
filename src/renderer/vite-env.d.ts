@@ -60,10 +60,10 @@ declare global {
       invoke(channel: "logger:getLogPath"): Promise<string>;
       invoke(channel: "logger:clearLogs"): Promise<void>;
 
-      // Approval operations
+      // HITL operations
       invoke(
-        channel: "approval:respond",
-        response: { planId: string; decision: "approved" | "rejected" },
+        channel: "hitl:respond",
+        response: { id: string; response: unknown },
       ): Promise<void>;
     };
   }

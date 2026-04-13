@@ -124,9 +124,9 @@ export const frontendToolkit: Toolkit = {
               onAction={(actionId) => {
                 const decision =
                   actionId === "approve" ? "approved" : "rejected";
-                window.ipcRenderer.invoke("approval:respond", {
-                  planId: parsed.id,
-                  decision,
+                window.ipcRenderer.invoke("hitl:respond", {
+                  id: parsed.id,
+                  response: decision,
                 });
               }}
             />
