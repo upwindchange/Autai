@@ -8,13 +8,15 @@ import {
   renameTag as apiRenameTag,
   addTagToThread as apiAddTagToThread,
   removeTagFromThread as apiRemoveTagFromThread,
+  searchThreads as apiSearchThreads,
+  renameThread as apiRenameThread,
 } from "@/lib/tagApi";
 
 export type ViewMode = "flat" | "grouped";
 
 export interface ThreadInfo {
   remoteId: string;
-  title: string | undefined;
+  title: string;
   tags: TagRow[];
   status: "regular" | "archived";
 }
@@ -39,6 +41,11 @@ interface TagState {
   isMultiSelectMode: boolean;
   selectedThreadIds: Set<string>;
 
+  // Search state
+  searchQuery: string;
+  searchResultIds: Set<string> | null; // null = no search active
+  isSearching: boolean;
+
   // Actions
   fetchTags: () => Promise<void>;
   createTag: (name: string) => Promise<TagRow>;
@@ -53,6 +60,7 @@ interface TagState {
   ) => void;
   addTagToThread: (threadRemoteId: string, tagId: number) => Promise<void>;
   removeTagFromThread: (threadRemoteId: string, tagId: number) => Promise<void>;
+  renameThread: (threadRemoteId: string, title: string) => Promise<void>;
   getTagsForThread: (remoteId: string | undefined) => TagRow[];
 
   // Multi-select actions
@@ -63,6 +71,11 @@ interface TagState {
   invertSelection: (allThreadIds: string[]) => void;
   selectThreadsDownward: (allThreadIds: string[], fromIndex: number) => void;
   exitMultiSelectMode: () => void;
+
+  // Search actions
+  setSearchQuery: (query: string) => void;
+  performSearch: (query: string) => Promise<void>;
+  clearSearch: () => void;
 }
 
 export const useTagStore = create<TagState>()(
@@ -76,6 +89,9 @@ export const useTagStore = create<TagState>()(
     viewingArchive: false,
     isMultiSelectMode: false,
     selectedThreadIds: new Set<string>(),
+    searchQuery: "",
+    searchResultIds: null,
+    isSearching: false,
 
     fetchTags: async () => {
       set({ loading: true });
@@ -108,7 +124,8 @@ export const useTagStore = create<TagState>()(
       }));
     },
 
-    setSelectedTagId: (id) => set({ selectedTagId: id }),
+    setSelectedTagId: (id) =>
+      set({ selectedTagId: id, searchQuery: "", searchResultIds: null }),
 
     setViewMode: (mode) =>
       set({
@@ -122,6 +139,8 @@ export const useTagStore = create<TagState>()(
         viewingArchive: viewing,
         isMultiSelectMode: false,
         selectedThreadIds: new Set<string>(),
+        searchQuery: "",
+        searchResultIds: null,
       }),
 
     setThreadTags: (threadTags, threads) => set({ threadTags, threads }),
@@ -150,6 +169,15 @@ export const useTagStore = create<TagState>()(
         threadTags: { ...state.threadTags, [threadRemoteId]: newTags },
         threads: state.threads.map((th) =>
           th.remoteId === threadRemoteId ? { ...th, tags: newTags } : th,
+        ),
+      });
+    },
+
+    renameThread: async (threadRemoteId, title) => {
+      await apiRenameThread(threadRemoteId, title);
+      set({
+        threads: get().threads.map((th) =>
+          th.remoteId === threadRemoteId ? { ...th, title } : th,
         ),
       });
     },
@@ -198,5 +226,26 @@ export const useTagStore = create<TagState>()(
 
     exitMultiSelectMode: () =>
       set({ isMultiSelectMode: false, selectedThreadIds: new Set<string>() }),
+
+    setSearchQuery: (query) => set({ searchQuery: query }),
+
+    performSearch: async (query) => {
+      const trimmed = query.trim();
+      if (!trimmed) {
+        set({ searchResultIds: null, isSearching: false });
+        return;
+      }
+      set({ isSearching: true });
+      try {
+        const result = await apiSearchThreads(trimmed);
+        const ids = new Set(result.threads.map((t) => t.remoteId));
+        set({ searchResultIds: ids, isSearching: false });
+      } catch {
+        set({ isSearching: false });
+      }
+    },
+
+    clearSearch: () =>
+      set({ searchQuery: "", searchResultIds: null, isSearching: false }),
   })),
 );

@@ -158,6 +158,16 @@ export interface FillResult {
    * Time taken for the entire fill operation in milliseconds
    */
   duration?: number;
+
+  /**
+   * Whether the input value was verified after typing
+   */
+  verified?: boolean;
+
+  /**
+   * The actual value read back from the element after typing
+   */
+  actualValue?: string;
 }
 
 export interface ViewportInfo {

@@ -96,7 +96,7 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
       threadTags[t.remoteId] = t.tags;
       threads.push({
         remoteId: t.remoteId,
-        title: t.title ?? undefined,
+        title: t.title,
         tags: t.tags,
         status: t.status,
       });
@@ -106,7 +106,7 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
     return {
       threads: data.threads.map((t) => ({
         remoteId: t.remoteId,
-        title: t.title ?? undefined,
+        title: t.title,
         status: t.status,
         tags: t.tags,
       })),

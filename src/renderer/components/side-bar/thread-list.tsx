@@ -1,4 +1,12 @@
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
@@ -23,6 +31,7 @@ import {
   CheckSquare,
   ChevronRightIcon,
   MoreHorizontalIcon,
+  PencilIcon,
   Square,
   TrashIcon,
   XIcon,
@@ -38,6 +47,18 @@ import type { TagRow } from "@shared/tag";
 // ---------------------------------------------------------------------------
 
 const EMPTY_TAGS: TagRow[] = [];
+
+// ---------------------------------------------------------------------------
+// Search filter helper
+// ---------------------------------------------------------------------------
+
+function matchesSearch(
+  remoteId: string,
+  searchResultIds: Set<string> | null,
+): boolean {
+  if (!searchResultIds) return true;
+  return searchResultIds.has(remoteId);
+}
 
 // ---------------------------------------------------------------------------
 // Long press hook for multi-select activation
@@ -157,6 +178,7 @@ const GroupedThreadList: FC = () => {
   const allTags = useTagStore((s) => s.tags);
   const viewingArchive = useTagStore((s) => s.viewingArchive);
   const selectedTagId = useTagStore((s) => s.selectedTagId);
+  const searchResultIds = useTagStore((s) => s.searchResultIds);
 
   // Group threads by tag
   const { tagGroups, untagged } = useMemo(() => {
@@ -174,6 +196,8 @@ const GroupedThreadList: FC = () => {
       ) {
         continue;
       }
+
+      if (!matchesSearch(thread.remoteId, searchResultIds)) continue;
 
       if (thread.tags.length === 0) {
         untaggedList.push(thread);
@@ -198,7 +222,7 @@ const GroupedThreadList: FC = () => {
       .filter(Boolean);
 
     return { tagGroups, untagged: untaggedList };
-  }, [threads, allTags, selectedTagId, viewingArchive]);
+  }, [threads, allTags, selectedTagId, viewingArchive, searchResultIds]);
 
   return (
     <div className="flex flex-col gap-1">
@@ -333,7 +357,7 @@ const GroupedThreadItem: FC<{
     >
       {selectionIndicator}
       <span className="min-w-0 flex-1 truncate">
-        {thread.title ?? "New Chat"}
+        {thread.title}
       </span>
       {thread.tags.map((tag) => (
         <span
@@ -378,6 +402,7 @@ const ThreadListItem: FC = () => {
     remoteId ? (s.threadTags[remoteId] ?? EMPTY_TAGS) : EMPTY_TAGS,
   );
   const selectedTagId = useTagStore((s) => s.selectedTagId);
+  const searchResultIds = useTagStore((s) => s.searchResultIds);
   const {
     isMultiSelectMode,
     longPress,
@@ -391,6 +416,11 @@ const ThreadListItem: FC = () => {
     selectedTagId !== null &&
     !threadTags.some((t) => t.id === selectedTagId)
   ) {
+    return null;
+  }
+
+  // Filter by search results
+  if (remoteId && !matchesSearch(remoteId, searchResultIds)) {
     return null;
   }
 
@@ -484,68 +514,120 @@ const ThreadListItemMore: FC<{ threadRemoteId: string | undefined }> = ({
   const assignedIds = new Set(threadTags.map((t) => t.id));
   const availableTags = tags.filter((t) => !assignedIds.has(t.id));
 
+  // Get current thread title from store
+  const currentTitle = useTagStore((s) =>
+    threadRemoteId ?
+      (s.threads.find((th) => th.remoteId === threadRemoteId)?.title ??
+        "New Chat")
+    : "New Chat",
+  );
+
+  // Rename dialog state
+  const [renameOpen, setRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState(currentTitle);
+
   const handleAddTag = async (tagId: number) => {
     if (!threadRemoteId) return;
     await useTagStore.getState().addTagToThread(threadRemoteId, tagId);
   };
 
+  const handleRename = async () => {
+    const trimmed = renameValue.trim();
+    if (!threadRemoteId || !trimmed) return;
+    await useTagStore.getState().renameThread(threadRemoteId, trimmed);
+    setRenameOpen(false);
+  };
+
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="aui-thread-list-item-more mr-2 size-7 p-0 opacity-0 transition-opacity group-hover/thread:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100 group-data-active:opacity-100"
-        >
-          <MoreHorizontalIcon className="size-4" />
-          <span className="sr-only">More options</span>
-        </Button>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent side="bottom" align="start" className="min-w-36">
-        <DropdownMenuSub>
-          <DropdownMenuSubTrigger
-            disabled={availableTags.length === 0}
-            className="data-disabled:pointer-events-none data-disabled:opacity-50"
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="aui-thread-list-item-more mr-2 size-7 p-0 opacity-0 transition-opacity group-hover/thread:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100 group-data-active:opacity-100"
           >
-            <BookmarkIcon className="size-4" />
-            {t("sidebar.addTag")}
-          </DropdownMenuSubTrigger>
-          <DropdownMenuSubContent>
-            {availableTags.map((tag) => (
-              <DropdownMenuItem
-                key={tag.id}
-                onClick={() => handleAddTag(tag.id)}
-              >
-                <span
-                  className={`inline-flex rounded px-1.5 py-0 text-[10px] font-medium ${getTagColor(tag.id)}`}
-                >
-                  {tag.name}
-                </span>
-              </DropdownMenuItem>
-            ))}
-          </DropdownMenuSubContent>
-        </DropdownMenuSub>
-        {viewingArchive ?
-          <ThreadListItemPrimitive.Unarchive asChild>
-            <DropdownMenuItem>
-              <ArchiveIcon className="size-4" />
-              {t("sidebar.unarchive")}
-            </DropdownMenuItem>
-          </ThreadListItemPrimitive.Unarchive>
-        : <ThreadListItemPrimitive.Archive asChild>
-            <DropdownMenuItem>
-              <ArchiveIcon className="size-4" />
-              {t("sidebar.archive")}
-            </DropdownMenuItem>
-          </ThreadListItemPrimitive.Archive>
-        }
-        <ThreadListItemPrimitive.Delete asChild>
-          <DropdownMenuItem variant="destructive">
-            <TrashIcon className="size-4" />
-            {t("sidebar.delete")}
+            <MoreHorizontalIcon className="size-4" />
+            <span className="sr-only">More options</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="bottom" align="start" className="min-w-36">
+          <DropdownMenuItem
+            onClick={() => {
+              setRenameValue(currentTitle);
+              setRenameOpen(true);
+            }}
+          >
+            <PencilIcon className="size-4" />
+            {t("sidebar.rename")}
           </DropdownMenuItem>
-        </ThreadListItemPrimitive.Delete>
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger
+              disabled={availableTags.length === 0}
+              className="data-disabled:pointer-events-none data-disabled:opacity-50"
+            >
+              <BookmarkIcon className="size-4" />
+              {t("sidebar.addTag")}
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {availableTags.map((tag) => (
+                <DropdownMenuItem
+                  key={tag.id}
+                  onClick={() => handleAddTag(tag.id)}
+                >
+                  <span
+                    className={`inline-flex rounded px-1.5 py-0 text-[10px] font-medium ${getTagColor(tag.id)}`}
+                  >
+                    {tag.name}
+                  </span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          {viewingArchive ?
+            <ThreadListItemPrimitive.Unarchive asChild>
+              <DropdownMenuItem>
+                <ArchiveIcon className="size-4" />
+                {t("sidebar.unarchive")}
+              </DropdownMenuItem>
+            </ThreadListItemPrimitive.Unarchive>
+          : <ThreadListItemPrimitive.Archive asChild>
+              <DropdownMenuItem>
+                <ArchiveIcon className="size-4" />
+                {t("sidebar.archive")}
+              </DropdownMenuItem>
+            </ThreadListItemPrimitive.Archive>
+          }
+          <ThreadListItemPrimitive.Delete asChild>
+            <DropdownMenuItem variant="destructive">
+              <TrashIcon className="size-4" />
+              {t("sidebar.delete")}
+            </DropdownMenuItem>
+          </ThreadListItemPrimitive.Delete>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>{t("sidebar.renameTitle")}</DialogTitle>
+          </DialogHeader>
+          <Input
+            value={renameValue}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") handleRename();
+            }}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRenameOpen(false)}>
+              {t("common.cancel")}
+            </Button>
+            <Button onClick={handleRename}>{t("common.confirm")}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 };

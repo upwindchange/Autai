@@ -44,5 +44,9 @@
   "sidebar.restoreAllDesc": "此操作将恢复所有已归档对话至活跃状态。",
   "sidebar.addTag": "添加标签",
   "sidebar.delete": "删除",
-  "sidebar.untagged": "未标签"
+  "sidebar.untagged": "未标签",
+  "sidebar.rename": "重命名",
+  "sidebar.renameTitle": "重命名对话",
+  "common.cancel": "取消",
+  "common.confirm": "确认"
 }

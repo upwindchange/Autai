@@ -11,7 +11,7 @@ export interface TagRow {
 
 export interface ThreadWithTags {
   remoteId: string;
-  title: string | null;
+  title: string;
   status: "regular" | "archived";
   tags: TagRow[];
 }

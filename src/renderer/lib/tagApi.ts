@@ -50,6 +50,17 @@ export async function removeTagFromThread(
   });
 }
 
+export async function renameThread(
+  threadId: string,
+  title: string,
+): Promise<void> {
+  await fetch(`${API_BASE}/threads/${threadId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title }),
+  });
+}
+
 export async function deleteAllThreads(
   status?: "regular" | "archived",
 ): Promise<void> {
@@ -83,4 +94,27 @@ export async function bulkDeleteThreadsByIds(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ threadIds }),
   });
+}
+
+export async function searchThreads(
+  query: string,
+): Promise<{
+  threads: {
+    remoteId: string;
+    title: string;
+    status: "regular" | "archived";
+    tags: TagRow[];
+  }[];
+}> {
+  const res = await fetch(
+    `${API_BASE}/threads/search?q=${encodeURIComponent(query)}`,
+  );
+  return (await res.json()) as {
+    threads: {
+      remoteId: string;
+      title: string;
+      status: "regular" | "archived";
+      tags: TagRow[];
+    }[];
+  };
 }

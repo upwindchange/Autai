@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import type { UIMessage } from "ai";
 import log from "electron-log/main";
+import { searchService } from "./searchService";
 
 // __dirname equivalent for ESM
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -12,7 +13,7 @@ const logger = log.scope("ThreadPersistenceService");
 
 interface ThreadRow {
   id: string;
-  title: string | null;
+  title: string;
   status: "regular" | "archived";
   created_at: string;
   updated_at: string;
@@ -53,6 +54,9 @@ class ThreadPersistenceService {
     this.db.pragma("journal_mode = WAL");
 
     this.createTables();
+
+    // Initialize search service with the shared database connection
+    searchService.initialize(this.db);
   }
 
   private createTables(): void {
@@ -61,7 +65,7 @@ class ThreadPersistenceService {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS threads (
         id TEXT PRIMARY KEY,
-        title TEXT,
+        title TEXT NOT NULL DEFAULT 'New Chat',
         status TEXT NOT NULL DEFAULT 'regular',
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
         updated_at TEXT NOT NULL DEFAULT (datetime('now'))

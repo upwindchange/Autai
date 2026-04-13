@@ -44,5 +44,9 @@
   "sidebar.restoreAllDesc": "This will restore all archived conversations to active status.",
   "sidebar.addTag": "Add Tag",
   "sidebar.delete": "Delete",
-  "sidebar.untagged": "Untagged"
+  "sidebar.untagged": "Untagged",
+  "sidebar.rename": "Rename",
+  "sidebar.renameTitle": "Rename Conversation",
+  "common.cancel": "Cancel",
+  "common.confirm": "Confirm"
 }

@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { threadPersistenceService } from "@/services";
+import { threadPersistenceService, searchService } from "@/services";
 import {
   CreateThreadSchema,
   UpdateThreadSchema,
@@ -108,6 +108,31 @@ threadRoutes.post("/bulk-delete", async (c) => {
   } catch (error) {
     logger.error("Error bulk deleting threads:", error);
     return c.json({ error: "Failed to delete threads" }, 500);
+  }
+});
+
+// GET /threads/search?q=... - search threads by title
+threadRoutes.get("/search", (c) => {
+  try {
+    const query = c.req.query("q") ?? "";
+    if (!query.trim()) {
+      return c.json({ threads: [] });
+    }
+    const threads = searchService.searchThreads(
+      query,
+      threadPersistenceService.getTagsForThread.bind(threadPersistenceService),
+    );
+    return c.json({
+      threads: threads.map((t) => ({
+        remoteId: t.id,
+        status: t.status,
+        title: t.title,
+        tags: t.tags,
+      })),
+    });
+  } catch (error) {
+    logger.error("Error searching threads:", error);
+    return c.json({ error: "Failed to search threads" }, 500);
   }
 });
 

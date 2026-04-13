@@ -200,53 +200,18 @@ export class ElementInteractionService {
   }
 
   /**
-   * Focus element using multiple strategies with robust fallbacks
-   * Based on browser-use _focus_element_simple implementation
+   * Focus element using click + CDP focus simultaneously, with JS focus fallback
+   * Clicking naturally focuses most input elements and dispatches proper mouse events,
+   * then CDP DOM.focus reinforces the focus state for edge cases.
    */
   private async focusElement(
     backendNodeId: number,
     objectId?: string,
   ): Promise<boolean> {
+    // Strategy 1: Click + CDP focus (primary)
+    // Click the element to trigger native browser focus, then reinforce with CDP DOM.focus
     try {
-      // Strategy 1: CDP focus (most reliable)
-      this.logger.debug("Focusing element using CDP focus");
-      await sendCDPCommand(
-        this.webContents,
-        "DOM.focus",
-        { backendNodeId },
-        this.logger,
-      );
-      this.logger.debug("Element focused successfully using CDP focus");
-      return true;
-    } catch (error) {
-      this.logger.debug(`CDP focus failed: ${error}, trying JavaScript focus`);
-    }
-
-    // Strategy 2: JavaScript focus (fallback)
-    if (objectId) {
-      try {
-        this.logger.debug("Focusing element using JavaScript focus");
-        await sendCDPCommand(
-          this.webContents,
-          "Runtime.callFunctionOn",
-          {
-            functionDeclaration: "function() { this.focus(); }",
-            objectId,
-          },
-          this.logger,
-        );
-        this.logger.debug("Element focused successfully using JavaScript");
-        return true;
-      } catch (error) {
-        this.logger.debug(
-          `JavaScript focus failed: ${error}, trying click focus`,
-        );
-      }
-    }
-
-    // Strategy 3: Click to focus (last resort)
-    try {
-      this.logger.debug("Focusing element by clicking at element center");
+      this.logger.debug("Focusing element using click + CDP focus");
 
       // Get element coordinates for click
       const viewport = await this.getViewportInfo();
@@ -255,7 +220,7 @@ export class ElementInteractionService {
         viewport,
       );
 
-      // Click on the element to focus it
+      // Click on the element (mousePressed + mouseReleased)
       await sendCDPCommand(
         this.webContents,
         "Input.dispatchMouseEvent",
@@ -284,11 +249,100 @@ export class ElementInteractionService {
         this.logger,
       );
 
-      this.logger.debug("Element focused using click");
+      // Reinforce focus with CDP DOM.focus
+      try {
+        await sendCDPCommand(
+          this.webContents,
+          "DOM.focus",
+          { backendNodeId },
+          this.logger,
+        );
+      } catch (focusError) {
+        this.logger.debug(
+          `CDP DOM.focus reinforcement failed: ${focusError}, click focus should still work`,
+        );
+      }
+
+      this.logger.debug("Element focused successfully using click + CDP focus");
       return true;
     } catch (error) {
-      this.logger.warn(`All focus strategies failed: ${error}`);
-      return false;
+      this.logger.debug(
+        `Click + CDP focus failed: ${error}, trying JavaScript focus`,
+      );
+    }
+
+    // Strategy 2: JavaScript focus (fallback)
+    if (objectId) {
+      try {
+        this.logger.debug("Focusing element using JavaScript focus");
+        await sendCDPCommand(
+          this.webContents,
+          "Runtime.callFunctionOn",
+          {
+            functionDeclaration: "function() { this.focus(); }",
+            objectId,
+          },
+          this.logger,
+        );
+        this.logger.debug("Element focused successfully using JavaScript");
+        return true;
+      } catch (error) {
+        this.logger.warn(`All focus strategies failed: ${error}`);
+        return false;
+      }
+    }
+
+    this.logger.warn("All focus strategies failed: no objectId for JS fallback");
+    return false;
+  }
+
+  /**
+   * Verify the current value of an input element matches the expected value
+   * Uses Runtime.callFunctionOn to read back the element's value property
+   */
+  private async verifyInputValue(
+    backendNodeId: number,
+    expectedValue: string,
+  ): Promise<{ verified: boolean; actualValue: string | null }> {
+    try {
+      const resolveResult: CDP.DOM.ResolveNodeResponse = await sendCDPCommand(
+        this.webContents,
+        "DOM.resolveNode",
+        { backendNodeId },
+        this.logger,
+      );
+
+      if (!resolveResult.object?.objectId) {
+        this.logger.debug("Cannot verify input: failed to resolve objectId");
+        return { verified: false, actualValue: null };
+      }
+
+      const valueResult: CDP.Runtime.CallFunctionOnResponse =
+        await sendCDPCommand(
+          this.webContents,
+          "Runtime.callFunctionOn",
+          {
+            functionDeclaration: `function() { return this.value; }`,
+            objectId: resolveResult.object.objectId,
+            returnByValue: true,
+          },
+          this.logger,
+        );
+
+      const actualValue = (valueResult.result?.value as string) ?? null;
+
+      if (actualValue === expectedValue) {
+        this.logger.debug("Input verification passed");
+        return { verified: true, actualValue };
+      } else {
+        this.logger.debug(
+          `Input verification failed: expected "${expectedValue}", got "${actualValue}"`,
+        );
+        return { verified: false, actualValue };
+      }
+    } catch (error) {
+      this.logger.debug(`Input verification error: ${error}`);
+      return { verified: false, actualValue: null };
     }
   }
 
@@ -977,10 +1031,84 @@ export class ElementInteractionService {
       // Step 5: Type the text character by character using proper human-like key events
       await this.typeCharacterByCharacter(value, keystrokeDelay);
 
+      // Step 6: Verify the text was actually inputted
+      const verification = await this.verifyInputValue(backendNodeId, value);
+
+      if (verification.verified) {
+        return {
+          success: true,
+          charactersTyped: value.length,
+          method: "cdp",
+          verified: true,
+          duration: Date.now() - startTime,
+        };
+      }
+
+      // Verification failed - retry with JavaScript fallback
+      this.logger.warn(
+        `CDP typing verification failed (expected "${value}", got "${verification.actualValue}"), retrying with JavaScript fallback`,
+      );
+
+      try {
+        const resolveResult: CDP.DOM.ResolveNodeResponse = await sendCDPCommand(
+          this.webContents,
+          "DOM.resolveNode",
+          { backendNodeId },
+          this.logger,
+        );
+
+        if (resolveResult.object?.objectId) {
+          const jsResult = await sendCDPCommand<
+            CDP.Runtime.CallFunctionOnResponse
+          >(
+            this.webContents,
+            "Runtime.callFunctionOn",
+            {
+              functionDeclaration: `
+                function(text) {
+                  this.value = text;
+                  this.dispatchEvent(new Event("input", { bubbles: true }));
+                  this.dispatchEvent(new Event("change", { bubbles: true }));
+                  return this.value;
+                }
+              `,
+              objectId: resolveResult.object.objectId,
+              arguments: [{ value }],
+              returnByValue: true,
+            },
+            this.logger,
+          );
+
+          const jsValue = (jsResult.result?.value as string) ?? null;
+          const jsVerified = jsValue === value;
+
+          if (!jsVerified) {
+            this.logger.warn(
+              `JavaScript fallback verification also failed: expected "${value}", got "${jsValue}"`,
+            );
+          }
+
+          return {
+            success: jsVerified,
+            charactersTyped: value.length,
+            method: "javascript",
+            verified: jsVerified,
+            actualValue: jsValue ?? undefined,
+            duration: Date.now() - startTime,
+          };
+        }
+      } catch (jsRetryError) {
+        this.logger.warn(
+          `JavaScript retry after verification failure also failed: ${jsRetryError}`,
+        );
+      }
+
       return {
-        success: true,
+        success: false,
         charactersTyped: value.length,
         method: "cdp",
+        verified: false,
+        actualValue: verification.actualValue ?? undefined,
         duration: Date.now() - startTime,
       };
     } catch (error) {

@@ -95,6 +95,7 @@ export function SidebarToolbar() {
   const selectedTagId = useTagStore((s) => s.selectedTagId);
   const isMultiSelectMode = useTagStore((s) => s.isMultiSelectMode);
   const setMultiSelectMode = useTagStore((s) => s.setMultiSelectMode);
+  const clearSearch = useTagStore((s) => s.clearSearch);
 
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [activeDialog, setActiveDialog] = useState<
@@ -123,7 +124,13 @@ export function SidebarToolbar() {
   );
 
   const handleToggle = (panel: ActivePanel) => {
-    setActivePanel((prev) => (prev === panel ? null : panel));
+    setActivePanel((prev) => {
+      if (prev === panel) {
+        if (panel === "search") clearSearch();
+        return null;
+      }
+      return panel;
+    });
   };
 
   const handleBulkActionAll = async (
@@ -524,23 +531,39 @@ function RenameTagMenuItem({
 
 function SearchPanel({ onClose }: { onClose: () => void }) {
   const { t } = useTranslation("common");
-  const [query, setQuery] = useState("");
+  const searchQuery = useTagStore((s) => s.searchQuery);
+  const setSearchQuery = useTagStore((s) => s.setSearchQuery);
+  const performSearch = useTagStore((s) => s.performSearch);
+  const clearSearch = useTagStore((s) => s.clearSearch);
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     inputRef.current?.focus();
   }, []);
 
+  // Debounced server-side search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      performSearch(searchQuery);
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery, performSearch]);
+
+  const handleClose = () => {
+    clearSearch();
+    onClose();
+  };
+
   return (
     <div className="flex items-center gap-1">
       <Input
         ref={inputRef}
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
         placeholder={t("sidebar.searchPlaceholder")}
         className="h-6 text-xs"
       />
-      <Button variant="ghost" size="icon" className="size-6" onClick={onClose}>
+      <Button variant="ghost" size="icon" className="size-6" onClick={handleClose}>
         <XIcon className="size-3" />
       </Button>
     </div>
