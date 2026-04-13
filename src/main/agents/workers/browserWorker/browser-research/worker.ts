@@ -7,8 +7,9 @@ import {
 } from "ai";
 import { chatModel } from "@agents/providers";
 import { settingsService, SessionTabService } from "@/services";
-import { trace, context } from "@opentelemetry/api";
+import { flushTelemetry } from "@/agents/utils/telemetry";
 import log from "electron-log/main";
+import { observe } from "@langfuse/tracing";
 import { researchPlanner, type ResearchPlan } from "./planner";
 import { executeSearchQueries } from "./search-agent";
 import { extractResultsFromUrls } from "./result-extractor";
@@ -25,21 +26,15 @@ export async function browserResearchWorker(
 ): Promise<ReadableStream<UIMessageChunk>> {
   logger.info("Entering Browser Research worker", { sessionId });
 
-  return createUIMessageStream({
-    originalMessages,
-    onFinish:
-      onFinish ?
-        ({ messages: finalMessages }) => onFinish(finalMessages)
-      : undefined,
-    execute: async ({ writer }) => {
-      // Create a root span for observability
-      const tracer = trace.getTracer("research-worker", "1.0.0");
-      const rootSpan = tracer.startSpan("research-worker");
-      rootSpan.setAttribute("session.id", sessionId);
-
-      return context.with(
-        trace.setSpan(context.active(), rootSpan),
-        async () => {
+  const wrapped = observe(
+    async () => {
+      return createUIMessageStream({
+        originalMessages,
+        onFinish:
+          onFinish ?
+            ({ messages: finalMessages }) => onFinish(finalMessages)
+          : undefined,
+        execute: async ({ writer }) => {
           try {
             // ============================================================
             // Setup: Get active tab
@@ -90,8 +85,10 @@ export async function browserResearchWorker(
             // Stage 2: Execute Search Queries
             // ============================================================
             logger.debug("Stage 2: Executing search queries");
-            const { stream: searchStream, results: searchResultsPromise } =
-              await executeSearchQueries(plan, sessionId, tabId);
+            const {
+              stream: searchStream,
+              results: searchResultsPromise,
+            } = await executeSearchQueries(plan, sessionId, tabId);
 
             await mergeStreamAndWait(searchStream, writer);
 
@@ -140,7 +137,8 @@ export async function browserResearchWorker(
 
             logger.info("Extraction complete", {
               extractionCount: extractionResults.length,
-              relevantCount: extractionResults.filter((r) => r.relevant).length,
+              relevantCount: extractionResults.filter((r) => r.relevant)
+                .length,
             });
 
             // ============================================================
@@ -160,17 +158,20 @@ export async function browserResearchWorker(
 
             logger.info("Research workflow completed successfully");
           } finally {
-            rootSpan.end();
+            await flushTelemetry();
           }
         },
-      );
-    },
-    onError: (error) => {
-      logger.error("Error in research worker", {
-        error,
-        stack: error instanceof Error ? error.stack : undefined,
+        onError: (error) => {
+          logger.error("Error in research worker", {
+            error,
+            stack: error instanceof Error ? error.stack : undefined,
+          });
+          return error instanceof Error ? error.message : String(error);
+        },
       });
-      return error instanceof Error ? error.message : String(error);
     },
-  });
+    { name: "browser-research-worker", endOnExit: false },
+  );
+
+  return wrapped() as Promise<ReadableStream<UIMessageChunk>>;
 }

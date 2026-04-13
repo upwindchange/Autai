@@ -34,6 +34,12 @@ import { cn } from "@/lib/utils";
 import type { TagRow } from "@shared/tag";
 
 // ---------------------------------------------------------------------------
+// Stable empty array for useSyncExternalStore selectors
+// ---------------------------------------------------------------------------
+
+const EMPTY_TAGS: TagRow[] = [];
+
+// ---------------------------------------------------------------------------
 // Long press hook for multi-select activation
 // ---------------------------------------------------------------------------
 
@@ -369,7 +375,7 @@ const ThreadListSkeleton: FC = () => {
 const ThreadListItem: FC = () => {
   const remoteId = useAuiState((s) => s.threadListItem.remoteId);
   const threadTags = useTagStore((s) =>
-    remoteId ? (s.threadTags[remoteId] ?? []) : [],
+    remoteId ? (s.threadTags[remoteId] ?? EMPTY_TAGS) : EMPTY_TAGS,
   );
   const selectedTagId = useTagStore((s) => s.selectedTagId);
   const {
@@ -473,7 +479,7 @@ const ThreadListItemMore: FC<{ threadRemoteId: string | undefined }> = ({
   const tags = useTagStore((s) => s.tags);
   const viewingArchive = useTagStore((s) => s.viewingArchive);
   const threadTags = useTagStore((s) =>
-    threadRemoteId ? (s.threadTags[threadRemoteId] ?? []) : [],
+    threadRemoteId ? (s.threadTags[threadRemoteId] ?? EMPTY_TAGS) : EMPTY_TAGS,
   );
   const assignedIds = new Set(threadTags.map((t) => t.id));
   const availableTags = tags.filter((t) => !assignedIds.has(t.id));

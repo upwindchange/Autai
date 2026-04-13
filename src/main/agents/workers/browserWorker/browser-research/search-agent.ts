@@ -234,7 +234,10 @@ export async function executeSearchQueries(
               experimental_telemetry: {
                 isEnabled: settingsService.settings.langfuse.enabled,
                 functionId: "research-search-analysis",
-                metadata: { queryIndex: i, query },
+                metadata: {
+                  queryIndex: i,
+                  query,
+                },
               },
             });
 

@@ -3,10 +3,7 @@ import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
 import { SessionTabService } from "@/services";
-import {
-  mergeStreamAndWait,
-  writeSimulatedToolCallToStream,
-} from "@agents/utils";
+import { writeSimulatedToolCallToStream } from "@agents/utils";
 import log from "electron-log/main";
 import { interactiveTools } from "@agents/tools/InteractiveTools";
 import { navigationTools } from "@agents/tools/TabControlTools";
@@ -185,6 +182,21 @@ export async function executeSubtasks(
 
         try {
           // ============================================================
+          // MARK SUBTASK AS IN_PROGRESS AND UPDATE UI
+          // ============================================================
+          subtask.status = "in_progress";
+          writeSimulatedToolCallToStream({
+            writer,
+            toolCallId: subtaskPlanToolCallId,
+            toolName: "plan",
+            input: {
+              title: subtaskPlan.title,
+              todos: subtaskPlan.todos,
+            },
+            output: subtaskPlan,
+          });
+
+          // ============================================================
           // BUILD CONTEXT FOR THIS SUBTASK
           // ============================================================
           const subtaskContext = buildSubtaskContext(
@@ -242,15 +254,6 @@ export async function executeSubtasks(
               activeTabId,
             },
           });
-
-          // Merge stream and wait for completion
-          await mergeStreamAndWait(
-            result.toUIMessageStream({ sendStart: false }),
-            writer,
-          );
-
-          // Wait for stream to finish
-          await result.finishReason;
 
           // ============================================================
           // EXTRACT SUBTASK COMPLETION RESULT

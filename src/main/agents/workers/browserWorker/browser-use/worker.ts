@@ -7,8 +7,9 @@ import {
 } from "ai";
 import { chatModel } from "@agents/providers";
 import { settingsService, ApprovalService } from "@/services";
-import { trace, context } from "@opentelemetry/api";
+import { flushTelemetry } from "@/agents/utils/telemetry";
 import log from "electron-log/main";
+import { observe } from "@langfuse/tracing";
 import { browserUsePlanner, type UIPlanType } from "./planner";
 import { browserUseTaskExecutor } from "./task-executor";
 import {
@@ -28,21 +29,15 @@ export async function browserUseWorker(
 ): Promise<ReadableStream<UIMessageChunk>> {
   logger.info("Entering Browser Use worker");
 
-  return createUIMessageStream({
-    originalMessages,
-    onFinish:
-      onFinish ?
-        ({ messages: finalMessages }) => onFinish(finalMessages)
-      : undefined,
-    execute: async ({ writer }) => {
-      // Create a root span so all child streamText calls nest under one Langfuse trace
-      const tracer = trace.getTracer("browser-use-worker", "1.0.0");
-      const rootSpan = tracer.startSpan("browser-use-worker");
-      rootSpan.setAttribute("session.id", sessionId);
-
-      return context.with(
-        trace.setSpan(context.active(), rootSpan),
-        async () => {
+  const wrapped = observe(
+    async () => {
+      return createUIMessageStream({
+        originalMessages,
+        onFinish:
+          onFinish ?
+            ({ messages: finalMessages }) => onFinish(finalMessages)
+          : undefined,
+        execute: async ({ writer }) => {
           try {
             // ============================================================
             // Stage 1: Planning
@@ -62,7 +57,9 @@ export async function browserUseWorker(
 
             if (!plan) {
               logger.error("Failed to generate plan: tool not called");
-              throw new Error("Failed to generate plan: plan tool not called");
+              throw new Error(
+                "Failed to generate plan: plan tool not called",
+              );
             }
 
             logger.info("Plan generated successfully", {
@@ -99,7 +96,6 @@ export async function browserUseWorker(
                 input: plan,
                 output: plan,
               });
-              rootSpan.end();
               return;
             }
 
@@ -177,17 +173,20 @@ export async function browserUseWorker(
 
             logger.info("Browser use workflow completed successfully");
           } finally {
-            rootSpan.end();
+            await flushTelemetry();
           }
         },
-      );
-    },
-    onError: (error) => {
-      logger.error("Error in browser use worker", {
-        error,
-        stack: error instanceof Error ? error.stack : undefined,
+        onError: (error) => {
+          logger.error("Error in browser use worker", {
+            error,
+            stack: error instanceof Error ? error.stack : undefined,
+          });
+          return error instanceof Error ? error.message : String(error);
+        },
       });
-      return error instanceof Error ? error.message : String(error);
     },
-  });
+    { name: "browser-use-worker", endOnExit: false },
+  );
+
+  return wrapped() as Promise<ReadableStream<UIMessageChunk>>;
 }

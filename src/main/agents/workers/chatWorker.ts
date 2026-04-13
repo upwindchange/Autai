@@ -76,9 +76,6 @@ export class ChatWorker {
         experimental_telemetry: {
           isEnabled: settingsService.settings.langfuse.enabled,
           functionId: "chat-worker",
-          metadata: {
-            langfuseTraceId: sessionId,
-          },
         },
       });
 
