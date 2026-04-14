@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { settingsService } from "@/services";
+import { settingsService, threadPersistenceService, threadIntelligenceService } from "@/services";
 import {
   SettingsStateSchema,
   TestConnectionConfigSchema,
@@ -131,5 +131,31 @@ settingsRoutes.post("/open-devtools", async (c) => {
   } catch (error) {
     logger.error("Error opening DevTools:", error);
     return c.json({ error: "Failed to open DevTools" }, 500);
+  }
+});
+
+// POST /settings/purge-thread-tables
+settingsRoutes.post("/purge-thread-tables", (c) => {
+  try {
+    threadPersistenceService.purgeThreadTables();
+    threadIntelligenceService.initialize();
+    logger.info("Thread tables purged and recreated");
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error("Error purging thread tables:", error);
+    return c.json({ error: "Failed to purge thread tables" }, 500);
+  }
+});
+
+// POST /settings/purge-settings-tables
+settingsRoutes.post("/purge-settings-tables", (c) => {
+  try {
+    threadPersistenceService.purgeSettingsTables();
+    settingsService.initialize();
+    logger.info("Settings tables purged and reloaded");
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error("Error purging settings tables:", error);
+    return c.json({ error: "Failed to purge settings tables" }, 500);
   }
 });

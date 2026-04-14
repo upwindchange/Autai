@@ -178,6 +178,8 @@ const DEFAULT_SETTINGS = {
   useSameModelForAgents: true,
   logLevel: "info" as const,
   langfuse: LangfuseConfigSchema.parse({}),
+  autoTagEnabled: true,
+  autoTagCreationEnabled: true,
 };
 
 // Settings State schema - single profile with multiple providers and model configurations
@@ -198,6 +200,10 @@ export const SettingsStateSchema = z
       .default(DEFAULT_SETTINGS.useSameModelForAgents),
     logLevel: LogLevelSchema.default(DEFAULT_SETTINGS.logLevel),
     langfuse: LangfuseConfigSchema.default(DEFAULT_SETTINGS.langfuse),
+    autoTagEnabled: z.boolean().default(DEFAULT_SETTINGS.autoTagEnabled),
+    autoTagCreationEnabled: z
+      .boolean()
+      .default(DEFAULT_SETTINGS.autoTagCreationEnabled),
   })
   .default(DEFAULT_SETTINGS);
 

@@ -308,6 +308,30 @@ class ThreadPersistenceService {
     return stmt.all(threadId) as TagRow[];
   }
 
+  purgeThreadTables(): void {
+    if (!this.db) throw new Error("Database not initialized");
+
+    this.db.exec(`
+      DROP TABLE IF EXISTS thread_tags;
+      DROP TABLE IF EXISTS messages;
+      DROP TABLE IF EXISTS tags;
+      DROP TABLE IF EXISTS threads;
+    `);
+    this.createTables();
+    logger.info("Thread tables purged and recreated");
+  }
+
+  purgeSettingsTables(): void {
+    if (!this.db) throw new Error("Database not initialized");
+
+    this.db.exec(`
+      DROP TABLE IF EXISTS model_configurations;
+      DROP TABLE IF EXISTS providers;
+      DROP TABLE IF EXISTS settings;
+    `);
+    logger.info("Settings tables purged");
+  }
+
   close(): void {
     if (this.db) {
       this.db.close();

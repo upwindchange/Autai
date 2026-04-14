@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { createUIMessageStreamResponse, type ToolSet } from "ai";
 import { ChatWorker } from "@agents/workers";
 import { BrowserWorker } from "@agents/workers/browserWorker/worker";
-import { SessionTabService, threadPersistenceService } from "@/services";
+import { SessionTabService, threadPersistenceService, threadIntelligenceService } from "@/services";
 import { sendAlert } from "@/utils";
 import { ChatRequestSchema } from "../schemas/apiSchemas";
 import log from "electron-log/main";
@@ -51,6 +51,15 @@ chatRoutes.post("/", async (c) => {
       return c.json({ error: "No session ID" }, 400);
     }
 
+    // Detect first message and trigger thread enrichment immediately (fire-and-forget)
+    if (messages?.length === 1 && messages[0].role === "user") {
+      const rawMessage = JSON.stringify(messages[0]);
+      logger.info("Triggering thread enrichment", { sessionId, rawMessage });
+      threadIntelligenceService.enrichThread(sessionId, rawMessage).catch((err) => {
+        logger.warn("Thread enrichment failed:", err);
+      });
+    }
+
     if (useBrowser || webSearch) {
       logger.info("browser mode enabled, using browser-use worker", {
         useBrowser,
@@ -78,6 +87,7 @@ chatRoutes.post("/", async (c) => {
         originalMessages: messages,
         generateMessageId: () => crypto.randomUUID(),
         onFinish: ({ messages: finalMessages }) => {
+          logger.info("Chat onFinish fired", { sessionId, messageCount: finalMessages.length });
           threadPersistenceService.saveMessages(sessionId, finalMessages);
         },
       });
@@ -90,3 +100,4 @@ chatRoutes.post("/", async (c) => {
     return c.json({ error: "Internal server error" }, 500);
   }
 });
+

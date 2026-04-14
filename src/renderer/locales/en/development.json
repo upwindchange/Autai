@@ -30,5 +30,15 @@
   "langfuse.secretKey.hint": "Your Langfuse secret key from the project settings",
   "langfuse.host.label": "Host URL (Optional)",
   "langfuse.host.hint": "Leave empty for cloud version or enter your self-hosted URL",
-  "langfuse.openDashboard": "Open Langfuse Dashboard"
+  "langfuse.openDashboard": "Open Langfuse Dashboard",
+  "database.title": "Database",
+  "database.description": "Purge and reset database tables",
+  "database.purgeThreads.label": "Purge Thread Tables",
+  "database.purgeThreads.hint": "Delete all threads, messages, and tags data. Tables will be recreated empty.",
+  "database.purgeThreads.confirm": "This will delete all threads, messages, and tags. Are you sure?",
+  "database.purgeThreads.button": "Purge Threads",
+  "database.purgeSettings.label": "Purge Settings Tables",
+  "database.purgeSettings.hint": "Delete all provider and model configuration. Tables will be recreated with defaults.",
+  "database.purgeSettings.confirm": "This will reset all provider and model settings to defaults. Are you sure?",
+  "database.purgeSettings.button": "Purge Settings"
 }

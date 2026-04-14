@@ -30,5 +30,15 @@
   "langfuse.secretKey.hint": "来自项目设置的 Langfuse 密钥",
   "langfuse.host.label": "主机 URL（可选）",
   "langfuse.host.hint": "留空使用云端版本，或输入自托管 URL",
-  "langfuse.openDashboard": "打开 Langfuse 仪表板"
+  "langfuse.openDashboard": "打开 Langfuse 仪表板",
+  "database.title": "数据库",
+  "database.description": "清除并重置数据库表",
+  "database.purgeThreads.label": "清除会话表",
+  "database.purgeThreads.hint": "删除所有会话、消息和标签数据。表将重新创建为空。",
+  "database.purgeThreads.confirm": "这将删除所有会话、消息和标签。确定要继续吗？",
+  "database.purgeThreads.button": "清除会话",
+  "database.purgeSettings.label": "清除设置表",
+  "database.purgeSettings.hint": "删除所有提供商和模型配置。表将使用默认值重新创建。",
+  "database.purgeSettings.confirm": "这将重置所有提供商和模型设置为默认值。确定要继续吗？",
+  "database.purgeSettings.button": "清除设置"
 }

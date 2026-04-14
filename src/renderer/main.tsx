@@ -29,7 +29,7 @@ import {
   AssistantChatTransport,
 } from "@assistant-ui/react-ai-sdk";
 import { AppHeader } from "@/components/app-header";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSessionLifecycle } from "@/hooks";
 import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { useRemoteThreadListRuntime } from "@assistant-ui/react";
@@ -162,6 +162,15 @@ function App() {
       }),
     adapter: backendThreadListAdapter,
   });
+
+  // Listen for backend thread metadata updates and reload the UI
+  useEffect(() => {
+    const handler = () => {
+      logger.info("threads:metadataUpdated received, reloading UI");
+      window.location.reload();
+    };
+    window.ipcRenderer.on("threads:metadataUpdated", handler);
+  }, [runtime]);
 
   // Configure assistant-ui with tools using the new Tools() API
   const aui = useAui({

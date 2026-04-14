@@ -175,15 +175,7 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
         title = content.slice(0, 50) + (content.length > 50 ? "..." : "");
       }
       controller.appendText(title);
-
-      // Persist title to backend so it survives app reboot
-      if (remoteId) {
-        fetch(`${API_BASE}/threads/${remoteId}`, {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title }),
-        }).catch(() => {});
-      }
+      // Title persistence handled by backend enrichment service
     });
   },
 

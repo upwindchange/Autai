@@ -148,6 +148,10 @@ class SettingsService {
         secretKey: settingsMap.get("langfuse_secret_key") || undefined,
         host: settingsMap.get("langfuse_host") || undefined,
       },
+      autoTagEnabled:
+        settingsMap.get("auto_tag_enabled") !== "false",
+      autoTagCreationEnabled:
+        settingsMap.get("auto_tag_creation_enabled") !== "false",
     });
   }
 
@@ -226,6 +230,16 @@ class SettingsService {
         updatedSettings.langfuse.secretKey || "",
       );
       upsertSetting.run("langfuse_host", updatedSettings.langfuse.host || "");
+
+      // Thread intelligence settings
+      upsertSetting.run(
+        "auto_tag_enabled",
+        String(updatedSettings.autoTagEnabled),
+      );
+      upsertSetting.run(
+        "auto_tag_creation_enabled",
+        String(updatedSettings.autoTagCreationEnabled),
+      );
 
       // Replace all providers
       deleteProviders.run();

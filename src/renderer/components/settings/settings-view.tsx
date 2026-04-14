@@ -6,6 +6,7 @@ import { useUiStore } from "@/stores/uiStore";
 import { ProvidersModelsSection } from "@/components/settings/settings-sections";
 import { DevelopmentSection } from "@/components/settings/settings-sections";
 import { AboutSection } from "@/components/settings/settings-sections";
+import { ThreadsSection } from "@/components/settings/settings-sections";
 import { useTranslation } from "react-i18next";
 
 interface SettingsViewProps {
@@ -22,6 +23,8 @@ export function SettingsView({ onClose }: SettingsViewProps) {
     switch (activeSettingsSection) {
       case "providers":
         return <ProvidersModelsSection settings={settings} />;
+      case "threads":
+        return <ThreadsSection settings={settings} />;
       case "development":
         return <DevelopmentSection settings={settings} />;
       case "about":

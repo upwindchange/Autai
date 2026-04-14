@@ -13,6 +13,7 @@ import {
   SessionTabService,
   TabControlService,
   threadPersistenceService,
+  threadIntelligenceService,
 } from "@/services";
 import { PQueueManager } from "@agents/utils";
 import { apiServer } from "@agents";
@@ -146,6 +147,9 @@ app.whenReady().then(async () => {
 
   // Load settings from database
   settingsService.initialize();
+
+  // Initialize thread intelligence (seeds default tags if first launch)
+  threadIntelligenceService.initialize();
 
   // Set log levels from settings or use defaults
   const logLevel =

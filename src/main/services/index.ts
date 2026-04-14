@@ -5,3 +5,4 @@ export { SessionTabService } from "./SessionTabService";
 export { TabControlService } from "./TabControlService";
 export { DOMService } from "./dom";
 export { threadPersistenceService } from "./threadPersistenceService";
+export { threadIntelligenceService } from "./threadIntelligenceService";

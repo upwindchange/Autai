@@ -1,4 +1,4 @@
-import { Cloud, Code, Info } from "lucide-react";
+import { Cloud, Code, Info, Tags } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -27,6 +27,11 @@ const navigationItems: (NavigationItem | "separator")[] = [
     icon: Cloud,
   },
   "separator",
+  {
+    id: "threads",
+    labelKey: "sidebar.threads",
+    icon: Tags,
+  },
   {
     id: "development",
     labelKey: "sidebar.development",

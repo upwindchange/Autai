@@ -18,7 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import { Trash2, FolderOpen, ExternalLink } from "lucide-react";
+import { Trash2, FolderOpen, ExternalLink, Database } from "lucide-react";
 import { useSettings } from "@/components/settings";
 import { useTranslation } from "react-i18next";
 import type { SettingsState, LogLevel, LangfuseConfig } from "@shared";
@@ -212,6 +212,56 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
               }}
             >
               {t("debug.devtools.open")}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("database.title")}</CardTitle>
+          <CardDescription>{t("database.description")}</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>{t("database.purgeThreads.label")}</Label>
+              <p className="text-sm text-muted-foreground">
+                {t("database.purgeThreads.hint")}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="gap-2 text-destructive hover:text-destructive"
+              onClick={() => {
+                if (confirm(t("database.purgeThreads.confirm"))) {
+                  fetch(`${API_BASE}/settings/purge-thread-tables`, { method: "POST" });
+                }
+              }}
+            >
+              <Trash2 className="h-4 w-4" />
+              {t("database.purgeThreads.button")}
+            </Button>
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <div className="space-y-0.5">
+              <Label>{t("database.purgeSettings.label")}</Label>
+              <p className="text-sm text-muted-foreground">
+                {t("database.purgeSettings.hint")}
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              className="gap-2 text-destructive hover:text-destructive"
+              onClick={() => {
+                if (confirm(t("database.purgeSettings.confirm"))) {
+                  fetch(`${API_BASE}/settings/purge-settings-tables`, { method: "POST" });
+                }
+              }}
+            >
+              <Database className="h-4 w-4" />
+              {t("database.purgeSettings.button")}
             </Button>
           </div>
         </CardContent>

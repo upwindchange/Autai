@@ -1,9 +1,11 @@
 {
   "sidebar.providers": "Providers & Models",
+  "sidebar.threads": "Threads & Tags",
   "sidebar.development": "Development",
   "sidebar.about": "About",
   "view.title": "Settings",
   "view.description.providers": "Configure AI providers and select models for different tasks",
+  "view.description.threads": "Manage auto-tagging and conversation categories",
   "view.description.development": "Development tools and debugging options",
   "view.description.about": "Application information and resources"
 }
