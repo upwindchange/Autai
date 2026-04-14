@@ -46,6 +46,7 @@ import {
   AlertDialogMedia,
 } from "@/components/ui/alert-dialog";
 import { useTagStore, type ViewMode } from "@/stores/tagStore";
+import { useThreadListRefresh } from "@/hooks/useThreadListRefresh";
 import {
   deleteAllThreads,
   archiveAllThreads,
@@ -96,6 +97,7 @@ export function SidebarToolbar() {
   const isMultiSelectMode = useTagStore((s) => s.isMultiSelectMode);
   const setMultiSelectMode = useTagStore((s) => s.setMultiSelectMode);
   const clearSearch = useTagStore((s) => s.clearSearch);
+  const refreshThreads = useThreadListRefresh();
 
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [activeDialog, setActiveDialog] = useState<
@@ -148,7 +150,7 @@ export function SidebarToolbar() {
         break;
     }
     setActiveDialog(null);
-    window.location.reload();
+    await refreshThreads();
   };
 
   return (
@@ -204,6 +206,7 @@ export function SidebarToolbar() {
         <MultiSelectPanel
           allVisibleThreadIds={allVisibleThreadIds}
           viewingArchive={viewingArchive}
+          onRefresh={refreshThreads}
         />
       )}
 
@@ -577,9 +580,11 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
 function MultiSelectPanel({
   allVisibleThreadIds,
   viewingArchive,
+  onRefresh,
 }: {
   allVisibleThreadIds: string[];
   viewingArchive: boolean;
+  onRefresh: () => Promise<void>;
 }) {
   const { t } = useTranslation("common");
   const selectedThreadIds = useTagStore((s) => s.selectedThreadIds);
@@ -602,7 +607,7 @@ function MultiSelectPanel({
         break;
     }
     exitMultiSelectMode();
-    window.location.reload();
+    await onRefresh();
   };
 
   const handleSelectAllDownward = () => {

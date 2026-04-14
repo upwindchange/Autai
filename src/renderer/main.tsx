@@ -22,6 +22,7 @@ import {
   SimpleTextAttachmentAdapter,
   WebSpeechSynthesisAdapter,
   useAui,
+  useAuiState,
   Tools,
 } from "@assistant-ui/react";
 import {
@@ -31,6 +32,7 @@ import {
 import { AppHeader } from "@/components/app-header";
 import { useState, useEffect } from "react";
 import { useSessionLifecycle } from "@/hooks";
+import { refreshThreadListData } from "@/hooks/useThreadListRefresh";
 import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { useRemoteThreadListRuntime } from "@assistant-ui/react";
 import { backendThreadListAdapter } from "@/adapters/backendThreadListAdapter";
@@ -102,6 +104,7 @@ const handleAppMessage = (_event: unknown, message: AppMessage) => {
 function AppContent() {
   const { showSettings, setShowSettings } = useUiStore();
   const [showSplitView, setShowSplitView] = useState(false);
+  const threadTitle = useAuiState((s) => s.threadListItem.title);
 
   // Initialize thread lifecycle management
   useSessionLifecycle();
@@ -115,7 +118,7 @@ function AppContent() {
           : <SidebarLeft />}
           <SidebarInset className="relative flex-1">
             <AppHeader
-              title={showSettings ? "Settings" : "AI Assistant"}
+              title={showSettings ? "Settings" : (threadTitle ?? "Autai AI Assistant")}
               showSplitView={showSplitView}
               onToggleSplitView={() => setShowSplitView(!showSplitView)}
             />
@@ -163,11 +166,19 @@ function App() {
     adapter: backendThreadListAdapter,
   });
 
-  // Listen for backend thread metadata updates and reload the UI
+  // Listen for backend thread metadata updates and refresh thread list
   useEffect(() => {
-    const handler = () => {
-      logger.info("threads:metadataUpdated received, reloading UI");
-      window.location.reload();
+    const handler = async () => {
+      logger.info("threads:metadataUpdated received, refreshing thread data");
+      try {
+        await refreshThreadListData(runtime);
+      } catch (error) {
+        logger.error(
+          "Failed to refresh thread data, falling back to reload",
+          error,
+        );
+        window.location.reload();
+      }
     };
     window.ipcRenderer.on("threads:metadataUpdated", handler);
   }, [runtime]);
