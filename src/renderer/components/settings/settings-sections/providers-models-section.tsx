@@ -9,21 +9,19 @@ import {
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Plus, Save, Loader2, Cloud } from "lucide-react";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@/components/ui/empty";
+import { Plus, Save, Loader2 } from "lucide-react";
 import { useSettings } from "@/components/settings";
 import { useTranslation } from "react-i18next";
-import { ProviderCard } from "./provider-card";
+import { useProviderCatalog } from "@/hooks/useProviderCatalog";
+import { ProviderCatalog } from "./provider-catalog";
+import { ConfiguredProviderCard } from "./configured-provider-card";
 import { ModelRoleSelector } from "./model-role-selector";
-import type { SettingsState, ModelConfig, ProviderType } from "@shared";
-import { getDefaultProvider } from "@shared";
+import type {
+  SettingsState,
+  UserProviderConfig,
+  ProviderDefinition,
+  ModelRoleAssignment,
+} from "@shared";
 import type { EditingProvider } from "../types";
 
 interface ProvidersModelsSectionProps {
@@ -33,45 +31,48 @@ interface ProvidersModelsSectionProps {
 export function ProvidersModelsSection({
   settings,
 }: ProvidersModelsSectionProps) {
-  const { addProvider, updateProvider, removeProvider, updateSettings } =
-    useSettings();
+  const {
+    addProvider,
+    updateProvider,
+    removeProvider,
+    updateSettings,
+  } = useSettings();
   const { t } = useTranslation("providers");
+  const { providers: catalogProviders } = useProviderCatalog();
   const [editingProviderId, setEditingProviderId] = useState<string | null>(
     null,
   );
+  const [catalogOpen, setCatalogOpen] = useState(false);
 
   // Model role state
-  const [chatModelConfig, setChatModelConfig] = useState<ModelConfig>({
+  const [chatModelConfig, setChatModelConfig] = useState<ModelRoleAssignment>({
+    role: "chat",
     providerId: "",
-    providerName: "",
-    modelName: "",
-    supportsAdvancedUsage: true,
+    modelFile: "",
   });
-  const [simpleModelConfig, setSimpleModelConfig] = useState<ModelConfig>({
+  const [simpleModelConfig, setSimpleModelConfig] = useState<ModelRoleAssignment>({
+    role: "simple",
     providerId: "",
-    providerName: "",
-    modelName: "",
-    supportsAdvancedUsage: true,
+    modelFile: "",
   });
-  const [complexModelConfig, setComplexModelConfig] = useState<ModelConfig>({
+  const [complexModelConfig, setComplexModelConfig] = useState<ModelRoleAssignment>({
+    role: "complex",
     providerId: "",
-    providerName: "",
-    modelName: "",
-    supportsAdvancedUsage: true,
+    modelFile: "",
   });
   const [useSameModelForAgents, setUseSameModelForAgents] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 
   // Sync from settings
   useEffect(() => {
-    if (settings?.modelConfigurations?.chat) {
-      setChatModelConfig(settings.modelConfigurations.chat);
+    if (settings?.modelAssignments?.chat) {
+      setChatModelConfig(settings.modelAssignments.chat);
     }
-    if (settings?.modelConfigurations?.simple) {
-      setSimpleModelConfig(settings.modelConfigurations.simple);
+    if (settings?.modelAssignments?.simple) {
+      setSimpleModelConfig(settings.modelAssignments.simple);
     }
-    if (settings?.modelConfigurations?.complex) {
-      setComplexModelConfig(settings.modelConfigurations.complex);
+    if (settings?.modelAssignments?.complex) {
+      setComplexModelConfig(settings.modelAssignments.complex);
     }
     if (settings?.useSameModelForAgents !== undefined) {
       setUseSameModelForAgents(settings.useSameModelForAgents);
@@ -79,34 +80,21 @@ export function ProvidersModelsSection({
   }, [settings]);
 
   // Provider CRUD
-  const handleAddProvider = (preselectedType?: ProviderType) => {
-    const type = preselectedType || "openai-compatible";
+  const handleSelectFromCatalog = (provider: ProviderDefinition) => {
     const newId = `provider-${Date.now()}`;
-    const defaults = getDefaultProvider(type);
     const newProvider: EditingProvider = {
-      ...defaults,
       id: newId,
-      name: defaults.name,
+      providerDir: provider.dir,
+      apiKey: "",
       isNew: true,
     };
-    // We'll handle the actual save in the card's onSave
+    addProvider(newProvider);
     setEditingProviderId(newId);
-    // Temporarily add a placeholder so the card can render in edit mode
-    // We need a way to create the editing state without adding to providers yet
-    // Instead, let's use a different approach: track "new provider" separately
-    setNewProviderDraft(newProvider);
+    setCatalogOpen(false);
   };
 
-  const [newProviderDraft, setNewProviderDraft] =
-    useState<EditingProvider | null>(null);
-
-  const handleSaveProvider = async (provider: EditingProvider) => {
-    if (provider.isNew) {
-      await addProvider(provider);
-      setNewProviderDraft(null);
-    } else {
-      await updateProvider(provider.id, provider);
-    }
+  const handleSaveProvider = async (provider: UserProviderConfig) => {
+    await updateProvider(provider.id, provider);
     setEditingProviderId(null);
   };
 
@@ -116,7 +104,6 @@ export function ProvidersModelsSection({
 
   const handleCancelEdit = () => {
     setEditingProviderId(null);
-    setNewProviderDraft(null);
   };
 
   // Model roles save
@@ -125,7 +112,7 @@ export function ProvidersModelsSection({
     try {
       await updateSettings({
         ...settings,
-        modelConfigurations: {
+        modelAssignments: {
           chat: chatModelConfig,
           simple: simpleModelConfig,
           complex: complexModelConfig,
@@ -140,22 +127,25 @@ export function ProvidersModelsSection({
   // Determine which roles a provider is assigned to
   const getAssignedRoles = (providerId: string): string[] => {
     const roles: string[] = [];
-    if (settings?.modelConfigurations?.chat?.providerId === providerId) {
+    if (settings?.modelAssignments?.chat?.providerId === providerId) {
       roles.push("Chat");
     }
     if (!settings?.useSameModelForAgents) {
-      if (settings?.modelConfigurations?.simple?.providerId === providerId) {
+      if (settings?.modelAssignments?.simple?.providerId === providerId) {
         roles.push("Simple");
       }
-      if (settings?.modelConfigurations?.complex?.providerId === providerId) {
+      if (settings?.modelAssignments?.complex?.providerId === providerId) {
         roles.push("Complex");
       }
     }
     return roles;
   };
 
+  // Lookup provider definition from catalog
+  const getDefinition = (dir: string): ProviderDefinition | undefined =>
+    catalogProviders.find((p) => p.dir === dir);
+
   const providers = settings?.providers || [];
-  const isEmpty = providers.length === 0 && !newProviderDraft;
 
   return (
     <div className="space-y-6">
@@ -165,82 +155,39 @@ export function ProvidersModelsSection({
           <h2 className="text-2xl font-bold">{t("title")}</h2>
           <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
         </div>
-        {!isEmpty && (
-          <Button onClick={() => handleAddProvider()} size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            {t("btn.addProvider")}
-          </Button>
-        )}
+        <Button onClick={() => setCatalogOpen(true)} size="sm">
+          <Plus className="h-4 w-4 mr-2" />
+          {t("btn.addProvider")}
+        </Button>
       </div>
 
-      {/* Empty State */}
-      {isEmpty && (
-        <Empty className="border">
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <Cloud />
-            </EmptyMedia>
-            <EmptyTitle>{t("empty.title")}</EmptyTitle>
-            <EmptyDescription>{t("empty.description")}</EmptyDescription>
-          </EmptyHeader>
-          <EmptyContent className="flex-row flex-wrap justify-center">
-            <Button
-              variant="outline"
-              onClick={() => handleAddProvider("openai-compatible")}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {t("btn.addOpenai")}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => handleAddProvider("anthropic")}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {t("btn.addAnthropic")}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => handleAddProvider("deepinfra")}
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              {t("btn.addDeepinfra")}
-            </Button>
-          </EmptyContent>
-        </Empty>
-      )}
+      {/* Provider Catalog Dialog */}
+      <ProviderCatalog
+        open={catalogOpen}
+        onOpenChange={setCatalogOpen}
+        onSelect={handleSelectFromCatalog}
+      />
 
-      {/* New provider draft (being edited but not saved yet) */}
-      {newProviderDraft && (
-        <ProviderCard
-          key={newProviderDraft.id}
-          provider={newProviderDraft as SettingsState["providers"][number]}
-          isEditing={true}
-          isOnlyProvider={false}
-          assignedRoles={[]}
-          onEdit={() => {}}
-          onCancel={handleCancelEdit}
-          onSave={handleSaveProvider}
-          onDelete={() => handleCancelEdit()}
-        />
-      )}
+      {/* Configured providers */}
+      {providers.map((provider) => {
+        const definition = getDefinition(provider.providerDir);
+        if (!definition) return null;
 
-      {/* Existing providers */}
-      {providers.map((provider) => (
-        <ProviderCard
-          key={provider.id}
-          provider={provider}
-          isEditing={editingProviderId === provider.id}
-          isOnlyProvider={providers.length <= 1}
-          assignedRoles={getAssignedRoles(provider.id)}
-          onEdit={() => setEditingProviderId(provider.id)}
-          onCancel={handleCancelEdit}
-          onSave={async (updated: EditingProvider) => {
-            await updateProvider(updated.id, updated);
-            setEditingProviderId(null);
-          }}
-          onDelete={() => handleDeleteProvider(provider.id)}
-        />
-      ))}
+        return (
+          <ConfiguredProviderCard
+            key={provider.id}
+            provider={provider}
+            definition={definition}
+            isEditing={editingProviderId === provider.id}
+            isOnlyProvider={providers.length <= 1}
+            assignedRoles={getAssignedRoles(provider.id)}
+            onEdit={() => setEditingProviderId(provider.id)}
+            onCancel={handleCancelEdit}
+            onSave={handleSaveProvider}
+            onDelete={() => handleDeleteProvider(provider.id)}
+          />
+        );
+      })}
 
       {/* Model Roles Card */}
       {providers.length > 0 && (
@@ -255,6 +202,7 @@ export function ProvidersModelsSection({
               description={t("roles.chat.description")}
               value={chatModelConfig}
               providers={providers}
+              catalogProviders={catalogProviders}
               onChange={setChatModelConfig}
             />
 
@@ -276,6 +224,7 @@ export function ProvidersModelsSection({
                   description={t("roles.simple.description")}
                   value={simpleModelConfig}
                   providers={providers}
+                  catalogProviders={catalogProviders}
                   onChange={setSimpleModelConfig}
                 />
 
@@ -284,6 +233,7 @@ export function ProvidersModelsSection({
                   description={t("roles.complex.description")}
                   value={complexModelConfig}
                   providers={providers}
+                  catalogProviders={catalogProviders}
                   onChange={setComplexModelConfig}
                 />
               </>

@@ -5,13 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Pencil,
   Trash2,
   EyeIcon,
@@ -19,36 +12,28 @@ import {
   Save,
   Loader2,
   TestTube,
-  Plug,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { ModelList } from "./model-list";
-import type { ProviderConfig, ProviderType } from "@shared";
-import { getDefaultProvider } from "@shared";
-import type { EditingProvider } from "../types";
+import { TomlModelList } from "./toml-model-list";
+import type { UserProviderConfig, ProviderDefinition } from "@shared";
 
 const API_BASE = "http://localhost:3001";
 
-const PROVIDER_TYPE_KEYS: Record<ProviderType, string> = {
-  "openai-compatible": "type.openaiCompatible",
-  anthropic: "type.anthropic",
-  deepinfra: "type.deepinfra",
-};
-
-interface ProviderCardProps {
-  provider: ProviderConfig;
+interface ConfiguredProviderCardProps {
+  provider: UserProviderConfig;
+  definition: ProviderDefinition;
   isEditing: boolean;
   isOnlyProvider: boolean;
-  /** Which model roles this provider is assigned to */
   assignedRoles: string[];
   onEdit: () => void;
   onCancel: () => void;
-  onSave: (provider: EditingProvider) => Promise<void>;
+  onSave: (provider: UserProviderConfig) => Promise<void>;
   onDelete: () => void;
 }
 
-export function ProviderCard({
+export function ConfiguredProviderCard({
   provider,
+  definition,
   isEditing,
   isOnlyProvider,
   assignedRoles,
@@ -56,8 +41,8 @@ export function ProviderCard({
   onCancel,
   onSave,
   onDelete,
-}: ProviderCardProps) {
-  const [editState, setEditState] = useState<EditingProvider | null>(null);
+}: ConfiguredProviderCardProps) {
+  const [editState, setEditState] = useState<UserProviderConfig | null>(null);
   const [showApiKey, setShowApiKey] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
@@ -65,7 +50,7 @@ export function ProviderCard({
   const { t } = useTranslation("providers");
 
   const startEditing = () => {
-    setEditState({ ...provider, isNew: false });
+    setEditState({ ...provider });
     setSelectedModel("");
     onEdit();
   };
@@ -96,8 +81,12 @@ export function ProviderCard({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...target,
-          model: selectedModel || "test",
+          providerDir: target.providerDir,
+          apiKey: target.apiKey,
+          ...(target.apiUrlOverride && {
+            apiUrlOverride: target.apiUrlOverride,
+          }),
+          modelFile: selectedModel || "test",
         }),
       });
     } finally {
@@ -111,66 +100,48 @@ export function ProviderCard({
       <Card className="border-primary">
         <CardHeader className="pb-4">
           <div className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="provider-name">{t("form.name.label")}</Label>
-              <Input
-                id="provider-name"
-                value={editState.name}
-                onChange={(e) =>
-                  setEditState({ ...editState, name: e.target.value })
-                }
-                placeholder={t("form.name.placeholder")}
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>{t("form.type.label")}</Label>
-              <Select
-                value={editState.provider}
-                onValueChange={(value: ProviderType) => {
-                  const defaults = getDefaultProvider(value);
-                  setEditState({
-                    ...editState,
-                    provider: value,
-                    apiKey: editState.apiKey || defaults.apiKey,
-                    apiUrl: editState.apiUrl || defaults.apiUrl,
-                  });
+            <div className="flex items-center gap-3">
+              <img
+                src={`${API_BASE}/providers/${definition.dir}/logo`}
+                alt={definition.name}
+                className="h-8 w-8 shrink-0"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).style.display = "none";
                 }}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="openai-compatible">
-                    {t("type.openaiCompatible")}
-                  </SelectItem>
-                  <SelectItem value="anthropic">
-                    {t("type.anthropic")}
-                  </SelectItem>
-                  <SelectItem value="deepinfra">
-                    {t("type.deepinfra")}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+              />
+              <div>
+                <span className="font-medium">{definition.name}</span>
+                <Badge variant="secondary" className="ml-2 text-xs">
+                  {definition.npm === "@ai-sdk/openai-compatible"
+                    ? "OpenAI Compatible"
+                    : definition.npm.replace("@ai-sdk/", "")}
+                </Badge>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="api-url">{t("form.apiUrl.label")}</Label>
-              <Input
-                id="api-url"
-                value={editState.apiUrl || ""}
-                onChange={(e) =>
-                  setEditState({ ...editState, apiUrl: e.target.value })
-                }
-                onBlur={(e) => {
-                  if (!e.target.value) {
-                    const defaults = getDefaultProvider(editState.provider);
-                    setEditState({ ...editState, apiUrl: defaults.apiUrl });
+            {definition.api && (
+              <div className="space-y-2">
+                <Label htmlFor="api-url-override">
+                  {t("form.apiUrlOverride.label")}
+                </Label>
+                <Input
+                  id="api-url-override"
+                  value={editState.apiUrlOverride || ""}
+                  onChange={(e) =>
+                    setEditState({
+                      ...editState,
+                      apiUrlOverride: e.target.value || undefined,
+                    })
                   }
-                }}
-                placeholder={`Default: ${getDefaultProvider(editState.provider).apiUrl}`}
-              />
-            </div>
+                  placeholder={t("form.apiUrlOverride.placeholder", {
+                    default: definition.api,
+                  })}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Default: {definition.api}
+                </p>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label htmlFor="api-key">{t("form.apiKey.label")}</Label>
@@ -182,7 +153,7 @@ export function ProviderCard({
                   onChange={(e) =>
                     setEditState({ ...editState, apiKey: e.target.value })
                   }
-                  placeholder="sk-..."
+                  placeholder={`${definition.env[0] || "API Key"}...`}
                   className="pr-10"
                 />
                 <Button
@@ -202,8 +173,8 @@ export function ProviderCard({
             {editState.apiKey && (
               <>
                 <div className="border-t pt-4">
-                  <ModelList
-                    provider={editState as ProviderConfig}
+                  <TomlModelList
+                    providerDir={editState.providerDir}
                     selectedModel={selectedModel}
                     onModelSelect={setSelectedModel}
                   />
@@ -246,18 +217,25 @@ export function ProviderCard({
       <CardHeader className="py-4 px-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-muted">
-              <Plug className="h-4 w-4" />
-            </div>
+            <img
+              src={`${API_BASE}/providers/${definition.dir}/logo`}
+              alt={definition.name}
+              className="h-8 w-8 shrink-0"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-medium truncate">{provider.name}</span>
-                <Badge variant="secondary" className="shrink-0">
-                  {t(PROVIDER_TYPE_KEYS[provider.provider])}
+                <span className="font-medium truncate">{definition.name}</span>
+                <Badge variant="secondary" className="shrink-0 text-xs">
+                  {definition.npm === "@ai-sdk/openai-compatible"
+                    ? "OpenAI Compatible"
+                    : definition.npm.replace("@ai-sdk/", "")}
                 </Badge>
               </div>
               <div className="text-xs text-muted-foreground truncate">
-                {provider.apiUrl}
+                {provider.apiUrlOverride || definition.api || definition.npm}
               </div>
             </div>
           </div>

@@ -18,6 +18,7 @@ import {
 import { PQueueManager } from "@agents/utils";
 import { apiServer } from "@agents";
 import { initializeTelemetry, shutdownTelemetry } from "@agents/utils";
+import * as registry from "@agents/providers/registry";
 import { SessionTabBridge } from "@/bridges/SessionTabBridge";
 import { HitlBridge } from "@/bridges/HitlBridge";
 
@@ -147,6 +148,12 @@ app.whenReady().then(async () => {
 
   // Load settings from database
   settingsService.initialize();
+
+  // Initialize provider registry (reads TOML files)
+  const providersPath = app.isPackaged
+    ? path.join(process.resourcesPath, "providers")
+    : path.resolve(__dirname, "../../src/shared/providers");
+  registry.initialize(providersPath);
 
   // Initialize thread intelligence (seeds default tags if first launch)
   threadIntelligenceService.initialize();

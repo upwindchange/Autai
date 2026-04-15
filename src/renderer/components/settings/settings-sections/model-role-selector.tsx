@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Select,
   SelectContent,
@@ -7,15 +8,22 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { useTranslation } from "react-i18next";
-import { ModelList } from "./model-list";
-import type { ModelConfig, ProviderConfig } from "@shared";
+import { TomlModelList } from "./toml-model-list";
+import type {
+  ModelRoleAssignment,
+  UserProviderConfig,
+  ProviderDefinition,
+} from "@shared";
+
+const API_BASE = "http://localhost:3001";
 
 interface ModelRoleSelectorProps {
   label: string;
   description?: string;
-  value: ModelConfig;
-  providers: ProviderConfig[];
-  onChange: (config: ModelConfig) => void;
+  value: ModelRoleAssignment;
+  providers: UserProviderConfig[];
+  catalogProviders: ProviderDefinition[];
+  onChange: (config: ModelRoleAssignment) => void;
 }
 
 export function ModelRoleSelector({
@@ -23,30 +31,30 @@ export function ModelRoleSelector({
   description,
   value,
   providers,
+  catalogProviders,
   onChange,
 }: ModelRoleSelectorProps) {
   const { t } = useTranslation("providers");
 
   const handleProviderSelect = (providerId: string) => {
-    const provider = providers.find((p) => p.id === providerId);
-    if (provider) {
-      onChange({
-        ...value,
-        providerId: provider.id,
-        providerName: provider.name,
-        modelName: "",
-      });
-    }
-  };
-
-  const handleModelSelect = (modelName: string) => {
     onChange({
       ...value,
-      modelName,
+      providerId,
+      modelFile: "",
+    });
+  };
+
+  const handleModelSelect = (modelFile: string) => {
+    onChange({
+      ...value,
+      modelFile,
     });
   };
 
   const selectedProvider = providers.find((p) => p.id === value.providerId);
+  const selectedDefinition = selectedProvider
+    ? catalogProviders.find((d) => d.dir === selectedProvider.providerDir)
+    : undefined;
 
   return (
     <div className="space-y-3">
@@ -62,18 +70,35 @@ export function ModelRoleSelector({
           <SelectValue placeholder={t("roleSelector.placeholder")} />
         </SelectTrigger>
         <SelectContent>
-          {providers.map((provider) => (
-            <SelectItem key={provider.id} value={provider.id}>
-              {provider.name}
-            </SelectItem>
-          ))}
+          {providers.map((provider) => {
+            const def = catalogProviders.find(
+              (d) => d.dir === provider.providerDir,
+            );
+            return (
+              <SelectItem key={provider.id} value={provider.id}>
+                <div className="flex items-center gap-2">
+                  {def && (
+                    <img
+                      src={`${API_BASE}/providers/${def.dir}/logo`}
+                      alt=""
+                      className="h-4 w-4"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                  )}
+                  {def?.name || provider.providerDir}
+                </div>
+              </SelectItem>
+            );
+          })}
         </SelectContent>
       </Select>
 
       {selectedProvider && (
-        <ModelList
-          provider={selectedProvider}
-          selectedModel={value.modelName}
+        <TomlModelList
+          providerDir={selectedProvider.providerDir}
+          selectedModel={value.modelFile}
           onModelSelect={handleModelSelect}
         />
       )}

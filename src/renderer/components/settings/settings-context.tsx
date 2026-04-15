@@ -6,7 +6,7 @@ import {
   ReactNode,
 } from "react";
 import { SettingsContextType } from "./types";
-import type { SettingsState, ProviderConfig } from "@shared";
+import type { SettingsState, UserProviderConfig } from "@shared";
 import { getDefaultSettings } from "@shared";
 import log from "electron-log/renderer";
 
@@ -32,7 +32,6 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
   const [settings, setSettings] = useState<SettingsState>(getDefaultSettings());
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load settings on mount
   useEffect(() => {
     loadSettings();
   }, []);
@@ -59,7 +58,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
     });
   };
 
-  const addProvider = async (provider: ProviderConfig) => {
+  const addProvider = async (provider: UserProviderConfig) => {
     const newSettings = {
       ...settings,
       providers: [...settings.providers, provider],
@@ -69,16 +68,13 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
 
   const updateProvider = async (
     id: string,
-    updates: Partial<ProviderConfig>,
+    updates: Partial<UserProviderConfig>,
   ) => {
     const newSettings = {
       ...settings,
-      providers: settings.providers.map((p) => {
-        if (p.id !== id) return p;
-
-        // Type-safe spread for all provider types
-        return { ...p, ...updates };
-      }),
+      providers: settings.providers.map((p) =>
+        p.id === id ? { ...p, ...updates } : p,
+      ),
     };
     await updateSettings(newSettings);
   };
@@ -92,45 +88,35 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       providers: settings.providers.filter((p) => p.id !== id),
     };
 
-    // If we're removing a provider that's used in model configurations, reset those configurations to defaults
-    const updatedModelConfigurations = { ...settings.modelConfigurations };
-    if (settings.modelConfigurations.simple.providerId === id) {
-      const firstProvider = newSettings.providers[0];
-      if (firstProvider) {
-        updatedModelConfigurations.simple = {
-          providerId: firstProvider.id,
-          providerName: firstProvider.name,
-          modelName: "gpt-3.5-turbo",
-          supportsAdvancedUsage: true,
+    // Reset model assignments that reference the removed provider
+    const updatedAssignments = { ...settings.modelAssignments };
+    for (const role of ["chat", "simple", "complex"] as const) {
+      if (updatedAssignments[role].providerId === id) {
+        const firstProvider = newSettings.providers[0];
+        updatedAssignments[role] = {
+          ...updatedAssignments[role],
+          providerId: firstProvider?.id || "",
+          modelFile: "",
         };
       }
     }
-    if (settings.modelConfigurations.complex.providerId === id) {
-      const firstProvider = newSettings.providers[0];
-      if (firstProvider) {
-        updatedModelConfigurations.complex = {
-          providerId: firstProvider.id,
-          providerName: firstProvider.name,
-          modelName: "gpt-4",
-          supportsAdvancedUsage: true,
-        };
-      }
-    }
-
-    newSettings.modelConfigurations = updatedModelConfigurations;
+    newSettings.modelAssignments = updatedAssignments;
 
     await updateSettings(newSettings);
   };
 
   const updateModelConfiguration = async (
     modelType: "simple" | "complex",
-    config: { providerId: string; modelName: string },
+    config: { providerId: string; modelFile: string },
   ) => {
     const newSettings = {
       ...settings,
-      modelConfigurations: {
-        ...settings.modelConfigurations,
-        [modelType]: config,
+      modelAssignments: {
+        ...settings.modelAssignments,
+        [modelType]: {
+          ...settings.modelAssignments[modelType],
+          ...config,
+        },
       },
     };
     await updateSettings(newSettings);

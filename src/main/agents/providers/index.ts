@@ -1,39 +1,19 @@
-import { settingsService } from "@/services";
+/**
+ * Provider factory — creates LanguageModel instances from the TOML-driven registry.
+ * Consumed by workers via chatModel(), simpleModel(), complexModel().
+ */
+
 import type { LanguageModel } from "ai";
-import type { ProviderConfig } from "@shared";
-import { BaseProvider } from "@agents/providers/BaseProvider";
-import { OpenAICompatibleProvider } from "@agents/providers/OpenAICompatibleProvider";
-import { AnthropicProvider } from "@agents/providers/AnthropicProvider";
-import { DeepInfraProvider } from "@agents/providers/DeepInfraProvider";
+import type { UserProviderConfig, ModelRole } from "@shared";
+import { settingsService } from "@/services";
+import * as registry from "./registry";
+import { Provider } from "./provider";
 import { sendAlert } from "@/utils/messageUtils";
 
 /**
- * Creates a provider instance based on the configuration type
- * @param config - Provider configuration
- * @returns BaseProvider instance of the appropriate type
+ * Resolves a model role (chat/simple/complex) to a LanguageModel.
  */
-export function createProvider(config: ProviderConfig): BaseProvider {
-  switch (config.provider) {
-    case "openai-compatible":
-      return new OpenAICompatibleProvider(config);
-
-    case "anthropic":
-      return new AnthropicProvider(config);
-
-    case "deepinfra":
-      return new DeepInfraProvider(config);
-  }
-}
-
-/**
- * Creates a language model based on the active settings for the specified model type
- * @param modelType - The type of model to use ('chat', 'simple' or 'complex')
- * @returns LanguageModel instance
- */
-function createModel(
-  modelType: "chat" | "simple" | "complex" = "simple",
-): LanguageModel {
-  // Get settings
+function createModel(role: ModelRole): LanguageModel {
   const settings = settingsService.settings;
   if (!settings || !settings.providers || settings.providers.length === 0) {
     sendAlert(
@@ -43,50 +23,60 @@ function createModel(
     throw new Error("No providers configured");
   }
 
-  // If useSameModelForAgents is enabled and requesting simple/complex model,
-  // use the chat model configuration instead
-  let effectiveModelType = modelType;
-  if (settings.useSameModelForAgents && modelType !== "chat") {
-    effectiveModelType = "chat";
-  }
+  // If useSameModelForAgents, use chat model for simple/complex too
+  const effectiveRole: ModelRole =
+    settings.useSameModelForAgents && role !== "chat" ? "chat" : role;
 
-  // Get the model configuration for the effective model type
-  const modelConfig = settings.modelConfigurations?.[effectiveModelType];
-  if (!modelConfig) {
+  const assignment = settings.modelAssignments?.[effectiveRole];
+  if (!assignment || !assignment.providerId || !assignment.modelFile) {
     sendAlert(
       "Model Not Configured",
-      `No configuration found for ${effectiveModelType} model. Please configure it in settings.`,
+      `No ${effectiveRole} model assigned. Please configure it in settings.`,
     );
-    throw new Error(
-      `No model configuration found for ${effectiveModelType} model`,
-    );
+    throw new Error(`No model assignment for role: ${effectiveRole}`);
   }
 
-  // Find the provider configuration
-  const providerConfig = settings.providers.find(
-    (p) => p.id === modelConfig.providerId,
+  const userProvider = settings.providers.find(
+    (p: UserProviderConfig) => p.id === assignment.providerId,
   );
-  if (!providerConfig) {
+  if (!userProvider) {
     sendAlert(
       "Provider Not Found",
-      `Provider "${modelConfig.providerName}" (ID: ${modelConfig.providerId}) not found. Please check your settings.`,
+      `Provider "${assignment.providerId}" not found. Please check your settings.`,
     );
-    throw new Error(`Provider with ID ${modelConfig.providerId} not found`);
+    throw new Error(`Provider ${assignment.providerId} not found`);
   }
 
-  // Create provider instance
-  const provider: BaseProvider = createProvider(providerConfig);
+  const definition = registry.getProvider(userProvider.providerDir);
+  if (!definition) {
+    sendAlert(
+      "Provider Definition Not Found",
+      `Provider definition "${userProvider.providerDir}" not found in registry. ` +
+        "This may happen if the provider's TOML files are missing.",
+    );
+    throw new Error(
+      `Provider definition not found: ${userProvider.providerDir}`,
+    );
+  }
 
-  // Create and return the language model
-  return provider.createLanguageModel(modelConfig.modelName);
+  const provider = new Provider(userProvider, definition);
+  return provider.createLanguageModel(assignment.modelFile);
 }
 
-// Singleton instances (created on first access)
+// ──────────────────────────────────────────────
+// Singleton model instances (invalidated on settings change)
+// ──────────────────────────────────────────────
+
 let _chatModel: LanguageModel | null = null;
 let _simpleModel: LanguageModel | null = null;
 let _complexModel: LanguageModel | null = null;
 
-// Export arrow functions with singleton pattern
+export function invalidateModelCache(): void {
+  _chatModel = null;
+  _simpleModel = null;
+  _complexModel = null;
+}
+
 export const chatModel = (): LanguageModel => {
   if (!_chatModel) {
     _chatModel = createModel("chat");
@@ -107,3 +97,7 @@ export const complexModel = (): LanguageModel => {
   }
   return _complexModel;
 };
+
+// Re-export for convenience
+export { Provider } from "./provider";
+export { initialize as initializeRegistry, getAllProviders, getProvider, getModels, getLogoPath } from "./registry";

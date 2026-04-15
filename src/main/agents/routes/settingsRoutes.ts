@@ -1,11 +1,16 @@
 import { Hono } from "hono";
-import { settingsService, threadPersistenceService, threadIntelligenceService } from "@/services";
+import {
+  settingsService,
+  threadPersistenceService,
+  threadIntelligenceService,
+} from "@/services";
 import {
   SettingsStateSchema,
   TestConnectionConfigSchema,
 } from "../schemas/apiSchemas";
 import log from "electron-log/main";
 import type { SettingsState, TestConnectionConfig, LogLevel } from "@shared";
+import { invalidateModelCache } from "@agents/providers";
 
 const logger = log.scope("ApiServer:Settings");
 export const settingsRoutes = new Hono();
@@ -33,6 +38,7 @@ settingsRoutes.put("/", async (c) => {
     }
     const settings = parsed.data as SettingsState;
     settingsService.saveSettings(settings);
+    invalidateModelCache();
 
     if (settings.logLevel) {
       log.transports.file.level = settings.logLevel as LogLevel;
@@ -68,7 +74,9 @@ settingsRoutes.post("/test", async (c) => {
         400,
       );
     }
-    await settingsService.testConnection(parsed.data as TestConnectionConfig);
+    await settingsService.testConnection(
+      parsed.data as TestConnectionConfig,
+    );
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error testing connection:", error);

@@ -22,3 +22,6 @@ export * from "./logger";
 
 // Tag types
 export * from "./tag";
+
+// Provider types
+export * from "./providers";
