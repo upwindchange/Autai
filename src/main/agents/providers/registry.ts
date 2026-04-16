@@ -142,9 +142,11 @@ function scanModels(baseDir: string, currentDir: string): ModelDefinition[] {
       const raw = fs.readFileSync(fullPath, "utf-8");
       const toml = TOML.parse(raw) as unknown as ModelToml;
 
-      // Compute relative path from baseDir as file identifier
+      // Compute relative path from baseDir as file identifier.
+      // Filenames use '+' instead of ':' for Windows compatibility;
+      // convert back so the model ID matches the actual API model name.
       const relPath = path.relative(baseDir, fullPath);
-      const file = relPath.replace(/\.toml$/, "");
+      const file = relPath.replace(/\.toml$/, "").replace(/\+/g, ":");
 
       result.push({
         name: toml.name,
