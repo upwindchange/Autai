@@ -235,7 +235,9 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
               className="gap-2 text-destructive hover:text-destructive"
               onClick={() => {
                 if (confirm(t("database.purgeThreads.confirm"))) {
-                  fetch(`${API_BASE}/settings/purge-thread-tables`, { method: "POST" });
+                  fetch(`${API_BASE}/settings/purge-thread-tables`, {
+                    method: "POST",
+                  });
                 }
               }}
             >
@@ -256,7 +258,9 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
               className="gap-2 text-destructive hover:text-destructive"
               onClick={() => {
                 if (confirm(t("database.purgeSettings.confirm"))) {
-                  fetch(`${API_BASE}/settings/purge-settings-tables`, { method: "POST" });
+                  fetch(`${API_BASE}/settings/purge-settings-tables`, {
+                    method: "POST",
+                  });
                 }
               }}
             >

@@ -96,9 +96,7 @@ export async function bulkDeleteThreadsByIds(
   });
 }
 
-export async function searchThreads(
-  query: string,
-): Promise<{
+export async function searchThreads(query: string): Promise<{
   threads: {
     remoteId: string;
     title: string;

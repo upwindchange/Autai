@@ -1,8 +1,5 @@
 import { z } from "zod";
-import {
-  SettingsStateSchema,
-  TestConnectionConfigSchema,
-} from "@shared";
+import { SettingsStateSchema, TestConnectionConfigSchema } from "@shared";
 
 // Chat request body schema
 export const ChatRequestSchema = z.object({

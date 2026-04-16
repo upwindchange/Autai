@@ -356,9 +356,7 @@ const GroupedThreadItem: FC<{
       {...(!isMultiSelectMode ? longPress : {})}
     >
       {selectionIndicator}
-      <span className="min-w-0 flex-1 truncate">
-        {thread.title}
-      </span>
+      <span className="min-w-0 flex-1 truncate">{thread.title}</span>
       {thread.tags.map((tag) => (
         <span
           key={tag.id}
@@ -518,7 +516,7 @@ const ThreadListItemMore: FC<{ threadRemoteId: string | undefined }> = ({
   const currentTitle = useTagStore((s) =>
     threadRemoteId ?
       (s.threads.find((th) => th.remoteId === threadRemoteId)?.title ??
-        "New Chat")
+      "New Chat")
     : "New Chat",
   );
 

@@ -25,9 +25,7 @@ export function useProviderModels(providerDir: string | null) {
       const data = (await res.json()) as ModelDefinition[];
       setModels(data);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to load models",
-      );
+      setError(err instanceof Error ? err.message : "Failed to load models");
     } finally {
       setLoading(false);
     }

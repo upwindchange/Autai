@@ -46,9 +46,7 @@ providerRoutes.get("/:dir/models", async (c) => {
       }
       const res = await fetch(`${apiUrl}/models`, { headers });
       const data = (await res.json()) as { data: { id: string }[] };
-      return c.json(
-        (data.data ?? []).map((m) => ({ name: m.id, file: m.id })),
-      );
+      return c.json((data.data ?? []).map((m) => ({ name: m.id, file: m.id })));
     } catch {
       return c.json([]);
     }

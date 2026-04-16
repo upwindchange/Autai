@@ -55,7 +55,8 @@ type SettingsSidebarProps = ComponentProps<typeof Sidebar>;
  * Shows settings navigation sections instead of thread list.
  */
 export function SettingsSidebar(props: SettingsSidebarProps) {
-  const { activeSettingsSection, setActiveSettingsSection, setShowSettings } = useUiStore();
+  const { activeSettingsSection, setActiveSettingsSection, setShowSettings } =
+    useUiStore();
   const { t } = useTranslation("settings");
 
   return (

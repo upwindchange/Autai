@@ -164,7 +164,10 @@ class SettingsService {
     defaults: SettingsState,
   ): ModelRoleAssignment {
     const row = rows.find((r) => r.role === role);
-    if (!row) return defaults.modelAssignments[role as keyof typeof defaults.modelAssignments];
+    if (!row)
+      return defaults.modelAssignments[
+        role as keyof typeof defaults.modelAssignments
+      ];
     return {
       role: role as ModelRoleAssignment["role"],
       providerId: row.provider_id,
@@ -197,10 +200,7 @@ class SettingsService {
         String(settings.useSameModelForAgents),
       );
       upsertSetting.run("log_level", settings.logLevel);
-      upsertSetting.run(
-        "langfuse_enabled",
-        String(settings.langfuse.enabled),
-      );
+      upsertSetting.run("langfuse_enabled", String(settings.langfuse.enabled));
       upsertSetting.run(
         "langfuse_public_key",
         settings.langfuse.publicKey || "",
@@ -210,10 +210,7 @@ class SettingsService {
         settings.langfuse.secretKey || "",
       );
       upsertSetting.run("langfuse_host", settings.langfuse.host || "");
-      upsertSetting.run(
-        "auto_tag_enabled",
-        String(settings.autoTagEnabled),
-      );
+      upsertSetting.run("auto_tag_enabled", String(settings.autoTagEnabled));
       upsertSetting.run(
         "auto_tag_creation_enabled",
         String(settings.autoTagCreationEnabled),

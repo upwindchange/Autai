@@ -16,7 +16,9 @@ import { useTagStore } from "@/stores/tagStore";
  * When adapter.list() runs (via backendThreadListAdapter), it also calls
  * useTagStore.setThreadTags(), so both the runtime and tagStore are refreshed.
  */
-async function invalidateRuntimeCache(runtime: AssistantRuntime): Promise<void> {
+async function invalidateRuntimeCache(
+  runtime: AssistantRuntime,
+): Promise<void> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const runtimeImpl = runtime as any;
   const core = runtimeImpl._core;
@@ -45,10 +47,7 @@ export async function refreshThreadListData(
 
   // 3. If the active thread was deleted, switch to new thread
   const newState = runtime.threads.getState();
-  const allThreadIds = [
-    ...newState.threadIds,
-    ...newState.archivedThreadIds,
-  ];
+  const allThreadIds = [...newState.threadIds, ...newState.archivedThreadIds];
   if (previousMainThreadId && !allThreadIds.includes(previousMainThreadId)) {
     await runtime.threads.switchToNewThread();
   }

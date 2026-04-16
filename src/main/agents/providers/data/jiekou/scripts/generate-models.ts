@@ -32,8 +32,8 @@ const SKIP_MODELS = [
   "nova-2-Lite",
   "o1-mini",
   "o1",
-  "zai-org/glm-ocr"
-]
+  "zai-org/glm-ocr",
+];
 
 // Zod schemas for API response validation
 const JiekouModel = z
@@ -69,18 +69,27 @@ function shouldSkipModel(modelId: string): boolean {
     if (lowerPattern.endsWith("/*")) {
       // Prefix match: "gemma/*" matches "google/gemma-3-12b-it"
       const prefix = lowerPattern.slice(0, -2);
-      if (lowerModelId.includes(prefix + "/") || lowerModelId.startsWith(prefix + "/")) {
+      if (
+        lowerModelId.includes(prefix + "/") ||
+        lowerModelId.startsWith(prefix + "/")
+      ) {
         return true;
       }
     } else if (lowerPattern.endsWith("*")) {
       // Wildcard suffix: "gpt-4*" matches "gpt-4o", "gpt-4.1"
       const prefix = lowerPattern.slice(0, -1);
-      if (lowerModelId.startsWith(prefix) || lowerModelId.includes("/" + prefix)) {
+      if (
+        lowerModelId.startsWith(prefix) ||
+        lowerModelId.includes("/" + prefix)
+      ) {
         return true;
       }
     } else {
       // Exact match
-      if (lowerModelId === lowerPattern || lowerModelId.endsWith("/" + lowerPattern)) {
+      if (
+        lowerModelId === lowerPattern ||
+        lowerModelId.endsWith("/" + lowerPattern)
+      ) {
         return true;
       }
     }
@@ -106,7 +115,7 @@ const OPEN_WEIGHTS_PATTERNS = [
 function isOpenWeights(modelId: string): boolean {
   const lowerModelId = modelId.toLowerCase();
   return OPEN_WEIGHTS_PATTERNS.some((pattern) =>
-    lowerModelId.includes(pattern)
+    lowerModelId.includes(pattern),
   );
 }
 
@@ -115,7 +124,11 @@ function matchesFamily(target: string, family: string): boolean {
   const familyLower = family.toLowerCase();
   let familyIdx = 0;
 
-  for (let i = 0; i < targetLower.length && familyIdx < familyLower.length; i++) {
+  for (
+    let i = 0;
+    i < targetLower.length && familyIdx < familyLower.length;
+    i++
+  ) {
     if (targetLower[i] === familyLower[familyIdx]) {
       familyIdx++;
     }
@@ -126,13 +139,11 @@ function matchesFamily(target: string, family: string): boolean {
 
 function inferFamily(modelId: string): string | undefined {
   const sortedFamilies = [...ModelFamilyValues].sort(
-    (a, b) => b.length - a.length
+    (a, b) => b.length - a.length,
   );
 
   // Remove prefix like "deepseek/", "qwen/", etc.
-  const baseName = modelId.includes("/")
-    ? modelId.split("/").pop()!
-    : modelId;
+  const baseName = modelId.includes("/") ? modelId.split("/").pop()! : modelId;
 
   for (const family of sortedFamilies) {
     if (matchesFamily(baseName, family)) {
@@ -263,10 +274,10 @@ function formatToml(model: ProcessedModel): string {
   lines.push("");
   lines.push(`[modalities]`);
   lines.push(
-    `input = [${model.modalities.input.map((m) => `"${m}"`).join(", ")}]`
+    `input = [${model.modalities.input.map((m) => `"${m}"`).join(", ")}]`,
   );
   lines.push(
-    `output = [${model.modalities.output.map((m) => `"${m}"`).join(", ")}]`
+    `output = [${model.modalities.output.map((m) => `"${m}"`).join(", ")}]`,
   );
 
   return lines.join("\n") + "\n";
@@ -274,7 +285,7 @@ function formatToml(model: ProcessedModel): string {
 
 function getFilePath(
   modelsDir: string,
-  modelId: string
+  modelId: string,
 ): { filePath: string; dirPath: string } {
   if (modelId.includes("/")) {
     // e.g., "deepseek/deepseek-r1-0528" -> models/deepseek/deepseek-r1-0528.toml
@@ -301,9 +312,7 @@ async function ensureDir(dirPath: string): Promise<void> {
   }
 }
 
-async function getAllExistingFiles(
-  modelsDir: string
-): Promise<Set<string>> {
+async function getAllExistingFiles(modelsDir: string): Promise<Set<string>> {
   const files = new Set<string>();
 
   async function scanDir(dir: string, prefix: string = ""): Promise<void> {
@@ -313,12 +322,10 @@ async function getAllExistingFiles(
         if (entry.isDirectory()) {
           await scanDir(
             path.join(dir, entry.name),
-            prefix ? `${prefix}/${entry.name}` : entry.name
+            prefix ? `${prefix}/${entry.name}` : entry.name,
           );
         } else if (entry.name.endsWith(".toml")) {
-          const relativePath = prefix
-            ? `${prefix}/${entry.name}`
-            : entry.name;
+          const relativePath = prefix ? `${prefix}/${entry.name}` : entry.name;
           files.add(relativePath);
         }
       }
@@ -334,14 +341,14 @@ async function getAllExistingFiles(
 // Extract model name from TOML file content
 function extractModelName(content: string): string | null {
   const match = content.match(/^name\s*=\s*"([^"]+)"/m);
-  return match ? match[1] ?? null : null;
+  return match ? (match[1] ?? null) : null;
 }
 
 // Delete existing TOML files that match SKIP_MODELS
 async function cleanupSkippedModels(
   modelsDir: string,
   existingFiles: Set<string>,
-  dryRun: boolean
+  dryRun: boolean,
 ): Promise<number> {
   let deleted = 0;
 
@@ -355,7 +362,9 @@ async function cleanupSkippedModels(
       if (modelName && shouldSkipModel(modelName)) {
         deleted++;
         if (dryRun) {
-          console.log(`[DRY RUN] Would delete (matches SKIP_MODELS): ${relativePath}`);
+          console.log(
+            `[DRY RUN] Would delete (matches SKIP_MODELS): ${relativePath}`,
+          );
         } else {
           await unlink(filePath);
           console.log(`Deleted (matches SKIP_MODELS): ${relativePath}`);
@@ -411,7 +420,7 @@ async function main() {
   const existingFiles = await getAllExistingFiles(modelsDir);
 
   console.log(
-    `Found ${apiModels.length} models in API, ${existingFiles.size} existing files\n`
+    `Found ${apiModels.length} models in API, ${existingFiles.size} existing files\n`,
   );
 
   // First, clean up existing files that match SKIP_MODELS
@@ -444,8 +453,9 @@ async function main() {
     const { filePath, dirPath } = getFilePath(modelsDir, apiModel.id);
 
     // Build relative path for tracking
-    const relativePath = apiModel.id.includes("/")
-      ? `${apiModel.id.split("/").slice(0, -1).join("/")}/${apiModel.id.split("/").pop()}.toml`
+    const relativePath =
+      apiModel.id.includes("/") ?
+        `${apiModel.id.split("/").slice(0, -1).join("/")}/${apiModel.id.split("/").pop()}.toml`
       : `${apiModel.id}.toml`;
 
     apiModelPaths.add(relativePath);
@@ -488,11 +498,11 @@ async function main() {
   console.log("");
   if (dryRun) {
     console.log(
-      `Summary: ${deleted} would be deleted, ${created} would be created, ${unchanged} unchanged, ${skipped} skipped, ${orphaned.length} orphaned`
+      `Summary: ${deleted} would be deleted, ${created} would be created, ${unchanged} unchanged, ${skipped} skipped, ${orphaned.length} orphaned`,
     );
   } else {
     console.log(
-      `Summary: ${deleted} deleted, ${created} created, ${unchanged} unchanged, ${skipped} skipped, ${orphaned.length} orphaned`
+      `Summary: ${deleted} deleted, ${created} created, ${unchanged} unchanged, ${skipped} skipped, ${orphaned.length} orphaned`,
     );
   }
 }

@@ -566,7 +566,12 @@ function SearchPanel({ onClose }: { onClose: () => void }) {
         placeholder={t("sidebar.searchPlaceholder")}
         className="h-6 text-xs"
       />
-      <Button variant="ghost" size="icon" className="size-6" onClick={handleClose}>
+      <Button
+        variant="ghost"
+        size="icon"
+        className="size-6"
+        onClick={handleClose}
+      >
         <XIcon className="size-3" />
       </Button>
     </div>

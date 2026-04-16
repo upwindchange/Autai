@@ -118,7 +118,11 @@ function AppContent() {
           : <SidebarLeft />}
           <SidebarInset className="relative flex-1">
             <AppHeader
-              title={showSettings ? "Settings" : (threadTitle ?? "Autai AI Assistant")}
+              title={
+                showSettings ? "Settings" : (
+                  (threadTitle ?? "Autai AI Assistant")
+                )
+              }
               showSplitView={showSplitView}
               onToggleSplitView={() => setShowSplitView(!showSplitView)}
             />

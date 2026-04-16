@@ -31,11 +31,13 @@ export function TomlModelList({
   const [filter, setFilter] = useState("");
   const { t } = useTranslation("providers");
 
-  const filtered = filter
-    ? models.filter((m) =>
-        m.name.toLowerCase().includes(filter.toLowerCase()) ||
-        m.file.toLowerCase().includes(filter.toLowerCase()) ||
-        (m.family && m.family.toLowerCase().includes(filter.toLowerCase())),
+  const filtered =
+    filter ?
+      models.filter(
+        (m) =>
+          m.name.toLowerCase().includes(filter.toLowerCase()) ||
+          m.file.toLowerCase().includes(filter.toLowerCase()) ||
+          (m.family && m.family.toLowerCase().includes(filter.toLowerCase())),
       )
     : models;
 
@@ -138,36 +140,24 @@ function ModelBadges({ model }: { model: ModelDefinition }) {
 
   // Vision (image input)
   if (model.modalities?.input?.includes("image")) {
-    icons.push(
-      <Eye key="vision" className="h-3 w-3 text-blue-500" />,
-    );
+    icons.push(<Eye key="vision" className="h-3 w-3 text-blue-500" />);
   }
   // PDF support
   if (model.modalities?.input?.includes("pdf")) {
-    icons.push(
-      <FileText key="pdf" className="h-3 w-3 text-orange-500" />,
-    );
+    icons.push(<FileText key="pdf" className="h-3 w-3 text-orange-500" />);
   }
   // Reasoning / thinking
   if (model.reasoning) {
-    icons.push(
-      <Brain key="reasoning" className="h-3 w-3 text-purple-500" />,
-    );
+    icons.push(<Brain key="reasoning" className="h-3 w-3 text-purple-500" />);
   }
   // Tool calling
   if (model.toolCall) {
-    icons.push(
-      <Wrench key="tool" className="h-3 w-3 text-green-500" />,
-    );
+    icons.push(<Wrench key="tool" className="h-3 w-3 text-green-500" />);
   }
 
   if (icons.length === 0) return null;
 
-  return (
-    <div className="flex items-center gap-1 mt-0.5">
-      {icons}
-    </div>
-  );
+  return <div className="flex items-center gap-1 mt-0.5">{icons}</div>;
 }
 
 // Context/output length and cost
@@ -176,13 +166,14 @@ function ModelMetrics({ model }: { model: ModelDefinition }) {
     <div className="flex flex-col items-end shrink-0 gap-0.5">
       {model.limit && (
         <span className="text-[11px] text-muted-foreground whitespace-nowrap">
-          {formatTokens(model.limit.context)} ctx / {formatTokens(model.limit.output)} out
+          {formatTokens(model.limit.context)} ctx /{" "}
+          {formatTokens(model.limit.output)} out
         </span>
       )}
       {model.cost && (
         <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
-          <Coins className="h-2.5 w-2.5" />
-          ${model.cost.input}/${model.cost.output}
+          <Coins className="h-2.5 w-2.5" />${model.cost.input}/$
+          {model.cost.output}
         </span>
       )}
     </div>

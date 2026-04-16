@@ -47,10 +47,16 @@ export class HitlService {
     return new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(id);
-        reject(new Error(`HITL request for "${id}" timed out after ${timeout}ms`));
+        reject(
+          new Error(`HITL request for "${id}" timed out after ${timeout}ms`),
+        );
       }, timeout);
 
-      this.pending.set(id, { resolve: resolve as (response: unknown) => void, reject, timer });
+      this.pending.set(id, {
+        resolve: resolve as (response: unknown) => void,
+        reject,
+        timer,
+      });
 
       logger.info("HITL requested", { id, timeoutMs: timeout });
     });

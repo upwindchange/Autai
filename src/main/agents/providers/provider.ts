@@ -5,10 +5,7 @@
  */
 
 import type { LanguageModel } from "ai";
-import type {
-  ProviderDefinition,
-  UserProviderConfig,
-} from "@shared";
+import type { ProviderDefinition, UserProviderConfig } from "@shared";
 import { sendAlert } from "@/utils/messageUtils";
 
 export class Provider {
@@ -74,13 +71,14 @@ export class Provider {
       }
 
       case "@ai-sdk/openai-compatible": {
-        const { createOpenAICompatible } = require("@ai-sdk/openai-compatible") as {
-          createOpenAICompatible: (opts: {
-            name: string;
-            apiKey: string;
-            baseURL: string;
-          }) => (model: string) => LanguageModel;
-        };
+        const { createOpenAICompatible } =
+          require("@ai-sdk/openai-compatible") as {
+            createOpenAICompatible: (opts: {
+              name: string;
+              apiKey: string;
+              baseURL: string;
+            }) => (model: string) => LanguageModel;
+          };
         return createOpenAICompatible({
           name: this.definition.name,
           apiKey,

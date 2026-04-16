@@ -7,7 +7,14 @@ import { BrowserWindow } from "electron";
 
 const logger = log.scope("ThreadIntelligenceService");
 
-const DEFAULT_TAGS = ["General", "Coding", "Research", "Creative", "Planning", "Learning"];
+const DEFAULT_TAGS = [
+  "General",
+  "Coding",
+  "Research",
+  "Creative",
+  "Planning",
+  "Learning",
+];
 
 class ThreadIntelligenceService {
   initialize(): void {
@@ -28,9 +35,15 @@ class ThreadIntelligenceService {
     }
   }
 
-  async enrichThread(threadId: string, firstUserMessage: string): Promise<void> {
+  async enrichThread(
+    threadId: string,
+    firstUserMessage: string,
+  ): Promise<void> {
     try {
-      logger.info("Enriching thread", { threadId, messageLength: firstUserMessage.length });
+      logger.info("Enriching thread", {
+        threadId,
+        messageLength: firstUserMessage.length,
+      });
 
       const settings = settingsService.settings;
       const existingTags = threadPersistenceService.listTags();
@@ -61,7 +74,11 @@ INSTRUCTIONS:
           setThreadMeta: tool({
             description: "Set the title and category tag for a conversation",
             inputSchema: z.object({
-              title: z.string().describe("A concise 3-6 word title summarizing the conversation"),
+              title: z
+                .string()
+                .describe(
+                  "A concise 3-6 word title summarizing the conversation",
+                ),
               tag: z.string().describe("The most appropriate tag name"),
             }),
           }),
@@ -71,7 +88,9 @@ INSTRUCTIONS:
       // Extract tool call result
       const toolCall = result.toolCalls[0];
       if (!toolCall || toolCall.toolName !== "setThreadMeta") {
-        logger.warn("No setThreadMeta tool call in response, skipping enrichment");
+        logger.warn(
+          "No setThreadMeta tool call in response, skipping enrichment",
+        );
         return;
       }
 
@@ -82,18 +101,28 @@ INSTRUCTIONS:
       logger.info("Renamed thread", { threadId, title: args.title });
 
       // Tag the thread if auto-tag is enabled
-      if (settings.autoTagEnabled && args.tag && args.tag.toLowerCase() !== "none") {
+      if (
+        settings.autoTagEnabled &&
+        args.tag &&
+        args.tag.toLowerCase() !== "none"
+      ) {
         const matchedTag = existingTags.find(
           (t) => t.name.toLowerCase() === args.tag.toLowerCase(),
         );
 
         if (matchedTag) {
           threadPersistenceService.addTagToThread(threadId, matchedTag.id);
-          logger.info("Tagged thread with existing tag", { threadId, tag: matchedTag.name });
+          logger.info("Tagged thread with existing tag", {
+            threadId,
+            tag: matchedTag.name,
+          });
         } else if (settings.autoTagCreationEnabled) {
           const newTag = threadPersistenceService.createTag(args.tag);
           threadPersistenceService.addTagToThread(threadId, newTag.id);
-          logger.info("Created and tagged thread with new tag", { threadId, tag: args.tag });
+          logger.info("Created and tagged thread with new tag", {
+            threadId,
+            tag: args.tag,
+          });
         }
       }
 

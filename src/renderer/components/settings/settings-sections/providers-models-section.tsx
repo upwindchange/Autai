@@ -31,12 +31,8 @@ interface ProvidersModelsSectionProps {
 export function ProvidersModelsSection({
   settings,
 }: ProvidersModelsSectionProps) {
-  const {
-    addProvider,
-    updateProvider,
-    removeProvider,
-    updateSettings,
-  } = useSettings();
+  const { addProvider, updateProvider, removeProvider, updateSettings } =
+    useSettings();
   const { t } = useTranslation("providers");
   const { providers: catalogProviders } = useProviderCatalog();
   const [editingProviderId, setEditingProviderId] = useState<string | null>(
@@ -50,16 +46,18 @@ export function ProvidersModelsSection({
     providerId: "",
     modelFile: "",
   });
-  const [simpleModelConfig, setSimpleModelConfig] = useState<ModelRoleAssignment>({
-    role: "simple",
-    providerId: "",
-    modelFile: "",
-  });
-  const [complexModelConfig, setComplexModelConfig] = useState<ModelRoleAssignment>({
-    role: "complex",
-    providerId: "",
-    modelFile: "",
-  });
+  const [simpleModelConfig, setSimpleModelConfig] =
+    useState<ModelRoleAssignment>({
+      role: "simple",
+      providerId: "",
+      modelFile: "",
+    });
+  const [complexModelConfig, setComplexModelConfig] =
+    useState<ModelRoleAssignment>({
+      role: "complex",
+      providerId: "",
+      modelFile: "",
+    });
   const [useSameModelForAgents, setUseSameModelForAgents] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
 

@@ -55,9 +55,7 @@ export function initializeTelemetry(): void {
 
     // Register AI SDK's OpenTelemetry integration so streamText/generateText
     // calls create proper spans that the LangfuseSpanProcessor can collect.
-    registerTelemetryIntegration(
-      new OpenTelemetryIntegration() as any,
-    );
+    registerTelemetryIntegration(new OpenTelemetryIntegration() as any);
 
     logger.info("Langfuse telemetry initialized successfully");
   } catch (error) {

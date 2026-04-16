@@ -7,10 +7,7 @@ import fs from "node:fs";
 import path from "node:path";
 import TOML from "smol-toml";
 import log from "electron-log/main";
-import type {
-  ProviderDefinition,
-  ModelDefinition,
-} from "@shared";
+import type { ProviderDefinition, ModelDefinition } from "@shared";
 
 const logger = log.scope("ProviderRegistry");
 
@@ -171,8 +168,9 @@ function scanModels(baseDir: string, currentDir: string): ModelDefinition[] {
         structuredOutput: toml.structured_output,
         knowledge: toml.knowledge,
         openWeights: toml.open_weights,
-        cost: toml.cost
-          ? {
+        cost:
+          toml.cost ?
+            {
               input: toml.cost.input,
               output: toml.cost.output,
               cacheRead: toml.cost.cache_read,

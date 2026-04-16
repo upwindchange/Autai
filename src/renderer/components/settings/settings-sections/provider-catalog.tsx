@@ -57,12 +57,11 @@ export function ProviderCatalog({
           />
         </div>
 
-        {loading ? (
+        {loading ?
           <div className="py-8 text-center text-sm text-muted-foreground">
             {t("catalog.loading")}
           </div>
-        ) : (
-          <ScrollArea className="max-h-[65vh]">
+        : <ScrollArea className="max-h-[65vh]">
             <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 pr-3 pb-2">
               {filtered.map((provider) => (
                 <ProviderCatalogCard
@@ -78,7 +77,7 @@ export function ProviderCatalog({
               )}
             </div>
           </ScrollArea>
-        )}
+        }
       </DialogContent>
     </Dialog>
   );
@@ -97,16 +96,15 @@ function ProviderCatalogCard({
       className="group flex items-start gap-3 p-4 cursor-pointer hover:bg-accent/50 transition-colors overflow-hidden"
       onClick={() => onSelect(provider)}
     >
-      {provider.logo ? (
+      {provider.logo ?
         <span
           className="h-10 w-10 shrink-0 text-foreground [&_svg]:h-full [&_svg]:w-full"
           dangerouslySetInnerHTML={{ __html: provider.logo }}
         />
-      ) : (
-        <div className="h-10 w-10 shrink-0 rounded-lg bg-muted flex items-center justify-center text-sm font-medium">
+      : <div className="h-10 w-10 shrink-0 rounded-lg bg-muted flex items-center justify-center text-sm font-medium">
           {provider.name.charAt(0)}
         </div>
-      )}
+      }
       <div className="flex-1 min-w-0">
         <div className="font-medium text-sm">{provider.name}</div>
         {provider.doc && (

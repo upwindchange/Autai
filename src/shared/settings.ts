@@ -10,7 +10,11 @@ import {
 } from "./providers";
 
 export type { UserProviderConfig, ModelRoleAssignment } from "./providers";
-export type { ProviderDefinition, ModelDefinition, ModelRole } from "./providers";
+export type {
+  ProviderDefinition,
+  ModelDefinition,
+  ModelRole,
+} from "./providers";
 
 // Re-export provider schemas for convenience
 export {

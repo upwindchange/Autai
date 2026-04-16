@@ -117,9 +117,9 @@ export function ConfiguredProviderCard({
               <div>
                 <span className="font-medium">{definition.name}</span>
                 <Badge variant="secondary" className="ml-2 text-xs">
-                  {definition.npm === "@ai-sdk/openai-compatible"
-                    ? "OpenAI Compatible"
-                    : definition.npm.replace("@ai-sdk/", "")}
+                  {definition.npm === "@ai-sdk/openai-compatible" ?
+                    "OpenAI Compatible"
+                  : definition.npm.replace("@ai-sdk/", "")}
                 </Badge>
               </div>
             </div>
@@ -241,9 +241,9 @@ export function ConfiguredProviderCard({
               <div className="flex items-center gap-2">
                 <span className="font-medium truncate">{definition.name}</span>
                 <Badge variant="secondary" className="shrink-0 text-xs">
-                  {definition.npm === "@ai-sdk/openai-compatible"
-                    ? "OpenAI Compatible"
-                    : definition.npm.replace("@ai-sdk/", "")}
+                  {definition.npm === "@ai-sdk/openai-compatible" ?
+                    "OpenAI Compatible"
+                  : definition.npm.replace("@ai-sdk/", "")}
                 </Badge>
               </div>
               <div className="text-xs text-muted-foreground truncate">

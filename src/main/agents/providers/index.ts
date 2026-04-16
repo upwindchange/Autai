@@ -100,4 +100,9 @@ export const complexModel = (): LanguageModel => {
 
 // Re-export for convenience
 export { Provider } from "./provider";
-export { initialize as initializeRegistry, getAllProviders, getProvider, getModels } from "./registry";
+export {
+  initialize as initializeRegistry,
+  getAllProviders,
+  getProvider,
+  getModels,
+} from "./registry";

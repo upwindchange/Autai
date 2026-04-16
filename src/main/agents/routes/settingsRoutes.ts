@@ -74,9 +74,7 @@ settingsRoutes.post("/test", async (c) => {
         400,
       );
     }
-    await settingsService.testConnection(
-      parsed.data as TestConnectionConfig,
-    );
+    await settingsService.testConnection(parsed.data as TestConnectionConfig);
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error testing connection:", error);

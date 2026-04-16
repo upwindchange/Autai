@@ -38,6 +38,7 @@ This script fetches the list of available models from the Cloudflare AI Gateway 
 - **Output**: Saves the API response to `data/api_response.json`
 
 The API returns model data including:
+
 - Model ID (e.g., `openai/gpt-4o`, `anthropic/claude-3.5-sonnet`)
 - Cost per token (input and output)
 - Creation timestamp
@@ -53,6 +54,7 @@ This script manages the `data/model_names.json` file, which maps model IDs to hu
 - Filters models based on configuration in `utils.sh`
 
 **Model Filtering**:
+
 - Includes ALL models from: `workers-ai`, `replicate`
 - Includes ONLY well-known models from: `openai`, `anthropic`
 - Skips namespaces: `replicate/replicate-internal`
@@ -76,6 +78,7 @@ This script generates TOML configuration files for each model:
    - Sets default capabilities (context length, modalities, etc.)
 
 **Generated TOML Structure**:
+
 ```toml
 name = "Model Name"
 release_date = "2024-01-01"
@@ -104,6 +107,7 @@ output = ["text"]
 Shared configuration and helper functions:
 
 **Configuration**:
+
 - `INCLUDE_ALL_PROVIDERS`: Providers to include all models from
 - `CROSS_REFERENCE_PROVIDERS`: Providers to copy from source directories
 - `WELL_KNOWN_MODELS`: Regex patterns for specific models to include
@@ -111,6 +115,7 @@ Shared configuration and helper functions:
 - `SKIP_MODELS`: Specific models to exclude
 
 **Helper Functions**:
+
 - `should_include_model()`: Determines if a model should be included
 - `get_mapped_name()`: Maps Cloudflare names to source provider names
 - `find_source_file()`: Locates source TOML files for cross-referencing
@@ -149,11 +154,13 @@ CLOUDFLARE_GATEWAY_ID=xxx \
 Edit `scripts/utils.sh` to customize:
 
 1. **Add a provider to include all models**:
+
 ```bash
 INCLUDE_ALL_PROVIDERS="workers-ai replicate my-new-provider"
 ```
 
 2. **Add a well-known model**:
+
 ```bash
 WELL_KNOWN_MODELS=(
   # ... existing patterns ...
@@ -162,11 +169,13 @@ WELL_KNOWN_MODELS=(
 ```
 
 3. **Skip a namespace**:
+
 ```bash
 SKIP_NAMESPACES="replicate/replicate-internal my-provider/internal"
 ```
 
 4. **Cross-reference a provider**:
+
 ```bash
 CROSS_REFERENCE_PROVIDERS="openai anthropic google"
 ```
@@ -186,6 +195,7 @@ Edit `data/model_names.json` to provide human-readable names:
 ## Model ID Format
 
 Cloudflare uses BOTH dots and hyphens in model IDs (the API returns both formats):
+
 - **OpenAI**: `openai/gpt-5.1` OR `openai/gpt-5-1`, `openai/gpt-3.5-turbo` OR `openai/gpt-3-5-turbo`
 - **Anthropic**: `anthropic/claude-3.5-sonnet` OR `anthropic/claude-3-5-sonnet`, `anthropic/claude-haiku-4-5`
 - **Workers AI**: `workers-ai/@cf/meta/llama-3-8b-instruct`
@@ -194,6 +204,7 @@ Cloudflare uses BOTH dots and hyphens in model IDs (the API returns both formats
 **Important**: The API returns duplicate models with different naming conventions (dots vs hyphens). The WELL_KNOWN_MODELS patterns handle both formats using `[\.-]` regex to match either a dot or hyphen.
 
 **File Path Conversion**:
+
 - Dots are preserved in filenames: `openai/gpt-5.1.toml`
 - Workers AI special handling: `workers-ai/@cf/meta/llama` → `workers-ai/llama.toml`
 
@@ -202,11 +213,13 @@ Cloudflare uses BOTH dots and hyphens in model IDs (the API returns both formats
 For OpenAI and Anthropic models, the scripts map Cloudflare model IDs to canonical provider filenames:
 
 **Anthropic Mappings**:
+
 - `claude-3.5-sonnet` → `claude-3-5-sonnet-20241022.toml`
 - `claude-3.5-haiku` → `claude-3-5-haiku-latest.toml`
 - `claude-3-opus` → `claude-3-opus-20240229.toml`
 
 **OpenAI Mappings**:
+
 - `gpt-5.1` → `gpt-5.1.toml`
 - `gpt-3.5-turbo` → `gpt-3.5-turbo.toml`
 
@@ -215,6 +228,7 @@ This ensures consistency with the canonical provider definitions while supportin
 ## Cleanup
 
 The TOML generation script automatically:
+
 - Removes models that are no longer in the API response
 - Cleans up empty directories
 - Maintains a clean models directory
@@ -222,16 +236,19 @@ The TOML generation script automatically:
 ## Troubleshooting
 
 **API errors**:
+
 - Verify environment variables are set correctly
 - Check API token has necessary permissions
 - Ensure Gateway ID matches your Cloudflare configuration
 
 **Missing models**:
+
 - Check if the model is filtered by `utils.sh` configuration
 - Review `WELL_KNOWN_MODELS` patterns
 - Verify the model exists in `data/api_response.json`
 
 **Cross-referencing failures**:
+
 - Ensure source provider directories exist (e.g., `../openai/models/`)
 - Check model name mappings in `get_mapped_name()`
 - Verify source TOML files exist with correct names

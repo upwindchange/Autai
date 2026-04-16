@@ -43,7 +43,15 @@ i18n.use(initReactI18next).init({
   lng: "en",
   fallbackLng: "en",
   defaultNS: "common",
-  ns: ["common", "welcome", "settings", "about", "development", "providers", "threads"],
+  ns: [
+    "common",
+    "welcome",
+    "settings",
+    "about",
+    "development",
+    "providers",
+    "threads",
+  ],
   interpolation: {
     escapeValue: false, // React already escapes
   },

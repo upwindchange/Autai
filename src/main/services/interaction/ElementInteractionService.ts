@@ -292,7 +292,9 @@ export class ElementInteractionService {
       }
     }
 
-    this.logger.warn("All focus strategies failed: no objectId for JS fallback");
+    this.logger.warn(
+      "All focus strategies failed: no objectId for JS fallback",
+    );
     return false;
   }
 
@@ -1058,13 +1060,12 @@ export class ElementInteractionService {
         );
 
         if (resolveResult.object?.objectId) {
-          const jsResult = await sendCDPCommand<
-            CDP.Runtime.CallFunctionOnResponse
-          >(
-            this.webContents,
-            "Runtime.callFunctionOn",
-            {
-              functionDeclaration: `
+          const jsResult =
+            await sendCDPCommand<CDP.Runtime.CallFunctionOnResponse>(
+              this.webContents,
+              "Runtime.callFunctionOn",
+              {
+                functionDeclaration: `
                 function(text) {
                   this.value = text;
                   this.dispatchEvent(new Event("input", { bubbles: true }));
@@ -1072,12 +1073,12 @@ export class ElementInteractionService {
                   return this.value;
                 }
               `,
-              objectId: resolveResult.object.objectId,
-              arguments: [{ value }],
-              returnByValue: true,
-            },
-            this.logger,
-          );
+                objectId: resolveResult.object.objectId,
+                arguments: [{ value }],
+                returnByValue: true,
+              },
+              this.logger,
+            );
 
           const jsValue = (jsResult.result?.value as string) ?? null;
           const jsVerified = jsValue === value;

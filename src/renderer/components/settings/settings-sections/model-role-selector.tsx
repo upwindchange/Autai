@@ -52,8 +52,9 @@ export function ModelRoleSelector({
   };
 
   const selectedProvider = providers.find((p) => p.id === value.providerId);
-  const selectedDefinition = selectedProvider
-    ? catalogProviders.find((d) => d.dir === selectedProvider.providerDir)
+  const selectedDefinition =
+    selectedProvider ?
+      catalogProviders.find((d) => d.dir === selectedProvider.providerDir)
     : undefined;
 
   return (

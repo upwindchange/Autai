@@ -85,10 +85,8 @@ export async function browserResearchWorker(
             // Stage 2: Execute Search Queries
             // ============================================================
             logger.debug("Stage 2: Executing search queries");
-            const {
-              stream: searchStream,
-              results: searchResultsPromise,
-            } = await executeSearchQueries(plan, sessionId, tabId);
+            const { stream: searchStream, results: searchResultsPromise } =
+              await executeSearchQueries(plan, sessionId, tabId);
 
             await mergeStreamAndWait(searchStream, writer);
 
@@ -137,8 +135,7 @@ export async function browserResearchWorker(
 
             logger.info("Extraction complete", {
               extractionCount: extractionResults.length,
-              relevantCount: extractionResults.filter((r) => r.relevant)
-                .length,
+              relevantCount: extractionResults.filter((r) => r.relevant).length,
             });
 
             // ============================================================

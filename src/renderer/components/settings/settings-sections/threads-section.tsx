@@ -196,7 +196,7 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
                 key={tag.id}
                 className="flex items-center gap-2 p-2 rounded-md hover:bg-muted/50"
               >
-                {editingTagId === tag.id ? (
+                {editingTagId === tag.id ?
                   <>
                     <Input
                       value={editingTagName}
@@ -224,8 +224,7 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
                       <X className="h-4 w-4" />
                     </Button>
                   </>
-                ) : (
-                  <>
+                : <>
                     <span className="flex-1 text-sm">{tag.name}</span>
                     <Button
                       variant="ghost"
@@ -247,7 +246,7 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
                       <X className="h-4 w-4" />
                     </Button>
                   </>
-                )}
+                }
               </div>
             ))}
           </div>

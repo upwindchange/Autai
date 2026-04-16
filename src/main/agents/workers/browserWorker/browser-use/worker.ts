@@ -57,9 +57,7 @@ export async function browserUseWorker(
 
             if (!plan) {
               logger.error("Failed to generate plan: tool not called");
-              throw new Error(
-                "Failed to generate plan: plan tool not called",
-              );
+              throw new Error("Failed to generate plan: plan tool not called");
             }
 
             logger.info("Plan generated successfully", {
@@ -79,8 +77,9 @@ export async function browserUseWorker(
             });
 
             logger.info("Waiting for plan approval", { planId: plan.id });
-            const approvalDecision =
-              await HitlService.getInstance().request<"approved" | "rejected">(plan.id);
+            const approvalDecision = await HitlService.getInstance().request<
+              "approved" | "rejected"
+            >(plan.id);
 
             if (approvalDecision === "rejected") {
               logger.info("Plan rejected by user", { planId: plan.id });
