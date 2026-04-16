@@ -150,9 +150,7 @@ app.whenReady().then(async () => {
   settingsService.initialize();
 
   // Initialize provider registry (reads TOML files)
-  const providersPath = app.isPackaged
-    ? path.join(process.resourcesPath, "providers")
-    : path.resolve(__dirname, "../../src/shared/providers");
+  const providersPath = path.resolve(__dirname, "agents/providers/data");
   registry.initialize(providersPath);
 
   // Initialize thread intelligence (seeds default tags if first launch)

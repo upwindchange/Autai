@@ -1,6 +1,6 @@
 /**
- * Provider Registry — scans TOML files from src/shared/providers/
- * and caches all provider definitions, model catalogs, and logo paths.
+ * Provider Registry — scans TOML files from src/main/agents/providers/data/
+ * and caches all provider definitions and model catalogs.
  */
 
 import fs from "node:fs";
@@ -20,7 +20,6 @@ const logger = log.scope("ProviderRegistry");
 
 const providers = new Map<string, ProviderDefinition>();
 const models = new Map<string, ModelDefinition[]>();
-const logoPaths = new Map<string, string>();
 
 // ──────────────────────────────────────────────
 // TOML file types (raw from disk)
@@ -71,7 +70,6 @@ interface ModelToml {
 export function initialize(basePath: string): void {
   providers.clear();
   models.clear();
-  logoPaths.clear();
 
   const entries = fs.readdirSync(basePath, { withFileTypes: true });
 
@@ -96,13 +94,13 @@ export function initialize(basePath: string): void {
         doc: toml.doc,
       };
 
-      providers.set(dir, def);
-
-      // Cache logo path
-      const logo = path.join(basePath, dir, "logo.svg");
-      if (fs.existsSync(logo)) {
-        logoPaths.set(dir, logo);
+      // Embed logo SVG inline (uses fill="currentColor" for theming)
+      const logoFile = path.join(basePath, dir, "logo.svg");
+      if (fs.existsSync(logoFile)) {
+        def.logo = fs.readFileSync(logoFile, "utf-8");
       }
+
+      providers.set(dir, def);
 
       // Scan model files
       const modelsDir = path.join(basePath, dir, "models");
@@ -196,8 +194,4 @@ export function getProvider(dir: string): ProviderDefinition | undefined {
 
 export function getModels(dir: string): ModelDefinition[] {
   return models.get(dir) ?? [];
-}
-
-export function getLogoPath(dir: string): string | undefined {
-  return logoPaths.get(dir);
 }

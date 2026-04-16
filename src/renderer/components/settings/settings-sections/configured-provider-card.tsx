@@ -101,14 +101,12 @@ export function ConfiguredProviderCard({
         <CardHeader className="pb-4">
           <div className="space-y-4">
             <div className="flex items-center gap-3">
-              <img
-                src={`${API_BASE}/providers/${definition.dir}/logo`}
-                alt={definition.name}
-                className="h-8 w-8 shrink-0"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).style.display = "none";
-                }}
-              />
+              {definition.logo && (
+                <span
+                  className="h-8 w-8 shrink-0 text-foreground [&_svg]:h-full [&_svg]:w-full"
+                  dangerouslySetInnerHTML={{ __html: definition.logo }}
+                />
+              )}
               <div>
                 <span className="font-medium">{definition.name}</span>
                 <Badge variant="secondary" className="ml-2 text-xs">
@@ -133,12 +131,10 @@ export function ConfiguredProviderCard({
                       apiUrlOverride: e.target.value || undefined,
                     })
                   }
-                  placeholder={t("form.apiUrlOverride.placeholder", {
-                    default: definition.api,
-                  })}
+                  placeholder={definition.api}
                 />
                 <p className="text-xs text-muted-foreground">
-                  Default: {definition.api}
+                  {t("form.apiUrlOverride.hint")}
                 </p>
               </div>
             )}
@@ -217,14 +213,12 @@ export function ConfiguredProviderCard({
       <CardHeader className="py-4 px-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3 min-w-0">
-            <img
-              src={`${API_BASE}/providers/${definition.dir}/logo`}
-              alt={definition.name}
-              className="h-8 w-8 shrink-0"
-              onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
-              }}
-            />
+            {definition.logo && (
+              <span
+                className="h-8 w-8 shrink-0 text-foreground [&_svg]:h-full [&_svg]:w-full"
+                dangerouslySetInnerHTML={{ __html: definition.logo }}
+              />
+            )}
             <div className="min-w-0">
               <div className="flex items-center gap-2">
                 <span className="font-medium truncate">{definition.name}</span>

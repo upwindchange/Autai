@@ -1,30 +1,15 @@
 /**
- * Provider catalog routes — serves TOML-driven provider definitions, logos, and model lists.
+ * Provider catalog routes — serves TOML-driven provider definitions and model lists.
  */
 
-import fs from "node:fs";
 import { Hono } from "hono";
 import * as registry from "@agents/providers/registry";
 
 export const providerRoutes = new Hono();
 
-// GET /providers — all provider definitions
+// GET /providers — all provider definitions (includes inline logo SVGs)
 providerRoutes.get("/", (c) => {
   return c.json(registry.getAllProviders());
-});
-
-// GET /providers/:dir/logo — serve logo SVG
-providerRoutes.get("/:dir/logo", (c) => {
-  const dir = c.req.param("dir");
-  const logoPath = registry.getLogoPath(dir);
-  if (!logoPath || !fs.existsSync(logoPath)) {
-    return c.json({ error: "Provider logo not found" }, 404);
-  }
-  const svg = fs.readFileSync(logoPath, "utf-8");
-  return c.body(svg, 200, {
-    "Content-Type": "image/svg+xml",
-    "Cache-Control": "public, max-age=86400",
-  });
 });
 
 // GET /providers/:dir/models — models for a provider

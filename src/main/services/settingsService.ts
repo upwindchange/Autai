@@ -51,8 +51,8 @@ class SettingsService {
         ...this._settings,
         modelAssignments: {
           ...this._settings.modelAssignments,
-          simple: this._settings.modelAssignments.chat,
-          complex: this._settings.modelAssignments.chat,
+          simple: { ...this._settings.modelAssignments.chat, role: "simple" },
+          complex: { ...this._settings.modelAssignments.chat, role: "complex" },
         },
       };
     }

@@ -16,6 +16,7 @@ export const ProviderDefinitionSchema = z.object({
   npm: z.string(), // SDK package: "@ai-sdk/anthropic"
   api: z.string().optional(), // default base URL (for openai-compatible)
   doc: z.string(), // documentation URL
+  logo: z.string().optional(), // inline SVG markup (uses fill="currentColor")
 });
 export type ProviderDefinition = z.infer<typeof ProviderDefinitionSchema>;
 

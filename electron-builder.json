@@ -15,8 +15,8 @@
       "to": "resources"
     },
     {
-      "from": "out/main/shared/providers",
-      "to": "providers"
+      "from": "out/main/agents/providers/data",
+      "to": "agents/providers/data"
     }
   ],
   "mac": {

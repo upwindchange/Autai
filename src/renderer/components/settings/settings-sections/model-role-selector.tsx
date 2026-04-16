@@ -77,14 +77,10 @@ export function ModelRoleSelector({
             return (
               <SelectItem key={provider.id} value={provider.id}>
                 <div className="flex items-center gap-2">
-                  {def && (
-                    <img
-                      src={`${API_BASE}/providers/${def.dir}/logo`}
-                      alt=""
-                      className="h-4 w-4"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).style.display = "none";
-                      }}
+                  {def?.logo && (
+                    <span
+                      className="h-4 w-4 shrink-0 text-foreground [&_svg]:h-full [&_svg]:w-full"
+                      dangerouslySetInnerHTML={{ __html: def.logo }}
                     />
                   )}
                   {def?.name || provider.providerDir}

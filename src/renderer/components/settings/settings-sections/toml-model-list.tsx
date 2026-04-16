@@ -2,10 +2,19 @@ import { useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Check, Search } from "lucide-react";
+import {
+  Check,
+  Search,
+  Eye,
+  FileText,
+  Brain,
+  Wrench,
+  Coins,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useProviderModels } from "@/hooks/useProviderModels";
+import type { ModelDefinition } from "@shared";
 
 interface TomlModelListProps {
   providerDir: string;
@@ -78,49 +87,36 @@ export function TomlModelList({
         />
       </div>
 
-      <ScrollArea className="max-h-48 rounded-md border">
-        <div className="p-1">
-          {filtered.map((model) => (
-            <button
-              key={model.file}
-              onClick={() => onModelSelect(model.file)}
-              className={cn(
-                "flex w-full items-center justify-between rounded-sm px-2 py-1.5 text-sm hover:bg-accent transition-colors",
-                selectedModel === model.file && "bg-accent",
-              )}
-            >
-              <div className="min-w-0">
-                <span className="truncate">{model.name}</span>
-                {model.limit && (
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    {formatContext(model.limit.context)}
-                  </span>
+      <div className="max-h-64 overflow-y-auto rounded-md border">
+        {filtered.map((model) => (
+          <button
+            key={model.file}
+            onClick={() => onModelSelect(model.file)}
+            className={cn(
+              "flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent transition-colors border-b last:border-b-0",
+              selectedModel === model.file && "bg-accent",
+            )}
+          >
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-sm font-medium truncate">
+                  {model.name}
+                </span>
+                {selectedModel === model.file && (
+                  <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
                 )}
               </div>
-              <div className="flex items-center gap-1 shrink-0 ml-2">
-                {model.cost && (
-                  <span className="text-xs text-muted-foreground">
-                    ${model.cost.input}/${model.cost.output}
-                  </span>
-                )}
-                <Check
-                  className={cn(
-                    "h-4 w-4",
-                    selectedModel === model.file ?
-                      "opacity-100"
-                    : "opacity-0",
-                  )}
-                />
-              </div>
-            </button>
-          ))}
-          {filtered.length === 0 && (
-            <div className="px-2 py-4 text-center text-sm text-muted-foreground">
-              {t("modelList.noMatch", { filter })}
+              <ModelBadges model={model} />
             </div>
-          )}
-        </div>
-      </ScrollArea>
+            <ModelMetrics model={model} />
+          </button>
+        ))}
+        {filtered.length === 0 && (
+          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+            {t("modelList.noMatch", { filter })}
+          </div>
+        )}
+      </div>
 
       <div className="space-y-1.5">
         <Label className="text-xs text-muted-foreground">
@@ -136,7 +132,64 @@ export function TomlModelList({
   );
 }
 
-function formatContext(tokens: number): string {
+// Capability icons for model features
+function ModelBadges({ model }: { model: ModelDefinition }) {
+  const icons: React.ReactNode[] = [];
+
+  // Vision (image input)
+  if (model.modalities?.input?.includes("image")) {
+    icons.push(
+      <Eye key="vision" className="h-3 w-3 text-blue-500" />,
+    );
+  }
+  // PDF support
+  if (model.modalities?.input?.includes("pdf")) {
+    icons.push(
+      <FileText key="pdf" className="h-3 w-3 text-orange-500" />,
+    );
+  }
+  // Reasoning / thinking
+  if (model.reasoning) {
+    icons.push(
+      <Brain key="reasoning" className="h-3 w-3 text-purple-500" />,
+    );
+  }
+  // Tool calling
+  if (model.toolCall) {
+    icons.push(
+      <Wrench key="tool" className="h-3 w-3 text-green-500" />,
+    );
+  }
+
+  if (icons.length === 0) return null;
+
+  return (
+    <div className="flex items-center gap-1 mt-0.5">
+      {icons}
+    </div>
+  );
+}
+
+// Context/output length and cost
+function ModelMetrics({ model }: { model: ModelDefinition }) {
+  return (
+    <div className="flex flex-col items-end shrink-0 gap-0.5">
+      {model.limit && (
+        <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+          {formatTokens(model.limit.context)} ctx / {formatTokens(model.limit.output)} out
+        </span>
+      )}
+      {model.cost && (
+        <span className="flex items-center gap-0.5 text-[11px] text-muted-foreground">
+          <Coins className="h-2.5 w-2.5" />
+          ${model.cost.input}/${model.cost.output}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function formatTokens(tokens: number): string {
   if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
   if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(0)}K`;
   return `${tokens}`;
