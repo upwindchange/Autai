@@ -31,3 +31,6 @@
 [submodule "reference/drizzle"]
 	path = reference/drizzle
 	url = git@github.com:drizzle-team/drizzle-orm.git
+[submodule "reference/drizzle-docs"]
+	path = reference/drizzle-docs
+	url = git@github.com:drizzle-team/drizzle-orm-docs.git
