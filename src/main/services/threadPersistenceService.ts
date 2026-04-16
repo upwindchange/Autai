@@ -17,6 +17,9 @@ interface ThreadRow {
   status: "regular" | "archived";
   created_at: string;
   updated_at: string;
+  chat_provider_id: string | null;
+  chat_model_file: string | null;
+  chat_model_params: string | null;
 }
 
 interface MessageRow {
@@ -68,7 +71,10 @@ class ThreadPersistenceService {
         title TEXT NOT NULL DEFAULT 'New Chat',
         status TEXT NOT NULL DEFAULT 'regular',
         created_at TEXT NOT NULL DEFAULT (datetime('now')),
-        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        chat_provider_id TEXT REFERENCES user_providers(id) ON DELETE SET NULL,
+        chat_model_file TEXT,
+        chat_model_params TEXT
       );
 
       CREATE TABLE IF NOT EXISTS messages (

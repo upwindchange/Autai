@@ -28,3 +28,6 @@
 [submodule "reference/models.dev"]
 	path = reference/models.dev
 	url = git@github.com:anomalyco/models.dev.git
+[submodule "reference/drizzle"]
+	path = reference/drizzle
+	url = git@github.com:drizzle-team/drizzle-orm.git

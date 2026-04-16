@@ -34,6 +34,7 @@ interface ModelAssignmentRow {
   role: string;
   provider_id: string;
   model_file: string;
+  params: string | null;
 }
 
 class SettingsService {
@@ -101,7 +102,8 @@ class SettingsService {
       CREATE TABLE IF NOT EXISTS model_assignments (
         role TEXT PRIMARY KEY,
         provider_id TEXT NOT NULL REFERENCES user_providers(id) ON DELETE CASCADE,
-        model_file TEXT NOT NULL
+        model_file TEXT NOT NULL,
+        params TEXT
       );
     `);
   }
@@ -172,6 +174,7 @@ class SettingsService {
       role: role as ModelRoleAssignment["role"],
       providerId: row.provider_id,
       modelFile: row.model_file,
+      ...(row.params && { params: JSON.parse(row.params) }),
     };
   }
 
@@ -190,7 +193,7 @@ class SettingsService {
     );
     const deleteAssignments = this.db.prepare("DELETE FROM model_assignments");
     const insertAssignment = this.db.prepare(
-      "INSERT INTO model_assignments (role, provider_id, model_file) VALUES (?, ?, ?)",
+      "INSERT INTO model_assignments (role, provider_id, model_file, params) VALUES (?, ?, ?, ?)",
     );
 
     const saveAll = this.db.transaction(() => {
@@ -235,6 +238,7 @@ class SettingsService {
             assignment.role,
             assignment.providerId,
             assignment.modelFile,
+            assignment.params ? JSON.stringify(assignment.params) : null,
           );
         }
       }

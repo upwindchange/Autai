@@ -17,3 +17,16 @@ export const SessionTabStateSchema = z.object({
 });
 
 export type sessionTabState = z.infer<typeof SessionTabStateSchema>;
+
+// ──────────────────────────────────────────────
+// Thread-level chat model override
+// ──────────────────────────────────────────────
+
+import type { ModelParameters } from "./providers";
+
+/** Per-thread override for the chat model. */
+export interface ThreadChatOverride {
+  providerId: string;
+  modelFile: string;
+  params?: ModelParameters;
+}

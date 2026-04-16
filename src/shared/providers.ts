@@ -80,6 +80,21 @@ export const UserProviderConfigSchema = z.object({
 export type UserProviderConfig = z.infer<typeof UserProviderConfigSchema>;
 
 // ──────────────────────────────────────────────
+// Model parameters (stored as JSON TEXT in SQLite)
+// ──────────────────────────────────────────────
+
+export const ModelParametersSchema = z.object({
+  temperature: z.number().min(0).max(2).optional(),
+  maxTokens: z.number().int().min(1).optional(),
+  topP: z.number().min(0).max(1).optional(),
+  topK: z.number().int().min(1).optional(),
+  frequencyPenalty: z.number().min(-2).max(2).optional(),
+  presencePenalty: z.number().min(-2).max(2).optional(),
+  stopSequences: z.array(z.string()).max(4).optional(),
+});
+export type ModelParameters = z.infer<typeof ModelParametersSchema>;
+
+// ──────────────────────────────────────────────
 // Model role assignment (stored in SQLite)
 // ──────────────────────────────────────────────
 
@@ -90,6 +105,7 @@ export const ModelRoleAssignmentSchema = z.object({
   role: ModelRoleSchema,
   providerId: z.string(),
   modelFile: z.string(), // TOML file stem
+  params: ModelParametersSchema.optional(),
 });
 export type ModelRoleAssignment = z.infer<typeof ModelRoleAssignmentSchema>;
 
