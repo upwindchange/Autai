@@ -148,7 +148,18 @@ function scanModels(baseDir: string, currentDir: string): ModelDefinition[] {
     if (!entry.isFile() || !entry.name.endsWith(".toml")) continue;
 
     try {
-      const raw = fs.readFileSync(fullPath, "utf-8");
+      let raw = fs.readFileSync(fullPath, "utf-8");
+
+      // On Windows, git stores symlinks as plain text containing the target path.
+      // Detect this and follow the reference to the actual TOML file.
+      const trimmed = raw.trim();
+      if (trimmed.startsWith("../") || trimmed.startsWith("./")) {
+        const resolved = path.resolve(path.dirname(fullPath), trimmed);
+        if (fs.existsSync(resolved)) {
+          raw = fs.readFileSync(resolved, "utf-8");
+        }
+      }
+
       const toml = TOML.parse(raw) as unknown as ModelToml;
 
       // Compute relative path from baseDir as file identifier.
