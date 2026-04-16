@@ -113,6 +113,20 @@ export function initialize(basePath: string): void {
     }
   }
 
+  // Virtual provider — no TOML files on disk
+  const openaiLogoPath = path.join(basePath, "openai", "logo.svg");
+  providers.set("openai-compatible", {
+    dir: "openai-compatible",
+    name: "OpenAI Compatible",
+    env: ["API_KEY"],
+    npm: "@ai-sdk/openai-compatible",
+    api: "http://localhost:11434/v1",
+    doc: "https://sdk.vercel.ai/providers/ai-sdk-providers/openai-compatible",
+    ...(fs.existsSync(openaiLogoPath) && {
+      logo: fs.readFileSync(openaiLogoPath, "utf-8"),
+    }),
+  });
+
   logger.info(
     `Loaded ${providers.size} providers with ${[...models.values()].reduce((sum, m) => sum + m.length, 0)} models`,
   );
@@ -183,9 +197,11 @@ function scanModels(baseDir: string, currentDir: string): ModelDefinition[] {
 // ──────────────────────────────────────────────
 
 export function getAllProviders(): ProviderDefinition[] {
-  return [...providers.values()].sort((a, b) =>
-    a.name.localeCompare(b.name),
-  );
+  return [...providers.values()].sort((a, b) => {
+    if (a.dir === "openai-compatible") return -1;
+    if (b.dir === "openai-compatible") return 1;
+    return a.name.localeCompare(b.name);
+  });
 }
 
 export function getProvider(dir: string): ProviderDefinition | undefined {
