@@ -4,6 +4,7 @@
   "btn.addProvider": "Add Provider",
   "btn.browseCatalog": "Browse Providers",
   "btn.testConnection": "Test Connection",
+  "modelsAndTesting": "Models & Testing",
   "btn.saveModelRoles": "Save Model Roles",
   "catalog.title": "Provider Catalog",
   "catalog.search": "Search providers...",

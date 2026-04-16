@@ -1,5 +1,3 @@
-import { ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSettings } from "@/components/settings";
 import { useUiStore } from "@/stores/uiStore";
@@ -9,11 +7,7 @@ import { AboutSection } from "@/components/settings/settings-sections";
 import { ThreadsSection } from "@/components/settings/settings-sections";
 import { useTranslation } from "react-i18next";
 
-interface SettingsViewProps {
-  onClose: () => void;
-}
-
-export function SettingsView({ onClose }: SettingsViewProps) {
+export function SettingsView() {
   const { settings } = useSettings();
   const { activeSettingsSection } = useUiStore();
   const { t } = useTranslation("settings");
@@ -38,14 +32,6 @@ export function SettingsView({ onClose }: SettingsViewProps) {
     <div className="absolute inset-0 flex flex-col bg-background">
       {/* Header */}
       <div className="flex items-center gap-2 p-4 border-b">
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onClose}
-          className="h-8 w-8"
-        >
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
         <div>
           <h2 className="text-lg font-semibold">{t("view.title")}</h2>
           <p className="text-sm text-muted-foreground">

@@ -1,4 +1,4 @@
-import { Cloud, Code, Info, Tags } from "lucide-react";
+import { Cloud, Code, Info, Tags, ArrowLeft } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/sidebar";
 import { NavSecondary } from "@/components/side-bar/nav-secondary";
 import { useUiStore, type SettingsSection } from "@/stores/uiStore";
+import { Button } from "@/components/ui/button";
 import { useTranslation } from "react-i18next";
 import type { ComponentProps } from "react";
 
@@ -54,12 +55,22 @@ type SettingsSidebarProps = ComponentProps<typeof Sidebar>;
  * Shows settings navigation sections instead of thread list.
  */
 export function SettingsSidebar(props: SettingsSidebarProps) {
-  const { activeSettingsSection, setActiveSettingsSection } = useUiStore();
+  const { activeSettingsSection, setActiveSettingsSection, setShowSettings } = useUiStore();
   const { t } = useTranslation("settings");
 
   return (
     <Sidebar className="border-r-0" {...props}>
       <SidebarContent>
+        <div className="px-3 pt-2 pb-1">
+          <Button
+            variant="outline"
+            className="h-9 w-full justify-start gap-2 rounded-lg px-3 text-sm hover:bg-muted"
+            onClick={() => setShowSettings(false)}
+          >
+            <ArrowLeft className="size-4" />
+            {t("view.backToChat")}
+          </Button>
+        </div>
         <SidebarGroup>
           <SidebarGroupLabel>{t("view.title")}</SidebarGroupLabel>
           <SidebarMenu>

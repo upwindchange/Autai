@@ -1,9 +1,11 @@
-import { SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
-import { Moon, PanelRightIcon, Sun, SunMoon } from "lucide-react";
+import { Moon, PanelRightIcon, Sun, SunMoon, ArrowLeft } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useTranslation } from "react-i18next";
+import { useUiStore } from "@/stores/uiStore";
 import type { FC } from "react";
 
 interface AppHeaderProps {
@@ -19,6 +21,11 @@ export const AppHeader: FC<AppHeaderProps> = ({
 }) => {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const { t } = useTranslation("common");
+  const { t: tSettings } = useTranslation("settings");
+  const { showSettings, setShowSettings } = useUiStore();
+  const { open } = useSidebar();
+
+  const showBackButton = showSettings && !open;
 
   return (
     <header className="bg-background sticky top-0 flex h-14 shrink-0 items-center gap-2">
@@ -28,6 +35,17 @@ export const AppHeader: FC<AppHeaderProps> = ({
           orientation="vertical"
           className="mr-2 data-[orientation=vertical]:h-4"
         />
+        {showBackButton && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-2 rounded-lg px-3"
+            onClick={() => setShowSettings(false)}
+          >
+            <ArrowLeft className="size-4" />
+            {tSettings("view.backToChat")}
+          </Button>
+        )}
         <div className="flex-1">{title}</div>
         <TooltipIconButton
           variant="ghost"

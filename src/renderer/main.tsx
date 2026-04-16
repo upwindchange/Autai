@@ -102,7 +102,7 @@ const handleAppMessage = (_event: unknown, message: AppMessage) => {
  * This component must be inside AssistantRuntimeProvider to access the runtime.
  */
 function AppContent() {
-  const { showSettings, setShowSettings } = useUiStore();
+  const { showSettings } = useUiStore();
   const [showSplitView, setShowSplitView] = useState(false);
   const threadTitle = useAuiState((s) => s.threadListItem.title);
 
@@ -124,7 +124,7 @@ function AppContent() {
             />
             <div className="relative flex flex-1 flex-col overflow-hidden h-full">
               {showSettings ?
-                <SettingsView onClose={() => setShowSettings(false)} />
+                <SettingsView />
               : <AssistantChatContainer showSplitView={showSplitView} />}
             </div>
           </SidebarInset>

@@ -5,6 +5,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  Collapsible,
+  CollapsibleTrigger,
+  CollapsibleContent,
+} from "@/components/ui/collapsible";
+import {
   Pencil,
   Trash2,
   EyeIcon,
@@ -12,6 +17,7 @@ import {
   Save,
   Loader2,
   TestTube,
+  ChevronDown,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { TomlModelList } from "./toml-model-list";
@@ -47,6 +53,7 @@ export function ConfiguredProviderCard({
   const [isSaving, setIsSaving] = useState(false);
   const [isTesting, setIsTesting] = useState(false);
   const [selectedModel, setSelectedModel] = useState("");
+  const [modelsOpen, setModelsOpen] = useState(false);
   const { t } = useTranslation("providers");
 
   const startEditing = () => {
@@ -167,27 +174,38 @@ export function ConfiguredProviderCard({
             </div>
 
             {editState.apiKey && (
-              <>
-                <div className="border-t pt-4">
+              <Collapsible open={modelsOpen} onOpenChange={setModelsOpen}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent transition-colors"
+                  >
+                    {t("modelsAndTesting")}
+                    <ChevronDown
+                      className={`h-4 w-4 transition-transform ${modelsOpen ? "rotate-180" : ""}`}
+                    />
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-4 pt-3">
                   <TomlModelList
                     providerDir={editState.providerDir}
                     selectedModel={selectedModel}
                     onModelSelect={setSelectedModel}
                   />
-                </div>
 
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleTestConnection}
-                  disabled={isTesting || !editState.apiKey}
-                >
-                  {isTesting ?
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  : <TestTube className="h-4 w-4 mr-2" />}
-                  {t("btn.testConnection")}
-                </Button>
-              </>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleTestConnection}
+                    disabled={isTesting || !editState.apiKey}
+                  >
+                    {isTesting ?
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    : <TestTube className="h-4 w-4 mr-2" />}
+                    {t("btn.testConnection")}
+                  </Button>
+                </CollapsibleContent>
+              </Collapsible>
             )}
 
             <div className="flex justify-end gap-2 pt-2">

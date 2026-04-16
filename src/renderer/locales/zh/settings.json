@@ -4,6 +4,7 @@
   "sidebar.development": "开发",
   "sidebar.about": "关于",
   "view.title": "设置",
+  "view.backToChat": "返回对话",
   "view.description.providers": "配置 AI 提供商并为不同任务选择模型",
   "view.description.threads": "管理自动标签和对话分类",
   "view.description.development": "开发工具和调试选项",
