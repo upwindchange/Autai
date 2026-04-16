@@ -1,6 +1,8 @@
 /**
- * Provider Registry — scans TOML files from src/main/agents/providers/data/
- * and caches all provider definitions and model catalogs.
+ * Provider Registry — lazy-loads provider definitions and model catalogs from TOML files.
+ *
+ * `initialize()` stores the base path only (zero I/O).
+ * Providers and models are loaded on first access and cached.
  */
 
 import fs from "node:fs";
@@ -12,8 +14,11 @@ import type { ProviderDefinition, ModelDefinition } from "@shared";
 const logger = log.scope("ProviderRegistry");
 
 // ──────────────────────────────────────────────
-// Internal cache
+// Internal state
 // ──────────────────────────────────────────────
+
+let basePath: string | null = null;
+let allProvidersScanned = false;
 
 const providers = new Map<string, ProviderDefinition>();
 const models = new Map<string, ModelDefinition[]>();
@@ -64,69 +69,48 @@ interface ModelToml {
 // Initialization
 // ──────────────────────────────────────────────
 
-export function initialize(basePath: string): void {
+export function initialize(dir: string): void {
   providers.clear();
   models.clear();
+  basePath = dir;
+  allProvidersScanned = false;
+  logger.info("Registry initialized (lazy loading enabled)");
+}
 
-  const entries = fs.readdirSync(basePath, { withFileTypes: true });
+// ──────────────────────────────────────────────
+// Single-provider loading
+// ──────────────────────────────────────────────
 
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
+function loadProvider(dir: string): ProviderDefinition | undefined {
+  if (!basePath) return undefined;
 
-    const dir = entry.name;
-    const tomlPath = path.join(basePath, dir, "provider.toml");
+  const tomlPath = path.join(basePath, dir, "provider.toml");
+  if (!fs.existsSync(tomlPath)) return undefined;
 
-    if (!fs.existsSync(tomlPath)) continue;
+  try {
+    const raw = fs.readFileSync(tomlPath, "utf-8");
+    const toml = TOML.parse(raw) as unknown as ProviderToml;
 
-    try {
-      const raw = fs.readFileSync(tomlPath, "utf-8");
-      const toml = TOML.parse(raw) as unknown as ProviderToml;
+    const def: ProviderDefinition = {
+      dir,
+      name: toml.name,
+      env: toml.env,
+      npm: toml.npm,
+      api: toml.api,
+      doc: toml.doc,
+    };
 
-      const def: ProviderDefinition = {
-        dir,
-        name: toml.name,
-        env: toml.env,
-        npm: toml.npm,
-        api: toml.api,
-        doc: toml.doc,
-      };
-
-      // Embed logo SVG inline (uses fill="currentColor" for theming)
-      const logoFile = path.join(basePath, dir, "logo.svg");
-      if (fs.existsSync(logoFile)) {
-        def.logo = fs.readFileSync(logoFile, "utf-8");
-      }
-
-      providers.set(dir, def);
-
-      // Scan model files
-      const modelsDir = path.join(basePath, dir, "models");
-      if (fs.existsSync(modelsDir)) {
-        const modelList = scanModels(modelsDir, modelsDir);
-        models.set(dir, modelList);
-      }
-    } catch (err) {
-      logger.error(`Failed to parse provider ${dir}:`, err);
+    const logoFile = path.join(basePath, dir, "logo.svg");
+    if (fs.existsSync(logoFile)) {
+      def.logo = fs.readFileSync(logoFile, "utf-8");
     }
+
+    providers.set(dir, def);
+    return def;
+  } catch (err) {
+    logger.error(`Failed to parse provider ${dir}:`, err);
+    return undefined;
   }
-
-  // Virtual provider — no TOML files on disk
-  const openaiLogoPath = path.join(basePath, "openai", "logo.svg");
-  providers.set("openai-compatible", {
-    dir: "openai-compatible",
-    name: "OpenAI Compatible",
-    env: ["API_KEY"],
-    npm: "@ai-sdk/openai-compatible",
-    api: "http://localhost:11434/v1",
-    doc: "https://sdk.vercel.ai/providers/ai-sdk-providers/openai-compatible",
-    ...(fs.existsSync(openaiLogoPath) && {
-      logo: fs.readFileSync(openaiLogoPath, "utf-8"),
-    }),
-  });
-
-  logger.info(
-    `Loaded ${providers.size} providers with ${[...models.values()].reduce((sum, m) => sum + m.length, 0)} models`,
-  );
 }
 
 // ──────────────────────────────────────────────
@@ -206,6 +190,35 @@ function scanModels(baseDir: string, currentDir: string): ModelDefinition[] {
 // ──────────────────────────────────────────────
 
 export function getAllProviders(): ProviderDefinition[] {
+  if (!allProvidersScanned && basePath) {
+    allProvidersScanned = true;
+
+    const entries = fs.readdirSync(basePath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      if (providers.has(entry.name)) continue;
+      loadProvider(entry.name);
+    }
+
+    // Virtual provider — no TOML files on disk
+    if (!providers.has("openai-compatible")) {
+      const openaiLogoPath = path.join(basePath, "openai", "logo.svg");
+      providers.set("openai-compatible", {
+        dir: "openai-compatible",
+        name: "OpenAI Compatible",
+        env: ["API_KEY"],
+        npm: "@ai-sdk/openai-compatible",
+        api: "http://localhost:11434/v1",
+        doc: "https://sdk.vercel.ai/providers/ai-sdk-providers/openai-compatible",
+        ...(fs.existsSync(openaiLogoPath) && {
+          logo: fs.readFileSync(openaiLogoPath, "utf-8"),
+        }),
+      });
+    }
+
+    logger.info(`Loaded ${providers.size} providers`);
+  }
+
   return [...providers.values()].sort((a, b) => {
     if (a.dir === "openai-compatible") return -1;
     if (b.dir === "openai-compatible") return 1;
@@ -214,9 +227,23 @@ export function getAllProviders(): ProviderDefinition[] {
 }
 
 export function getProvider(dir: string): ProviderDefinition | undefined {
-  return providers.get(dir);
+  if (providers.has(dir)) return providers.get(dir);
+  return loadProvider(dir);
 }
 
 export function getModels(dir: string): ModelDefinition[] {
-  return models.get(dir) ?? [];
+  if (models.has(dir)) return models.get(dir) ?? [];
+
+  if (!basePath) return [];
+
+  const modelsDir = path.join(basePath, dir, "models");
+  if (fs.existsSync(modelsDir)) {
+    const result = scanModels(modelsDir, modelsDir);
+    models.set(dir, result);
+    logger.info(`Loaded ${result.length} models for ${dir}`);
+    return result;
+  }
+
+  models.set(dir, []);
+  return [];
 }
