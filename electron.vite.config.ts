@@ -14,6 +14,7 @@ export default defineConfig({
     plugins: [
       bindingSqlite3(),
       copyProviders(),
+      copyMigrations(),
       {
         name: "watch-main-reload",
         closeBundle() {
@@ -26,7 +27,9 @@ export default defineConfig({
     build: {
       sourcemap: true,
       watch: process.env.NODE_ENV !== "production" ? {} : null,
-      externalizeDeps: true,
+      externalizeDeps: {
+        exclude: ["drizzle-orm"],
+      },
     },
     resolve: {
       alias: {
@@ -133,6 +136,31 @@ function copyProviders(): Plugin {
 
       fs.cpSync(sourceDir, outputDir, { recursive: true });
       console.log(`${TAG} Copied providers to ${outputDir}`);
+    },
+  };
+}
+
+// Copies drizzle migration files to out/main/drizzle/
+// so the runtime migrator can apply them in production
+function copyMigrations(): Plugin {
+  const TAG = "[vite-plugin-copy-migrations]";
+  const OUTPUT_DIR = "out/main/drizzle";
+  const SOURCE_DIR = "drizzle";
+
+  return {
+    name: "copy-migrations",
+    closeBundle() {
+      const resolvedRoot = process.cwd();
+      const sourceDir = path.resolve(resolvedRoot, SOURCE_DIR);
+      const outputDir = path.resolve(resolvedRoot, OUTPUT_DIR);
+
+      if (!fs.existsSync(sourceDir)) {
+        console.warn(`${TAG} Source directory not found: ${sourceDir}`);
+        return;
+      }
+
+      fs.cpSync(sourceDir, outputDir, { recursive: true });
+      console.log(`${TAG} Copied migrations to ${outputDir}`);
     },
   };
 }

@@ -83,7 +83,7 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
     const data = (await res.json()) as {
       threads: {
         remoteId: string;
-        title: string | null;
+        title: string;
         status: "regular" | "archived";
         tags: TagRow[];
       }[];
@@ -158,7 +158,7 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
   },
 
   async generateTitle(
-    remoteId: string,
+    _remoteId: string,
     messages: readonly {
       role: string;
       content: readonly { type: string; text?: string }[];

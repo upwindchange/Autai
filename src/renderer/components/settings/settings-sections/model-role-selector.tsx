@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
   Select,
   SelectContent,
@@ -14,8 +13,6 @@ import type {
   UserProviderConfig,
   ProviderDefinition,
 } from "@shared";
-
-const API_BASE = "http://localhost:3001";
 
 interface ModelRoleSelectorProps {
   label: string;
@@ -52,10 +49,6 @@ export function ModelRoleSelector({
   };
 
   const selectedProvider = providers.find((p) => p.id === value.providerId);
-  const selectedDefinition =
-    selectedProvider ?
-      catalogProviders.find((d) => d.dir === selectedProvider.providerDir)
-    : undefined;
 
   return (
     <div className="space-y-3">

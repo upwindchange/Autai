@@ -21,6 +21,8 @@ import { initializeTelemetry, shutdownTelemetry } from "@agents/utils";
 import * as registry from "@agents/providers/registry";
 import { SessionTabBridge } from "@/bridges/SessionTabBridge";
 import { HitlBridge } from "@/bridges/HitlBridge";
+import { searchService } from "@/services/searchService";
+import { initializeDatabase, closeDatabase } from "@/db";
 
 // const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -143,7 +145,11 @@ app.whenReady().then(async () => {
     return path.join(logPath, filename);
   };
 
-  // Initialize thread persistence database first (settings shares the same DB)
+  // Initialize database (single connection, runs Drizzle migrations)
+  initializeDatabase();
+
+  // Initialize services that use the database
+  searchService.initialize();
   threadPersistenceService.initialize();
 
   // Load settings from database
@@ -251,11 +257,8 @@ app.on("before-quit", async (event) => {
     // Clean up ViewControlService singleton
     TabControlService.destroyInstance();
 
-    // Close settings database connection
-    settingsService.close();
-
-    // Close thread persistence database
-    threadPersistenceService.close();
+    // Close database connection
+    closeDatabase();
 
     // Stop API server
     logger.info("Stopping API server...");

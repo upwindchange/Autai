@@ -3,12 +3,14 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { spawn } from 'node:child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const projectRoot = path.resolve(__dirname, '..');
 
 function checkElectronInstallation() {
   try {
-    const electronPath = path.resolve(__dirname, '../node_modules/electron');
+    const electronPath = path.resolve(projectRoot, 'node_modules/electron');
     const pathFile = path.join(electronPath, 'path.txt');
 
     if (!fs.existsSync(electronPath)) {
@@ -41,34 +43,39 @@ function checkElectronInstallation() {
   }
 }
 
+function runCommand(command, args, options = {}) {
+  return new Promise((resolve, reject) => {
+    const childProcess = spawn(command, args, {
+      stdio: 'inherit',
+      cwd: projectRoot,
+      ...options,
+    });
+
+    childProcess.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`Command failed with code ${code}`));
+      }
+    });
+
+    childProcess.on('error', reject);
+  });
+}
+
 async function main() {
+  // 1. Install Electron binary if needed
   const needInstall = checkElectronInstallation();
 
   if (needInstall) {
     console.log('Running Electron install script...');
-    const installScript = path.resolve(__dirname, '../node_modules/electron/install.js');
+    const installScript = path.resolve(projectRoot, 'node_modules/electron/install.js');
 
     if (fs.existsSync(installScript)) {
-      // Use spawn to run the install script as a child process
-      const { spawn } = await import('child_process');
-      const childProcess = spawn('node', [installScript], {
-        stdio: 'inherit',
-        cwd: path.resolve(__dirname, '../node_modules/electron')
+      await runCommand('node', [installScript], {
+        cwd: path.resolve(projectRoot, 'node_modules/electron'),
       });
-
-      childProcess.on('close', (code) => {
-        if (code === 0) {
-          console.log('Electron install completed successfully');
-        } else {
-          console.error(`Electron install failed with code ${code}`);
-          process.exit(code || 1);
-        }
-      });
-
-      childProcess.on('error', (error) => {
-        console.error('Failed to run Electron install script:', error);
-        process.exit(1);
-      });
+      console.log('Electron install completed successfully');
     } else {
       console.error('Electron install script not found at:', installScript);
       process.exit(1);
@@ -76,9 +83,19 @@ async function main() {
   } else {
     console.log('Electron postinstall check completed successfully');
   }
+
+  // 2. Rebuild better-sqlite3 for Electron's Node ABI
+  console.log('Rebuilding better-sqlite3 for Electron...');
+  try {
+    await runCommand('pnpm', ['exec', 'electron-rebuild', '-f', '-w', 'better-sqlite3']);
+    console.log('better-sqlite3 rebuild completed successfully');
+  } catch (error) {
+    console.error('better-sqlite3 rebuild failed:', error.message);
+    process.exit(1);
+  }
 }
 
-main().catch(error => {
+main().catch((error) => {
   console.error('Error in postinstall script:', error);
   process.exit(1);
 });

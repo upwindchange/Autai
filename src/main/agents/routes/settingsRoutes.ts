@@ -11,6 +11,7 @@ import {
 import log from "electron-log/main";
 import type { SettingsState, TestConnectionConfig, LogLevel } from "@shared";
 import { invalidateModelCache } from "@agents/providers";
+import { getSqlite } from "@/db";
 
 const logger = log.scope("ApiServer:Settings");
 export const settingsRoutes = new Hono();
@@ -156,7 +157,12 @@ settingsRoutes.post("/purge-thread-tables", (c) => {
 // POST /settings/purge-settings-tables
 settingsRoutes.post("/purge-settings-tables", (c) => {
   try {
-    threadPersistenceService.purgeSettingsTables();
+    const sqlite = getSqlite();
+    sqlite.exec(`
+      DROP TABLE IF EXISTS model_assignments;
+      DROP TABLE IF EXISTS user_providers;
+      DROP TABLE IF EXISTS settings;
+    `);
     settingsService.initialize();
     logger.info("Settings tables purged and reloaded");
     return c.json({ success: true });

@@ -1,17 +1,15 @@
 /**
- * Settings Service — manages provider configurations and model assignments in SQLite.
+ * Settings Service — manages provider configurations and model assignments.
  * Driven by the TOML provider registry (no hardcoded provider types).
  */
 
-import { app } from "electron";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
-import Database from "better-sqlite3";
 import { generateText } from "ai";
 import { Provider } from "@agents/providers/provider";
 import * as registry from "@agents/providers/registry";
 import { invalidateModelCache } from "@agents/providers";
 import { sendSuccess, sendAlert, sendInfo } from "@/utils/messageUtils";
+import { getDb } from "@/db";
+import { settings, userProviders, modelAssignments } from "@/db/schema";
 import log from "electron-log/main";
 import type {
   SettingsState,
@@ -20,26 +18,10 @@ import type {
   ModelRoleAssignment,
 } from "@shared";
 import { SettingsStateSchema } from "@shared";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-interface UserProviderRow {
-  id: string;
-  provider_dir: string;
-  api_key: string;
-  api_url_override: string | null;
-}
-
-interface ModelAssignmentRow {
-  role: string;
-  provider_id: string;
-  model_file: string;
-  params: string | null;
-}
+import type { UserProviderRow, ModelAssignmentRow } from "@/db/types";
 
 class SettingsService {
   private _settings: SettingsState;
-  private db: Database.Database | null = null;
   private logger = log.scope("SettingsService");
 
   constructor() {
@@ -65,78 +47,31 @@ class SettingsService {
   }
 
   initialize(): void {
-    const userDataPath = app.getPath("userData");
-    const dbPath = path.join(userDataPath, "autai.db");
-
-    this.db = new Database(dbPath, {
-      nativeBinding: path.join(__dirname, "better_sqlite3.node"),
-    });
-
-    this.db.pragma("journal_mode = WAL");
-    this.migrateSchema();
     this.loadSettings();
   }
 
-  private migrateSchema(): void {
-    if (!this.db) throw new Error("Database not initialized");
-
-    // Drop old tables if they exist (aggressive migration, no backward compat)
-    this.db.exec(`
-      DROP TABLE IF EXISTS model_configurations;
-      DROP TABLE IF EXISTS providers;
-    `);
-
-    this.db.exec(`
-      CREATE TABLE IF NOT EXISTS settings (
-        key TEXT PRIMARY KEY,
-        value TEXT NOT NULL
-      );
-
-      CREATE TABLE IF NOT EXISTS user_providers (
-        id TEXT PRIMARY KEY,
-        provider_dir TEXT NOT NULL,
-        api_key TEXT NOT NULL DEFAULT '',
-        api_url_override TEXT
-      );
-
-      CREATE TABLE IF NOT EXISTS model_assignments (
-        role TEXT PRIMARY KEY,
-        provider_id TEXT NOT NULL REFERENCES user_providers(id) ON DELETE CASCADE,
-        model_file TEXT NOT NULL,
-        params TEXT
-      );
-    `);
-  }
-
   private loadSettings(): void {
-    if (!this.db) throw new Error("Database not initialized");
-
+    const db = getDb();
     const defaults = SettingsStateSchema.parse({});
 
     // Load key-value settings
-    const settingsRows = this.db
-      .prepare("SELECT key, value FROM settings")
-      .all() as { key: string; value: string }[];
+    const settingsRows = db.select().from(settings).all();
     const settingsMap = new Map(settingsRows.map((r) => [r.key, r.value]));
 
     // Load user providers
-    const providerRows = this.db
-      .prepare("SELECT * FROM user_providers ORDER BY rowid")
-      .all() as UserProviderRow[];
+    const providerRows = db.select().from(userProviders).all() as UserProviderRow[];
 
     const providers: UserProviderConfig[] = providerRows.map((row) => ({
       id: row.id,
-      providerDir: row.provider_dir,
-      apiKey: row.api_key,
-      ...(row.api_url_override && { apiUrlOverride: row.api_url_override }),
+      providerDir: row.providerDir,
+      apiKey: row.apiKey,
+      ...(row.apiUrlOverride && { apiUrlOverride: row.apiUrlOverride }),
     }));
 
     // Load model assignments
-    const assignmentRows = this.db
-      .prepare("SELECT * FROM model_assignments")
-      .all() as ModelAssignmentRow[];
+    const assignmentRows = db.select().from(modelAssignments).all() as ModelAssignmentRow[];
 
-    const modelAssignments = {
+    const modelAssignmentsObj = {
       chat: this.buildAssignment(assignmentRows, "chat", defaults),
       simple: this.buildAssignment(assignmentRows, "simple", defaults),
       complex: this.buildAssignment(assignmentRows, "complex", defaults),
@@ -144,7 +79,7 @@ class SettingsService {
 
     this._settings = SettingsStateSchema.parse({
       providers: providers.length > 0 ? providers : defaults.providers,
-      modelAssignments,
+      modelAssignments: modelAssignmentsObj,
       useSameModelForAgents:
         settingsMap.get("use_same_model_for_agents") !== "false",
       logLevel: settingsMap.get("log_level") || defaults.logLevel,
@@ -172,79 +107,65 @@ class SettingsService {
       ];
     return {
       role: role as ModelRoleAssignment["role"],
-      providerId: row.provider_id,
-      modelFile: row.model_file,
+      providerId: row.providerId,
+      modelFile: row.modelFile,
       ...(row.params && { params: JSON.parse(row.params) }),
     };
   }
 
-  saveSettings(settings: SettingsState): void {
-    if (!this.db) throw new Error("Database not initialized");
-
-    this._settings = settings;
+  saveSettings(settingsState: SettingsState): void {
+    const db = getDb();
+    this._settings = settingsState;
     invalidateModelCache();
 
-    const upsertSetting = this.db.prepare(
-      "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
-    );
-    const deleteProviders = this.db.prepare("DELETE FROM user_providers");
-    const insertProvider = this.db.prepare(
-      "INSERT INTO user_providers (id, provider_dir, api_key, api_url_override) VALUES (?, ?, ?, ?)",
-    );
-    const deleteAssignments = this.db.prepare("DELETE FROM model_assignments");
-    const insertAssignment = this.db.prepare(
-      "INSERT INTO model_assignments (role, provider_id, model_file, params) VALUES (?, ?, ?, ?)",
-    );
-
-    const saveAll = this.db.transaction(() => {
+    db.transaction((tx) => {
       // Key-value settings
-      upsertSetting.run(
-        "use_same_model_for_agents",
-        String(settings.useSameModelForAgents),
-      );
-      upsertSetting.run("log_level", settings.logLevel);
-      upsertSetting.run("langfuse_enabled", String(settings.langfuse.enabled));
-      upsertSetting.run(
-        "langfuse_public_key",
-        settings.langfuse.publicKey || "",
-      );
-      upsertSetting.run(
-        "langfuse_secret_key",
-        settings.langfuse.secretKey || "",
-      );
-      upsertSetting.run("langfuse_host", settings.langfuse.host || "");
-      upsertSetting.run("auto_tag_enabled", String(settings.autoTagEnabled));
-      upsertSetting.run(
-        "auto_tag_creation_enabled",
-        String(settings.autoTagCreationEnabled),
-      );
+      for (const [key, value] of [
+        ["use_same_model_for_agents", String(settingsState.useSameModelForAgents)],
+        ["log_level", settingsState.logLevel],
+        ["langfuse_enabled", String(settingsState.langfuse.enabled)],
+        ["langfuse_public_key", settingsState.langfuse.publicKey || ""],
+        ["langfuse_secret_key", settingsState.langfuse.secretKey || ""],
+        ["langfuse_host", settingsState.langfuse.host || ""],
+        ["auto_tag_enabled", String(settingsState.autoTagEnabled)],
+        ["auto_tag_creation_enabled", String(settingsState.autoTagCreationEnabled)],
+      ] as [string, string][]) {
+        tx.insert(settings)
+          .values({ key, value })
+          .onConflictDoUpdate({ target: settings.key, set: { value } })
+          .run();
+      }
 
       // Providers
-      deleteProviders.run();
-      for (const provider of settings.providers) {
-        insertProvider.run(
-          provider.id,
-          provider.providerDir,
-          provider.apiKey,
-          provider.apiUrlOverride ?? null,
-        );
+      tx.delete(userProviders).run();
+      for (const provider of settingsState.providers) {
+        tx.insert(userProviders)
+          .values({
+            id: provider.id,
+            providerDir: provider.providerDir,
+            apiKey: provider.apiKey,
+            apiUrlOverride: provider.apiUrlOverride ?? null,
+          })
+          .run();
       }
 
       // Model assignments
-      deleteAssignments.run();
-      for (const assignment of Object.values(settings.modelAssignments)) {
+      tx.delete(modelAssignments).run();
+      for (const assignment of Object.values(settingsState.modelAssignments)) {
         if (assignment.providerId && assignment.modelFile) {
-          insertAssignment.run(
-            assignment.role,
-            assignment.providerId,
-            assignment.modelFile,
-            assignment.params ? JSON.stringify(assignment.params) : null,
-          );
+          tx.insert(modelAssignments)
+            .values({
+              role: assignment.role,
+              providerId: assignment.providerId,
+              modelFile: assignment.modelFile,
+              params: assignment.params
+                ? JSON.stringify(assignment.params)
+                : null,
+            })
+            .run();
         }
       }
     });
-
-    saveAll();
   }
 
   async testConnection(config: TestConnectionConfig): Promise<void> {
@@ -348,14 +269,6 @@ class SettingsService {
     }
 
     return true;
-  }
-
-  close(): void {
-    if (this.db) {
-      this.db.close();
-      this.db = null;
-      this.logger.info("Settings database connection closed");
-    }
   }
 }
 

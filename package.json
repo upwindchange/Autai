@@ -19,7 +19,8 @@
     "lint": "eslint .",
     "format": "prettier --write src/",
     "postinstall": "node scripts/postinstall.js",
-    "rebuild:sqlite3": "node scripts/rebuild-better-sqlite3.js"
+    "db:generate": "drizzle-kit generate",
+    "db:generate:custom": "drizzle-kit generate --custom"
   },
   "prettier": {
     "experimentalTernaries": true,
@@ -90,6 +91,8 @@
     "date-fns": "^4.1.0",
     "devtools-protocol": "^0.0.1615727",
     "diff": "^9.0.0",
+    "drizzle-kit": "1.0.0-beta.22",
+    "drizzle-orm": "1.0.0-beta.22",
     "electron": "^41.2.1",
     "electron-builder": "^26.8.1",
     "electron-log": "^5.4.3",
