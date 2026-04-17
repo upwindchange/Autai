@@ -1,76 +1,75 @@
-import { sqliteTable, text, integer, primaryKey } from "drizzle-orm/sqlite-core";
-import { sql } from "drizzle-orm";
+import { pgTable, text, integer, serial, varchar, timestamp, primaryKey } from "drizzle-orm/pg-core";
 
-export const settings = sqliteTable("settings", {
-  key: text().primaryKey(),
+export const settings = pgTable("settings", {
+  key: varchar().primaryKey(),
   value: text().notNull(),
 });
 
-export const userProviders = sqliteTable("user_providers", {
-  id: text().primaryKey(),
-  providerDir: text("provider_dir").notNull(),
+export const userProviders = pgTable("user_providers", {
+  id: varchar().primaryKey(),
+  providerDir: varchar("provider_dir").notNull(),
   apiKey: text("api_key").notNull().default(""),
   apiUrlOverride: text("api_url_override"),
 });
 
-export const modelAssignments = sqliteTable("model_assignments", {
-  role: text().primaryKey(),
-  providerId: text("provider_id")
+export const modelAssignments = pgTable("model_assignments", {
+  role: varchar().primaryKey(),
+  providerId: varchar("provider_id")
     .notNull()
     .references(() => userProviders.id, { onDelete: "cascade" }),
-  modelFile: text("model_file").notNull(),
+  modelFile: varchar("model_file").notNull(),
   params: text(),
 });
 
-export const threads = sqliteTable("threads", {
-  id: text().primaryKey(),
+export const threads = pgTable("threads", {
+  id: varchar().primaryKey(),
   title: text().notNull().default("New Chat"),
   status: text().notNull().default("regular"),
-  createdAt: text("created_at")
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
-    .default(sql`(datetime('now'))`),
-  updatedAt: text("updated_at")
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
-    .default(sql`(datetime('now'))`),
-  chatProviderId: text("chat_provider_id").references(() => userProviders.id, {
+    .defaultNow(),
+  chatProviderId: varchar("chat_provider_id").references(() => userProviders.id, {
     onDelete: "set null",
   }),
-  chatModelFile: text("chat_model_file"),
+  chatModelFile: varchar("chat_model_file"),
   chatModelParams: text("chat_model_params"),
 });
 
-export const messages = sqliteTable("messages", {
-  id: text().primaryKey(),
-  threadId: text("thread_id")
+export const messages = pgTable("messages", {
+  id: varchar().primaryKey(),
+  threadId: varchar("thread_id")
     .notNull()
     .references(() => threads.id, { onDelete: "cascade" }),
   role: text().notNull(),
   content: text().notNull(),
-  createdAt: text("created_at")
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .defaultNow(),
 });
 
-export const tags = sqliteTable("tags", {
-  id: integer().primaryKey({ autoIncrement: true }),
+export const tags = pgTable("tags", {
+  id: serial().primaryKey(),
   name: text().notNull().unique(),
   sortOrder: integer("sort_order").notNull().default(0),
-  createdAt: text("created_at")
+  createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
-    .default(sql`(datetime('now'))`),
+    .defaultNow(),
 });
 
-export const threadTags = sqliteTable(
+export const threadTags = pgTable(
   "thread_tags",
   {
-    threadId: text("thread_id")
+    threadId: varchar("thread_id")
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
     tagId: integer("tag_id")
       .notNull()
       .references(() => tags.id, { onDelete: "cascade" }),
   },
-  (table) => ({
-    pk: primaryKey({ columns: [table.threadId, table.tagId] }),
-  }),
+  (table) => [
+    primaryKey({ columns: [table.threadId, table.tagId] }),
+  ],
 );

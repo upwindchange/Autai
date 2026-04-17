@@ -17,16 +17,16 @@ const DEFAULT_TAGS = [
 ];
 
 class ThreadIntelligenceService {
-  initialize(): void {
-    this.seedDefaultTags();
+  async initialize(): Promise<void> {
+    await this.seedDefaultTags();
   }
 
-  private seedDefaultTags(): void {
+  private async seedDefaultTags(): Promise<void> {
     try {
-      const existingTags = threadPersistenceService.listTags();
+      const existingTags = await threadPersistenceService.listTags();
       if (existingTags.length === 0) {
         for (let i = 0; i < DEFAULT_TAGS.length; i++) {
-          threadPersistenceService.createTag(DEFAULT_TAGS[i]!, i);
+          await threadPersistenceService.createTag(DEFAULT_TAGS[i]!, i);
         }
         logger.info("Seeded default tags:", DEFAULT_TAGS);
       }
@@ -46,7 +46,7 @@ class ThreadIntelligenceService {
       });
 
       const settings = settingsService.settings;
-      const existingTags = threadPersistenceService.listTags();
+      const existingTags = await threadPersistenceService.listTags();
       const tagNames = existingTags.map((t) => t.name);
 
       const tagInstruction =
@@ -97,7 +97,7 @@ INSTRUCTIONS:
       const args = toolCall.input as { title: string; tag: string };
 
       // Always rename the thread
-      threadPersistenceService.renameThread(threadId, args.title);
+      await threadPersistenceService.renameThread(threadId, args.title);
       logger.info("Renamed thread", { threadId, title: args.title });
 
       // Tag the thread if auto-tag is enabled
@@ -111,14 +111,14 @@ INSTRUCTIONS:
         );
 
         if (matchedTag) {
-          threadPersistenceService.addTagToThread(threadId, matchedTag.id);
+          await threadPersistenceService.addTagToThread(threadId, matchedTag.id);
           logger.info("Tagged thread with existing tag", {
             threadId,
             tag: matchedTag.name,
           });
         } else if (settings.autoTagCreationEnabled) {
-          const newTag = threadPersistenceService.createTag(args.tag);
-          threadPersistenceService.addTagToThread(threadId, newTag.id);
+          const newTag = await threadPersistenceService.createTag(args.tag);
+          await threadPersistenceService.addTagToThread(threadId, newTag.id);
           logger.info("Created and tagged thread with new tag", {
             threadId,
             tag: args.tag,

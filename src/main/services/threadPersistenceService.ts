@@ -1,4 +1,4 @@
-import { getDb, getSqlite } from "@/db";
+import { getDb } from "@/db";
 import { threads, messages, tags, threadTags } from "@/db/schema";
 import { eq, desc, asc, sql, and } from "drizzle-orm";
 import type { UIMessage } from "ai";
@@ -13,122 +13,126 @@ class ThreadPersistenceService {
     logger.info("ThreadPersistenceService ready");
   }
 
-  createThread(id: string): ThreadRow {
+  async createThread(id: string): Promise<ThreadRow> {
     const db = getDb();
-    db.insert(threads).values({ id }).run();
-    return this.getThread(id)!;
+    await db.insert(threads).values({ id });
+    return (await this.getThread(id))!;
   }
 
-  listThreads(): ThreadWithTags[] {
+  async listThreads(): Promise<ThreadWithTags[]> {
     const db = getDb();
-    const rows = db
+    const rows = await db
       .select()
       .from(threads)
       .where(eq(threads.status, "regular"))
-      .orderBy(desc(threads.updatedAt))
-      .all();
+      .orderBy(desc(threads.updatedAt));
 
-    return rows.map((thread) => ({
-      ...thread,
-      tags: this.getTagsForThread(thread.id),
-    }));
+    const result: ThreadWithTags[] = [];
+    for (const thread of rows) {
+      result.push({
+        ...thread,
+        tags: await this.getTagsForThread(thread.id),
+      });
+    }
+    return result;
   }
 
-  listAllThreads(): ThreadWithTags[] {
+  async listAllThreads(): Promise<ThreadWithTags[]> {
     const db = getDb();
-    const rows = db
+    const rows = await db
       .select()
       .from(threads)
-      .orderBy(desc(threads.updatedAt))
-      .all();
+      .orderBy(desc(threads.updatedAt));
 
-    return rows.map((thread) => ({
-      ...thread,
-      tags: this.getTagsForThread(thread.id),
-    }));
+    const result: ThreadWithTags[] = [];
+    for (const thread of rows) {
+      result.push({
+        ...thread,
+        tags: await this.getTagsForThread(thread.id),
+      });
+    }
+    return result;
   }
 
-  deleteAllThreads(status?: "regular" | "archived"): void {
+  async deleteAllThreads(status?: "regular" | "archived"): Promise<void> {
     const db = getDb();
     if (status) {
-      db.delete(threads).where(eq(threads.status, status)).run();
+      await db.delete(threads).where(eq(threads.status, status));
     } else {
-      db.delete(threads).run();
+      await db.delete(threads);
     }
   }
 
-  archiveAllThreads(): void {
+  async archiveAllThreads(): Promise<void> {
     const db = getDb();
-    db.update(threads)
-      .set({ status: "archived", updatedAt: sql`(datetime('now'))` })
-      .where(eq(threads.status, "regular"))
-      .run();
+    await db
+      .update(threads)
+      .set({ status: "archived", updatedAt: new Date() })
+      .where(eq(threads.status, "regular"));
   }
 
-  getThread(id: string): ThreadRow | undefined {
+  async getThread(id: string): Promise<ThreadRow | undefined> {
     const db = getDb();
-    return db.select().from(threads).where(eq(threads.id, id)).get();
+    const rows = await db.select().from(threads).where(eq(threads.id, id));
+    return rows[0];
   }
 
-  renameThread(id: string, title: string): void {
+  async renameThread(id: string, title: string): Promise<void> {
     const db = getDb();
-    db.update(threads)
-      .set({ title, updatedAt: sql`(datetime('now'))` })
-      .where(eq(threads.id, id))
-      .run();
+    await db
+      .update(threads)
+      .set({ title, updatedAt: new Date() })
+      .where(eq(threads.id, id));
   }
 
-  archiveThread(id: string): void {
+  async archiveThread(id: string): Promise<void> {
     const db = getDb();
-    db.update(threads)
-      .set({ status: "archived", updatedAt: sql`(datetime('now'))` })
-      .where(eq(threads.id, id))
-      .run();
+    await db
+      .update(threads)
+      .set({ status: "archived", updatedAt: new Date() })
+      .where(eq(threads.id, id));
   }
 
-  unarchiveThread(id: string): void {
+  async unarchiveThread(id: string): Promise<void> {
     const db = getDb();
-    db.update(threads)
-      .set({ status: "regular", updatedAt: sql`(datetime('now'))` })
-      .where(eq(threads.id, id))
-      .run();
+    await db
+      .update(threads)
+      .set({ status: "regular", updatedAt: new Date() })
+      .where(eq(threads.id, id));
   }
 
-  deleteThread(id: string): void {
+  async deleteThread(id: string): Promise<void> {
     const db = getDb();
-    db.delete(threads).where(eq(threads.id, id)).run();
+    await db.delete(threads).where(eq(threads.id, id));
   }
 
-  saveMessages(threadId: string, msgs: UIMessage[]): void {
+  async saveMessages(threadId: string, msgs: UIMessage[]): Promise<void> {
     const db = getDb();
-    db.transaction((tx) => {
-      tx.update(threads)
-        .set({ updatedAt: sql`(datetime('now'))` })
-        .where(eq(threads.id, threadId))
-        .run();
+    await db.transaction(async (tx) => {
+      await tx
+        .update(threads)
+        .set({ updatedAt: new Date() })
+        .where(eq(threads.id, threadId));
 
-      tx.delete(messages).where(eq(messages.threadId, threadId)).run();
+      await tx.delete(messages).where(eq(messages.threadId, threadId));
       for (const msg of msgs) {
-        tx.insert(messages)
-          .values({
-            id: msg.id,
-            threadId,
-            role: msg.role,
-            content: JSON.stringify(msg),
-          })
-          .run();
+        await tx.insert(messages).values({
+          id: msg.id,
+          threadId,
+          role: msg.role,
+          content: JSON.stringify(msg),
+        });
       }
     });
   }
 
-  loadMessages(threadId: string): UIMessage[] {
+  async loadMessages(threadId: string): Promise<UIMessage[]> {
     const db = getDb();
-    const rows = db
+    const rows = await db
       .select()
       .from(messages)
       .where(eq(messages.threadId, threadId))
-      .orderBy(asc(messages.createdAt))
-      .all();
+      .orderBy(asc(messages.createdAt));
 
     return rows.map((row) => JSON.parse(row.content) as UIMessage);
   }
@@ -137,55 +141,54 @@ class ThreadPersistenceService {
   // Tag operations
   // ---------------------------------------------------------------------------
 
-  createTag(name: string, sortOrder?: number): TagRow {
+  async createTag(name: string, sortOrder?: number): Promise<TagRow> {
     const db = getDb();
-    const result = db
+    const [result] = await db
       .insert(tags)
       .values({ name, sortOrder: sortOrder ?? 0 })
-      .returning()
-      .get();
+      .returning();
     return result;
   }
 
-  listTags(): TagRow[] {
+  async listTags(): Promise<TagRow[]> {
     const db = getDb();
     return db
       .select()
       .from(tags)
-      .orderBy(asc(tags.sortOrder), asc(tags.name))
-      .all();
+      .orderBy(asc(tags.sortOrder), asc(tags.name));
   }
 
-  getTag(id: number): TagRow | undefined {
+  async getTag(id: number): Promise<TagRow | undefined> {
     const db = getDb();
-    return db.select().from(tags).where(eq(tags.id, id)).get();
+    const rows = await db.select().from(tags).where(eq(tags.id, id));
+    return rows[0];
   }
 
-  renameTag(id: number, name: string): void {
+  async renameTag(id: number, name: string): Promise<void> {
     const db = getDb();
-    db.update(tags).set({ name }).where(eq(tags.id, id)).run();
+    await db.update(tags).set({ name }).where(eq(tags.id, id));
   }
 
-  deleteTag(id: number): void {
+  async deleteTag(id: number): Promise<void> {
     const db = getDb();
-    db.delete(tags).where(eq(tags.id, id)).run();
+    await db.delete(tags).where(eq(tags.id, id));
   }
 
-  addTagToThread(threadId: string, tagId: number): void {
+  async addTagToThread(threadId: string, tagId: number): Promise<void> {
     const db = getDb();
-    db.insert(threadTags).values({ threadId, tagId }).onConflictDoNothing().run();
+    await db.insert(threadTags).values({ threadId, tagId }).onConflictDoNothing();
   }
 
-  removeTagFromThread(threadId: string, tagId: number): void {
+  async removeTagFromThread(threadId: string, tagId: number): Promise<void> {
     const db = getDb();
-    db.delete(threadTags)
+    await db
+      .delete(threadTags)
       .where(
         and(eq(threadTags.threadId, threadId), eq(threadTags.tagId, tagId)),
-      )
-      .run();
+      );
   }
 
-  getTagsForThread(threadId: string): TagRow[] {
+  async getTagsForThread(threadId: string): Promise<TagRow[]> {
     const db = getDb();
     return db
       .select({
@@ -197,18 +200,15 @@ class ThreadPersistenceService {
       .from(threadTags)
       .innerJoin(tags, eq(threadTags.tagId, tags.id))
       .where(eq(threadTags.threadId, threadId))
-      .orderBy(asc(tags.sortOrder), asc(tags.name))
-      .all();
+      .orderBy(asc(tags.sortOrder), asc(tags.name));
   }
 
-  purgeThreadTables(): void {
-    const sqlite = getSqlite();
-    sqlite.exec(`
-      DROP TABLE IF EXISTS thread_tags;
-      DROP TABLE IF EXISTS messages;
-      DROP TABLE IF EXISTS tags;
-      DROP TABLE IF EXISTS threads;
-    `);
+  async purgeThreadTables(): Promise<void> {
+    const db = getDb();
+    await db.execute(sql`DROP TABLE IF EXISTS thread_tags`);
+    await db.execute(sql`DROP TABLE IF EXISTS messages`);
+    await db.execute(sql`DROP TABLE IF EXISTS tags`);
+    await db.execute(sql`DROP TABLE IF EXISTS threads`);
     logger.info("Thread tables purged. Run migrations to recreate.");
   }
 }

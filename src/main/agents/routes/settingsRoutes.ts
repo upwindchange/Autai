@@ -11,7 +11,8 @@ import {
 import log from "electron-log/main";
 import type { SettingsState, TestConnectionConfig, LogLevel } from "@shared";
 import { invalidateModelCache } from "@agents/providers";
-import { getSqlite } from "@/db";
+import { getDb } from "@/db";
+import { sql } from "drizzle-orm";
 
 const logger = log.scope("ApiServer:Settings");
 export const settingsRoutes = new Hono();
@@ -38,7 +39,7 @@ settingsRoutes.put("/", async (c) => {
       );
     }
     const settings = parsed.data as SettingsState;
-    settingsService.saveSettings(settings);
+    await settingsService.saveSettings(settings);
     invalidateModelCache();
 
     if (settings.logLevel) {
@@ -142,10 +143,10 @@ settingsRoutes.post("/open-devtools", async (c) => {
 });
 
 // POST /settings/purge-thread-tables
-settingsRoutes.post("/purge-thread-tables", (c) => {
+settingsRoutes.post("/purge-thread-tables", async (c) => {
   try {
-    threadPersistenceService.purgeThreadTables();
-    threadIntelligenceService.initialize();
+    await threadPersistenceService.purgeThreadTables();
+    await threadIntelligenceService.initialize();
     logger.info("Thread tables purged and recreated");
     return c.json({ success: true });
   } catch (error) {
@@ -155,15 +156,13 @@ settingsRoutes.post("/purge-thread-tables", (c) => {
 });
 
 // POST /settings/purge-settings-tables
-settingsRoutes.post("/purge-settings-tables", (c) => {
+settingsRoutes.post("/purge-settings-tables", async (c) => {
   try {
-    const sqlite = getSqlite();
-    sqlite.exec(`
-      DROP TABLE IF EXISTS model_assignments;
-      DROP TABLE IF EXISTS user_providers;
-      DROP TABLE IF EXISTS settings;
-    `);
-    settingsService.initialize();
+    const db = getDb();
+    await db.execute(sql`DROP TABLE IF EXISTS model_assignments`);
+    await db.execute(sql`DROP TABLE IF EXISTS user_providers`);
+    await db.execute(sql`DROP TABLE IF EXISTS settings`);
+    await settingsService.initialize();
     logger.info("Settings tables purged and reloaded");
     return c.json({ success: true });
   } catch (error) {

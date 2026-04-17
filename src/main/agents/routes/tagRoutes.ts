@@ -7,9 +7,9 @@ const logger = log.scope("ApiServer:Tags");
 export const tagRoutes = new Hono();
 
 // GET /tags - list all tags
-tagRoutes.get("/", (c) => {
+tagRoutes.get("/", async (c) => {
   try {
-    const tags = threadPersistenceService.listTags();
+    const tags = await threadPersistenceService.listTags();
     return c.json({ tags });
   } catch (error) {
     logger.error("Error listing tags:", error);
@@ -28,7 +28,7 @@ tagRoutes.post("/", async (c) => {
         400,
       );
     }
-    const tag = threadPersistenceService.createTag(
+    const tag = await threadPersistenceService.createTag(
       parsed.data.name,
       parsed.data.sortOrder,
     );
@@ -51,7 +51,7 @@ tagRoutes.patch("/:id", async (c) => {
         400,
       );
     }
-    threadPersistenceService.renameTag(id, parsed.data.name);
+    await threadPersistenceService.renameTag(id, parsed.data.name);
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error renaming tag:", error);
@@ -60,10 +60,10 @@ tagRoutes.patch("/:id", async (c) => {
 });
 
 // DELETE /tags/:id - delete tag
-tagRoutes.delete("/:id", (c) => {
+tagRoutes.delete("/:id", async (c) => {
   try {
     const id = Number(c.req.param("id"));
-    threadPersistenceService.deleteTag(id);
+    await threadPersistenceService.deleteTag(id);
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error deleting tag:", error);

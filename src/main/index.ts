@@ -146,21 +146,21 @@ app.whenReady().then(async () => {
   };
 
   // Initialize database (single connection, runs Drizzle migrations)
-  initializeDatabase();
+  await initializeDatabase();
 
   // Initialize services that use the database
   searchService.initialize();
   threadPersistenceService.initialize();
 
   // Load settings from database
-  settingsService.initialize();
+  await settingsService.initialize();
 
   // Initialize provider registry (reads TOML files)
   const providersPath = path.resolve(__dirname, "agents/providers/data");
   registry.initialize(providersPath);
 
   // Initialize thread intelligence (seeds default tags if first launch)
-  threadIntelligenceService.initialize();
+  await threadIntelligenceService.initialize();
 
   // Set log levels from settings or use defaults
   const logLevel =
@@ -258,7 +258,7 @@ app.on("before-quit", async (event) => {
     TabControlService.destroyInstance();
 
     // Close database connection
-    closeDatabase();
+    await closeDatabase();
 
     // Stop API server
     logger.info("Stopping API server...");

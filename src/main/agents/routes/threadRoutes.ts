@@ -11,9 +11,9 @@ const logger = log.scope("ApiServer:Threads");
 export const threadRoutes = new Hono();
 
 // GET /threads - list all threads (regular + archived)
-threadRoutes.get("/", (c) => {
+threadRoutes.get("/", async (c) => {
   try {
-    const threads = threadPersistenceService.listAllThreads();
+    const threads = await threadPersistenceService.listAllThreads();
     return c.json({
       threads: threads.map((t) => ({
         remoteId: t.id,
@@ -36,7 +36,7 @@ threadRoutes.post("/", async (c) => {
     if (!parsed.success) {
       return c.json({ error: "Thread id is required" }, 400);
     }
-    const thread = threadPersistenceService.createThread(parsed.data.id);
+    const thread = await threadPersistenceService.createThread(parsed.data.id);
     return c.json({ remoteId: thread.id, externalId: undefined }, 201);
   } catch (error) {
     logger.error("Error creating thread:", error);
@@ -45,9 +45,9 @@ threadRoutes.post("/", async (c) => {
 });
 
 // POST /threads/archive-all - archive all regular threads
-threadRoutes.post("/archive-all", (c) => {
+threadRoutes.post("/archive-all", async (c) => {
   try {
-    threadPersistenceService.archiveAllThreads();
+    await threadPersistenceService.archiveAllThreads();
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error archiving all threads:", error);
@@ -60,7 +60,7 @@ threadRoutes.delete("/bulk", async (c) => {
   try {
     const body = await c.req.json();
     const status = body?.status as "regular" | "archived" | undefined;
-    threadPersistenceService.deleteAllThreads(status);
+    await threadPersistenceService.deleteAllThreads(status);
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error deleting threads:", error);
@@ -81,9 +81,9 @@ threadRoutes.patch("/bulk-status", async (c) => {
     }
     for (const id of threadIds) {
       if (status === "archived") {
-        threadPersistenceService.archiveThread(id);
+        await threadPersistenceService.archiveThread(id);
       } else {
-        threadPersistenceService.unarchiveThread(id);
+        await threadPersistenceService.unarchiveThread(id);
       }
     }
     return c.json({ success: true });
@@ -102,7 +102,7 @@ threadRoutes.post("/bulk-delete", async (c) => {
       return c.json({ error: "threadIds array is required" }, 400);
     }
     for (const id of threadIds) {
-      threadPersistenceService.deleteThread(id);
+      await threadPersistenceService.deleteThread(id);
     }
     return c.json({ success: true });
   } catch (error) {
@@ -112,13 +112,13 @@ threadRoutes.post("/bulk-delete", async (c) => {
 });
 
 // GET /threads/search?q=... - search threads by title
-threadRoutes.get("/search", (c) => {
+threadRoutes.get("/search", async (c) => {
   try {
     const query = c.req.query("q") ?? "";
     if (!query.trim()) {
       return c.json({ threads: [] });
     }
-    const threads = searchService.searchThreads(
+    const threads = await searchService.searchThreads(
       query,
       threadPersistenceService.getTagsForThread.bind(threadPersistenceService),
     );
@@ -137,9 +137,9 @@ threadRoutes.get("/search", (c) => {
 });
 
 // GET /threads/:id - get thread
-threadRoutes.get("/:id", (c) => {
+threadRoutes.get("/:id", async (c) => {
   try {
-    const thread = threadPersistenceService.getThread(c.req.param("id"));
+    const thread = await threadPersistenceService.getThread(c.req.param("id"));
     if (!thread) {
       return c.json({ error: "Thread not found" }, 404);
     }
@@ -167,13 +167,13 @@ threadRoutes.patch("/:id", async (c) => {
       );
     }
     if (parsed.data.title !== undefined) {
-      threadPersistenceService.renameThread(id, parsed.data.title);
+      await threadPersistenceService.renameThread(id, parsed.data.title);
     }
     if (parsed.data.status === "archived") {
-      threadPersistenceService.archiveThread(id);
+      await threadPersistenceService.archiveThread(id);
     }
     if (parsed.data.status === "regular") {
-      threadPersistenceService.unarchiveThread(id);
+      await threadPersistenceService.unarchiveThread(id);
     }
     return c.json({ success: true });
   } catch (error) {
@@ -183,9 +183,9 @@ threadRoutes.patch("/:id", async (c) => {
 });
 
 // DELETE /threads/:id - delete thread
-threadRoutes.delete("/:id", (c) => {
+threadRoutes.delete("/:id", async (c) => {
   try {
-    threadPersistenceService.deleteThread(c.req.param("id"));
+    await threadPersistenceService.deleteThread(c.req.param("id"));
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error deleting thread:", error);
@@ -194,9 +194,9 @@ threadRoutes.delete("/:id", (c) => {
 });
 
 // GET /threads/:id/messages - load messages
-threadRoutes.get("/:id/messages", (c) => {
+threadRoutes.get("/:id/messages", async (c) => {
   try {
-    const messages = threadPersistenceService.loadMessages(c.req.param("id"));
+    const messages = await threadPersistenceService.loadMessages(c.req.param("id"));
     return c.json({ messages });
   } catch (error) {
     logger.error("Error loading messages:", error);
@@ -216,7 +216,7 @@ threadRoutes.post("/:id/tags", async (c) => {
         400,
       );
     }
-    threadPersistenceService.addTagToThread(threadId, parsed.data.tagId);
+    await threadPersistenceService.addTagToThread(threadId, parsed.data.tagId);
     return c.json({ success: true }, 201);
   } catch (error) {
     logger.error("Error adding tag to thread:", error);
@@ -225,11 +225,11 @@ threadRoutes.post("/:id/tags", async (c) => {
 });
 
 // DELETE /threads/:id/tags/:tagId - remove tag from thread
-threadRoutes.delete("/:id/tags/:tagId", (c) => {
+threadRoutes.delete("/:id/tags/:tagId", async (c) => {
   try {
     const threadId = c.req.param("id");
     const tagId = Number(c.req.param("tagId"));
-    threadPersistenceService.removeTagFromThread(threadId, tagId);
+    await threadPersistenceService.removeTagFromThread(threadId, tagId);
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error removing tag from thread:", error);

@@ -46,20 +46,20 @@ class SettingsService {
     this._settings = value;
   }
 
-  initialize(): void {
-    this.loadSettings();
+  async initialize(): Promise<void> {
+    await this.loadSettings();
   }
 
-  private loadSettings(): void {
+  private async loadSettings(): Promise<void> {
     const db = getDb();
     const defaults = SettingsStateSchema.parse({});
 
     // Load key-value settings
-    const settingsRows = db.select().from(settings).all();
+    const settingsRows = await db.select().from(settings);
     const settingsMap = new Map(settingsRows.map((r) => [r.key, r.value]));
 
     // Load user providers
-    const providerRows = db.select().from(userProviders).all() as UserProviderRow[];
+    const providerRows = (await db.select().from(userProviders)) as UserProviderRow[];
 
     const providers: UserProviderConfig[] = providerRows.map((row) => ({
       id: row.id,
@@ -69,7 +69,7 @@ class SettingsService {
     }));
 
     // Load model assignments
-    const assignmentRows = db.select().from(modelAssignments).all() as ModelAssignmentRow[];
+    const assignmentRows = (await db.select().from(modelAssignments)) as ModelAssignmentRow[];
 
     const modelAssignmentsObj = {
       chat: this.buildAssignment(assignmentRows, "chat", defaults),
@@ -113,12 +113,12 @@ class SettingsService {
     };
   }
 
-  saveSettings(settingsState: SettingsState): void {
+  async saveSettings(settingsState: SettingsState): Promise<void> {
     const db = getDb();
     this._settings = settingsState;
     invalidateModelCache();
 
-    db.transaction((tx) => {
+    await db.transaction(async (tx) => {
       // Key-value settings
       for (const [key, value] of [
         ["use_same_model_for_agents", String(settingsState.useSameModelForAgents)],
@@ -130,39 +130,35 @@ class SettingsService {
         ["auto_tag_enabled", String(settingsState.autoTagEnabled)],
         ["auto_tag_creation_enabled", String(settingsState.autoTagCreationEnabled)],
       ] as [string, string][]) {
-        tx.insert(settings)
+        await tx
+          .insert(settings)
           .values({ key, value })
-          .onConflictDoUpdate({ target: settings.key, set: { value } })
-          .run();
+          .onConflictDoUpdate({ target: settings.key, set: { value } });
       }
 
       // Providers
-      tx.delete(userProviders).run();
+      await tx.delete(userProviders);
       for (const provider of settingsState.providers) {
-        tx.insert(userProviders)
-          .values({
-            id: provider.id,
-            providerDir: provider.providerDir,
-            apiKey: provider.apiKey,
-            apiUrlOverride: provider.apiUrlOverride ?? null,
-          })
-          .run();
+        await tx.insert(userProviders).values({
+          id: provider.id,
+          providerDir: provider.providerDir,
+          apiKey: provider.apiKey,
+          apiUrlOverride: provider.apiUrlOverride ?? null,
+        });
       }
 
       // Model assignments
-      tx.delete(modelAssignments).run();
+      await tx.delete(modelAssignments);
       for (const assignment of Object.values(settingsState.modelAssignments)) {
         if (assignment.providerId && assignment.modelFile) {
-          tx.insert(modelAssignments)
-            .values({
-              role: assignment.role,
-              providerId: assignment.providerId,
-              modelFile: assignment.modelFile,
-              params: assignment.params
-                ? JSON.stringify(assignment.params)
-                : null,
-            })
-            .run();
+          await tx.insert(modelAssignments).values({
+            role: assignment.role,
+            providerId: assignment.providerId,
+            modelFile: assignment.modelFile,
+            params: assignment.params
+              ? JSON.stringify(assignment.params)
+              : null,
+          });
         }
       }
     });
