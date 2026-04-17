@@ -59,7 +59,9 @@ class SettingsService {
     const settingsMap = new Map(settingsRows.map((r) => [r.key, r.value]));
 
     // Load user providers
-    const providerRows = (await db.select().from(userProviders)) as UserProviderRow[];
+    const providerRows = (await db
+      .select()
+      .from(userProviders)) as UserProviderRow[];
 
     const providers: UserProviderConfig[] = providerRows.map((row) => ({
       id: row.id,
@@ -69,7 +71,9 @@ class SettingsService {
     }));
 
     // Load model assignments
-    const assignmentRows = (await db.select().from(modelAssignments)) as ModelAssignmentRow[];
+    const assignmentRows = (await db
+      .select()
+      .from(modelAssignments)) as ModelAssignmentRow[];
 
     const modelAssignmentsObj = {
       chat: this.buildAssignment(assignmentRows, "chat", defaults),
@@ -121,14 +125,20 @@ class SettingsService {
     await db.transaction(async (tx) => {
       // Key-value settings
       for (const [key, value] of [
-        ["use_same_model_for_agents", String(settingsState.useSameModelForAgents)],
+        [
+          "use_same_model_for_agents",
+          String(settingsState.useSameModelForAgents),
+        ],
         ["log_level", settingsState.logLevel],
         ["langfuse_enabled", String(settingsState.langfuse.enabled)],
         ["langfuse_public_key", settingsState.langfuse.publicKey || ""],
         ["langfuse_secret_key", settingsState.langfuse.secretKey || ""],
         ["langfuse_host", settingsState.langfuse.host || ""],
         ["auto_tag_enabled", String(settingsState.autoTagEnabled)],
-        ["auto_tag_creation_enabled", String(settingsState.autoTagCreationEnabled)],
+        [
+          "auto_tag_creation_enabled",
+          String(settingsState.autoTagCreationEnabled),
+        ],
       ] as [string, string][]) {
         await tx
           .insert(settings)
@@ -155,9 +165,8 @@ class SettingsService {
             role: assignment.role,
             providerId: assignment.providerId,
             modelFile: assignment.modelFile,
-            params: assignment.params
-              ? JSON.stringify(assignment.params)
-              : null,
+            params:
+              assignment.params ? JSON.stringify(assignment.params) : null,
           });
         }
       }

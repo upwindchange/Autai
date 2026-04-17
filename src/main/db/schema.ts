@@ -1,4 +1,12 @@
-import { pgTable, text, integer, serial, varchar, timestamp, primaryKey } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  text,
+  integer,
+  serial,
+  varchar,
+  timestamp,
+  primaryKey,
+} from "drizzle-orm/pg-core";
 
 export const settings = pgTable("settings", {
   key: varchar().primaryKey(),
@@ -31,9 +39,12 @@ export const threads = pgTable("threads", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-  chatProviderId: varchar("chat_provider_id").references(() => userProviders.id, {
-    onDelete: "set null",
-  }),
+  chatProviderId: varchar("chat_provider_id").references(
+    () => userProviders.id,
+    {
+      onDelete: "set null",
+    },
+  ),
   chatModelFile: varchar("chat_model_file"),
   chatModelParams: text("chat_model_params"),
 });
@@ -69,7 +80,5 @@ export const threadTags = pgTable(
       .notNull()
       .references(() => tags.id, { onDelete: "cascade" }),
   },
-  (table) => [
-    primaryKey({ columns: [table.threadId, table.tagId] }),
-  ],
+  (table) => [primaryKey({ columns: [table.threadId, table.tagId] })],
 );

@@ -77,9 +77,11 @@ chatRoutes.post("/", async (c) => {
         useBrowser,
         webSearch,
         (finalMessages) => {
-          threadPersistenceService.saveMessages(sessionId, finalMessages).catch((err) => {
-            logger.error("Failed to save browser worker messages:", err);
-          });
+          threadPersistenceService
+            .saveMessages(sessionId, finalMessages)
+            .catch((err) => {
+              logger.error("Failed to save browser worker messages:", err);
+            });
         },
       );
       return createUIMessageStreamResponse({ stream });
@@ -99,9 +101,11 @@ chatRoutes.post("/", async (c) => {
             sessionId,
             messageCount: finalMessages.length,
           });
-          threadPersistenceService.saveMessages(sessionId, finalMessages).catch((err) => {
-            logger.error("Failed to save chat messages:", err);
-          });
+          threadPersistenceService
+            .saveMessages(sessionId, finalMessages)
+            .catch((err) => {
+              logger.error("Failed to save chat messages:", err);
+            });
         },
       });
     }

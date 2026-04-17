@@ -152,10 +152,7 @@ class ThreadPersistenceService {
 
   async listTags(): Promise<TagRow[]> {
     const db = getDb();
-    return db
-      .select()
-      .from(tags)
-      .orderBy(asc(tags.sortOrder), asc(tags.name));
+    return db.select().from(tags).orderBy(asc(tags.sortOrder), asc(tags.name));
   }
 
   async getTag(id: number): Promise<TagRow | undefined> {
@@ -176,7 +173,10 @@ class ThreadPersistenceService {
 
   async addTagToThread(threadId: string, tagId: number): Promise<void> {
     const db = getDb();
-    await db.insert(threadTags).values({ threadId, tagId }).onConflictDoNothing();
+    await db
+      .insert(threadTags)
+      .values({ threadId, tagId })
+      .onConflictDoNothing();
   }
 
   async removeTagFromThread(threadId: string, tagId: number): Promise<void> {

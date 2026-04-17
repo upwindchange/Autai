@@ -111,7 +111,10 @@ INSTRUCTIONS:
         );
 
         if (matchedTag) {
-          await threadPersistenceService.addTagToThread(threadId, matchedTag.id);
+          await threadPersistenceService.addTagToThread(
+            threadId,
+            matchedTag.id,
+          );
           logger.info("Tagged thread with existing tag", {
             threadId,
             tag: matchedTag.name,

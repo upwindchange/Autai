@@ -196,7 +196,9 @@ threadRoutes.delete("/:id", async (c) => {
 // GET /threads/:id/messages - load messages
 threadRoutes.get("/:id/messages", async (c) => {
   try {
-    const messages = await threadPersistenceService.loadMessages(c.req.param("id"));
+    const messages = await threadPersistenceService.loadMessages(
+      c.req.param("id"),
+    );
     return c.json({ messages });
   } catch (error) {
     logger.error("Error loading messages:", error);
