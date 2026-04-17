@@ -80,9 +80,6 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
   };
 
   const removeProvider = async (id: string) => {
-    // Prevent removing all providers
-    if (settings.providers.length <= 1) return;
-
     const newSettings = {
       ...settings,
       providers: settings.providers.filter((p) => p.id !== id),

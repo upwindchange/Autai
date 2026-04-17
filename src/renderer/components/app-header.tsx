@@ -6,6 +6,7 @@ import { Moon, PanelRightIcon, Sun, SunMoon, ArrowLeft } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useTranslation } from "react-i18next";
 import { useUiStore } from "@/stores/uiStore";
+import { useEffect } from "react";
 import type { FC } from "react";
 
 interface AppHeaderProps {
@@ -24,6 +25,10 @@ export const AppHeader: FC<AppHeaderProps> = ({
   const { t: tSettings } = useTranslation("settings");
   const { showSettings, setShowSettings } = useUiStore();
   const { open } = useSidebar();
+
+  useEffect(() => {
+    window.ipcRenderer.send("theme:change", theme);
+  }, [theme]);
 
   const showBackButton = showSettings && !open;
 

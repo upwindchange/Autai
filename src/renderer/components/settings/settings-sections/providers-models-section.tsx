@@ -177,7 +177,6 @@ export function ProvidersModelsSection({
             provider={provider}
             definition={definition}
             isEditing={editingProviderId === provider.id}
-            isOnlyProvider={providers.length <= 1}
             assignedRoles={getAssignedRoles(provider.id)}
             onEdit={() => setEditingProviderId(provider.id)}
             onCancel={handleCancelEdit}

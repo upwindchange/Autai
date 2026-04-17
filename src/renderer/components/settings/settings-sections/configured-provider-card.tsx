@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardHeader } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,7 +29,6 @@ interface ConfiguredProviderCardProps {
   provider: UserProviderConfig;
   definition: ProviderDefinition;
   isEditing: boolean;
-  isOnlyProvider: boolean;
   assignedRoles: string[];
   onEdit: () => void;
   onCancel: () => void;
@@ -41,7 +40,6 @@ export function ConfiguredProviderCard({
   provider,
   definition,
   isEditing,
-  isOnlyProvider,
   assignedRoles,
   onEdit,
   onCancel,
@@ -55,6 +53,12 @@ export function ConfiguredProviderCard({
   const [selectedModel, setSelectedModel] = useState("");
   const [modelsOpen, setModelsOpen] = useState(false);
   const { t } = useTranslation("providers");
+
+  useEffect(() => {
+    if (isEditing && !editState) {
+      setEditState({ ...provider });
+    }
+  }, [isEditing]);
 
   const startEditing = () => {
     setEditState({ ...provider });
@@ -269,16 +273,14 @@ export function ConfiguredProviderCard({
             >
               <Pencil className="h-4 w-4" />
             </Button>
-            {!isOnlyProvider && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8"
-                onClick={onDelete}
-              >
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={onDelete}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
           </div>
         </div>
       </CardHeader>

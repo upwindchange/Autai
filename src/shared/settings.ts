@@ -73,6 +73,7 @@ const DEFAULT_SETTINGS = {
   langfuse: LangfuseConfigSchema.parse({}),
   autoTagEnabled: true,
   autoTagCreationEnabled: true,
+  systemPrompt: "",
 };
 
 // Settings State schema
@@ -95,6 +96,7 @@ export const SettingsStateSchema = z
     autoTagCreationEnabled: z
       .boolean()
       .default(DEFAULT_SETTINGS.autoTagCreationEnabled),
+    systemPrompt: z.string().default(DEFAULT_SETTINGS.systemPrompt),
   })
   .default(DEFAULT_SETTINGS);
 

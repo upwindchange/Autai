@@ -37,6 +37,7 @@ export const threads = sqliteTable("threads", {
   }),
   chatModelFile: text("chat_model_file"),
   chatModelParams: text("chat_model_params"),
+  chatSystemPrompt: text("chat_system_prompt"),
 });
 
 export const messages = sqliteTable("messages", {

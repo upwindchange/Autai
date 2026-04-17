@@ -157,25 +157,9 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
     return res.json();
   },
 
-  async generateTitle(
-    _remoteId: string,
-    messages: readonly {
-      role: string;
-      content: readonly { type: string; text?: string }[];
-    }[],
-  ) {
+  async generateTitle() {
     return createAssistantStream(async (controller) => {
-      const firstUserMessage = messages.find((m) => m.role === "user");
-      let title = "New Chat";
-      if (firstUserMessage) {
-        const content = firstUserMessage.content
-          .filter((c) => c.type === "text" && c.text)
-          .map((c) => c.text!)
-          .join(" ");
-        title = content.slice(0, 50) + (content.length > 50 ? "..." : "");
-      }
-      controller.appendText(title);
-      // Title persistence handled by backend enrichment service
+      controller.appendText("New Chat");
     });
   },
 

@@ -92,6 +92,7 @@ class SettingsService {
       autoTagEnabled: settingsMap.get("auto_tag_enabled") !== "false",
       autoTagCreationEnabled:
         settingsMap.get("auto_tag_creation_enabled") !== "false",
+      systemPrompt: settingsMap.get("system_prompt") || defaults.systemPrompt,
     });
   }
 
@@ -129,6 +130,7 @@ class SettingsService {
         ["langfuse_host", settingsState.langfuse.host || ""],
         ["auto_tag_enabled", String(settingsState.autoTagEnabled)],
         ["auto_tag_creation_enabled", String(settingsState.autoTagCreationEnabled)],
+        ["system_prompt", settingsState.systemPrompt || ""],
       ] as [string, string][]) {
         tx.insert(settings)
           .values({ key, value })

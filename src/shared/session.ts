@@ -29,4 +29,5 @@ export interface ThreadChatOverride {
   providerId: string;
   modelFile: string;
   params?: ModelParameters;
+  systemPrompt?: string;
 }

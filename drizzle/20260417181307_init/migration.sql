@@ -44,6 +44,7 @@ CREATE TABLE `threads` (
 	`chat_provider_id` text,
 	`chat_model_file` text,
 	`chat_model_params` text,
+	`chat_system_prompt` text,
 	CONSTRAINT `fk_threads_chat_provider_id_user_providers_id_fk` FOREIGN KEY (`chat_provider_id`) REFERENCES `user_providers`(`id`) ON DELETE SET NULL
 );
 --> statement-breakpoint

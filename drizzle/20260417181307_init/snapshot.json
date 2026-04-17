@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "3acbf5d4-0fc1-4e36-96dc-4db5d9fbc384",
+  "id": "01407be3-f0d5-4b9e-aa78-e8261d346149",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -281,6 +281,16 @@
       "default": null,
       "generated": null,
       "name": "chat_model_params",
+      "entityType": "columns",
+      "table": "threads"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "chat_system_prompt",
       "entityType": "columns",
       "table": "threads"
     },

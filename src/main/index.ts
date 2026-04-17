@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain } from "electron";
+import { app, BrowserWindow, shell, ipcMain, nativeTheme } from "electron";
 // import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -347,4 +347,11 @@ ipcMain.handle("app:getSystemInfo", () => {
 ipcMain.handle("shell:openExternal", async (_, url) => {
   await shell.openExternal(url);
   return { success: true };
+});
+
+/**
+ * Handler for syncing native theme with renderer theme
+ */
+ipcMain.on("theme:change", (_, theme: "system" | "light" | "dark") => {
+  nativeTheme.themeSource = theme;
 });
