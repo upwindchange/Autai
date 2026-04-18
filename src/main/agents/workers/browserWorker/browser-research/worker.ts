@@ -58,9 +58,6 @@ export async function browserResearchWorker(
 
             // Extract plan programmatically (no streaming)
             const planSteps = await planResult.steps;
-            const planToolCallId = planSteps
-              .flatMap((s) => s.toolCalls ?? [])
-              .find((tc) => tc.toolName === "showResearchPlan")!.toolCallId;
             const planToolResult = planSteps
               .flatMap((s) => s.toolResults ?? [])
               .find(
@@ -77,13 +74,26 @@ export async function browserResearchWorker(
               );
             }
 
-            // Show the plan in UI
+            // Show the research plan in UI (matches the search plan schema)
             writeSimulatedToolCallToStream({
               writer,
-              toolCallId: planToolCallId,
+              toolCallId: `research-search-${sessionId}`,
               toolName: "plan",
-              input: plan,
-              output: plan,
+              input: {
+                title: `Searching: ${plan.title}`,
+                description: plan.description,
+              },
+              output: {
+                id: `research-search-${sessionId}`,
+                title: `Searching: ${plan.title}`,
+                description: plan.description,
+                todos: plan.queries.map((q) => ({
+                  id: q.id,
+                  label: `Search: "${q.query}"`,
+                  status: "pending" as const,
+                  description: q.focus,
+                })),
+              },
             });
 
             logger.info("Research plan generated", {
@@ -99,7 +109,6 @@ export async function browserResearchWorker(
               plan,
               sessionId,
               tabId,
-              planToolCallId,
               writer,
             );
 
@@ -135,7 +144,6 @@ export async function browserResearchWorker(
               plan.queries,
               sessionId,
               tabId,
-              planToolCallId,
               writer,
             );
 

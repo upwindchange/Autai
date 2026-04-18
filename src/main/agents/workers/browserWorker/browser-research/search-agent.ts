@@ -172,11 +172,12 @@ export async function executeSearchQueries(
   plan: ResearchPlan,
   sessionId: string,
   activeTabId: string,
-  planToolCallId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   writer: { write: (chunk: any) => void },
 ): Promise<SearchResultItem[]> {
   const allResults: SearchResultItem[] = [];
+  const searchPlanId = `research-search-${sessionId}`;
+  const searchToolCallId = generateId();
 
   for (let i = 0; i < plan.queries.length; i++) {
     const { query, focus } = plan.queries[i];
@@ -187,10 +188,10 @@ export async function executeSearchQueries(
     // Update plan progress
     writeSimulatedToolCallToStream({
       writer,
-      toolCallId: planToolCallId,
+      toolCallId: searchToolCallId,
       toolName: "plan",
       input: {
-        title: plan.title,
+        title: `Searching: ${plan.title}`,
         description: plan.description,
         todos: plan.queries.map((q, idx) => ({
           id: q.id,
@@ -203,8 +204,8 @@ export async function executeSearchQueries(
         })),
       },
       output: {
-        id: plan.id,
-        title: plan.title,
+        id: searchPlanId,
+        title: `Searching: ${plan.title}`,
         description: plan.description,
         todos: plan.queries.map((q, idx) => ({
           id: q.id,

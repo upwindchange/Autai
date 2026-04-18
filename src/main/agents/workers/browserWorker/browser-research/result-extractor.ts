@@ -116,12 +116,13 @@ export async function extractResultsFromUrls(
   researchFocus: ResearchQuery[],
   sessionId: string,
   activeTabId: string,
-  planToolCallId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   writer: { write: (chunk: any) => void },
 ): Promise<ExtractionResult[]> {
   const allExtractions: ExtractionResult[] = [];
   const focusDescription = researchFocus.map((q) => q.focus).join("; ");
+  const extractionPlanId = `research-extraction-${sessionId}`;
+  const extractionToolCallId = generateId();
 
   for (let i = 0; i < searchResults.length; i++) {
     const searchResult = searchResults[i];
@@ -134,7 +135,7 @@ export async function extractResultsFromUrls(
     // Update plan progress
     writeSimulatedToolCallToStream({
       writer,
-      toolCallId: planToolCallId,
+      toolCallId: extractionToolCallId,
       toolName: "plan",
       input: {
         title: "Extracting Results",
@@ -150,7 +151,7 @@ export async function extractResultsFromUrls(
         })),
       },
       output: {
-        id: `research-plan-${sessionId}`,
+        id: extractionPlanId,
         title: "Extracting Results",
         description: "Reading and analyzing web pages",
         todos: searchResults.map((sr, idx) => ({

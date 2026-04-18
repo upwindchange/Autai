@@ -3,6 +3,7 @@ import { EventEmitter } from "events";
 import type { SessionId, TabId, sessionTabState } from "@shared";
 import { DOMService } from "./dom";
 import { ElementInteractionService } from "./interaction/ElementInteractionService";
+import { applyFingerprintObfuscation } from "@/utils/fingerprintObfuscation";
 import log from "electron-log/main";
 
 interface TabMetadata {
@@ -158,6 +159,8 @@ export class SessionTabService extends EventEmitter {
         nodeIntegration: false,
       },
     });
+
+    applyFingerprintObfuscation(tab);
 
     tab.setBackgroundColor("#00000000");
 
