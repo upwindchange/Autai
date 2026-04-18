@@ -10,7 +10,7 @@ CREATE TABLE `messages` (
 CREATE TABLE `model_assignments` (
 	`role` text PRIMARY KEY,
 	`provider_id` text NOT NULL,
-	`model_file` text NOT NULL,
+	`model_id` text NOT NULL,
 	`params` text,
 	CONSTRAINT `fk_model_assignments_provider_id_user_providers_id_fk` FOREIGN KEY (`provider_id`) REFERENCES `user_providers`(`id`) ON DELETE CASCADE
 );
@@ -42,7 +42,7 @@ CREATE TABLE `threads` (
 	`created_at` text DEFAULT (datetime('now')) NOT NULL,
 	`updated_at` text DEFAULT (datetime('now')) NOT NULL,
 	`chat_provider_id` text,
-	`chat_model_file` text,
+	`chat_model_id` text,
 	`chat_model_params` text,
 	`chat_system_prompt` text,
 	CONSTRAINT `fk_threads_chat_provider_id_user_providers_id_fk` FOREIGN KEY (`chat_provider_id`) REFERENCES `user_providers`(`id`) ON DELETE SET NULL
@@ -52,5 +52,7 @@ CREATE TABLE `user_providers` (
 	`id` text PRIMARY KEY,
 	`provider_dir` text NOT NULL,
 	`api_key` text DEFAULT '' NOT NULL,
-	`api_url_override` text
+	`api_url_override` text,
+	`npm` text NOT NULL,
+	`default_api_url` text
 );

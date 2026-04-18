@@ -27,7 +27,7 @@ import type { ModelParameters } from "./providers";
 /** Per-thread override for the chat model. */
 export interface ThreadChatOverride {
   providerId: string;
-  modelFile: string;
+  modelId: string;
   params?: ModelParameters;
   systemPrompt?: string;
 }

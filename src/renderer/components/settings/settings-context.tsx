@@ -93,7 +93,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
         updatedAssignments[role] = {
           ...updatedAssignments[role],
           providerId: firstProvider?.id || "",
-          modelFile: "",
+          modelId: "",
         };
       }
     }
@@ -104,7 +104,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
 
   const updateModelConfiguration = async (
     modelType: "simple" | "complex",
-    config: { providerId: string; modelFile: string },
+    config: { providerId: string; modelId: string },
   ) => {
     const newSettings = {
       ...settings,

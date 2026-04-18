@@ -17,7 +17,7 @@ export interface SettingsContextType {
   removeProvider: (id: string) => Promise<void>;
   updateModelConfiguration: (
     modelType: "simple" | "complex",
-    config: { providerId: string; modelFile: string },
+    config: { providerId: string; modelId: string },
   ) => Promise<void>;
   isLoading: boolean;
 }

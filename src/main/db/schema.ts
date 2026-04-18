@@ -11,6 +11,8 @@ export const userProviders = sqliteTable("user_providers", {
   providerDir: text("provider_dir").notNull(),
   apiKey: text("api_key").notNull().default(""),
   apiUrlOverride: text("api_url_override"),
+  npm: text().notNull(),
+  defaultApiUrl: text("default_api_url"),
 });
 
 export const modelAssignments = sqliteTable("model_assignments", {
@@ -18,7 +20,7 @@ export const modelAssignments = sqliteTable("model_assignments", {
   providerId: text("provider_id")
     .notNull()
     .references(() => userProviders.id, { onDelete: "cascade" }),
-  modelFile: text("model_file").notNull(),
+  modelId: text("model_id").notNull(),
   params: text(),
 });
 
@@ -35,7 +37,7 @@ export const threads = sqliteTable("threads", {
   chatProviderId: text("chat_provider_id").references(() => userProviders.id, {
     onDelete: "set null",
   }),
-  chatModelFile: text("chat_model_file"),
+  chatModelId: text("chat_model_id"),
   chatModelParams: text("chat_model_params"),
   chatSystemPrompt: text("chat_system_prompt"),
 });

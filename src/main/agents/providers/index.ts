@@ -1,34 +1,43 @@
 /**
- * Provider factory — creates LanguageModel instances from the TOML-driven registry.
+ * Provider factory — creates LanguageModel instances from the database.
+ * No file reads, no registry, no RAM caching. DB is the sole source of truth.
+ *
  * Consumed by workers via chatModel(), simpleModel(), complexModel().
  */
 
+import { eq } from "drizzle-orm";
 import type { LanguageModel } from "ai";
-import type { UserProviderConfig, ModelRole } from "@shared";
-import { settingsService } from "@/services";
-import * as registry from "./registry";
+import type { ModelRole, ProviderRuntimeConfig, UserProviderConfig } from "@shared";
+import { getDb } from "@/db";
+import { settings, userProviders, modelAssignments } from "@/db/schema";
 import { Provider } from "./provider";
 import { sendAlert } from "@/utils/messageUtils";
 
 /**
  * Resolves a model role (chat/simple/complex) to a LanguageModel.
+ * Reads directly from DB — no file I/O, no caching.
  */
 function createModel(role: ModelRole): LanguageModel {
-  const settings = settingsService.settings;
-  if (!settings || !settings.providers || settings.providers.length === 0) {
-    sendAlert(
-      "No Providers Configured",
-      "Please configure at least one provider in settings before using AI features.",
-    );
-    throw new Error("No providers configured");
-  }
+  const db = getDb();
 
-  // If useSameModelForAgents, use chat model for simple/complex too
-  const effectiveRole: ModelRole =
-    settings.useSameModelForAgents && role !== "chat" ? "chat" : role;
+  // Check useSameModelForAgents setting
+  const sameModelRow = db
+    .select()
+    .from(settings)
+    .where(eq(settings.key, "use_same_model_for_agents"))
+    .get();
+  const useSame = sameModelRow?.value !== "false";
 
-  const assignment = settings.modelAssignments?.[effectiveRole];
-  if (!assignment || !assignment.providerId || !assignment.modelFile) {
+  const effectiveRole: ModelRole = useSame && role !== "chat" ? "chat" : role;
+
+  // Get model assignment
+  const assignment = db
+    .select()
+    .from(modelAssignments)
+    .where(eq(modelAssignments.role, effectiveRole))
+    .get();
+
+  if (!assignment || !assignment.providerId || !assignment.modelId) {
     sendAlert(
       "Model Not Configured",
       `No ${effectiveRole} model assigned. Please configure it in settings.`,
@@ -36,10 +45,14 @@ function createModel(role: ModelRole): LanguageModel {
     throw new Error(`No model assignment for role: ${effectiveRole}`);
   }
 
-  const userProvider = settings.providers.find(
-    (p: UserProviderConfig) => p.id === assignment.providerId,
-  );
-  if (!userProvider) {
+  // Get provider from DB
+  const providerRow = db
+    .select()
+    .from(userProviders)
+    .where(eq(userProviders.id, assignment.providerId))
+    .get();
+
+  if (!providerRow) {
     sendAlert(
       "Provider Not Found",
       `Provider "${assignment.providerId}" not found. Please check your settings.`,
@@ -47,62 +60,27 @@ function createModel(role: ModelRole): LanguageModel {
     throw new Error(`Provider ${assignment.providerId} not found`);
   }
 
-  const definition = registry.getProvider(userProvider.providerDir);
-  if (!definition) {
-    sendAlert(
-      "Provider Definition Not Found",
-      `Provider definition "${userProvider.providerDir}" not found in registry. ` +
-        "This may happen if the provider's TOML files are missing.",
-    );
-    throw new Error(
-      `Provider definition not found: ${userProvider.providerDir}`,
-    );
-  }
+  const config: UserProviderConfig = {
+    id: providerRow.id,
+    providerDir: providerRow.providerDir,
+    apiKey: providerRow.apiKey,
+    ...(providerRow.apiUrlOverride && { apiUrlOverride: providerRow.apiUrlOverride }),
+    npm: providerRow.npm,
+    ...(providerRow.defaultApiUrl && { defaultApiUrl: providerRow.defaultApiUrl }),
+  };
 
-  const provider = new Provider(userProvider, definition);
-  return provider.createLanguageModel(assignment.modelFile);
+  const runtimeConfig: ProviderRuntimeConfig = {
+    npm: providerRow.npm,
+    ...(providerRow.defaultApiUrl && { defaultApiUrl: providerRow.defaultApiUrl }),
+    name: providerRow.providerDir,
+  };
+
+  const provider = new Provider(config, runtimeConfig);
+  return provider.createLanguageModel(assignment.modelId);
 }
 
-// ──────────────────────────────────────────────
-// Singleton model instances (invalidated on settings change)
-// ──────────────────────────────────────────────
+export const chatModel = (): LanguageModel => createModel("chat");
+export const simpleModel = (): LanguageModel => createModel("simple");
+export const complexModel = (): LanguageModel => createModel("complex");
 
-let _chatModel: LanguageModel | null = null;
-let _simpleModel: LanguageModel | null = null;
-let _complexModel: LanguageModel | null = null;
-
-export function invalidateModelCache(): void {
-  _chatModel = null;
-  _simpleModel = null;
-  _complexModel = null;
-}
-
-export const chatModel = (): LanguageModel => {
-  if (!_chatModel) {
-    _chatModel = createModel("chat");
-  }
-  return _chatModel;
-};
-
-export const simpleModel = (): LanguageModel => {
-  if (!_simpleModel) {
-    _simpleModel = createModel("simple");
-  }
-  return _simpleModel;
-};
-
-export const complexModel = (): LanguageModel => {
-  if (!_complexModel) {
-    _complexModel = createModel("complex");
-  }
-  return _complexModel;
-};
-
-// Re-export for convenience
 export { Provider } from "./provider";
-export {
-  initialize as initializeRegistry,
-  getAllProviders,
-  getProvider,
-  getModels,
-} from "./registry";

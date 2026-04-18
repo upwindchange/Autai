@@ -44,19 +44,19 @@ export function ProvidersModelsSection({
   const [chatModelConfig, setChatModelConfig] = useState<ModelRoleAssignment>({
     role: "chat",
     providerId: "",
-    modelFile: "",
+    modelId: "",
   });
   const [simpleModelConfig, setSimpleModelConfig] =
     useState<ModelRoleAssignment>({
       role: "simple",
       providerId: "",
-      modelFile: "",
+      modelId: "",
     });
   const [complexModelConfig, setComplexModelConfig] =
     useState<ModelRoleAssignment>({
       role: "complex",
       providerId: "",
-      modelFile: "",
+      modelId: "",
     });
   const [useSameModelForAgents, setUseSameModelForAgents] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -84,6 +84,8 @@ export function ProvidersModelsSection({
       id: newId,
       providerDir: provider.dir,
       apiKey: "",
+      npm: provider.npm,
+      ...(provider.api && { defaultApiUrl: provider.api }),
       isNew: true,
     };
     addProvider(newProvider);

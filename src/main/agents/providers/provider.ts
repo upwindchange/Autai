@@ -1,34 +1,31 @@
 /**
- * Single Provider class — replaces AnthropicProvider, OpenAICompatibleProvider,
- * DeepInfraProvider, and BaseProvider. Dispatches to the correct AI SDK based
- * on the `npm` field from the provider's TOML definition.
+ * Single Provider class — creates LanguageModel instances using runtime config
+ * sourced from the database. No TOML file reads needed.
  */
 
 import type { LanguageModel } from "ai";
-import type { ProviderDefinition, UserProviderConfig } from "@shared";
+import type { ProviderRuntimeConfig, UserProviderConfig } from "@shared";
 import { sendAlert } from "@/utils/messageUtils";
 
 export class Provider {
   constructor(
     private config: UserProviderConfig,
-    private definition: ProviderDefinition,
+    private runtimeConfig: ProviderRuntimeConfig,
   ) {}
 
   createLanguageModel(modelName: string): LanguageModel {
     if (!this.isConfigured()) {
       sendAlert(
         "Provider Not Configured",
-        `Provider "${this.definition.name}" is missing API key. Please configure it in settings.`,
+        `Provider is missing API key. Please configure it in settings.`,
       );
-      throw new Error(
-        `Provider ${this.definition.name} is not properly configured. API key is required.`,
-      );
+      throw new Error("Provider is not properly configured. API key is required.");
     }
 
     const apiKey = this.config.apiKey;
     const baseURL =
-      this.config.apiUrlOverride || this.definition.api || undefined;
-    const sdkNpm = this.definition.npm;
+      this.config.apiUrlOverride || this.runtimeConfig.defaultApiUrl || undefined;
+    const sdkNpm = this.runtimeConfig.npm;
 
     switch (sdkNpm) {
       case "@ai-sdk/openai": {
@@ -80,7 +77,7 @@ export class Provider {
             }) => (model: string) => LanguageModel;
           };
         return createOpenAICompatible({
-          name: this.definition.name,
+          name: this.runtimeConfig.name,
           apiKey,
           baseURL: baseURL || "https://api.openai.com/v1",
         })(modelName);

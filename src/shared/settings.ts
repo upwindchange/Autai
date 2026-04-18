@@ -57,7 +57,7 @@ export type LangfuseConfig = z.infer<typeof LangfuseConfigSchema>;
 const DEFAULT_MODEL_ASSIGNMENT = {
   role: "chat" as const,
   providerId: "",
-  modelFile: "",
+  modelId: "",
 };
 
 // Default settings

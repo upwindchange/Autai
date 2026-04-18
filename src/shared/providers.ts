@@ -76,6 +76,8 @@ export const UserProviderConfigSchema = z.object({
   providerDir: z.string().min(1), // references ProviderDefinition.dir
   apiKey: z.string().default(""),
   apiUrlOverride: z.string().optional(), // user override of TOML default
+  npm: z.string(), // SDK package: "@ai-sdk/anthropic" — persisted from TOML at save time
+  defaultApiUrl: z.string().optional(), // default base URL from TOML — persisted at save time
 });
 export type UserProviderConfig = z.infer<typeof UserProviderConfigSchema>;
 
@@ -104,7 +106,7 @@ export type ModelRole = z.infer<typeof ModelRoleSchema>;
 export const ModelRoleAssignmentSchema = z.object({
   role: ModelRoleSchema,
   providerId: z.string(),
-  modelFile: z.string(), // TOML file stem
+  modelId: z.string(),
   params: ModelParametersSchema.optional(),
 });
 export type ModelRoleAssignment = z.infer<typeof ModelRoleAssignmentSchema>;
@@ -117,6 +119,18 @@ export const TestConnectionConfigSchema = z.object({
   providerDir: z.string().min(1),
   apiKey: z.string().min(1),
   apiUrlOverride: z.string().optional(),
-  modelFile: z.string().min(1),
+  modelId: z.string().min(1),
+  npm: z.string(),
+  defaultApiUrl: z.string().optional(),
 });
 export type TestConnectionConfig = z.infer<typeof TestConnectionConfigSchema>;
+
+// ──────────────────────────────────────────────
+// Runtime config for Provider class (derived from DB, not persisted separately)
+// ──────────────────────────────────────────────
+
+export interface ProviderRuntimeConfig {
+  npm: string;
+  defaultApiUrl?: string;
+  name: string;
+}

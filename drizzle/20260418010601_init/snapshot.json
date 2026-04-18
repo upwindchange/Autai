@@ -1,7 +1,7 @@
 {
   "version": "7",
   "dialect": "sqlite",
-  "id": "01407be3-f0d5-4b9e-aa78-e8261d346149",
+  "id": "d7a32375-d466-4828-b667-1f990adc2fae",
   "prevIds": [
     "00000000-0000-0000-0000-000000000000"
   ],
@@ -110,7 +110,7 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "model_file",
+      "name": "model_id",
       "entityType": "columns",
       "table": "model_assignments"
     },
@@ -270,7 +270,7 @@
       "autoincrement": false,
       "default": null,
       "generated": null,
-      "name": "chat_model_file",
+      "name": "chat_model_id",
       "entityType": "columns",
       "table": "threads"
     },
@@ -331,6 +331,26 @@
       "default": null,
       "generated": null,
       "name": "api_url_override",
+      "entityType": "columns",
+      "table": "user_providers"
+    },
+    {
+      "type": "text",
+      "notNull": true,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "npm",
+      "entityType": "columns",
+      "table": "user_providers"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "default_api_url",
       "entityType": "columns",
       "table": "user_providers"
     },

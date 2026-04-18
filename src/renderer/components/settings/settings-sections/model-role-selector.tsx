@@ -37,14 +37,14 @@ export function ModelRoleSelector({
     onChange({
       ...value,
       providerId,
-      modelFile: "",
+      modelId: "",
     });
   };
 
-  const handleModelSelect = (modelFile: string) => {
+  const handleModelSelect = (modelId: string) => {
     onChange({
       ...value,
-      modelFile,
+      modelId,
     });
   };
 
@@ -88,7 +88,7 @@ export function ModelRoleSelector({
       {selectedProvider && (
         <TomlModelList
           providerDir={selectedProvider.providerDir}
-          selectedModel={value.modelFile}
+          selectedModel={value.modelId}
           onModelSelect={handleModelSelect}
         />
       )}

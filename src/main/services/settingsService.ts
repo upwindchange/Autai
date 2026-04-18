@@ -1,12 +1,10 @@
 /**
  * Settings Service — manages provider configurations and model assignments.
- * Driven by the TOML provider registry (no hardcoded provider types).
+ * All data persisted to and read from SQLite. No file I/O for provider definitions.
  */
 
 import { generateText } from "ai";
 import { Provider } from "@agents/providers/provider";
-import * as registry from "@agents/providers/registry";
-import { invalidateModelCache } from "@agents/providers";
 import { sendSuccess, sendAlert, sendInfo } from "@/utils/messageUtils";
 import { getDb } from "@/db";
 import { settings, userProviders, modelAssignments } from "@/db/schema";
@@ -16,6 +14,7 @@ import type {
   TestConnectionConfig,
   UserProviderConfig,
   ModelRoleAssignment,
+  ProviderRuntimeConfig,
 } from "@shared";
 import { SettingsStateSchema } from "@shared";
 import type { UserProviderRow, ModelAssignmentRow } from "@/db/types";
@@ -66,6 +65,8 @@ class SettingsService {
       providerDir: row.providerDir,
       apiKey: row.apiKey,
       ...(row.apiUrlOverride && { apiUrlOverride: row.apiUrlOverride }),
+      npm: row.npm,
+      ...(row.defaultApiUrl && { defaultApiUrl: row.defaultApiUrl }),
     }));
 
     // Load model assignments
@@ -109,7 +110,7 @@ class SettingsService {
     return {
       role: role as ModelRoleAssignment["role"],
       providerId: row.providerId,
-      modelFile: row.modelFile,
+      modelId: row.modelId,
       ...(row.params && { params: JSON.parse(row.params) }),
     };
   }
@@ -117,7 +118,6 @@ class SettingsService {
   saveSettings(settingsState: SettingsState): void {
     const db = getDb();
     this._settings = settingsState;
-    invalidateModelCache();
 
     db.transaction((tx) => {
       // Key-value settings
@@ -147,6 +147,8 @@ class SettingsService {
             providerDir: provider.providerDir,
             apiKey: provider.apiKey,
             apiUrlOverride: provider.apiUrlOverride ?? null,
+            npm: provider.npm,
+            defaultApiUrl: provider.defaultApiUrl ?? null,
           })
           .run();
       }
@@ -154,12 +156,12 @@ class SettingsService {
       // Model assignments
       tx.delete(modelAssignments).run();
       for (const assignment of Object.values(settingsState.modelAssignments)) {
-        if (assignment.providerId && assignment.modelFile) {
+        if (assignment.providerId && assignment.modelId) {
           tx.insert(modelAssignments)
             .values({
               role: assignment.role,
               providerId: assignment.providerId,
-              modelFile: assignment.modelFile,
+              modelId: assignment.modelId,
               params: assignment.params
                 ? JSON.stringify(assignment.params)
                 : null,
@@ -176,25 +178,26 @@ class SettingsService {
 
       sendInfo(
         "Testing Connection",
-        `Testing ${config.modelFile} connection...`,
+        `Testing ${config.modelId} connection...`,
       );
-
-      const definition = registry.getProvider(config.providerDir);
-      if (!definition) {
-        throw new Error(
-          `Provider definition "${config.providerDir}" not found in registry`,
-        );
-      }
 
       const userProvider: UserProviderConfig = {
         id: "test-provider",
         providerDir: config.providerDir,
         apiKey: config.apiKey,
         ...(config.apiUrlOverride && { apiUrlOverride: config.apiUrlOverride }),
+        npm: config.npm,
+        ...(config.defaultApiUrl && { defaultApiUrl: config.defaultApiUrl }),
       };
 
-      const provider = new Provider(userProvider, definition);
-      const languageModel = provider.createLanguageModel(config.modelFile);
+      const runtimeConfig: ProviderRuntimeConfig = {
+        npm: config.npm,
+        ...(config.defaultApiUrl && { defaultApiUrl: config.defaultApiUrl }),
+        name: config.providerDir,
+      };
+
+      const provider = new Provider(userProvider, runtimeConfig);
+      const languageModel = provider.createLanguageModel(config.modelId);
 
       this.logger.debug("testing basic connection with Hi prompt");
       const response = await generateText({
@@ -211,13 +214,13 @@ class SettingsService {
 
         sendSuccess(
           "Connection Successful",
-          `${config.modelFile} connected successfully! API is working correctly.`,
+          `${config.modelId} connected successfully! API is working correctly.`,
         );
       } else {
         this.logger.error("basic connection test failed - no response");
         sendAlert(
           "Connection Failed",
-          `${config.modelFile} connection failed: No response from API`,
+          `${config.modelId} connection failed: No response from API`,
         );
       }
     } catch (error) {
@@ -226,7 +229,7 @@ class SettingsService {
       this.logger.error("connection test failed", { error: errorMessage });
       sendAlert(
         "Connection Failed",
-        `${config.modelFile} connection failed: ${errorMessage}`,
+        `${config.modelId} connection failed: ${errorMessage}`,
       );
     }
   }
@@ -236,37 +239,27 @@ class SettingsService {
     if (!this._settings.modelAssignments) return false;
 
     const chatAssignment = this._settings.modelAssignments.chat;
-    if (!chatAssignment.providerId || !chatAssignment.modelFile) return false;
+    if (!chatAssignment.providerId || !chatAssignment.modelId) return false;
 
     const chatProvider = this._settings.providers.find(
       (p) => p.id === chatAssignment.providerId,
     );
     if (!chatProvider) return false;
-
-    const definition = registry.getProvider(chatProvider.providerDir);
-    if (!definition) return false;
-
-    const provider = new Provider(chatProvider, definition);
-    if (!provider.isConfigured()) return false;
+    if (!chatProvider.apiKey?.trim()) return false;
 
     if (this._settings.useSameModelForAgents) {
       return true;
     }
 
-    // Check simple and complex models
     for (const role of ["simple", "complex"] as const) {
       const assignment = this._settings.modelAssignments[role];
-      if (!assignment.providerId || !assignment.modelFile) return false;
+      if (!assignment.providerId || !assignment.modelId) return false;
 
       if (assignment.providerId !== chatAssignment.providerId) {
         const p = this._settings.providers.find(
           (prov) => prov.id === assignment.providerId,
         );
-        if (!p) return false;
-        const def = registry.getProvider(p.providerDir);
-        if (!def) return false;
-        const prov = new Provider(p, def);
-        if (!prov.isConfigured()) return false;
+        if (!p?.apiKey?.trim()) return false;
       }
     }
 

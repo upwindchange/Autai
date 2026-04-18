@@ -97,7 +97,10 @@ export function ConfiguredProviderCard({
           ...(target.apiUrlOverride && {
             apiUrlOverride: target.apiUrlOverride,
           }),
-          modelFile: selectedModel || "test",
+          modelId: selectedModel || "test",
+          npm: target.npm || definition.npm,
+          defaultApiUrl:
+            target.defaultApiUrl || definition.api || undefined,
         }),
       });
     } finally {

@@ -10,7 +10,6 @@ import {
 } from "../schemas/apiSchemas";
 import log from "electron-log/main";
 import type { SettingsState, TestConnectionConfig, LogLevel } from "@shared";
-import { invalidateModelCache } from "@agents/providers";
 import { getSqlite } from "@/db";
 
 const logger = log.scope("ApiServer:Settings");
@@ -39,7 +38,6 @@ settingsRoutes.put("/", async (c) => {
     }
     const settings = parsed.data as SettingsState;
     settingsService.saveSettings(settings);
-    invalidateModelCache();
 
     if (settings.logLevel) {
       log.transports.file.level = settings.logLevel as LogLevel;
