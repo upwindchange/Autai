@@ -1,12 +1,8 @@
-import { streamText, createUIMessageStream, stepCountIs, tool } from "ai";
+import { streamText, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import { createIdGenerator } from "@ai-sdk/provider-utils";
 import { complexModel } from "@agents/providers";
-import {
-  mergeStreamAndWait,
-  hasSuccessfulToolResult,
-  writeSimulatedToolCallToStream,
-} from "@agents/utils";
+import { hasSuccessfulToolResult, writeSimulatedToolCallToStream } from "@agents/utils";
 import { navigateTool } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { settingsService } from "@/services";
@@ -143,167 +139,187 @@ function deduplicateResults(
     .slice(0, maxResults);
 }
 
+// ===== Regex Fallback =====
+
+function extractUrlsFromDom(
+  domRepresentation: string,
+  queryIndex: number,
+): SearchResultItem[] {
+  const results: SearchResultItem[] = [];
+  const urlRegex = /href="(?:\/url\?q=|\/interstitial\?q=)?(https?:\/\/[^"&\s]+)/gi;
+  let match: RegExpExecArray | null;
+  while ((match = urlRegex.exec(domRepresentation)) !== null && results.length < 5) {
+    try {
+      const url = decodeURIComponent(match[1]);
+      if (url.includes("google.com") || url.includes("googleapis.com")) continue;
+      results.push({
+        url,
+        title: new URL(url).hostname,
+        snippet: "",
+        relevanceScore: 5,
+        queryIndex,
+      });
+    } catch {
+      // Invalid URL, skip
+    }
+  }
+  return results;
+}
+
 // ===== Main Exported Function =====
 
 export async function executeSearchQueries(
   plan: ResearchPlan,
   sessionId: string,
   activeTabId: string,
-): Promise<{
-  stream: ReturnType<typeof createUIMessageStream>;
-  results: Promise<SearchResultItem[]>;
-}> {
+  planToolCallId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  writer: { write: (chunk: any) => void },
+): Promise<SearchResultItem[]> {
   const allResults: SearchResultItem[] = [];
-  let resolveResults: (results: SearchResultItem[]) => void;
-  const resultsPromise = new Promise<SearchResultItem[]>((resolve) => {
-    resolveResults = resolve;
-  });
 
-  const stream = createUIMessageStream({
-    execute: async ({ writer }) => {
-      try {
-        for (let i = 0; i < plan.queries.length; i++) {
-          const { query, focus } = plan.queries[i];
-          const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+  for (let i = 0; i < plan.queries.length; i++) {
+    const { query, focus } = plan.queries[i];
+    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
 
-          logger.debug("Searching", { query, searchUrl });
+    logger.debug("Searching", { query, searchUrl });
 
-          // Show UI progress
-          writeSimulatedToolCallToStream({
-            writer,
-            toolCallId: generateId(),
-            toolName: "plan",
-            input: {
-              title: `Searching: "${query}"`,
-              description: `Query ${i + 1} of ${plan.queries.length}`,
-            },
-            output: {
-              id: `search-${sessionId}`,
-              title: plan.title,
-              description: plan.description,
-              todos: plan.queries.map((q, idx) => ({
-                id: `search-${sessionId}-${idx}`,
-                label: `Search: "${q.query}"`,
-                status:
-                  idx < i ? "completed"
-                  : idx === i ? "in_progress"
-                  : "pending",
-                description: q.focus,
-              })),
-            },
-          });
+    // Update plan progress
+    writeSimulatedToolCallToStream({
+      writer,
+      toolCallId: planToolCallId,
+      toolName: "plan",
+      input: {
+        title: plan.title,
+        description: plan.description,
+        todos: plan.queries.map((q, idx) => ({
+          id: q.id,
+          label: `Search: "${q.query}"`,
+          status:
+            idx < i ? "completed"
+            : idx === i ? "in_progress"
+            : "pending",
+          description: q.focus,
+        })),
+      },
+      output: {
+        id: plan.id,
+        title: plan.title,
+        description: plan.description,
+        todos: plan.queries.map((q, idx) => ({
+          id: q.id,
+          label: `Search: "${q.query}"`,
+          status:
+            idx < i ? "completed"
+            : idx === i ? "in_progress"
+            : "pending",
+          description: q.focus,
+        })),
+      },
+    });
 
-          try {
-            // Navigate to Google
-            await navigateTo(searchUrl, sessionId, activeTabId);
+    try {
+      // Navigate to Google
+      await navigateTo(searchUrl, sessionId, activeTabId);
 
-            // Get the DOM
-            const domRepresentation = await getFlattenDOM(
-              sessionId,
-              activeTabId,
-            );
+      // Get the DOM
+      const domRepresentation = await getFlattenDOM(sessionId, activeTabId);
 
-            // Truncate if too large (50k chars)
-            const truncatedDom =
-              domRepresentation.length > 50000 ?
-                domRepresentation.slice(0, 50000) +
-                "\n\n[... content truncated ...]"
-              : domRepresentation;
+      // Truncate if too large (50k chars)
+      const truncatedDom =
+        domRepresentation.length > 50000 ?
+          domRepresentation.slice(0, 50000) +
+          "\n\n[... content truncated ...]"
+        : domRepresentation;
 
-            // Analyze with LLM
-            const analysisResult = streamText({
-              model: complexModel(),
-              messages: [
-                {
-                  role: "user",
-                  content: `Search query: "${query}"\nFocus: "${focus}"\n\nGoogle search results DOM:\n${truncatedDom}`,
-                },
-              ],
-              system: searchAnalysisPrompt,
-              tools: {
-                showSearchResults: showSearchResultsTool,
-              },
-              toolChoice: {
-                type: "tool",
-                toolName: "showSearchResults",
-              },
-              stopWhen: [
-                hasSuccessfulToolResult("showSearchResults"),
-                stepCountIs(10),
-              ],
-              experimental_telemetry: {
-                isEnabled: settingsService.settings.langfuse.enabled,
-                functionId: "research-search-analysis",
-                metadata: {
-                  queryIndex: i,
-                  query,
-                },
-              },
-            });
-
-            // Merge analysis stream
-            await mergeStreamAndWait(
-              analysisResult.toUIMessageStream({ sendStart: false }),
-              writer,
-            );
-
-            // Extract results
-            const steps = await analysisResult.steps;
-            const toolResult = steps
-              .flatMap((s) => s.toolResults ?? [])
-              .find(
-                (tr) =>
-                  tr.toolName === "showSearchResults" &&
-                  tr.type === "tool-result",
-              );
-
-            if (toolResult) {
-              const output = toolResult.output as {
-                results: Array<{
-                  url: string;
-                  title: string;
-                  snippet: string;
-                  relevanceScore: number;
-                }>;
-              };
-
-              for (const r of output.results) {
-                allResults.push({
-                  ...r,
-                  queryIndex: i,
-                });
-              }
-
-              logger.debug("Search results extracted", {
-                query,
-                count: output.results.length,
-              });
-            } else {
-              logger.warn("No search results extracted for query", { query });
-            }
-          } catch (error) {
-            logger.error("Search query failed", {
-              query,
-              error: error instanceof Error ? error.message : String(error),
-            });
-            // Continue to next query
-          }
-        }
-      } finally {
-        resolveResults!(deduplicateResults(allResults));
-      }
-    },
-    onError: (error) => {
-      logger.error("Error in search agent stream", {
-        error,
-        stack: error instanceof Error ? error.stack : undefined,
+      logger.debug("DOM received for search analysis", {
+        query,
+        domLength: domRepresentation.length,
+        truncatedLength: truncatedDom.length,
       });
-      return error instanceof Error ? error.message : String(error);
-    },
-  });
 
-  return {
-    stream,
-    results: resultsPromise,
-  };
+      // Analyze with LLM (no streaming to UI)
+      const analysisResult = streamText({
+        model: complexModel(),
+        messages: [
+          {
+            role: "user",
+            content: `Search query: "${query}"\nFocus: "${focus}"\n\nGoogle search results DOM:\n${truncatedDom}`,
+          },
+        ],
+        system: searchAnalysisPrompt,
+        tools: {
+          showSearchResults: showSearchResultsTool,
+        },
+        toolChoice: {
+          type: "tool",
+          toolName: "showSearchResults",
+        },
+        stopWhen: [
+          hasSuccessfulToolResult("showSearchResults"),
+          stepCountIs(10),
+        ],
+        experimental_telemetry: {
+          isEnabled: settingsService.settings.langfuse.enabled,
+          functionId: "research-search-analysis",
+          metadata: {
+            queryIndex: i,
+            query,
+          },
+        },
+      });
+
+      // Extract results programmatically
+      const steps = await analysisResult.steps;
+      const toolResult = steps
+        .flatMap((s) => s.toolResults ?? [])
+        .find(
+          (tr) =>
+            tr.toolName === "showSearchResults" &&
+            tr.type === "tool-result",
+        );
+
+      if (toolResult) {
+        const output = toolResult.output as {
+          results: Array<{
+            url: string;
+            title: string;
+            snippet: string;
+            relevanceScore: number;
+          }>;
+        };
+
+        for (const r of output.results) {
+          allResults.push({
+            ...r,
+            queryIndex: i,
+          });
+        }
+
+        logger.debug("Search results extracted", {
+          query,
+          count: output.results.length,
+        });
+      } else {
+        logger.warn("LLM failed to extract search results, trying regex fallback", { query });
+
+        // Fallback: extract URLs directly from DOM
+        const fallbackResults = extractUrlsFromDom(domRepresentation, i);
+        allResults.push(...fallbackResults);
+
+        logger.info("Regex fallback results", {
+          query,
+          count: fallbackResults.length,
+        });
+      }
+    } catch (error) {
+      logger.error("Search query failed", {
+        query,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Continue to next query
+    }
+  }
+
+  return deduplicateResults(allResults);
 }

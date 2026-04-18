@@ -10,11 +10,13 @@ const logger = log.scope("research-planner");
 // ===== Result Types =====
 
 export interface ResearchQuery {
+  id: string;
   query: string;
   focus: string;
 }
 
 export interface ResearchPlan {
+  id: string;
   title: string;
   description: string;
   queries: ResearchQuery[];
@@ -47,8 +49,17 @@ const researchPlanSchema = z.object({
 const showResearchPlanTool = tool({
   description: "Generate a web research plan with search queries",
   inputSchema: researchPlanSchema,
-  execute: async (input) => {
-    return input as ResearchPlan;
+  execute: async (input, { experimental_context }) => {
+    const context = experimental_context as { sessionId: string };
+    const plan = {
+      ...input,
+      id: `research-plan-${context.sessionId}`,
+      queries: input.queries.map((q, index) => ({
+        ...q,
+        id: `research-query-${context.sessionId}-${index}`,
+      })),
+    };
+    return plan as ResearchPlan;
   },
 });
 
@@ -95,6 +106,7 @@ export async function researchPlanner(
       toolName: "showResearchPlan",
     },
     stopWhen: [hasSuccessfulToolResult("showResearchPlan"), stepCountIs(20)],
+    experimental_context: { sessionId },
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "research-planner",

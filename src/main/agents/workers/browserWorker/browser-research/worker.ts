@@ -14,7 +14,10 @@ import { researchPlanner, type ResearchPlan } from "./planner";
 import { executeSearchQueries } from "./search-agent";
 import { extractResultsFromUrls } from "./result-extractor";
 import { summarizeFindings } from "./summarizer";
-import { mergeStreamAndWait } from "@agents/utils";
+import {
+  mergeStreamAndWait,
+  writeSimulatedToolCallToStream,
+} from "@agents/utils";
 
 const logger = log.scope("Browser Research Worker");
 
@@ -53,13 +56,11 @@ export async function browserResearchWorker(
             logger.debug("Stage 1: Generating research plan");
             const planResult = await researchPlanner(messages, sessionId);
 
-            await mergeStreamAndWait(
-              planResult.toUIMessageStream({ sendStart: false }),
-              writer,
-            );
-
-            // Extract plan from tool result
+            // Extract plan programmatically (no streaming)
             const planSteps = await planResult.steps;
+            const planToolCallId = planSteps
+              .flatMap((s) => s.toolCalls ?? [])
+              .find((tc) => tc.toolName === "showResearchPlan")!.toolCallId;
             const planToolResult = planSteps
               .flatMap((s) => s.toolResults ?? [])
               .find(
@@ -76,6 +77,15 @@ export async function browserResearchWorker(
               );
             }
 
+            // Show the plan in UI
+            writeSimulatedToolCallToStream({
+              writer,
+              toolCallId: planToolCallId,
+              toolName: "plan",
+              input: plan,
+              output: plan,
+            });
+
             logger.info("Research plan generated", {
               queryCount: plan.queries.length,
               title: plan.title,
@@ -85,12 +95,13 @@ export async function browserResearchWorker(
             // Stage 2: Execute Search Queries
             // ============================================================
             logger.debug("Stage 2: Executing search queries");
-            const { stream: searchStream, results: searchResultsPromise } =
-              await executeSearchQueries(plan, sessionId, tabId);
-
-            await mergeStreamAndWait(searchStream, writer);
-
-            const searchResults = await searchResultsPromise;
+            const searchResults = await executeSearchQueries(
+              plan,
+              sessionId,
+              tabId,
+              planToolCallId,
+              writer,
+            );
 
             logger.info("Search complete", {
               resultCount: searchResults.length,
@@ -119,19 +130,14 @@ export async function browserResearchWorker(
             // Stage 3: Extract Results from URLs
             // ============================================================
             logger.debug("Stage 3: Extracting results from URLs");
-            const {
-              stream: extractionStream,
-              results: extractionResultsPromise,
-            } = await extractResultsFromUrls(
+            const extractionResults = await extractResultsFromUrls(
               searchResults,
               plan.queries,
               sessionId,
               tabId,
+              planToolCallId,
+              writer,
             );
-
-            await mergeStreamAndWait(extractionStream, writer);
-
-            const extractionResults = await extractionResultsPromise;
 
             logger.info("Extraction complete", {
               extractionCount: extractionResults.length,
