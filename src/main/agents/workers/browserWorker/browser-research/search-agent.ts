@@ -209,7 +209,6 @@ export async function executeSearchQueries(
 ): Promise<SearchResultItem[]> {
   const allResults: SearchResultItem[] = [];
   const searchPlanId = `research-search-${sessionId}`;
-  const searchToolCallId = generateId();
 
   for (let i = 0; i < plan.queries.length; i++) {
     const { query, focus } = plan.queries[i];
@@ -220,7 +219,7 @@ export async function executeSearchQueries(
     // Update plan progress
     writeSimulatedToolCallToStream({
       writer,
-      toolCallId: searchToolCallId,
+      toolCallId: searchPlanId,
       toolName: "plan",
       input: {
         title: `Searching: ${plan.title}`,
@@ -340,6 +339,38 @@ export async function executeSearchQueries(
         error: error instanceof Error ? error.message : String(error),
       });
     }
+
+    // Mark current query as completed
+    writeSimulatedToolCallToStream({
+      writer,
+      toolCallId: searchPlanId,
+      toolName: "plan",
+      input: {
+        title: `Searching: ${plan.title}`,
+        description: plan.description,
+        todos: plan.queries.map((q, idx) => ({
+          id: q.id,
+          label: `Search: "${q.query}"`,
+          status:
+            idx <= i ? "completed"
+            : "pending",
+          description: q.focus,
+        })),
+      },
+      output: {
+        id: searchPlanId,
+        title: `Searching: ${plan.title}`,
+        description: plan.description,
+        todos: plan.queries.map((q, idx) => ({
+          id: q.id,
+          label: `Search: "${q.query}"`,
+          status:
+            idx <= i ? "completed"
+            : "pending",
+          description: q.focus,
+        })),
+      },
+    });
   }
 
   return deduplicateResults(allResults);

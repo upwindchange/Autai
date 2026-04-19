@@ -122,7 +122,6 @@ export async function extractResultsFromUrls(
   const allExtractions: ExtractionResult[] = [];
   const focusDescription = researchFocus.map((q) => q.focus).join("; ");
   const extractionPlanId = `research-extraction-${sessionId}`;
-  const extractionToolCallId = generateId();
 
   for (let i = 0; i < searchResults.length; i++) {
     const searchResult = searchResults[i];
@@ -135,7 +134,7 @@ export async function extractResultsFromUrls(
     // Update plan progress
     writeSimulatedToolCallToStream({
       writer,
-      toolCallId: extractionToolCallId,
+      toolCallId: extractionPlanId,
       toolName: "plan",
       input: {
         title: "Extracting Results",
@@ -262,6 +261,38 @@ export async function extractResultsFromUrls(
         relevant: false,
       });
     }
+
+    // Mark current extraction as completed
+    writeSimulatedToolCallToStream({
+      writer,
+      toolCallId: extractionPlanId,
+      toolName: "plan",
+      input: {
+        title: "Extracting Results",
+        description: "Reading and analyzing web pages",
+        todos: searchResults.map((sr, idx) => ({
+          id: `research-extract-${sessionId}-${idx}`,
+          label: `Read: ${sr.title}`,
+          status:
+            idx <= i ? "completed"
+            : "pending",
+          description: sr.url,
+        })),
+      },
+      output: {
+        id: extractionPlanId,
+        title: "Extracting Results",
+        description: "Reading and analyzing web pages",
+        todos: searchResults.map((sr, idx) => ({
+          id: `research-extract-${sessionId}-${idx}`,
+          label: `Read: ${sr.title}`,
+          status:
+            idx <= i ? "completed"
+            : "pending",
+          description: sr.url,
+        })),
+      },
+    });
   }
 
   return allExtractions;
