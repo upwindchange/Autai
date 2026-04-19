@@ -52,6 +52,7 @@ export const allBrowserTools = {
 export const AI_TOOL_NAMES = {
   // Interactive
   CLICK_ELEMENT: "clickElement",
+  INTERCEPT_CLICK_URL: "interceptClickUrl",
   FILL_ELEMENT: "fillElement",
   SELECT_OPTION: "selectOption",
   HOVER_ELEMENT: "hoverElement",

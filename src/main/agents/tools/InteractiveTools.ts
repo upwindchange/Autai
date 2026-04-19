@@ -931,9 +931,57 @@ export const getBasicInfoTool = tool({
   },
 });
 
+export const interceptClickUrlTool = tool({
+  description:
+    "Click an element and intercept the URL it would navigate to, " +
+    "without changing the current page. Returns the intercepted URL. " +
+    "Works for all link types: normal links, target=_blank, window.open().",
+  inputSchema: z.object({
+    backendNodeId: z
+      .number()
+      .describe("Backend node ID of the element to click"),
+  }),
+  execute: async ({ backendNodeId }, { experimental_context }) => {
+    const context = experimental_context as ToolExecutionContext;
+
+    if (!context.activeTabId) {
+      throw new Error(
+        "No active tab in context. " +
+          "Ensure tab selection has run before calling this tool.",
+      );
+    }
+
+    return await PQueueManager.getInstance().add(
+      async () => {
+        const sessionTabService = SessionTabService.getInstance();
+        const interactionService = sessionTabService.getInteractionService(
+          context.activeTabId!,
+        );
+        if (!interactionService) {
+          throw new Error(
+            `Interaction service not found for tab ${context.activeTabId}`,
+          );
+        }
+
+        sessionTabService.updateTabTimestamp(context.activeTabId!);
+
+        return await interactionService.interceptClickUrl(backendNodeId, {
+          button: "left",
+          clickCount: 1,
+        });
+      },
+      {
+        timeout: 60000,
+        throwOnTimeout: true,
+      },
+    );
+  },
+});
+
 // Export all tools as an object for AI SDK
 export const interactiveTools = {
   clickElement: clickElementTool,
+  interceptClickUrl: interceptClickUrlTool,
   fillElement: fillElementTool,
   selectOption: selectOptionTool,
   hoverElement: hoverElementTool,

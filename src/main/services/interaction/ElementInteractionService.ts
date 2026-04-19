@@ -56,10 +56,48 @@ interface CharInfo {
 export class ElementInteractionService {
   private webContents: WebContents;
   private logger: LogFunctions;
+  private pendingInterceptResolver: ((url: string) => void) | null = null;
 
   constructor(webContents: WebContents) {
     this.webContents = webContents;
     this.logger = log.scope("ElementInteractionService");
+    this.setupNavigationHandlers();
+  }
+
+  /**
+   * Set up handlers to intercept new window/tab requests, same-page navigation, and downloads.
+   * - When pendingInterceptResolver is set (interceptClickUrl): captures URL, does nothing to current page
+   * - When pendingInterceptResolver is null (regular clickElement): target="_blank" links navigate in current tab
+   */
+  private setupNavigationHandlers(): void {
+    this.webContents.setWindowOpenHandler(({ url }) => {
+      if (this.pendingInterceptResolver) {
+        this.pendingInterceptResolver(url);
+        this.pendingInterceptResolver = null;
+      } else {
+        const capturedUrl = url;
+        setImmediate(() => {
+          this.webContents.loadURL(capturedUrl);
+        });
+      }
+      return { action: "deny" };
+    });
+
+    this.webContents.on("will-navigate", (event, url) => {
+      if (this.pendingInterceptResolver) {
+        event.preventDefault();
+        this.pendingInterceptResolver(url);
+        this.pendingInterceptResolver = null;
+      }
+    });
+
+    this.webContents.session.on("will-download", (event, item) => {
+      if (this.pendingInterceptResolver) {
+        event.preventDefault();
+        this.pendingInterceptResolver(item.getURL());
+        this.pendingInterceptResolver = null;
+      }
+    });
   }
 
   /**
@@ -959,6 +997,36 @@ export class ElementInteractionService {
         duration: Date.now() - startTime,
       };
     }
+  }
+
+  /**
+   * Click an element and intercept the URL it would navigate to.
+   * The current page is NOT modified — no navigation or new tab is created.
+   * Returns the intercepted URL for the caller to decide what to do with it.
+   */
+  async interceptClickUrl(
+    backendNodeId: number,
+    options: ClickOptions = {},
+  ): Promise<ClickResult> {
+    this.ensureDebuggerAttached();
+    const startTime = Date.now();
+
+    const urlPromise = new Promise<string | null>((resolve) => {
+      this.pendingInterceptResolver = resolve;
+      setTimeout(() => {
+        resolve(null);
+        this.pendingInterceptResolver = null;
+      }, 10000);
+    });
+
+    const clickResult = await this.clickElement(backendNodeId, options);
+    const interceptedUrl = await urlPromise;
+
+    return {
+      ...clickResult,
+      interceptedUrl: interceptedUrl ?? undefined,
+      duration: Date.now() - startTime,
+    };
   }
 
   /**

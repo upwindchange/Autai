@@ -5,6 +5,7 @@ import { complexModel } from "@agents/providers";
 import { hasSuccessfulToolResult, writeSimulatedToolCallToStream } from "@agents/utils";
 import { navigateTool } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
+import { interceptClickUrlTool } from "@agents/tools/InteractiveTools";
 import { settingsService } from "@/services";
 import type { ResearchPlan } from "./planner";
 import log from "electron-log/main";
@@ -12,20 +13,12 @@ import log from "electron-log/main";
 const logger = log.scope("research-search-agent");
 const generateId = createIdGenerator({ prefix: "call", size: 24 });
 
-// ===== Result Types =====
+// ===== Schemas & Types =====
 
-export interface SearchResultItem {
-  url: string;
-  title: string;
-  snippet: string;
-  relevanceScore: number;
-  queryIndex: number;
-}
-
-// ===== Schema =====
-
-const searchResultItemSchema = z.object({
-  url: z.string().describe("The URL of the search result"),
+const rawSearchResultSchema = z.object({
+  backendNodeId: z
+    .number()
+    .describe("The backendNodeId of the search result's anchor element"),
   title: z.string().describe("Title of the search result"),
   snippet: z
     .string()
@@ -37,19 +30,29 @@ const searchResultItemSchema = z.object({
     .describe("How relevant this result is to the query (1-10)"),
 });
 
-const searchResultsSchema = z.object({
+const rawSearchResultsSchema = z.object({
   results: z
-    .array(searchResultItemSchema)
+    .array(rawSearchResultSchema)
     .min(1)
     .max(5)
     .describe("The most relevant search results found (up to 5)"),
 });
 
+type RawSearchResult = z.infer<typeof rawSearchResultSchema>;
+
+export type SearchResultItem = {
+  url: string;
+  title: string;
+  snippet: string;
+  relevanceScore: number;
+  queryIndex: number;
+};
+
 // ===== Tool =====
 
 const showSearchResultsTool = tool({
   description: "Return the analyzed search results from the Google page",
-  inputSchema: searchResultsSchema,
+  inputSchema: rawSearchResultsSchema,
   execute: async (input) => {
     return input;
   },
@@ -60,28 +63,33 @@ const showSearchResultsTool = tool({
 const searchAnalysisPrompt = `You are a web search analyst. You are viewing the flattened DOM of a Google search results page.
 
 ## Your Task
-Analyze the search results displayed in the DOM and identify the most relevant URLs.
+Analyze the search results displayed in the DOM and identify the most relevant links.
 
 ## Instructions
 1. Look at the search results in the DOM
-2. Identify the most relevant results based on:
+2. Each DOM element has a backendNodeId attribute — use it to identify links
+3. Identify the most relevant results based on:
    - Title relevance to the search query
    - Snippet/content relevance to the focus area
    - Source authority (prefer official docs, well-known sites)
-3. Select up to 5 of the most relevant results
-4. For each result, extract: URL, title, snippet, and rate relevance (1-10)
+4. For each result, provide:
+   - backendNodeId of the anchor element
+   - Title text
+   - Brief snippet
+   - Relevance score (1-10)
 5. Skip ads, sponsored results, and navigation links
 6. Focus on organic search results only
 7. Only include results from the first page of Google results
+8. Do NOT try to extract or construct URLs — just provide the backendNodeId
 
 ## Important
-- Look for anchor (<a>) elements with href attributes pointing to external URLs
-- Google search result URLs are typically in href attributes
+- Each element in the DOM has a backendNodeId — use that to reference the link
+- Google search result links are anchor (<a>) elements
 - Skip Google's own navigation (Images, Videos, News tabs, etc.)
 - Exclude PDF links unless specifically relevant
 - Call showSearchResults with your analysis`;
 
-// ===== Helper: Direct tool execution with context =====
+// ===== Helpers: Direct tool execution with context =====
 
 async function navigateTo(
   url: string,
@@ -113,6 +121,22 @@ async function getFlattenDOM(
   return (result as { representation: string }).representation;
 }
 
+async function interceptLinkUrl(
+  backendNodeId: number,
+  sessionId: string,
+  activeTabId: string,
+): Promise<string | null> {
+  const result = await interceptClickUrlTool.execute!(
+    { backendNodeId },
+    {
+      toolCallId: generateId(),
+      messages: [],
+      experimental_context: { sessionId, activeTabId },
+    },
+  );
+  return (result as { interceptedUrl?: string }).interceptedUrl ?? null;
+}
+
 // ===== Dedup =====
 
 function deduplicateResults(
@@ -139,31 +163,39 @@ function deduplicateResults(
     .slice(0, maxResults);
 }
 
-// ===== Regex Fallback =====
+// ===== URL Resolution =====
 
-function extractUrlsFromDom(
-  domRepresentation: string,
+async function resolveSearchResultUrls(
+  rawResults: RawSearchResult[],
   queryIndex: number,
-): SearchResultItem[] {
-  const results: SearchResultItem[] = [];
-  const urlRegex = /href="(?:\/url\?q=|\/interstitial\?q=)?(https?:\/\/[^"&\s]+)/gi;
-  let match: RegExpExecArray | null;
-  while ((match = urlRegex.exec(domRepresentation)) !== null && results.length < 5) {
-    try {
-      const url = decodeURIComponent(match[1]);
-      if (url.includes("google.com") || url.includes("googleapis.com")) continue;
-      results.push({
+  sessionId: string,
+  activeTabId: string,
+): Promise<SearchResultItem[]> {
+  const resolved: SearchResultItem[] = [];
+
+  for (const r of rawResults) {
+    const url = await interceptLinkUrl(
+      r.backendNodeId,
+      sessionId,
+      activeTabId,
+    );
+    if (url) {
+      resolved.push({
         url,
-        title: new URL(url).hostname,
-        snippet: "",
-        relevanceScore: 5,
+        title: r.title,
+        snippet: r.snippet,
+        relevanceScore: r.relevanceScore,
         queryIndex,
       });
-    } catch {
-      // Invalid URL, skip
+    } else {
+      logger.warn("Failed to intercept URL for backendNodeId", {
+        backendNodeId: r.backendNodeId,
+        title: r.title,
+      });
     }
   }
-  return results;
+
+  return resolved;
 }
 
 // ===== Main Exported Function =====
@@ -239,7 +271,7 @@ export async function executeSearchQueries(
         truncatedLength: truncatedDom.length,
       });
 
-      // Analyze with LLM (no streaming to UI)
+      // Analyze with LLM
       const analysisResult = streamText({
         model: complexModel(),
         messages: [
@@ -270,7 +302,7 @@ export async function executeSearchQueries(
         },
       });
 
-      // Extract results programmatically
+      // Extract raw results (backendNodeIds) from LLM
       const steps = await analysisResult.steps;
       const toolResult = steps
         .flatMap((s) => s.toolResults ?? [])
@@ -282,43 +314,31 @@ export async function executeSearchQueries(
 
       if (toolResult) {
         const output = toolResult.output as {
-          results: Array<{
-            url: string;
-            title: string;
-            snippet: string;
-            relevanceScore: number;
-          }>;
+          results: RawSearchResult[];
         };
 
-        for (const r of output.results) {
-          allResults.push({
-            ...r,
-            queryIndex: i,
-          });
-        }
+        // Resolve backendNodeIds to real URLs via interceptClickUrl
+        const resolved = await resolveSearchResultUrls(
+          output.results,
+          i,
+          sessionId,
+          activeTabId,
+        );
+        allResults.push(...resolved);
 
-        logger.debug("Search results extracted", {
+        logger.debug("Search results resolved", {
           query,
-          count: output.results.length,
+          rawCount: output.results.length,
+          resolvedCount: resolved.length,
         });
       } else {
-        logger.warn("LLM failed to extract search results, trying regex fallback", { query });
-
-        // Fallback: extract URLs directly from DOM
-        const fallbackResults = extractUrlsFromDom(domRepresentation, i);
-        allResults.push(...fallbackResults);
-
-        logger.info("Regex fallback results", {
-          query,
-          count: fallbackResults.length,
-        });
+        logger.warn("LLM failed to extract search results", { query });
       }
     } catch (error) {
       logger.error("Search query failed", {
         query,
         error: error instanceof Error ? error.message : String(error),
       });
-      // Continue to next query
     }
   }
 

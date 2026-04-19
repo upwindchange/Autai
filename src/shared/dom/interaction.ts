@@ -109,6 +109,12 @@ export interface ClickResult {
    * Time taken for the entire click operation in milliseconds
    */
   duration?: number;
+
+  /**
+   * Intercepted navigation URL if the click triggered navigation
+   * Only set when using interceptClickUrl
+   */
+  interceptedUrl?: string;
 }
 
 export interface FillOptions {
