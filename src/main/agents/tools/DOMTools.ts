@@ -3,6 +3,24 @@ import { z } from "zod";
 import { SessionTabService } from "@/services";
 import { PQueueManager } from "@agents/utils";
 import type { ToolExecutionContext } from "./types/context";
+import type { DOMService } from "@/services";
+
+// ===== Shared Helper =====
+
+async function ensureFreshDOM(
+  sessionTabService: SessionTabService,
+  domService: DOMService,
+  tabId: string,
+): Promise<void> {
+  const stats = domService.simplifiedDOMState?.stats;
+  const changeTime =
+    sessionTabService.getTabMetadata(tabId)?.timestamp || 0;
+  const detectTime = stats?.timestamp || 0;
+
+  if (detectTime <= changeTime || !domService.simplifiedDOMState?.flattenedDOM) {
+    await domService.buildSimplifiedDOMTree();
+  }
+}
 
 // ===== Result Types =====
 
@@ -55,33 +73,14 @@ export const getDOMTreeTool = tool({
           return result;
         }
 
+        await ensureFreshDOM(sessionTabService, domService, context.activeTabId!);
+
         const stats = domService.simplifiedDOMState?.stats;
-        const changeTime =
-          sessionTabService.getTabMetadata(context.activeTabId!)?.timestamp ||
-          0;
-        const detectTime = stats?.timestamp || 0;
-
-        let response: DOMTreeResult;
-
-        // Get DOM tree with change detection and update internal state (default)
-        if (detectTime > changeTime) {
-          response = {
-            tabId: context.activeTabId!,
-            newNodesCount: stats?.newSimplifiedNodesCount || 0,
-            totalNodesCountChange: stats?.simplifiedNodesCountChange || 0,
-          };
-        } else {
-          // Manual rebuild if needed
-          const { newNodesCount, totalNodesCountChange } =
-            await domService.buildSimplifiedDOMTree();
-          response = {
-            tabId: context.activeTabId!,
-            newNodesCount,
-            totalNodesCountChange,
-          };
-        }
-
-        return response;
+        return {
+          tabId: context.activeTabId!,
+          newNodesCount: stats?.newSimplifiedNodesCount || 0,
+          totalNodesCountChange: stats?.simplifiedNodesCountChange || 0,
+        };
       },
       {
         timeout: 45000,
@@ -124,6 +123,8 @@ export const getFlattenDOMTool = tool({
         }
 
         // Generate representation using the root node
+        await ensureFreshDOM(sessionTabService, domService, context.activeTabId!);
+
         const representation =
           domService.simplifiedDOMState?.flattenedDOM ||
           "No DOM tree available";
