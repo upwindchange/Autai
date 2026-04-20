@@ -128,7 +128,7 @@ async function createWindow() {
     return { action: "deny" };
   });
 
-  update(win);
+  update();
 }
 
 app.whenReady().then(async () => {

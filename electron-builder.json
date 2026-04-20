@@ -5,10 +5,7 @@
   "directories": {
     "output": "release/${version}"
   },
-  "files": [
-    "out",
-    "resources"
-  ],
+  "files": ["out", "resources"],
   "extraResources": [
     {
       "from": "resources",
@@ -21,19 +18,13 @@
   ],
   "mac": {
     "artifactName": "${productName}_${version}.${ext}",
-    "target": [
-      "dmg",
-      "zip"
-    ]
+    "target": ["dmg", "zip"]
   },
   "win": {
     "target": [
       {
         "target": "nsis",
-        "arch": [
-          "x64",
-          "arm64"
-        ]
+        "arch": ["x64", "arm64"]
       }
     ],
     "artifactName": "${productName}_${version}_${arch}.${ext}"
@@ -45,11 +36,7 @@
     "deleteAppDataOnUninstall": false
   },
   "linux": {
-    "target": [
-      { "target": "AppImage", "arch": ["x64", "arm64"] },
-      { "target": "snap", "arch": ["x64", "arm64"] },
-      { "target": "flatpak", "arch": ["x64", "arm64"] }
-    ],
+    "target": [{ "target": "AppImage", "arch": ["x64", "arm64"] }],
     "category": "Utility"
   },
   "flatpak": {
@@ -57,8 +44,8 @@
     "baseVersion": "25.08"
   },
   "publish": {
-    "provider": "generic",
-    "channel": "latest",
-    "url": "https://github.com/upwindchange/Autai/releases/download/v0.9.9/"
+    "provider": "github",
+    "owner": "upwindchange",
+    "repo": "Autai"
   }
 }
