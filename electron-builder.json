@@ -17,8 +17,8 @@
     }
   ],
   "mac": {
-    "artifactName": "${productName}_${version}.${ext}",
-    "target": ["dmg", "zip"]
+    "artifactName": "${productName}_${version}_${arch}.${ext}",
+    "target": ["zip"]
   },
   "win": {
     "target": [
