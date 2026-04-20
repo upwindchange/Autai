@@ -807,29 +807,18 @@ export const getAttributeTool = tool({
       );
     }
 
-    return await PQueueManager.getInstance().add(
-      async () => {
-        const sessionTabService = SessionTabService.getInstance();
-        const interactionService = sessionTabService.getInteractionService(
-          context.activeTabId!,
-        );
-
-        if (!interactionService) {
-          throw new Error(
-            `Interaction service not found for tab ${context.activeTabId}`,
-          );
-        }
-
-        return await interactionService.getAttribute(
-          backendNodeId,
-          attributeName,
-        );
-      },
-      {
-        timeout: 60000,
-        throwOnTimeout: true,
-      },
+    const sessionTabService = SessionTabService.getInstance();
+    const interactionService = sessionTabService.getInteractionService(
+      context.activeTabId!,
     );
+
+    if (!interactionService) {
+      throw new Error(
+        `Interaction service not found for tab ${context.activeTabId}`,
+      );
+    }
+
+    return await interactionService.getAttribute(backendNodeId, attributeName);
   },
 });
 
@@ -863,30 +852,18 @@ export const evaluateTool = tool({
       );
     }
 
-    return await PQueueManager.getInstance().add(
-      async () => {
-        const sessionTabService = SessionTabService.getInstance();
-        const interactionService = sessionTabService.getInteractionService(
-          context.activeTabId!,
-        );
-
-        if (!interactionService) {
-          throw new Error(
-            `Interaction service not found for tab ${context.activeTabId}`,
-          );
-        }
-
-        return await interactionService.evaluate(
-          backendNodeId,
-          expression,
-          args,
-        );
-      },
-      {
-        timeout: 60000,
-        throwOnTimeout: true,
-      },
+    const sessionTabService = SessionTabService.getInstance();
+    const interactionService = sessionTabService.getInteractionService(
+      context.activeTabId!,
     );
+
+    if (!interactionService) {
+      throw new Error(
+        `Interaction service not found for tab ${context.activeTabId}`,
+      );
+    }
+
+    return await interactionService.evaluate(backendNodeId, expression, args);
   },
 });
 
@@ -908,26 +885,18 @@ export const getBasicInfoTool = tool({
       );
     }
 
-    return await PQueueManager.getInstance().add(
-      async () => {
-        const sessionTabService = SessionTabService.getInstance();
-        const interactionService = sessionTabService.getInteractionService(
-          context.activeTabId!,
-        );
-
-        if (!interactionService) {
-          throw new Error(
-            `Interaction service not found for tab ${context.activeTabId}`,
-          );
-        }
-
-        return await interactionService.getBasicInfo(backendNodeId);
-      },
-      {
-        timeout: 60000,
-        throwOnTimeout: true,
-      },
+    const sessionTabService = SessionTabService.getInstance();
+    const interactionService = sessionTabService.getInteractionService(
+      context.activeTabId!,
     );
+
+    if (!interactionService) {
+      throw new Error(
+        `Interaction service not found for tab ${context.activeTabId}`,
+      );
+    }
+
+    return await interactionService.getBasicInfo(backendNodeId);
   },
 });
 
@@ -951,30 +920,22 @@ export const interceptClickUrlTool = tool({
       );
     }
 
-    return await PQueueManager.getInstance().add(
-      async () => {
-        const sessionTabService = SessionTabService.getInstance();
-        const interactionService = sessionTabService.getInteractionService(
-          context.activeTabId!,
-        );
-        if (!interactionService) {
-          throw new Error(
-            `Interaction service not found for tab ${context.activeTabId}`,
-          );
-        }
-
-        sessionTabService.updateTabTimestamp(context.activeTabId!);
-
-        return await interactionService.interceptClickUrl(backendNodeId, {
-          button: "left",
-          clickCount: 1,
-        });
-      },
-      {
-        timeout: 60000,
-        throwOnTimeout: true,
-      },
+    const sessionTabService = SessionTabService.getInstance();
+    const interactionService = sessionTabService.getInteractionService(
+      context.activeTabId!,
     );
+    if (!interactionService) {
+      throw new Error(
+        `Interaction service not found for tab ${context.activeTabId}`,
+      );
+    }
+
+    sessionTabService.updateTabTimestamp(context.activeTabId!);
+
+    return await interactionService.interceptClickUrl(backendNodeId, {
+      button: "left",
+      clickCount: 1,
+    });
   },
 });
 

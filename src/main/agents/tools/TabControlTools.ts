@@ -1,7 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { TabControlService } from "@/services";
-import { PQueueManager } from "@agents/utils";
 import type { ToolExecutionContext } from "./types/context";
 
 // ===== Result Types =====
@@ -34,16 +33,8 @@ export const navigateTool = tool({
       );
     }
 
-    return await PQueueManager.getInstance().add(
-      async () => {
-        const tabControlService = TabControlService.getInstance();
-        return await tabControlService.navigateTo(context.activeTabId!, url);
-      },
-      {
-        timeout: 30000,
-        throwOnTimeout: true,
-      },
-    );
+    const tabControlService = TabControlService.getInstance();
+    return await tabControlService.navigateTo(context.activeTabId!, url);
   },
 });
 
@@ -61,16 +52,8 @@ export const refreshTool = tool({
       );
     }
 
-    return await PQueueManager.getInstance().add(
-      async () => {
-        const tabControlService = TabControlService.getInstance();
-        return await tabControlService.refresh(context.activeTabId!);
-      },
-      {
-        timeout: 30000,
-        throwOnTimeout: true,
-      },
-    );
+    const tabControlService = TabControlService.getInstance();
+    return await tabControlService.refresh(context.activeTabId!);
   },
 });
 
@@ -88,16 +71,8 @@ export const goBackTool = tool({
       );
     }
 
-    return await PQueueManager.getInstance().add(
-      async () => {
-        const tabControlService = TabControlService.getInstance();
-        return await tabControlService.goBack(context.activeTabId!);
-      },
-      {
-        timeout: 30000,
-        throwOnTimeout: true,
-      },
-    );
+    const tabControlService = TabControlService.getInstance();
+    return await tabControlService.goBack(context.activeTabId!);
   },
 });
 
@@ -115,16 +90,8 @@ export const goForwardTool = tool({
       );
     }
 
-    return await PQueueManager.getInstance().add(
-      async () => {
-        const tabControlService = TabControlService.getInstance();
-        return await tabControlService.goForward(context.activeTabId!);
-      },
-      {
-        timeout: 30000,
-        throwOnTimeout: true,
-      },
-    );
+    const tabControlService = TabControlService.getInstance();
+    return await tabControlService.goForward(context.activeTabId!);
   },
 });
 
