@@ -50,6 +50,9 @@ export async function browserResearchWorker(
               tabId = await sessionTabService.createTab({ sessionId });
             }
 
+            // Note: executeSearchQueries destroys all session tabs and creates
+            // its own per-query tabs. tabId is only used as a seed.
+
             // ============================================================
             // Stage 1: Research Planning
             // ============================================================
@@ -143,7 +146,6 @@ export async function browserResearchWorker(
               searchResults,
               plan.queries,
               sessionId,
-              tabId,
               writer,
             );
 

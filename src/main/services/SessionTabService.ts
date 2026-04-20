@@ -512,6 +512,14 @@ export class SessionTabService extends EventEmitter {
     await Promise.all(hidePromises);
   }
 
+  async destroyAllTabs(sessionId: SessionId): Promise<void> {
+    const state = this.sessionStates.get(sessionId);
+    if (!state) return;
+    for (const tabId of [...state.tabIds]) {
+      await this.destroyTab(tabId);
+    }
+  }
+
   // ===================
   // CLEANUP
   // ===================

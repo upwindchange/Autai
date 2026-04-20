@@ -6,7 +6,7 @@ import { hasSuccessfulToolResult, writeSimulatedToolCallToStream } from "@agents
 import { navigateTool } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { interceptClickUrlTool } from "@agents/tools/InteractiveTools";
-import { settingsService } from "@/services";
+import { settingsService, SessionTabService } from "@/services";
 import type { ResearchPlan } from "./planner";
 import log from "electron-log/main";
 
@@ -198,25 +198,136 @@ async function resolveSearchResultUrls(
   return resolved;
 }
 
+// ===== Single Query Execution =====
+
+async function executeSingleSearchQuery(
+  query: string,
+  focus: string,
+  queryIndex: number,
+  sessionId: string,
+  tabId: string,
+  sessionTabService: SessionTabService,
+): Promise<SearchResultItem[]> {
+  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+
+  logger.debug("Searching", { query, searchUrl });
+
+  try {
+    await navigateTo(searchUrl, sessionId, tabId);
+
+    // Set this tab as the active tab for the session and show it
+    const state = sessionTabService.getSessionTabState(sessionId);
+    if (state) state.activeTabId = tabId;
+    await sessionTabService.setBackendVisibility(tabId, true);
+
+    const domRepresentation = await getFlattenDOM(sessionId, tabId);
+
+    const truncatedDom =
+      domRepresentation.length > 50000 ?
+        domRepresentation.slice(0, 50000) +
+        "\n\n[... content truncated ...]"
+      : domRepresentation;
+
+    logger.debug("DOM received for search analysis", {
+      query,
+      domLength: domRepresentation.length,
+      truncatedLength: truncatedDom.length,
+    });
+
+    const analysisResult = streamText({
+      model: complexModel(),
+      messages: [
+        {
+          role: "user",
+          content: `Search query: "${query}"\nFocus: "${focus}"\n\nGoogle search results DOM:\n${truncatedDom}`,
+        },
+      ],
+      system: searchAnalysisPrompt,
+      tools: {
+        showSearchResults: showSearchResultsTool,
+      },
+      toolChoice: {
+        type: "tool",
+        toolName: "showSearchResults",
+      },
+      stopWhen: [
+        hasSuccessfulToolResult("showSearchResults"),
+        stepCountIs(10),
+      ],
+      experimental_telemetry: {
+        isEnabled: settingsService.settings.langfuse.enabled,
+        functionId: "research-search-analysis",
+        metadata: {
+          queryIndex,
+          query,
+        },
+      },
+    });
+
+    const steps = await analysisResult.steps;
+    const toolResult = steps
+      .flatMap((s) => s.toolResults ?? [])
+      .find(
+        (tr) =>
+          tr.toolName === "showSearchResults" &&
+          tr.type === "tool-result",
+      );
+
+    if (toolResult) {
+      const output = toolResult.output as {
+        results: RawSearchResult[];
+      };
+
+      const resolved = await resolveSearchResultUrls(
+        output.results,
+        queryIndex,
+        sessionId,
+        tabId,
+      );
+
+      logger.debug("Search results resolved", {
+        query,
+        rawCount: output.results.length,
+        resolvedCount: resolved.length,
+      });
+
+      return resolved;
+    }
+
+    logger.warn("LLM failed to extract search results", { query });
+    return [];
+  } catch (error) {
+    logger.error("Search query failed", {
+      query,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    return [];
+  }
+}
+
 // ===== Main Exported Function =====
 
 export async function executeSearchQueries(
   plan: ResearchPlan,
   sessionId: string,
-  activeTabId: string,
+  _activeTabId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   writer: { write: (chunk: any) => void },
 ): Promise<SearchResultItem[]> {
-  const allResults: SearchResultItem[] = [];
+  const sessionTabService = SessionTabService.getInstance();
   const searchPlanId = `research-search-${sessionId}`;
 
+  // Close ALL existing tabs in the session
+  await sessionTabService.destroyAllTabs(sessionId);
+
+  // Create one tab per query
   for (let i = 0; i < plan.queries.length; i++) {
-    const { query, focus } = plan.queries[i];
-    const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+    await sessionTabService.createTab({ sessionId });
+  }
+  const tabIds = sessionTabService.getTabsForSession(sessionId);
 
-    logger.debug("Searching", { query, searchUrl });
-
-    // Update plan progress
+  try {
+    // Emit progress: all queries "in_progress"
     writeSimulatedToolCallToStream({
       writer,
       toolCallId: searchPlanId,
@@ -224,13 +335,10 @@ export async function executeSearchQueries(
       input: {
         title: `Searching: ${plan.title}`,
         description: plan.description,
-        todos: plan.queries.map((q, idx) => ({
+        todos: plan.queries.map((q) => ({
           id: q.id,
           label: `Search: "${q.query}"`,
-          status:
-            idx < i ? "completed"
-            : idx === i ? "in_progress"
-            : "pending",
+          status: "in_progress" as const,
           description: q.focus,
         })),
       },
@@ -238,109 +346,49 @@ export async function executeSearchQueries(
         id: searchPlanId,
         title: `Searching: ${plan.title}`,
         description: plan.description,
-        todos: plan.queries.map((q, idx) => ({
+        todos: plan.queries.map((q) => ({
           id: q.id,
           label: `Search: "${q.query}"`,
-          status:
-            idx < i ? "completed"
-            : idx === i ? "in_progress"
-            : "pending",
+          status: "in_progress" as const,
           description: q.focus,
         })),
       },
     });
 
-    try {
-      // Navigate to Google
-      await navigateTo(searchUrl, sessionId, activeTabId);
-
-      // Get the DOM
-      const domRepresentation = await getFlattenDOM(sessionId, activeTabId);
-
-      // Truncate if too large (50k chars)
-      const truncatedDom =
-        domRepresentation.length > 50000 ?
-          domRepresentation.slice(0, 50000) +
-          "\n\n[... content truncated ...]"
-        : domRepresentation;
-
-      logger.debug("DOM received for search analysis", {
-        query,
-        domLength: domRepresentation.length,
-        truncatedLength: truncatedDom.length,
-      });
-
-      // Analyze with LLM
-      const analysisResult = streamText({
-        model: complexModel(),
-        messages: [
-          {
-            role: "user",
-            content: `Search query: "${query}"\nFocus: "${focus}"\n\nGoogle search results DOM:\n${truncatedDom}`,
-          },
-        ],
-        system: searchAnalysisPrompt,
-        tools: {
-          showSearchResults: showSearchResultsTool,
-        },
-        toolChoice: {
-          type: "tool",
-          toolName: "showSearchResults",
-        },
-        stopWhen: [
-          hasSuccessfulToolResult("showSearchResults"),
-          stepCountIs(10),
-        ],
-        experimental_telemetry: {
-          isEnabled: settingsService.settings.langfuse.enabled,
-          functionId: "research-search-analysis",
-          metadata: {
-            queryIndex: i,
-            query,
-          },
-        },
-      });
-
-      // Extract raw results (backendNodeIds) from LLM
-      const steps = await analysisResult.steps;
-      const toolResult = steps
-        .flatMap((s) => s.toolResults ?? [])
-        .find(
-          (tr) =>
-            tr.toolName === "showSearchResults" &&
-            tr.type === "tool-result",
-        );
-
-      if (toolResult) {
-        const output = toolResult.output as {
-          results: RawSearchResult[];
-        };
-
-        // Resolve backendNodeIds to real URLs via interceptClickUrl
-        const resolved = await resolveSearchResultUrls(
-          output.results,
+    // Run all queries in parallel
+    const settledResults = await Promise.allSettled(
+      tabIds.map((tabId, i) => {
+        const { query, focus } = plan.queries[i];
+        return executeSingleSearchQuery(
+          query,
+          focus,
           i,
           sessionId,
-          activeTabId,
+          tabId,
+          sessionTabService,
         );
-        allResults.push(...resolved);
+      }),
+    );
 
-        logger.debug("Search results resolved", {
-          query,
-          rawCount: output.results.length,
-          resolvedCount: resolved.length,
-        });
+    // Collect results
+    const allResults: SearchResultItem[] = [];
+    for (let i = 0; i < settledResults.length; i++) {
+      const result = settledResults[i];
+      if (result.status === "fulfilled") {
+        allResults.push(...result.value);
       } else {
-        logger.warn("LLM failed to extract search results", { query });
+        logger.error("Parallel search query failed", {
+          queryIndex: i,
+          query: plan.queries[i].query,
+          error:
+            result.reason instanceof Error ?
+              result.reason.message
+            : String(result.reason),
+        });
       }
-    } catch (error) {
-      logger.error("Search query failed", {
-        query,
-        error: error instanceof Error ? error.message : String(error),
-      });
     }
 
-    // Mark current query as completed
+    // Emit progress: all queries "completed"
     writeSimulatedToolCallToStream({
       writer,
       toolCallId: searchPlanId,
@@ -348,12 +396,10 @@ export async function executeSearchQueries(
       input: {
         title: `Searching: ${plan.title}`,
         description: plan.description,
-        todos: plan.queries.map((q, idx) => ({
+        todos: plan.queries.map((q) => ({
           id: q.id,
           label: `Search: "${q.query}"`,
-          status:
-            idx <= i ? "completed"
-            : "pending",
+          status: "completed" as const,
           description: q.focus,
         })),
       },
@@ -361,17 +407,18 @@ export async function executeSearchQueries(
         id: searchPlanId,
         title: `Searching: ${plan.title}`,
         description: plan.description,
-        todos: plan.queries.map((q, idx) => ({
+        todos: plan.queries.map((q) => ({
           id: q.id,
           label: `Search: "${q.query}"`,
-          status:
-            idx <= i ? "completed"
-            : "pending",
+          status: "completed" as const,
           description: q.focus,
         })),
       },
     });
-  }
 
-  return deduplicateResults(allResults);
+    return deduplicateResults(allResults);
+  } finally {
+    // Destroy ALL tabs
+    await sessionTabService.destroyAllTabs(sessionId);
+  }
 }
