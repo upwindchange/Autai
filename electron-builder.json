@@ -17,7 +17,7 @@
     }
   ],
   "mac": {
-    "artifactName": "${productName}_${version}_${arch}.${ext}",
+    "artifactName": "${productName}_${version}_${os}_${arch}.${ext}",
     "target": ["zip"]
   },
   "win": {
@@ -27,7 +27,7 @@
         "arch": ["x64", "arm64"]
       }
     ],
-    "artifactName": "${productName}_${version}_${arch}.${ext}"
+    "artifactName": "${productName}_${version}_${os}_${arch}.${ext}"
   },
   "nsis": {
     "oneClick": false,
@@ -36,6 +36,7 @@
     "deleteAppDataOnUninstall": false
   },
   "linux": {
+    "artifactName": "${productName}_${version}_${os}_${arch}.${ext}",
     "target": [{ "target": "AppImage", "arch": ["x64", "arm64"] }],
     "category": "Utility"
   },
