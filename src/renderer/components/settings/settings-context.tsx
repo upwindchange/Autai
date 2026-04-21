@@ -9,6 +9,7 @@ import { SettingsContextType } from "./types";
 import type { SettingsState, UserProviderConfig } from "@shared";
 import { getDefaultSettings } from "@shared";
 import log from "electron-log/renderer";
+import i18n from "@/i18n";
 
 const logger = log.scope("SettingsContext");
 
@@ -41,6 +42,9 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       const res = await fetch(`${API_BASE}/settings`);
       const loadedSettings = (await res.json()) as SettingsState;
       setSettings(loadedSettings);
+      if (loadedSettings.language && loadedSettings.language !== i18n.language) {
+        await i18n.changeLanguage(loadedSettings.language);
+      }
     } catch (error) {
       logger.error("failed to load settings", error);
       setSettings(getDefaultSettings());

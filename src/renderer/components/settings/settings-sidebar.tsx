@@ -1,4 +1,4 @@
-import { Cloud, Code, Info, Tags, ArrowLeft } from "lucide-react";
+import { Cloud, Code, Info, Tags, ArrowLeft, Settings } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -22,6 +22,12 @@ interface NavigationItem {
 }
 
 const navigationItems: (NavigationItem | "separator")[] = [
+  {
+    id: "general",
+    labelKey: "sidebar.general",
+    icon: Settings,
+  },
+  "separator",
   {
     id: "providers",
     labelKey: "sidebar.providers",

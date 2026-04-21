@@ -13,10 +13,13 @@
   "resources.documentation": "文档",
   "credits.title": "致谢",
   "credits.description": "基于优秀的开源技术构建",
-  "credits.line1": "使用 Electron、React 和 TypeScript 构建",
-  "credits.line2": "UI 组件由 shadcn/ui 和 Radix UI 提供",
-  "credits.line3": "AI SDK 由 Vercel 提供",
-  "credits.line4": "Assistant UI 组件由 assistant-ui 提供",
-  "copyright": "\u00a9 2024 Autai. 保留所有权利。",
+  "credits.intro": "Autai 基于以下优秀项目构建",
+  "credits.electron": "跨平台桌面应用框架",
+  "credits.assistantUI": "AI 聊天 UI 组件",
+  "credits.aiSDK": "AI 代理框架",
+  "credits.more": "以及更多优秀的开源项目",
+  "credits.specialThanks": "特别致谢",
+  "credits.browserUse": "该项目 CDP 工具的 TypeScript 重写灵感来源",
+  "copyright": "\u00a9 2026 Autai. 保留所有权利。",
   "disclaimer": "本软件按\"原样\"提供，不附带任何形式的保证。"
 }

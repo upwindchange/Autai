@@ -2,7 +2,7 @@ import { Rectangle } from "electron";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 
-export type SettingsSection = "providers" | "threads" | "development" | "about";
+export type SettingsSection = "general" | "providers" | "threads" | "development" | "about";
 
 interface UiState {
   // Settings visibility
@@ -40,7 +40,7 @@ export const useUiStore = create<UiState>()(
     setShowSettings: (show) => set({ showSettings: show }),
 
     // Settings navigation
-    activeSettingsSection: "providers",
+    activeSettingsSection: "general",
     setActiveSettingsSection: (section) =>
       set({ activeSettingsSection: section }),
 

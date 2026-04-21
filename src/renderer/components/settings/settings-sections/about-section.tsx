@@ -119,7 +119,7 @@ export function AboutSection() {
             variant="outline"
             className="w-full justify-start gap-2"
             onClick={() =>
-              openExternal("https://github.com/yourusername/autai")
+              openExternal("https://github.com/upwindchange/Autai")
             }
           >
             <GitHubIcon className="h-4 w-4" />
@@ -130,7 +130,7 @@ export function AboutSection() {
             variant="outline"
             className="w-full justify-start gap-2"
             onClick={() =>
-              openExternal("https://github.com/yourusername/autai/issues")
+              openExternal("https://github.com/upwindchange/Autai/issues")
             }
           >
             <FileText className="h-4 w-4" />
@@ -141,7 +141,7 @@ export function AboutSection() {
             variant="outline"
             className="w-full justify-start gap-2"
             onClick={() =>
-              openExternal("https://github.com/yourusername/autai/wiki")
+              openExternal("https://github.com/upwindchange/Autai")
             }
           >
             <FileText className="h-4 w-4" />
@@ -160,11 +160,77 @@ export function AboutSection() {
           <div className="space-y-2 text-sm">
             <p className="flex items-center gap-2">
               <Heart className="h-3 w-3 text-red-500" />
-              {t("credits.line1")}
+              {t("credits.intro")}
             </p>
-            <p className="text-muted-foreground">{t("credits.line2")}</p>
-            <p className="text-muted-foreground">{t("credits.line3")}</p>
-            <p className="text-muted-foreground">{t("credits.line4")}</p>
+          </div>
+          <div className="space-y-2">
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2"
+              onClick={() =>
+                openExternal("https://www.electronjs.org")
+              }
+            >
+              <span className="font-medium">Electron</span>
+              <span className="text-xs text-muted-foreground">
+                {t("credits.electron")}
+              </span>
+              <ExternalLink className="h-3 w-3 ml-auto" />
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2"
+              onClick={() =>
+                openExternal("https://www.assistant-ui.com")
+              }
+            >
+              <span className="font-medium">Assistant UI</span>
+              <span className="text-xs text-muted-foreground">
+                {t("credits.assistantUI")}
+              </span>
+              <ExternalLink className="h-3 w-3 ml-auto" />
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2"
+              onClick={() =>
+                openExternal("https://sdk.vercel.ai")
+              }
+            >
+              <span className="font-medium">AI SDK</span>
+              <span className="text-xs text-muted-foreground">
+                {t("credits.aiSDK")}
+              </span>
+              <ExternalLink className="h-3 w-3 ml-auto" />
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2"
+              onClick={() =>
+                openExternal("https://github.com/upwindchange/Autai/blob/master/package.json")
+              }
+            >
+              <span className="text-muted-foreground text-xs">
+                {t("credits.more")}
+              </span>
+              <ExternalLink className="h-3 w-3 ml-auto" />
+            </Button>
+          </div>
+          <div className="space-y-2 text-sm">
+            <p className="font-medium">{t("credits.specialThanks")}</p>
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2"
+              onClick={() =>
+                openExternal("https://github.com/browser-use/browser-use")
+              }
+            >
+              <span className="font-medium">Browser-Use</span>
+              <span className="text-xs text-muted-foreground">
+                {t("credits.browserUse")}
+              </span>
+              <ExternalLink className="h-3 w-3 ml-auto" />
+            </Button>
           </div>
           <Separator />
           <div className="text-xs text-muted-foreground">

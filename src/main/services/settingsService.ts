@@ -94,6 +94,7 @@ class SettingsService {
       autoTagCreationEnabled:
         settingsMap.get("auto_tag_creation_enabled") !== "false",
       systemPrompt: settingsMap.get("system_prompt") || defaults.systemPrompt,
+      language: settingsMap.get("language") || defaults.language,
     });
   }
 
@@ -131,6 +132,7 @@ class SettingsService {
         ["auto_tag_enabled", String(settingsState.autoTagEnabled)],
         ["auto_tag_creation_enabled", String(settingsState.autoTagCreationEnabled)],
         ["system_prompt", settingsState.systemPrompt || ""],
+        ["language", settingsState.language || "en"],
       ] as [string, string][]) {
         tx.insert(settings)
           .values({ key, value })
