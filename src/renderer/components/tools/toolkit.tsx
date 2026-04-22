@@ -8,6 +8,8 @@ import { safeParseSerializablePlan } from "@/components/tool-ui/plan/schema";
 import { ToolUI } from "@/components/tool-ui/shared";
 import { ApprovalCard } from "@/components/tool-ui/approval-card";
 import { InputCard } from "@/components/tool-ui/input-card";
+import { OptionList } from "@/components/tool-ui/option-list";
+import type { OptionListSelection } from "@/components/tool-ui/option-list";
 
 export const frontendToolkit: Toolkit = {
   // Calculator tool - executes on frontend
@@ -227,6 +229,71 @@ export const frontendToolkit: Toolkit = {
                 message: "User skipped the intervention",
               },
             });
+          }}
+        />
+      );
+    },
+  },
+
+  // Option list tool - renders OptionList for user to select from choices
+  requestOptionList: {
+    type: "backend",
+    render: ({ args, result, toolCallId }) => {
+      const optionListProps = {
+        id: toolCallId ?? "unknown",
+        options: args.options.map(
+          (opt: {
+            id: string;
+            label: string;
+            description?: string;
+            disabled?: boolean;
+          }) => ({
+            id: opt.id,
+            label: opt.label,
+            description: opt.description,
+            disabled: opt.disabled,
+          }),
+        ),
+        selectionMode: args.selectionMode ?? "single",
+        minSelections: args.minSelections ?? 1,
+        maxSelections: args.maxSelections,
+        defaultValue: args.defaultValue ?? undefined,
+      };
+
+      if (result) {
+        const raw = result as Record<string, unknown>;
+        const cancelled = raw.cancelled === true;
+        const selection = raw.selection as OptionListSelection;
+
+        return (
+          <OptionList
+            {...optionListProps}
+            choice={cancelled ? null : selection}
+          />
+        );
+      }
+
+      return (
+        <OptionList
+          {...optionListProps}
+          onAction={(actionId: string, selection: OptionListSelection) => {
+            if (actionId === "confirm") {
+              window.ipcRenderer.invoke("hitl:respond", {
+                id: toolCallId,
+                response: {
+                  selection,
+                  cancelled: false,
+                },
+              });
+            } else if (actionId === "cancel") {
+              window.ipcRenderer.invoke("hitl:respond", {
+                id: toolCallId,
+                response: {
+                  selection: null,
+                  cancelled: true,
+                },
+              });
+            }
           }}
         />
       );

@@ -88,7 +88,90 @@ export const requestUserInputTool = tool({
   },
 });
 
+export const requestOptionListTool = tool({
+  description:
+    "Present the user with a list of options to choose from. " +
+    "Use this when the user needs to select from a known set of choices, " +
+    "such as picking a shipping method, choosing a color, selecting from search results, " +
+    "or deciding between multiple alternatives. " +
+    "Supports both single-select and multi-select modes.",
+  inputSchema: z.object({
+    prompt: z
+      .string()
+      .min(1)
+      .describe(
+        "A question or prompt describing what the user is choosing",
+      ),
+    options: z
+      .array(
+        z.object({
+          id: z
+            .string()
+            .min(1)
+            .describe("Unique identifier for this option"),
+          label: z.string().min(1).describe("Display text for this option"),
+          description: z
+            .string()
+            .optional()
+            .describe("Secondary text explaining this option"),
+          disabled: z
+            .boolean()
+            .optional()
+            .describe("Whether this option is non-selectable"),
+        }),
+      )
+      .min(1)
+      .max(8)
+      .describe("The options to present (max 8 for readability)"),
+    selectionMode: z
+      .enum(["single", "multi"])
+      .optional()
+      .describe('Selection mode. Default: "single"'),
+    minSelections: z
+      .number()
+      .min(0)
+      .optional()
+      .describe("Minimum selections required (default: 1)"),
+    maxSelections: z
+      .number()
+      .min(1)
+      .optional()
+      .describe("Maximum selections allowed (multi-select only)"),
+    defaultValue: z
+      .union([z.string(), z.array(z.string())])
+      .optional()
+      .describe("Pre-selected option ID(s)"),
+  }),
+  execute: async ({ prompt, options }, { toolCallId }) => {
+    const hitlService = HitlService.getInstance();
+
+    const response = await hitlService.request<{
+      selection: string | string[] | null;
+      cancelled: boolean;
+    }>(toolCallId);
+
+    if (response.cancelled || response.selection == null) {
+      return {
+        cancelled: true,
+        selection: null,
+        prompt,
+      };
+    }
+
+    const ids = Array.isArray(response.selection)
+      ? response.selection
+      : [response.selection];
+    return {
+      cancelled: false,
+      selection: response.selection,
+      prompt,
+      selectedOptions: options.filter((opt) => ids.includes(opt.id)),
+    };
+  },
+});
+
 export const hitlTools = {
   requestHumanIntervention: requestHumanInterventionTool,
   requestUserInput: requestUserInputTool,
+  requestOptionList: requestOptionListTool,
 };

@@ -33,6 +33,7 @@ DOM analysis: getFlattenDOMTool (flattened DOM representation)
 Element inspection: get attributes, evaluate JavaScript, get basic info
 Human intervention: requestHumanIntervention (ask user to handle operations you cannot automate)
 User input: requestUserInput (ask the user a question and receive a text response)
+Option selection: requestOptionList (present choices for the user to select from)
 
 # Tab Context
 Active tab is pre-selected. All interactive tools use this tab automatically. Do NOT specify tabId.
@@ -127,7 +128,26 @@ Parameters:
 - buttonLabel: context-appropriate text for the submit button (e.g., "Search", "Confirm", "Submit")
 
 NEVER use requestUserInput to ask for passwords, payment details, or other sensitive information. Use requestHumanIntervention instead to let the user enter those directly in the browser.
-The user will type their response and submit it. Use the returned answer to continue the task.`;
+The user will type their response and submit it. Use the returned answer to continue the task.
+
+# Option List (requestOptionList)
+Use requestOptionList when the user needs to choose from a known, finite set of options. Ideal when the valid choices are enumerable:
+- Selection between alternatives (e.g., "Which shipping method?", "Which color?")
+- Picking from discovered results (e.g., "Which of these products to view?")
+- Configuration choices (e.g., "Which date format?", "Which layout?")
+- Disambiguation (e.g., "Which 'John Smith' do you mean?")
+
+Parameters:
+- prompt: a clear question describing what the user is choosing
+- options: array of choices, each with id, label, and optional description. Use at most 8 options for readability.
+- selectionMode: "single" (default) or "multi" for allowing multiple selections
+- minSelections / maxSelections: constraints on multi-select (optional)
+- defaultValue: pre-selected option ID(s) (optional)
+
+Prefer requestOptionList over requestUserInput when the valid answers form a small, known set (typically 2-8 options) and you can enumerate the choices (e.g., options found on the current page).
+Prefer requestUserInput when the answer is open-ended text or you don't know the possible answers in advance.
+NEVER use requestOptionList for sensitive information. Use requestHumanIntervention instead.
+The user will select option(s) and confirm. Use the returned selection IDs to continue the task.`;
 
 // ============================================================================
 // Helper Functions
@@ -301,7 +321,7 @@ export async function executeSubtasks(
           // Only stream requestHumanIntervention tool calls to the frontend
           // so the user can interact with HITL prompts. All other tool calls
           // and text are handled internally without streaming.
-          const HITL_TOOLS = new Set(["requestHumanIntervention", "requestUserInput"]);
+          const HITL_TOOLS = new Set(["requestHumanIntervention", "requestUserInput", "requestOptionList"]);
           const [steps] = await Promise.all([
             result.steps,
             mergeStreamAndWait(
