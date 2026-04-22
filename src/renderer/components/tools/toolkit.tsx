@@ -6,6 +6,7 @@ import { calculateToolSchema, answerToolSchema } from "@shared/tools";
 import { Plan } from "@/components/tool-ui/plan";
 import { safeParseSerializablePlan } from "@/components/tool-ui/plan/schema";
 import { ToolUI } from "@/components/tool-ui/shared";
+import { ApprovalCard } from "@/components/tool-ui/approval-card";
 
 export const frontendToolkit: Toolkit = {
   // Calculator tool - executes on frontend
@@ -132,6 +133,53 @@ export const frontendToolkit: Toolkit = {
             />
           </ToolUI.Actions>
         </ToolUI>
+      );
+    },
+  },
+
+  // Human intervention tool - renders ApprovalCard asking user to act in browser
+  requestHumanIntervention: {
+    type: "backend",
+    render: ({ args, result, toolCallId }) => {
+      const cardProps = {
+        id: toolCallId ?? "unknown",
+        title: args.reason,
+        description: args.instructions,
+        icon: "HandMetal",
+        confirmLabel: args.buttonLabel ?? "Done",
+        cancelLabel: "Skip",
+      };
+
+      if (result) {
+        const choice =
+          (result as Record<string, unknown>)?.completed === true
+            ? "approved" as const
+            : "denied" as const;
+        return <ApprovalCard {...cardProps} choice={choice} />;
+      }
+
+      return (
+        <ApprovalCard
+          {...cardProps}
+          onConfirm={() => {
+            window.ipcRenderer.invoke("hitl:respond", {
+              id: toolCallId,
+              response: {
+                completed: true,
+                message: "User completed the intervention",
+              },
+            });
+          }}
+          onCancel={() => {
+            window.ipcRenderer.invoke("hitl:respond", {
+              id: toolCallId,
+              response: {
+                completed: false,
+                message: "User skipped the intervention",
+              },
+            });
+          }}
+        />
       );
     },
   },

@@ -8,6 +8,7 @@ import log from "electron-log/main";
 import { interactiveTools } from "@agents/tools/InteractiveTools";
 import { navigationTools } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
+import { hitlTools } from "@agents/tools/HitlTools";
 import type { UIPlanType, UIPlanTodo } from "./planner";
 import { hasSuccessfulToolResult } from "@/agents/utils";
 
@@ -26,6 +27,7 @@ Page navigation: navigate, refresh, go back, go forward
 Page scrolling: scroll by pages or at coordinates
 DOM analysis: getFlattenDOMTool (flattened DOM representation)
 Element inspection: get attributes, evaluate JavaScript, get basic info
+Human intervention: requestHumanIntervention (ask user to handle operations you cannot automate)
 
 # Tab Context
 Active tab is pre-selected. All interactive tools use this tab automatically. Do NOT specify tabId.
@@ -88,7 +90,16 @@ When the subtask is done (goal achieved or determined impossible), you MUST call
 - success: true if the subtask goal was achieved, false otherwise
 - summary: a brief description of what was accomplished or why it failed
 
-This is required to signal completion. Do not just describe the result in text.`;
+This is required to signal completion. Do not just describe the result in text.
+
+# Human Intervention
+When you encounter operations you cannot handle alone (login forms, CAPTCHAs, 2FA, payment info, age verification, cookie consent popups that require specific user choices, etc.), call requestHumanIntervention with:
+- reason: a short explanation of what intervention is needed
+- instructions: what the user should do (e.g., "Please log in with your credentials")
+- buttonLabel: context-appropriate text for the confirm button (e.g., "Login Complete", "CAPTCHA Solved", "Done")
+
+The user will complete the action in the browser and confirm. Once confirmed, call getFlattenDOMTool to see the updated page state, then continue with the task.
+Always try to complete as much as possible before requesting intervention (e.g., navigate to the login page first, then ask the user to log in).`;
 
 // ============================================================================
 // Helper Functions
@@ -215,6 +226,7 @@ export async function executeSubtasks(
               getFlattenDOMTool,
               ...interactiveTools,
               ...navigationTools,
+              ...hitlTools,
               subtaskComplete: tool({
                 description:
                   "Signal that the current subtask has been completed. Call this when you have accomplished the subtask goal or determined it cannot be completed. YOU MUST CALL THIS TOOL when finished to signal completion.",

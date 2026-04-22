@@ -9,6 +9,7 @@ export { interactiveTools } from "./InteractiveTools";
 export { domTools } from "./DOMTools";
 export { sessionTools } from "./SessionTabTools";
 export { navigationTools } from "./TabControlTools";
+export { hitlTools } from "./HitlTools";
 
 // Export all types
 export type { ToolExecutionContext, ToolContextOptions } from "./types/context";
@@ -40,12 +41,14 @@ import { interactiveTools } from "./InteractiveTools";
 import { domTools } from "./DOMTools";
 import { sessionTools } from "./SessionTabTools";
 import { navigationTools } from "./TabControlTools";
+import { hitlTools } from "./HitlTools";
 
 export const allBrowserTools = {
   ...interactiveTools,
   ...domTools,
   ...sessionTools,
   ...navigationTools,
+  ...hitlTools,
 };
 
 // Tool names enum for type safety
@@ -79,6 +82,9 @@ export const AI_TOOL_NAMES = {
   REFRESH: "refresh",
   GO_BACK: "goBack",
   GO_FORWARD: "goForward",
+
+  // HITL
+  REQUEST_HUMAN_INTERVENTION: "requestHumanIntervention",
 } as const;
 
 export type AIToolName = (typeof AI_TOOL_NAMES)[keyof typeof AI_TOOL_NAMES];
