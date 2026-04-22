@@ -11,8 +11,8 @@ const logger = log.scope("useSessionLifecycle");
 export function useSessionLifecycle() {
   const previousSessionIdRef = useRef<string | null>(null);
 
-  // Handle session switch events
-  useAssistantEvent("threadListItem.switchedTo", (event) => {
+  // Handle session switch events (scope: "*" to capture events at app root level)
+  useAssistantEvent({ event: "threadListItem.switchedTo", scope: "*" }, (event) => {
     logger.debug("session switch event", { sessionId: event.threadId });
 
     if (event.threadId && event.threadId !== previousSessionIdRef.current) {

@@ -343,15 +343,32 @@ export class SessionTabService extends EventEmitter {
   // VISIBILITY MANAGEMENT
   // ===================
 
-  async setFrontendVisibility(isVisible: boolean): Promise<void> {
+  async setFrontendVisibility(
+    isVisible: boolean,
+    sessionId?: SessionId,
+  ): Promise<void> {
+    this.frontendVisibility = isVisible;
+
+    // When showing and a session ID is provided, switch to it
+    if (isVisible && sessionId && sessionId !== this.activeSessionId) {
+      if (this.sessionStates.has(sessionId)) {
+        await this.switchSession(sessionId);
+        return;
+      }
+      // Session doesn't exist yet — store frontendVisibility=true and
+      // let createSession (called later) handle showing the tab
+      this.logger.debug(
+        `Frontend visibility set to true for pending session ${sessionId}`,
+      );
+      return;
+    }
+
+    // Update visibility for the active session's active tab
     if (this.activeSessionId) {
       const tabId = this.sessionStates.get(this.activeSessionId)?.activeTabId;
       if (tabId) {
-        this.frontendVisibility = isVisible;
         await this.updateTabVisibility(tabId);
       } else {
-        // No active tab yet, just update the flag without triggering visibility
-        this.frontendVisibility = isVisible;
         this.logger.debug("Frontend visibility updated but no active tab yet");
       }
     }

@@ -32,10 +32,10 @@ export class SessionTabBridge extends BaseBridge {
     );
 
     // View visibility handlers (one-way, no response needed)
-    this.on<{ viewId: TabId; isVisible: boolean }>(
+    this.on<{ viewId: TabId; isVisible: boolean; sessionId?: SessionId }>(
       "sessiontab:setVisibility",
-      async (_, { isVisible }) => {
-        await this.sessionTabService.setFrontendVisibility(isVisible);
+      async (_, { isVisible, sessionId }) => {
+        await this.sessionTabService.setFrontendVisibility(isVisible, sessionId);
       },
     );
 

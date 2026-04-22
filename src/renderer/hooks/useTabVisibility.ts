@@ -20,6 +20,7 @@ export function useTabVisibility() {
     const updateVisibility = async (isVisible: boolean) => {
       logger.debug("updating visibility", {
         isVisible,
+        sessionId: mainTabId,
         hasContainerBounds: !!containerBounds,
       });
 
@@ -31,10 +32,11 @@ export function useTabVisibility() {
         });
       }
 
-      logger.debug("sending visibility ipc", { isVisible });
+      logger.debug("sending visibility ipc", { isVisible, sessionId: mainTabId });
       // Set visibility (now using send since it's one-way)
       window.ipcRenderer.send("sessiontab:setVisibility", {
         isVisible,
+        sessionId: mainTabId,
       });
     };
 
