@@ -7,6 +7,7 @@ export {
 } from "./telemetry";
 export {
   mergeStreamAndWait,
+  createToolFilteredStream,
   hasSuccessfulToolResult,
   repairToolCall,
   executeToolDirectly,

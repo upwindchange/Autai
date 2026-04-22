@@ -3,7 +3,11 @@ import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
 import { SessionTabService } from "@/services";
-import { writeSimulatedToolCallToStream, mergeStreamAndWait } from "@agents/utils";
+import {
+  writeSimulatedToolCallToStream,
+  mergeStreamAndWait,
+  createToolFilteredStream,
+} from "@agents/utils";
 import log from "electron-log/main";
 import { interactiveTools } from "@agents/tools/InteractiveTools";
 import { navigationTools } from "@agents/tools/TabControlTools";
@@ -268,14 +272,19 @@ export async function executeSubtasks(
           });
 
           // ============================================================
-          // STREAM TOOL CALLS TO FRONTEND & EXTRACT RESULTS
+          // STREAM HITL TOOL CALLS TO FRONTEND & EXTRACT RESULTS
           // ============================================================
-          // Merge the streamText UI into the writer so tool calls
-          // (including requestHumanIntervention) appear in the chat UI.
+          // Only stream requestHumanIntervention tool calls to the frontend
+          // so the user can interact with HITL prompts. All other tool calls
+          // and text are handled internally without streaming.
+          const HITL_TOOLS = new Set(["requestHumanIntervention"]);
           const [steps] = await Promise.all([
             result.steps,
             mergeStreamAndWait(
-              result.toUIMessageStream({ sendStart: false }),
+              createToolFilteredStream(
+                result.toUIMessageStream({ sendStart: false }),
+                HITL_TOOLS,
+              ),
               writer,
             ),
           ]);

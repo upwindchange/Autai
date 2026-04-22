@@ -69,6 +69,69 @@ export async function mergeStreamAndWait<T>(
   }
 }
 
+/**
+ * Creates a filtered ReadableStream that only passes through chunks for specific tools.
+ * Tracks tool call IDs from tool-input-start/tool-input-available and forwards all
+ * subsequent chunks (deltas, outputs) for those IDs. Also passes structural control chunks.
+ */
+export function createToolFilteredStream<T>(
+  stream: ReadableStream<T>,
+  toolNames: Set<string>,
+): ReadableStream<T> {
+  const trackedToolCallIds = new Set<string>();
+  const reader = stream.getReader();
+
+  return new ReadableStream<T>({
+    async pull(controller) {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          controller.close();
+          return;
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const chunk = value as any;
+
+        // Track tool call IDs for matching tools
+        if (
+          (chunk.type === "tool-input-start" ||
+            chunk.type === "tool-input-available") &&
+          toolNames.has(chunk.toolName)
+        ) {
+          trackedToolCallIds.add(chunk.toolCallId);
+        }
+
+        // Forward chunks for tracked tool call IDs
+        if (chunk.toolCallId && trackedToolCallIds.has(chunk.toolCallId)) {
+          controller.enqueue(value);
+          continue;
+        }
+
+        // Forward structural control chunks
+        if (
+          [
+            "start",
+            "finish",
+            "start-step",
+            "finish-step",
+            "error",
+            "abort",
+          ].includes(chunk.type)
+        ) {
+          controller.enqueue(value);
+          continue;
+        }
+
+        // Skip text, reasoning, non-matching tools, etc.
+      }
+    },
+    cancel() {
+      reader.cancel();
+    },
+  });
+}
+
 // ── AI SDK Tool Utilities ──────────────────────────────────────────────────
 
 /**
