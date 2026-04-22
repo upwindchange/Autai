@@ -3,7 +3,7 @@ import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
 import { SessionTabService } from "@/services";
-import { writeSimulatedToolCallToStream } from "@agents/utils";
+import { writeSimulatedToolCallToStream, mergeStreamAndWait } from "@agents/utils";
 import log from "electron-log/main";
 import { interactiveTools } from "@agents/tools/InteractiveTools";
 import { navigationTools } from "@agents/tools/TabControlTools";
@@ -268,9 +268,17 @@ export async function executeSubtasks(
           });
 
           // ============================================================
-          // EXTRACT SUBTASK COMPLETION RESULT
+          // STREAM TOOL CALLS TO FRONTEND & EXTRACT RESULTS
           // ============================================================
-          const steps = await result.steps;
+          // Merge the streamText UI into the writer so tool calls
+          // (including requestHumanIntervention) appear in the chat UI.
+          const [steps] = await Promise.all([
+            result.steps,
+            mergeStreamAndWait(
+              result.toUIMessageStream({ sendStart: false }),
+              writer,
+            ),
+          ]);
           const allToolResults = steps.flatMap(
             (step) => step.toolResults ?? [],
           );
