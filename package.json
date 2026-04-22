@@ -31,9 +31,7 @@
     "tabWidth": 2,
     "useTabs": false
   },
-  "dependencies": {},
   "devDependencies": {
-    "electron-updater": "^6.8.3",
     "@ai-sdk/amazon-bedrock": "^4.0.93",
     "@ai-sdk/anthropic": "^3.0.69",
     "@ai-sdk/azure": "^3.0.54",
@@ -100,6 +98,7 @@
     "electron": "^41.2.1",
     "electron-builder": "^26.8.1",
     "electron-log": "^5.4.3",
+    "electron-updater": "^6.8.3",
     "electron-vite": "^5.0.0",
     "embla-carousel-react": "^8.6.0",
     "eslint": "^10.2.0",

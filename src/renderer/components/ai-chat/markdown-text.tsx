@@ -1,6 +1,6 @@
 "use client";
 
-import "@assistant-ui/react-markdown/styles/dot.css";
+import "./streaming-indicator.css";
 import "katex/dist/katex.min.css";
 
 import {
