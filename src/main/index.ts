@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell, ipcMain, nativeTheme } from "electron";
+import { app, BrowserWindow, Menu, shell, ipcMain, nativeTheme } from "electron";
 // import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -72,6 +72,7 @@ const indexHtml = path.join(RENDERER_DIST, "index.html");
 async function createWindow() {
   win = new BrowserWindow({
     title: "Main window",
+    autoHideMenuBar: true,
     icon:
       process.env.VITE_PUBLIC ?
         path.join(process.env.VITE_PUBLIC, "favicon.ico")
@@ -82,6 +83,19 @@ async function createWindow() {
       sandbox: false, // Required for @electron-toolkit/preload
       webviewTag: false,
     },
+  });
+
+  // Remove default menu entirely (disables all built-in shortcuts including zoom)
+  Menu.setApplicationMenu(null);
+
+  // Disable default keyboard shortcuts for zoom
+  win.webContents.on("before-input-event", (event, input) => {
+    if (input.control && ["+", "-", "="].includes(input.key)) {
+      event.preventDefault();
+    }
+    if (input.control && input.key === "0") {
+      event.preventDefault();
+    }
   });
 
   if (is.dev && ELECTRON_RENDERER_URL) {
