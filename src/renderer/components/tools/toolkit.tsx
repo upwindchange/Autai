@@ -7,6 +7,7 @@ import { Plan } from "@/components/tool-ui/plan";
 import { safeParseSerializablePlan } from "@/components/tool-ui/plan/schema";
 import { ToolUI } from "@/components/tool-ui/shared";
 import { ApprovalCard } from "@/components/tool-ui/approval-card";
+import { InputCard } from "@/components/tool-ui/input-card";
 
 export const frontendToolkit: Toolkit = {
   // Calculator tool - executes on frontend
@@ -133,6 +134,54 @@ export const frontendToolkit: Toolkit = {
             />
           </ToolUI.Actions>
         </ToolUI>
+      );
+    },
+  },
+
+  // User input tool - renders InputCard with textarea for text feedback
+  requestUserInput: {
+    type: "backend",
+    render: ({ args, result, toolCallId }) => {
+      const cardProps = {
+        id: toolCallId ?? "unknown",
+        question: args.question,
+        context: args.context,
+        placeholder: args.placeholder,
+        buttonLabel: args.buttonLabel ?? "Submit",
+      };
+
+      if (result) {
+        const raw = result as Record<string, unknown>;
+        const answer = typeof raw.answer === "string" ? raw.answer : "";
+        const choice =
+          answer.length > 0 ?
+            ("submitted" as const)
+          : ("cancelled" as const);
+        return (
+          <InputCard
+            {...cardProps}
+            choice={choice}
+            answer={answer || undefined}
+          />
+        );
+      }
+
+      return (
+        <InputCard
+          {...cardProps}
+          onSubmit={(answer) => {
+            window.ipcRenderer.invoke("hitl:respond", {
+              id: toolCallId,
+              response: { answer },
+            });
+          }}
+          onCancel={() => {
+            window.ipcRenderer.invoke("hitl:respond", {
+              id: toolCallId,
+              response: { answer: "" },
+            });
+          }}
+        />
       );
     },
   },

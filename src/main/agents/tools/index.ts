@@ -85,6 +85,7 @@ export const AI_TOOL_NAMES = {
 
   // HITL
   REQUEST_HUMAN_INTERVENTION: "requestHumanIntervention",
+  REQUEST_USER_INPUT: "requestUserInput",
 } as const;
 
 export type AIToolName = (typeof AI_TOOL_NAMES)[keyof typeof AI_TOOL_NAMES];

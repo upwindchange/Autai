@@ -32,6 +32,7 @@ Page scrolling: scroll by pages or at coordinates
 DOM analysis: getFlattenDOMTool (flattened DOM representation)
 Element inspection: get attributes, evaluate JavaScript, get basic info
 Human intervention: requestHumanIntervention (ask user to handle operations you cannot automate)
+User input: requestUserInput (ask the user a question and receive a text response)
 
 # Tab Context
 Active tab is pre-selected. All interactive tools use this tab automatically. Do NOT specify tabId.
@@ -96,14 +97,37 @@ When the subtask is done (goal achieved or determined impossible), you MUST call
 
 This is required to signal completion. Do not just describe the result in text.
 
-# Human Intervention
-When you encounter operations you cannot handle alone (login forms, CAPTCHAs, 2FA, payment info, age verification, cookie consent popups that require specific user choices, etc.), call requestHumanIntervention with:
+# Human Intervention (requestHumanIntervention)
+Use requestHumanIntervention when the user must physically perform an action in the browser that you cannot automate. This includes ALL sensitive operations:
+- Login forms, credentials, passwords
+- CAPTCHAs, 2FA, security challenges
+- Payment forms, credit card entry
+- Age verification, cookie consent with specific choices
+- Any operation requiring human judgment or private information
+
+Parameters:
 - reason: a short explanation of what intervention is needed
 - instructions: what the user should do (e.g., "Please log in with your credentials")
 - buttonLabel: context-appropriate text for the confirm button (e.g., "Login Complete", "CAPTCHA Solved", "Done")
 
 The user will complete the action in the browser and confirm. Once confirmed, call getFlattenDOMTool to see the updated page state, then continue with the task.
-Always try to complete as much as possible before requesting intervention (e.g., navigate to the login page first, then ask the user to log in).`;
+Always try to complete as much as possible before requesting intervention (e.g., navigate to the login page first, then ask the user to log in).
+
+# User Input (requestUserInput)
+Use requestUserInput to ask the user a question and receive a text answer. This is ONLY for non-sensitive information needed to complete the current task:
+- Search queries (e.g., "What would you like to search for?")
+- Preferences (e.g., "Which color scheme do you prefer?")
+- Clarification on ambiguous instructions (e.g., "Which shipping option should I select?")
+- Non-sensitive values to enter (e.g., "What name should I use for the account?")
+
+Parameters:
+- question: the question you need answered
+- context: why you need this information
+- placeholder: optional example text for the input field
+- buttonLabel: context-appropriate text for the submit button (e.g., "Search", "Confirm", "Submit")
+
+NEVER use requestUserInput to ask for passwords, payment details, or other sensitive information. Use requestHumanIntervention instead to let the user enter those directly in the browser.
+The user will type their response and submit it. Use the returned answer to continue the task.`;
 
 // ============================================================================
 // Helper Functions
@@ -277,7 +301,7 @@ export async function executeSubtasks(
           // Only stream requestHumanIntervention tool calls to the frontend
           // so the user can interact with HITL prompts. All other tool calls
           // and text are handled internally without streaming.
-          const HITL_TOOLS = new Set(["requestHumanIntervention"]);
+          const HITL_TOOLS = new Set(["requestHumanIntervention", "requestUserInput"]);
           const [steps] = await Promise.all([
             result.steps,
             mergeStreamAndWait(
