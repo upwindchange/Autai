@@ -2,7 +2,10 @@ import { streamText, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import { createIdGenerator } from "@ai-sdk/provider-utils";
 import { complexModel } from "@agents/providers";
-import { hasSuccessfulToolResult, writeSimulatedToolCallToStream } from "@agents/utils";
+import {
+  hasSuccessfulToolResult,
+  writeSimulatedToolCallToStream,
+} from "@agents/utils";
 import { navigateTool } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { interceptClickUrlTool } from "@agents/tools/InteractiveTools";
@@ -174,11 +177,7 @@ async function resolveSearchResultUrls(
   const resolved: SearchResultItem[] = [];
 
   for (const r of rawResults) {
-    const url = await interceptLinkUrl(
-      r.backendNodeId,
-      sessionId,
-      activeTabId,
-    );
+    const url = await interceptLinkUrl(r.backendNodeId, sessionId, activeTabId);
     if (url) {
       resolved.push({
         url,
@@ -224,8 +223,7 @@ async function executeSingleSearchQuery(
 
     const truncatedDom =
       domRepresentation.length > 50000 ?
-        domRepresentation.slice(0, 50000) +
-        "\n\n[... content truncated ...]"
+        domRepresentation.slice(0, 50000) + "\n\n[... content truncated ...]"
       : domRepresentation;
 
     logger.debug("DOM received for search analysis", {
@@ -250,10 +248,7 @@ async function executeSingleSearchQuery(
         type: "tool",
         toolName: "showSearchResults",
       },
-      stopWhen: [
-        hasSuccessfulToolResult("showSearchResults"),
-        stepCountIs(10),
-      ],
+      stopWhen: [hasSuccessfulToolResult("showSearchResults"), stepCountIs(10)],
       experimental_telemetry: {
         isEnabled: settingsService.settings.langfuse.enabled,
         functionId: "research-search-analysis",
@@ -269,8 +264,7 @@ async function executeSingleSearchQuery(
       .flatMap((s) => s.toolResults ?? [])
       .find(
         (tr) =>
-          tr.toolName === "showSearchResults" &&
-          tr.type === "tool-result",
+          tr.toolName === "showSearchResults" && tr.type === "tool-result",
       );
 
     if (toolResult) {

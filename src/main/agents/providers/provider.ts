@@ -19,12 +19,16 @@ export class Provider {
         "Provider Not Configured",
         `Provider is missing API key. Please configure it in settings.`,
       );
-      throw new Error("Provider is not properly configured. API key is required.");
+      throw new Error(
+        "Provider is not properly configured. API key is required.",
+      );
     }
 
     const apiKey = this.config.apiKey;
     const baseURL =
-      this.config.apiUrlOverride || this.runtimeConfig.defaultApiUrl || undefined;
+      this.config.apiUrlOverride ||
+      this.runtimeConfig.defaultApiUrl ||
+      undefined;
     const sdkNpm = this.runtimeConfig.npm;
 
     switch (sdkNpm) {

@@ -60,7 +60,9 @@ function InputCardReceipt({
             {question}
           </span>
           {isSubmitted && answer && (
-            <span className="text-sm mt-0.5 truncate">&ldquo;{answer}&rdquo;</span>
+            <span className="text-sm mt-0.5 truncate">
+              &ldquo;{answer}&rdquo;
+            </span>
           )}
         </div>
       </div>

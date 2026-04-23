@@ -32,7 +32,10 @@ export function useTabVisibility() {
         });
       }
 
-      logger.debug("sending visibility ipc", { isVisible, sessionId: mainTabId });
+      logger.debug("sending visibility ipc", {
+        isVisible,
+        sessionId: mainTabId,
+      });
       // Set visibility (now using send since it's one-way)
       window.ipcRenderer.send("sessiontab:setVisibility", {
         isVisible,

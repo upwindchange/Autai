@@ -321,7 +321,11 @@ export async function executeSubtasks(
           // Only stream requestHumanIntervention tool calls to the frontend
           // so the user can interact with HITL prompts. All other tool calls
           // and text are handled internally without streaming.
-          const HITL_TOOLS = new Set(["requestHumanIntervention", "requestUserInput", "requestOptionList"]);
+          const HITL_TOOLS = new Set([
+            "requestHumanIntervention",
+            "requestUserInput",
+            "requestOptionList",
+          ]);
           const [steps] = await Promise.all([
             result.steps,
             mergeStreamAndWait(

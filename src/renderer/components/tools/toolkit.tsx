@@ -156,9 +156,7 @@ export const frontendToolkit: Toolkit = {
         const raw = result as Record<string, unknown>;
         const answer = typeof raw.answer === "string" ? raw.answer : "";
         const choice =
-          answer.length > 0 ?
-            ("submitted" as const)
-          : ("cancelled" as const);
+          answer.length > 0 ? ("submitted" as const) : ("cancelled" as const);
         return (
           <InputCard
             {...cardProps}
@@ -203,9 +201,9 @@ export const frontendToolkit: Toolkit = {
 
       if (result) {
         const choice =
-          (result as Record<string, unknown>)?.completed === true
-            ? "approved" as const
-            : "denied" as const;
+          (result as Record<string, unknown>)?.completed === true ?
+            ("approved" as const)
+          : ("denied" as const);
         return <ApprovalCard {...cardProps} choice={choice} />;
       }
 

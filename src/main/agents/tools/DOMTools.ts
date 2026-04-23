@@ -13,11 +13,13 @@ async function ensureFreshDOM(
   tabId: string,
 ): Promise<void> {
   const stats = domService.simplifiedDOMState?.stats;
-  const changeTime =
-    sessionTabService.getTabMetadata(tabId)?.timestamp || 0;
+  const changeTime = sessionTabService.getTabMetadata(tabId)?.timestamp || 0;
   const detectTime = stats?.timestamp || 0;
 
-  if (detectTime <= changeTime || !domService.simplifiedDOMState?.flattenedDOM) {
+  if (
+    detectTime <= changeTime ||
+    !domService.simplifiedDOMState?.flattenedDOM
+  ) {
     await domService.buildSimplifiedDOMTree();
   }
 }
@@ -73,7 +75,11 @@ export const getDOMTreeTool = tool({
           return result;
         }
 
-        await ensureFreshDOM(sessionTabService, domService, context.activeTabId!);
+        await ensureFreshDOM(
+          sessionTabService,
+          domService,
+          context.activeTabId!,
+        );
 
         const stats = domService.simplifiedDOMState?.stats;
         return {
@@ -123,7 +129,11 @@ export const getFlattenDOMTool = tool({
         }
 
         // Generate representation using the root node
-        await ensureFreshDOM(sessionTabService, domService, context.activeTabId!);
+        await ensureFreshDOM(
+          sessionTabService,
+          domService,
+          context.activeTabId!,
+        );
 
         const representation =
           domService.simplifiedDOMState?.flattenedDOM ||

@@ -7,7 +7,11 @@
 
 import { eq } from "drizzle-orm";
 import type { LanguageModel } from "ai";
-import type { ModelRole, ProviderRuntimeConfig, UserProviderConfig } from "@shared";
+import type {
+  ModelRole,
+  ProviderRuntimeConfig,
+  UserProviderConfig,
+} from "@shared";
 import { getDb } from "@/db";
 import { settings, userProviders, modelAssignments } from "@/db/schema";
 import { Provider } from "./provider";
@@ -64,14 +68,20 @@ function createModel(role: ModelRole): LanguageModel {
     id: providerRow.id,
     providerDir: providerRow.providerDir,
     apiKey: providerRow.apiKey,
-    ...(providerRow.apiUrlOverride && { apiUrlOverride: providerRow.apiUrlOverride }),
+    ...(providerRow.apiUrlOverride && {
+      apiUrlOverride: providerRow.apiUrlOverride,
+    }),
     npm: providerRow.npm,
-    ...(providerRow.defaultApiUrl && { defaultApiUrl: providerRow.defaultApiUrl }),
+    ...(providerRow.defaultApiUrl && {
+      defaultApiUrl: providerRow.defaultApiUrl,
+    }),
   };
 
   const runtimeConfig: ProviderRuntimeConfig = {
     npm: providerRow.npm,
-    ...(providerRow.defaultApiUrl && { defaultApiUrl: providerRow.defaultApiUrl }),
+    ...(providerRow.defaultApiUrl && {
+      defaultApiUrl: providerRow.defaultApiUrl,
+    }),
     name: providerRow.providerDir,
   };
 

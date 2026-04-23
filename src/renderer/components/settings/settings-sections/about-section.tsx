@@ -173,9 +173,7 @@ export function AboutSection() {
             <Button
               variant="outline"
               className="w-full justify-start gap-2"
-              onClick={() =>
-                openExternal("https://www.electronjs.org")
-              }
+              onClick={() => openExternal("https://www.electronjs.org")}
             >
               <span className="font-medium">Electron</span>
               <span className="text-xs text-muted-foreground">
@@ -186,9 +184,7 @@ export function AboutSection() {
             <Button
               variant="outline"
               className="w-full justify-start gap-2"
-              onClick={() =>
-                openExternal("https://www.assistant-ui.com")
-              }
+              onClick={() => openExternal("https://www.assistant-ui.com")}
             >
               <span className="font-medium">Assistant UI</span>
               <span className="text-xs text-muted-foreground">
@@ -199,9 +195,7 @@ export function AboutSection() {
             <Button
               variant="outline"
               className="w-full justify-start gap-2"
-              onClick={() =>
-                openExternal("https://sdk.vercel.ai")
-              }
+              onClick={() => openExternal("https://sdk.vercel.ai")}
             >
               <span className="font-medium">AI SDK</span>
               <span className="text-xs text-muted-foreground">
@@ -213,7 +207,9 @@ export function AboutSection() {
               variant="outline"
               className="w-full justify-start gap-2"
               onClick={() =>
-                openExternal("https://github.com/upwindchange/Autai/blob/master/package.json")
+                openExternal(
+                  "https://github.com/upwindchange/Autai/blob/master/package.json",
+                )
               }
             >
               <span className="text-muted-foreground text-xs">

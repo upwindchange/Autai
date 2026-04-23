@@ -99,8 +99,7 @@ export function ConfiguredProviderCard({
           }),
           modelId: selectedModel || "test",
           npm: target.npm || definition.npm,
-          defaultApiUrl:
-            target.defaultApiUrl || definition.api || undefined,
+          defaultApiUrl: target.defaultApiUrl || definition.api || undefined,
         }),
       });
     } finally {

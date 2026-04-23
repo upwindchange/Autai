@@ -48,7 +48,7 @@ import {
   ComposerAddAttachment,
   ComposerAttachments,
   UserMessageAttachments,
-} from "@/components/assistant-ui/attachment";
+} from "@/components/ai-chat/attachment";
 import { Reasoning, ReasoningGroup } from "@/components/assistant-ui/reasoning";
 import { MessageTiming } from "@/components/assistant-ui/message-timing";
 import {
@@ -301,7 +301,9 @@ const ComposerAction: FC = () => {
 
         {/* Use Browser toggle */}
         <TooltipIconButton
-          tooltip={useBrowser ? t("composer.browser.on") : t("composer.browser.off")}
+          tooltip={
+            useBrowser ? t("composer.browser.on") : t("composer.browser.off")
+          }
           variant="ghost"
           type="button"
           className={cn("size-8.5", useBrowser && "bg-muted hover:bg-muted")}
@@ -312,7 +314,9 @@ const ComposerAction: FC = () => {
 
         {/* Web Search toggle */}
         <TooltipIconButton
-          tooltip={webSearch ? t("composer.webSearch.on") : t("composer.webSearch.off")}
+          tooltip={
+            webSearch ? t("composer.webSearch.on") : t("composer.webSearch.off")
+          }
           variant="ghost"
           type="button"
           className={cn("size-8.5", webSearch && "bg-muted hover:bg-muted")}

@@ -77,8 +77,7 @@ export const listSessionsTool = tool({
     }
 
     const sessionDetails = sessionIds.map((sessionId) => {
-      const activeTabId =
-        sessionTabService.getActiveTabForSession(sessionId);
+      const activeTabId = sessionTabService.getActiveTabForSession(sessionId);
       const state = sessionTabService.getSessionTabState(sessionId);
       return {
         sessionId,
@@ -174,9 +173,7 @@ export const getTabInfoTool = tool({
     }
 
     const sessionTabService = SessionTabService.getInstance();
-    const tabMetadata = sessionTabService.getTabMetadata(
-      context.activeTabId!,
-    );
+    const tabMetadata = sessionTabService.getTabMetadata(context.activeTabId!);
     const tab = sessionTabService.getTab(context.activeTabId!);
 
     if (!tabMetadata) {

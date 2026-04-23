@@ -31,7 +31,8 @@ function fixSecChUa(headers: Record<string, string>): void {
   const chromeVersion = process.versions.chrome || "136";
   for (const key of Object.keys(headers)) {
     if (key.toLowerCase() === "sec-ch-ua") {
-      headers[key] = `"Chromium";v="${chromeVersion}", "Google Chrome";v="${chromeVersion}", "Not-A.Brand";v="99"`;
+      headers[key] =
+        `"Chromium";v="${chromeVersion}", "Google Chrome";v="${chromeVersion}", "Not-A.Brand";v="99"`;
     }
   }
 }
@@ -212,7 +213,7 @@ function buildInjectionScript(): string {
 
 export function applyFingerprintObfuscation(
   tab: WebContentsView,
-  config: FingerprintConfig = {}
+  config: FingerprintConfig = {},
 ): void {
   const { webContents } = tab;
   const ua = config.userAgent ?? getDefaultUA();
@@ -223,7 +224,7 @@ export function applyFingerprintObfuscation(
 
   // Native: WebRTC IP leak prevention
   webContents.setWebRTCIPHandlingPolicy(
-    config.webRTCIPPolicy ?? "default_public_interface_only"
+    config.webRTCIPPolicy ?? "default_public_interface_only",
   );
 
   // Native: Fix sec-ch-ua and other HTTP headers

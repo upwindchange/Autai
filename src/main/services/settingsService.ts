@@ -58,7 +58,10 @@ class SettingsService {
     const settingsMap = new Map(settingsRows.map((r) => [r.key, r.value]));
 
     // Load user providers
-    const providerRows = db.select().from(userProviders).all() as UserProviderRow[];
+    const providerRows = db
+      .select()
+      .from(userProviders)
+      .all() as UserProviderRow[];
 
     const providers: UserProviderConfig[] = providerRows.map((row) => ({
       id: row.id,
@@ -70,7 +73,10 @@ class SettingsService {
     }));
 
     // Load model assignments
-    const assignmentRows = db.select().from(modelAssignments).all() as ModelAssignmentRow[];
+    const assignmentRows = db
+      .select()
+      .from(modelAssignments)
+      .all() as ModelAssignmentRow[];
 
     const modelAssignmentsObj = {
       chat: this.buildAssignment(assignmentRows, "chat", defaults),
@@ -123,14 +129,20 @@ class SettingsService {
     db.transaction((tx) => {
       // Key-value settings
       for (const [key, value] of [
-        ["use_same_model_for_agents", String(settingsState.useSameModelForAgents)],
+        [
+          "use_same_model_for_agents",
+          String(settingsState.useSameModelForAgents),
+        ],
         ["log_level", settingsState.logLevel],
         ["langfuse_enabled", String(settingsState.langfuse.enabled)],
         ["langfuse_public_key", settingsState.langfuse.publicKey || ""],
         ["langfuse_secret_key", settingsState.langfuse.secretKey || ""],
         ["langfuse_host", settingsState.langfuse.host || ""],
         ["auto_tag_enabled", String(settingsState.autoTagEnabled)],
-        ["auto_tag_creation_enabled", String(settingsState.autoTagCreationEnabled)],
+        [
+          "auto_tag_creation_enabled",
+          String(settingsState.autoTagCreationEnabled),
+        ],
         ["system_prompt", settingsState.systemPrompt || ""],
         ["language", settingsState.language || "en"],
       ] as [string, string][]) {
@@ -164,9 +176,8 @@ class SettingsService {
               role: assignment.role,
               providerId: assignment.providerId,
               modelId: assignment.modelId,
-              params: assignment.params
-                ? JSON.stringify(assignment.params)
-                : null,
+              params:
+                assignment.params ? JSON.stringify(assignment.params) : null,
             })
             .run();
         }
@@ -178,10 +189,7 @@ class SettingsService {
     try {
       this.logger.info("testing connection", { config });
 
-      sendInfo(
-        "Testing Connection",
-        `Testing ${config.modelId} connection...`,
-      );
+      sendInfo("Testing Connection", `Testing ${config.modelId} connection...`);
 
       const userProvider: UserProviderConfig = {
         id: "test-provider",

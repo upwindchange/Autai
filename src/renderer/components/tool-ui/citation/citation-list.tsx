@@ -105,16 +105,15 @@ export function CitationList(props: CitationListProps) {
 
   const shouldTruncate =
     maxVisible !== undefined && citations.length > maxVisible;
-  const visibleCitations = shouldTruncate
-    ? citations.slice(0, maxVisible)
-    : citations;
+  const visibleCitations =
+    shouldTruncate ? citations.slice(0, maxVisible) : citations;
   const overflowCitations = shouldTruncate ? citations.slice(maxVisible) : [];
   const overflowCount = overflowCitations.length;
 
   const wrapperClass =
-    variant === "inline"
-      ? "flex flex-wrap items-center gap-1.5"
-      : "flex flex-col gap-2";
+    variant === "inline" ?
+      "flex flex-wrap items-center gap-1.5"
+    : "flex flex-col gap-2";
 
   // Stacked variant: overlapping favicons with popover
   if (variant === "stacked") {
@@ -300,7 +299,7 @@ function OverflowItem({ citation, onClick }: OverflowItemProps) {
       onClick={onClick}
       className="group hover:bg-muted focus-visible:bg-muted flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-2 text-left transition-colors focus-visible:outline-none"
     >
-      {citation.favicon ? (
+      {citation.favicon ?
         <img
           src={citation.favicon}
           alt=""
@@ -309,12 +308,11 @@ function OverflowItem({ citation, onClick }: OverflowItemProps) {
           height={16}
           className="bg-muted size-4 shrink-0 rounded object-cover"
         />
-      ) : (
-        <TypeIcon
+      : <TypeIcon
           className="text-muted-foreground size-4 shrink-0"
           aria-hidden="true"
         />
-      )}
+      }
       <div className="min-w-0 flex-1">
         <p className="group-hover:decoration-foreground/30 truncate text-sm font-medium group-hover:underline group-hover:underline-offset-2">
           {citation.title}
@@ -401,7 +399,7 @@ function StackedCitations({
                     )}
                     style={{ zIndex: maxIcons - index }}
                   >
-                    {citation.favicon ? (
+                    {citation.favicon ?
                       <img
                         src={citation.favicon}
                         alt=""
@@ -410,12 +408,11 @@ function StackedCitations({
                         height={18}
                         className="size-4.5 rounded-full object-cover"
                       />
-                    ) : (
-                      <TypeIcon
+                    : <TypeIcon
                         className="text-muted-foreground size-3"
                         aria-hidden="true"
                       />
-                    )}
+                    }
                   </div>
                 );
               })}

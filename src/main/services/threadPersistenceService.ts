@@ -173,7 +173,10 @@ class ThreadPersistenceService {
 
   addTagToThread(threadId: string, tagId: number): void {
     const db = getDb();
-    db.insert(threadTags).values({ threadId, tagId }).onConflictDoNothing().run();
+    db.insert(threadTags)
+      .values({ threadId, tagId })
+      .onConflictDoNothing()
+      .run();
   }
 
   removeTagFromThread(threadId: string, tagId: number): void {

@@ -2,7 +2,10 @@ import { streamText, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import { createIdGenerator } from "@ai-sdk/provider-utils";
 import { complexModel } from "@agents/providers";
-import { hasSuccessfulToolResult, writeSimulatedToolCallToStream } from "@agents/utils";
+import {
+  hasSuccessfulToolResult,
+  writeSimulatedToolCallToStream,
+} from "@agents/utils";
 import { navigateTool } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { settingsService, SessionTabService } from "@/services";
@@ -135,8 +138,7 @@ async function executeSingleExtraction(
 
     const truncatedDom =
       domRepresentation.length > 60000 ?
-        domRepresentation.slice(0, 60000) +
-        "\n\n[... content truncated ...]"
+        domRepresentation.slice(0, 60000) + "\n\n[... content truncated ...]"
       : domRepresentation;
 
     logger.debug("DOM received for extraction", {
@@ -179,8 +181,7 @@ async function executeSingleExtraction(
       .flatMap((s) => s.toolResults ?? [])
       .find(
         (tr) =>
-          tr.toolName === "showExtractionResult" &&
-          tr.type === "tool-result",
+          tr.toolName === "showExtractionResult" && tr.type === "tool-result",
       );
 
     if (toolResult) {
@@ -198,10 +199,12 @@ async function executeSingleExtraction(
     logger.warn("No extraction result for URL", {
       url: searchResult.url,
       stepCount: steps.length,
-      stepTypes: steps.flatMap((s) => s.toolResults ?? []).map((tr) => ({
-        toolName: tr.toolName,
-        type: tr.type,
-      })),
+      stepTypes: steps
+        .flatMap((s) => s.toolResults ?? [])
+        .map((tr) => ({
+          toolName: tr.toolName,
+          type: tr.type,
+        })),
     });
 
     return {

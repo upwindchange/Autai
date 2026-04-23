@@ -1,6 +1,7 @@
 "use client";
 
 import { PropsWithChildren, useEffect, useState, type FC } from "react";
+import { useTranslation } from "react-i18next";
 import { XIcon, PlusIcon, FileText } from "lucide-react";
 import {
   AttachmentPrimitive,
@@ -205,15 +206,16 @@ export const ComposerAttachments: FC = () => {
 };
 
 export const ComposerAddAttachment: FC = () => {
+  const { t } = useTranslation("common");
   return (
     <ComposerPrimitive.AddAttachment asChild>
       <TooltipIconButton
-        tooltip="Add Attachment"
+        tooltip={t("composer.addAttachment")}
         side="bottom"
         variant="ghost"
         size="icon"
         className="aui-composer-add-attachment size-8 rounded-full p-1 font-semibold text-xs hover:bg-muted-foreground/15 dark:border-muted-foreground/15 dark:hover:bg-muted-foreground/30"
-        aria-label="Add Attachment"
+        aria-label={t("composer.addAttachment")}
       >
         <PlusIcon className="aui-attachment-add-icon size-5 stroke-[1.5px]" />
       </TooltipIconButton>

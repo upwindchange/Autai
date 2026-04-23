@@ -2,7 +2,12 @@ import { Rectangle } from "electron";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 
-export type SettingsSection = "general" | "providers" | "threads" | "development" | "about";
+export type SettingsSection =
+  | "general"
+  | "providers"
+  | "threads"
+  | "development"
+  | "about";
 
 interface UiState {
   // Settings visibility

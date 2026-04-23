@@ -261,9 +261,9 @@ export function OptionList({
 
   const selectedIds = useMemo(() => {
     const parsed =
-      value !== undefined
-        ? parseSelectionToIdSet(value, selectionMode, effectiveMaxSelections)
-        : uncontrolledSelected;
+      value !== undefined ?
+        parseSelectionToIdSet(value, selectionMode, effectiveMaxSelections)
+      : uncontrolledSelected;
     return normalizeSelectionForOptions(parsed, optionIds);
   }, [
     value,
@@ -526,11 +526,13 @@ export function OptionList({
         ...action,
         disabled: action.disabled || isDisabledByValidation,
         label:
-          action.id === "confirm" &&
-          selectionMode === "multi" &&
-          selectedCount > 0
-            ? `${action.label} (${selectedCount})`
-            : action.label,
+          (
+            action.id === "confirm" &&
+            selectionMode === "multi" &&
+            selectedCount > 0
+          ) ?
+            `${action.label} (${selectedCount})`
+          : action.label,
       };
     });
   }, [
@@ -546,7 +548,7 @@ export function OptionList({
 
   return (
     <div key={viewKey} className="contents">
-      {isReceipt ? (
+      {isReceipt ?
         <OptionListConfirmation
           id={id}
           options={options}
@@ -556,8 +558,7 @@ export function OptionList({
           )}
           className={className}
         />
-      ) : (
-        <div
+      : <div
           className={cn(
             "@container/option-list flex w-full max-w-md min-w-80 flex-col gap-3",
             "text-foreground",
@@ -611,15 +612,15 @@ export function OptionList({
               confirmTimeout={normalizedFooterActions.confirmTimeout}
               onAction={handleFooterAction}
               onBeforeAction={
-                onBeforeAction
-                  ? (actionId) =>
-                      onBeforeAction(actionId, toSelectionState(selectedIds))
-                  : undefined
+                onBeforeAction ?
+                  (actionId) =>
+                    onBeforeAction(actionId, toSelectionState(selectedIds))
+                : undefined
               }
             />
           </div>
         </div>
-      )}
+      }
     </div>
   );
 }

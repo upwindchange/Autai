@@ -13,25 +13,20 @@ export const requestHumanInterventionTool = tool({
       .string()
       .min(1)
       .describe(
-        "Why human intervention is needed (e.g., 'Login required', 'CAPTCHA must be solved')"
+        "Why human intervention is needed (e.g., 'Login required', 'CAPTCHA must be solved')",
       ),
     instructions: z
       .string()
       .optional()
       .describe(
-        "Specific instructions for the user on what to do in the browser"
+        "Specific instructions for the user on what to do in the browser",
       ),
     buttonLabel: z
       .string()
       .optional()
-      .describe(
-        'Label for the confirmation button. Default: "Done"'
-      ),
+      .describe('Label for the confirmation button. Default: "Done"'),
   }),
-  execute: async (
-    { reason, instructions, buttonLabel },
-    { toolCallId },
-  ) => {
+  execute: async ({ reason, instructions, buttonLabel }, { toolCallId }) => {
     const hitlService = HitlService.getInstance();
 
     const response = await hitlService.request<{
@@ -41,8 +36,10 @@ export const requestHumanInterventionTool = tool({
 
     return {
       completed: response.completed,
-      message: response.message ?? (response.completed
-        ? "User completed the intervention"
+      message:
+        response.message ??
+        (response.completed ?
+          "User completed the intervention"
         : "User skipped the intervention"),
       reason,
     };
@@ -56,10 +53,7 @@ export const requestUserInputTool = tool({
     "such as login credentials, search queries, preferences, or clarification on ambiguous instructions. " +
     "The user's text answer will be returned so you can continue the task.",
   inputSchema: z.object({
-    question: z
-      .string()
-      .min(1)
-      .describe("The question to ask the user"),
+    question: z.string().min(1).describe("The question to ask the user"),
     context: z
       .string()
       .optional()
@@ -73,10 +67,7 @@ export const requestUserInputTool = tool({
       .optional()
       .describe('Label for the submit button. Default: "Submit"'),
   }),
-  execute: async (
-    { question },
-    { toolCallId },
-  ) => {
+  execute: async ({ question }, { toolCallId }) => {
     const hitlService = HitlService.getInstance();
 
     const response = await hitlService.request<{ answer: string }>(toolCallId);
@@ -99,16 +90,11 @@ export const requestOptionListTool = tool({
     prompt: z
       .string()
       .min(1)
-      .describe(
-        "A question or prompt describing what the user is choosing",
-      ),
+      .describe("A question or prompt describing what the user is choosing"),
     options: z
       .array(
         z.object({
-          id: z
-            .string()
-            .min(1)
-            .describe("Unique identifier for this option"),
+          id: z.string().min(1).describe("Unique identifier for this option"),
           label: z.string().min(1).describe("Display text for this option"),
           description: z
             .string()
@@ -158,8 +144,9 @@ export const requestOptionListTool = tool({
       };
     }
 
-    const ids = Array.isArray(response.selection)
-      ? response.selection
+    const ids =
+      Array.isArray(response.selection) ?
+        response.selection
       : [response.selection];
     return {
       cancelled: false,

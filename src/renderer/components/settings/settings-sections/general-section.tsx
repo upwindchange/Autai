@@ -33,17 +33,13 @@ export function GeneralSection() {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold">{t("general.title")}</h2>
-        <p className="text-muted-foreground mt-1">
-          {t("general.subtitle")}
-        </p>
+        <p className="text-muted-foreground mt-1">{t("general.subtitle")}</p>
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>{t("general.theme.title")}</CardTitle>
-          <CardDescription>
-            {t("general.theme.description")}
-          </CardDescription>
+          <CardDescription>{t("general.theme.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <RadioGroup
@@ -55,7 +51,11 @@ export function GeneralSection() {
               htmlFor="theme-light"
               className="flex flex-col items-center gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent has-[data-state=checked]:border-primary has-[data-state=checked]:bg-accent"
             >
-              <RadioGroupItem value="light" id="theme-light" className="sr-only" />
+              <RadioGroupItem
+                value="light"
+                id="theme-light"
+                className="sr-only"
+              />
               <Sun className="size-6" />
               <span className="text-sm font-medium">
                 {t("general.theme.light")}
@@ -65,7 +65,11 @@ export function GeneralSection() {
               htmlFor="theme-dark"
               className="flex flex-col items-center gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent has-[data-state=checked]:border-primary has-[data-state=checked]:bg-accent"
             >
-              <RadioGroupItem value="dark" id="theme-dark" className="sr-only" />
+              <RadioGroupItem
+                value="dark"
+                id="theme-dark"
+                className="sr-only"
+              />
               <Moon className="size-6" />
               <span className="text-sm font-medium">
                 {t("general.theme.dark")}
@@ -75,7 +79,11 @@ export function GeneralSection() {
               htmlFor="theme-system"
               className="flex flex-col items-center gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent has-[data-state=checked]:border-primary has-[data-state=checked]:bg-accent"
             >
-              <RadioGroupItem value="system" id="theme-system" className="sr-only" />
+              <RadioGroupItem
+                value="system"
+                id="theme-system"
+                className="sr-only"
+              />
               <SunMoon className="size-6" />
               <span className="text-sm font-medium">
                 {t("general.theme.system")}
@@ -88,9 +96,7 @@ export function GeneralSection() {
       <Card>
         <CardHeader>
           <CardTitle>{t("general.language.title")}</CardTitle>
-          <CardDescription>
-            {t("general.language.description")}
-          </CardDescription>
+          <CardDescription>{t("general.language.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <Select

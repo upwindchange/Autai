@@ -126,18 +126,17 @@ export function Citation(props: CitationProps) {
     }
   };
 
-  const iconElement = favicon ? (
-    <img
-      src={favicon}
-      alt=""
-      aria-hidden="true"
-      width={14}
-      height={14}
-      className="bg-muted size-3.5 shrink-0 rounded object-cover"
-    />
-  ) : (
-    <TypeIcon className="size-3.5 shrink-0 opacity-60" aria-hidden="true" />
-  );
+  const iconElement =
+    favicon ?
+      <img
+        src={favicon}
+        alt=""
+        aria-hidden="true"
+        width={14}
+        height={14}
+        className="bg-muted size-3.5 shrink-0 rounded object-cover"
+      />
+    : <TypeIcon className="size-3.5 shrink-0 opacity-60" aria-hidden="true" />;
 
   const { open, handleMouseEnter, handleMouseLeave } = useHoverPopover();
 
