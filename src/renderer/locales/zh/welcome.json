@@ -8,5 +8,7 @@
   "feature.automate.description": "让AI替你操作浏览器",
   "feature.extract.title": "整理",
   "feature.extract.description": "帮你整理网上的信息",
-  "prompt.suggestion": "试着让我\"帮我订一张下周五从旧金山到纽约的最便宜机票\"或\"帮我填写并提交这份申请表\""
+  "prompt.suggestion": "试着让我\"帮我订一张下周五从旧金山到纽约的最便宜机票\"或\"帮我填写并提交这份申请表\"",
+  "greeting.title": "你好！",
+  "greeting.subtitle": "有什么我能帮你的？"
 }

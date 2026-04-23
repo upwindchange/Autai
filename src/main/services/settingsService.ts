@@ -6,6 +6,7 @@
 import { generateText } from "ai";
 import { Provider } from "@agents/providers/provider";
 import { sendSuccess, sendAlert, sendInfo } from "@/utils/messageUtils";
+import { i18n } from "@/i18n";
 import { getDb } from "@/db";
 import { settings, userProviders, modelAssignments } from "@/db/schema";
 import log from "electron-log/main";
@@ -189,7 +190,7 @@ class SettingsService {
     try {
       this.logger.info("testing connection", { config });
 
-      sendInfo("Testing Connection", `Testing ${config.modelId} connection...`);
+      sendInfo(i18n.t("settings.testingTitle"), i18n.t("settings.testingBody", { modelId: config.modelId }));
 
       const userProvider: UserProviderConfig = {
         id: "test-provider",
@@ -223,14 +224,14 @@ class SettingsService {
         });
 
         sendSuccess(
-          "Connection Successful",
-          `${config.modelId} connected successfully! API is working correctly.`,
+          i18n.t("settings.successTitle"),
+          i18n.t("settings.successBody", { modelId: config.modelId }),
         );
       } else {
         this.logger.error("basic connection test failed - no response");
         sendAlert(
-          "Connection Failed",
-          `${config.modelId} connection failed: No response from API`,
+          i18n.t("settings.failedTitle"),
+          i18n.t("settings.failedNoResponse", { modelId: config.modelId }),
         );
       }
     } catch (error) {
@@ -238,8 +239,8 @@ class SettingsService {
         error instanceof Error ? error.message : "Unknown error";
       this.logger.error("connection test failed", { error: errorMessage });
       sendAlert(
-        "Connection Failed",
-        `${config.modelId} connection failed: ${errorMessage}`,
+        i18n.t("settings.failedTitle"),
+        i18n.t("settings.failedBody", { modelId: config.modelId, error: errorMessage }),
       );
     }
   }

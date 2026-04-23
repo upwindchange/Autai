@@ -10,6 +10,7 @@ import { navigateTool } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { interceptClickUrlTool } from "@agents/tools/InteractiveTools";
 import { settingsService, SessionTabService } from "@/services";
+import { i18n } from "@/i18n";
 import type { ResearchPlan } from "./planner";
 import log from "electron-log/main";
 
@@ -327,22 +328,22 @@ export async function executeSearchQueries(
       toolCallId: searchPlanId,
       toolName: "plan",
       input: {
-        title: `Searching: ${plan.title}`,
+        title: i18n.t("agents.searchingTitle", { title: plan.title }),
         description: plan.description,
         todos: plan.queries.map((q) => ({
           id: q.id,
-          label: `Search: "${q.query}"`,
+          label: i18n.t("agents.searchLabel", { query: q.query }),
           status: "in_progress" as const,
           description: q.focus,
         })),
       },
       output: {
         id: searchPlanId,
-        title: `Searching: ${plan.title}`,
+        title: i18n.t("agents.searchingTitle", { title: plan.title }),
         description: plan.description,
         todos: plan.queries.map((q) => ({
           id: q.id,
-          label: `Search: "${q.query}"`,
+          label: i18n.t("agents.searchLabel", { query: q.query }),
           status: "in_progress" as const,
           description: q.focus,
         })),
@@ -388,22 +389,22 @@ export async function executeSearchQueries(
       toolCallId: searchPlanId,
       toolName: "plan",
       input: {
-        title: `Searching: ${plan.title}`,
+        title: i18n.t("agents.searchingTitle", { title: plan.title }),
         description: plan.description,
         todos: plan.queries.map((q) => ({
           id: q.id,
-          label: `Search: "${q.query}"`,
+          label: i18n.t("agents.searchLabel", { query: q.query }),
           status: "completed" as const,
           description: q.focus,
         })),
       },
       output: {
         id: searchPlanId,
-        title: `Searching: ${plan.title}`,
+        title: i18n.t("agents.searchingTitle", { title: plan.title }),
         description: plan.description,
         todos: plan.queries.map((q) => ({
           id: q.id,
-          label: `Search: "${q.query}"`,
+          label: i18n.t("agents.searchLabel", { query: q.query }),
           status: "completed" as const,
           description: q.focus,
         })),

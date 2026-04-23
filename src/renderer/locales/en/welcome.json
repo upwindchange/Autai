@@ -8,5 +8,7 @@
   "feature.automate.description": "AI uses your browser for you",
   "feature.extract.title": "Organize",
   "feature.extract.description": "Organize information from the web",
-  "prompt.suggestion": "Try asking me to \"Book the cheapest flight from SF to NYC next Friday\" or \"Fill out and submit this application form\""
+  "prompt.suggestion": "Try asking me to \"Book the cheapest flight from SF to NYC next Friday\" or \"Fill out and submit this application form\"",
+  "greeting.title": "Hello there!",
+  "greeting.subtitle": "How can I help you today?"
 }

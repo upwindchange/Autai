@@ -16,6 +16,7 @@ import { getDb } from "@/db";
 import { settings, userProviders, modelAssignments } from "@/db/schema";
 import { Provider } from "./provider";
 import { sendAlert } from "@/utils/messageUtils";
+import { i18n } from "@/i18n";
 
 /**
  * Resolves a model role (chat/simple/complex) to a LanguageModel.
@@ -43,8 +44,8 @@ function createModel(role: ModelRole): LanguageModel {
 
   if (!assignment || !assignment.providerId || !assignment.modelId) {
     sendAlert(
-      "Model Not Configured",
-      `No ${effectiveRole} model assigned. Please configure it in settings.`,
+      i18n.t("agents.modelNotConfiguredTitle"),
+      i18n.t("agents.modelNotConfiguredBody", { role: effectiveRole }),
     );
     throw new Error(`No model assignment for role: ${effectiveRole}`);
   }
@@ -58,8 +59,8 @@ function createModel(role: ModelRole): LanguageModel {
 
   if (!providerRow) {
     sendAlert(
-      "Provider Not Found",
-      `Provider "${assignment.providerId}" not found. Please check your settings.`,
+      i18n.t("agents.providerNotFoundTitle"),
+      i18n.t("agents.providerNotFoundBody", { providerId: assignment.providerId }),
     );
     throw new Error(`Provider ${assignment.providerId} not found`);
   }

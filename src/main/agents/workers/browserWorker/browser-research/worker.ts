@@ -7,6 +7,7 @@ import {
 } from "ai";
 import { chatModel } from "@agents/providers";
 import { settingsService, SessionTabService } from "@/services";
+import { i18n } from "@/i18n";
 import { flushTelemetry } from "@/agents/utils/telemetry";
 import log from "electron-log/main";
 import { observe } from "@langfuse/tracing";
@@ -83,16 +84,16 @@ export async function browserResearchWorker(
               toolCallId: `research-search-${sessionId}`,
               toolName: "plan",
               input: {
-                title: `Searching: ${plan.title}`,
+                title: i18n.t("agents.searchingTitle", { title: plan.title }),
                 description: plan.description,
               },
               output: {
                 id: `research-search-${sessionId}`,
-                title: `Searching: ${plan.title}`,
+                title: i18n.t("agents.searchingTitle", { title: plan.title }),
                 description: plan.description,
                 todos: plan.queries.map((q) => ({
                   id: q.id,
-                  label: `Search: "${q.query}"`,
+                  label: i18n.t("agents.searchLabel", { query: q.query }),
                   status: "pending" as const,
                   description: q.focus,
                 })),

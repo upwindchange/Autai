@@ -9,6 +9,7 @@ import {
 import { navigateTool } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { settingsService, SessionTabService } from "@/services";
+import { i18n } from "@/i18n";
 import type { SearchResultItem } from "./search-agent";
 import type { ResearchQuery } from "./planner";
 import log from "electron-log/main";
@@ -210,7 +211,7 @@ async function executeSingleExtraction(
     return {
       url: searchResult.url,
       title: searchResult.title,
-      summary: "LLM failed to extract content",
+      summary: i18n.t("agents.extractionLlmFailed"),
       quotes: [],
       relevant: false,
     };
@@ -223,7 +224,9 @@ async function executeSingleExtraction(
     return {
       url: searchResult.url,
       title: searchResult.title,
-      summary: `Failed to extract content: ${error instanceof Error ? error.message : String(error)}`,
+      summary: i18n.t("agents.extractionFailed", {
+              error: error instanceof Error ? error.message : String(error),
+            }),
       quotes: [],
       relevant: false,
     };
@@ -259,22 +262,22 @@ export async function extractResultsFromUrls(
       toolCallId: extractionPlanId,
       toolName: "plan",
       input: {
-        title: "Extracting Results",
-        description: "Reading and analyzing web pages",
+        title: i18n.t("agents.extractingTitle"),
+        description: i18n.t("agents.extractingDescription"),
         todos: searchResults.map((sr, idx) => ({
           id: `research-extract-${sessionId}-${idx}`,
-          label: `Read: ${sr.title}`,
+          label: i18n.t("agents.readLabel", { title: sr.title }),
           status: "in_progress" as const,
           description: sr.url,
         })),
       },
       output: {
         id: extractionPlanId,
-        title: "Extracting Results",
-        description: "Reading and analyzing web pages",
+        title: i18n.t("agents.extractingTitle"),
+        description: i18n.t("agents.extractingDescription"),
         todos: searchResults.map((sr, idx) => ({
           id: `research-extract-${sessionId}-${idx}`,
-          label: `Read: ${sr.title}`,
+          label: i18n.t("agents.readLabel", { title: sr.title }),
           status: "in_progress" as const,
           description: sr.url,
         })),
@@ -311,7 +314,12 @@ export async function extractResultsFromUrls(
         allExtractions.push({
           url: searchResults[i].url,
           title: searchResults[i].title,
-          summary: `Extraction failed: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`,
+          summary: i18n.t("agents.extractionGenericFailed", {
+              error:
+                result.reason instanceof Error ?
+                  result.reason.message
+                : String(result.reason),
+            }),
           quotes: [],
           relevant: false,
         });
@@ -324,22 +332,22 @@ export async function extractResultsFromUrls(
       toolCallId: extractionPlanId,
       toolName: "plan",
       input: {
-        title: "Extracting Results",
-        description: "Reading and analyzing web pages",
+        title: i18n.t("agents.extractingTitle"),
+        description: i18n.t("agents.extractingDescription"),
         todos: searchResults.map((sr, idx) => ({
           id: `research-extract-${sessionId}-${idx}`,
-          label: `Read: ${sr.title}`,
+          label: i18n.t("agents.readLabel", { title: sr.title }),
           status: "completed" as const,
           description: sr.url,
         })),
       },
       output: {
         id: extractionPlanId,
-        title: "Extracting Results",
-        description: "Reading and analyzing web pages",
+        title: i18n.t("agents.extractingTitle"),
+        description: i18n.t("agents.extractingDescription"),
         todos: searchResults.map((sr, idx) => ({
           id: `research-extract-${sessionId}-${idx}`,
-          label: `Read: ${sr.title}`,
+          label: i18n.t("agents.readLabel", { title: sr.title }),
           status: "completed" as const,
           description: sr.url,
         })),

@@ -2,6 +2,7 @@ import { app, ipcMain } from "electron";
 import { autoUpdater } from "electron-updater";
 import type { UpdateInfo } from "electron-updater";
 import { sendAlert, sendInfo, sendSuccess } from "@/utils/messageUtils";
+import { i18n } from "@/i18n";
 
 export function update() {
   autoUpdater.autoDownload = true;
@@ -10,34 +11,32 @@ export function update() {
 
   autoUpdater.on("update-available", (arg: UpdateInfo) => {
     sendInfo(
-      "Update Available",
-      `Downloading v${arg.version} in the background...`,
+      i18n.t("update.availableTitle"),
+      i18n.t("update.availableBody", { version: arg.version }),
     );
   });
 
   autoUpdater.on("update-downloaded", (arg: UpdateInfo) => {
     sendSuccess(
-      "Update Ready",
-      `v${arg.version} will be installed on next restart.`,
+      i18n.t("update.readyTitle"),
+      i18n.t("update.readyBody", { version: arg.version }),
     );
   });
 
   autoUpdater.on("error", (error: Error) => {
-    sendAlert("Update Error", error.message);
+    sendAlert(i18n.t("update.errorTitle"), error.message);
   });
 
   ipcMain.handle("check-update", async () => {
     if (!app.isPackaged) {
-      const error = new Error(
-        "The update feature is only available after the package.",
-      );
+      const error = new Error(i18n.t("update.notPackaged"));
       return { message: error.message, error };
     }
 
     try {
       return await autoUpdater.checkForUpdatesAndNotify();
     } catch (error) {
-      return { message: "Network error", error };
+      return { message: i18n.t("update.networkError"), error };
     }
   });
 }

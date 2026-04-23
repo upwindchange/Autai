@@ -4,6 +4,7 @@ import {
   threadPersistenceService,
   threadIntelligenceService,
 } from "@/services";
+import { i18n } from "@/i18n";
 import {
   SettingsStateSchema,
   TestConnectionConfigSchema,
@@ -38,6 +39,10 @@ settingsRoutes.put("/", async (c) => {
     }
     const settings = parsed.data as SettingsState;
     settingsService.saveSettings(settings);
+
+    if (settings.language) {
+      i18n.changeLanguage(settings.language);
+    }
 
     if (settings.logLevel) {
       log.transports.file.level = settings.logLevel as LogLevel;

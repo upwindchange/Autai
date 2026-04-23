@@ -30,6 +30,7 @@ import { SessionTabBridge } from "@/bridges/SessionTabBridge";
 import { HitlBridge } from "@/bridges/HitlBridge";
 import { searchService } from "@/services/searchService";
 import { initializeDatabase, closeDatabase } from "@/db";
+import { initI18n, i18n } from "@/i18n";
 
 // const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -78,7 +79,7 @@ const indexHtml = path.join(RENDERER_DIST, "index.html");
  */
 async function createWindow() {
   win = new BrowserWindow({
-    title: "Main window",
+    title: i18n.t("common.mainWindowTitle"),
     autoHideMenuBar: true,
     icon:
       process.env.VITE_PUBLIC ?
@@ -175,6 +176,9 @@ app.whenReady().then(async () => {
 
   // Load settings from database
   settingsService.initialize();
+
+  // Initialize i18n with saved language
+  initI18n(settingsService.settings.language || "en");
 
   // Initialize provider registry (reads TOML files)
   const providersPath = path.resolve(__dirname, "agents/providers/data");
