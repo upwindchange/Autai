@@ -1,11 +1,13 @@
 {
   "title": "About Autai",
-  "subtitle": "Automatic AI Agent Driven Browser",
-  "info.title": "Application Information",
+  "subtitle": "AI Browser Automation",
+  "info.title": "Application Info",
   "info.version": "Version",
   "info.platform": "Platform",
   "info.electron": "Electron",
   "info.nodejs": "Node.js",
+  "info.author": "Author",
+  "info.authorName": "Yuwei Zhu",
   "resources.title": "Resources",
   "resources.description": "Helpful links and documentation",
   "resources.github": "GitHub Repository",
@@ -20,6 +22,6 @@
   "credits.more": "and many more awesome open source projects",
   "credits.specialThanks": "Special Thanks",
   "credits.browserUse": "CDP tools rewritten in TypeScript from this project",
-  "copyright": "\u00a9 2026 Autai. All rights reserved.",
-  "disclaimer": "This software is provided as-is without warranty of any kind."
+  "copyright": "© 2026 Autai. All rights reserved.",
+  "disclaimer": "This software is provided as-is, without warranty of any kind."
 }

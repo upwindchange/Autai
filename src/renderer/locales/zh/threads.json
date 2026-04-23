@@ -2,13 +2,13 @@
   "title": "会话设置",
   "subtitle": "管理自动标签和对话分类",
   "autoTag.title": "自动标签",
-  "autoTag.description": "发送第一条消息时自动为对话分类标签",
-  "autoTag.enabled.label": "自动标签对话",
-  "autoTag.enabled.hint": "根据第一条消息自动为新对话分配标签",
+  "autoTag.description": "发送第一条消息时自动给对话打标签",
+  "autoTag.enabled.label": "自动打标签",
+  "autoTag.enabled.hint": "根据第一条消息自动为新对话打标签",
   "autoTag.creation.label": "自动创建新标签",
-  "autoTag.creation.hint": "当现有标签不适合对话时创建新标签",
+  "autoTag.creation.hint": "现有标签都不合适时，自动创建新标签",
   "tagManagement.title": "标签管理",
-  "tagManagement.description": "创建、重命名和删除对话标签",
+  "tagManagement.description": "创建、重命名和删除标签",
   "tagManagement.newTag.placeholder": "新标签名称...",
-  "tagManagement.empty": "暂无标签。请在上方创建第一个标签。"
+  "tagManagement.empty": "暂无标签，请在上方创建。"
 }

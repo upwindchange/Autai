@@ -1,12 +1,12 @@
 {
-  "title": "欢迎使用 Autai",
-  "subtitle": "您的AI驱动浏览器自动化助手",
-  "description": "Autai 使您能够使用 AI 自动化网页浏览任务。开始对话，我将帮助您导航网站、填写表单、提取数据等。",
+  "title": "欢迎使用Autai",
+  "subtitle": "你的AI浏览器助手",
+  "description": "告诉Autai你想做什么，AI会替你操作浏览器——你平时上网做的绝大部分事情，它都会尝试帮你完成。",
   "feature.browse.title": "浏览",
-  "feature.browse.description": "自动导航任何网站",
+  "feature.browse.description": "自动打开和浏览网站",
   "feature.automate.title": "自动化",
-  "feature.automate.description": "填写表单并与元素交互",
-  "feature.extract.title": "提取",
-  "feature.extract.description": "从网页中收集数据",
-  "prompt.suggestion": "试着让我\"搜索旧金山的天气\"或\"查找 iPhone 17 pro max 在亚马逊上的价格\""
+  "feature.automate.description": "让AI替你操作浏览器",
+  "feature.extract.title": "整理",
+  "feature.extract.description": "帮你整理网上的信息",
+  "prompt.suggestion": "试着让我\"帮我订一张下周五从旧金山到纽约的最便宜机票\"或\"帮我填写并提交这份申请表\""
 }

@@ -2,13 +2,13 @@
   "title": "Thread Settings",
   "subtitle": "Manage auto-tagging and conversation categories",
   "autoTag.title": "Auto Tagging",
-  "autoTag.description": "Automatically categorize conversations with tags when the first message is sent",
+  "autoTag.description": "Automatically tag conversations when the first message is sent",
   "autoTag.enabled.label": "Auto-tag conversations",
-  "autoTag.enabled.hint": "Automatically assign a tag to new conversations based on the first message",
+  "autoTag.enabled.hint": "Automatically tag new conversations based on the first message",
   "autoTag.creation.label": "Auto-create new tags",
-  "autoTag.creation.hint": "Create new tags when no existing tag fits the conversation",
+  "autoTag.creation.hint": "Create new tags when no existing tag fits",
   "tagManagement.title": "Tag Management",
-  "tagManagement.description": "Create, rename, and delete conversation tags",
+  "tagManagement.description": "Create, rename, and delete tags",
   "tagManagement.newTag.placeholder": "New tag name...",
-  "tagManagement.empty": "No tags yet. Create your first tag above."
+  "tagManagement.empty": "No tags yet. Create one above."
 }

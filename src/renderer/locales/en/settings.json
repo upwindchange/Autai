@@ -9,15 +9,15 @@
   "view.description.general": "Theme, language, and display preferences",
   "view.description.providers": "Configure AI providers and select models for different tasks",
   "view.description.threads": "Manage auto-tagging and conversation categories",
-  "view.description.development": "Development tools and debugging options",
-  "view.description.about": "Application information and resources",
+  "view.description.development": "Dev tools and debugging options",
+  "view.description.about": "App info and resources",
   "general.title": "General",
-  "general.subtitle": "Customize the look and feel of the application",
+  "general.subtitle": "Change how the app looks",
   "general.theme.title": "Theme",
-  "general.theme.description": "Choose how the application looks on your system",
+  "general.theme.description": "Choose the app's appearance",
   "general.theme.light": "Light",
   "general.theme.dark": "Dark",
   "general.theme.system": "System",
   "general.language.title": "Language",
-  "general.language.description": "Select your preferred display language"
+  "general.language.description": "Choose display language"
 }

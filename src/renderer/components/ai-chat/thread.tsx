@@ -1,4 +1,5 @@
 import { useRef, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ArrowDownIcon,
   ArrowUpIcon,
@@ -290,6 +291,7 @@ const Composer: FC = () => {
 
 const ComposerAction: FC = () => {
   const { useBrowser, webSearch, setUseBrowser, setWebSearch } = useUiStore();
+  const { t } = useTranslation("common");
 
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
@@ -299,7 +301,7 @@ const ComposerAction: FC = () => {
 
         {/* Use Browser toggle */}
         <TooltipIconButton
-          tooltip={useBrowser ? "Browser enabled" : "Enable browser"}
+          tooltip={useBrowser ? t("composer.browser.on") : t("composer.browser.off")}
           variant="ghost"
           type="button"
           className={cn("size-8.5", useBrowser && "bg-muted hover:bg-muted")}
@@ -310,7 +312,7 @@ const ComposerAction: FC = () => {
 
         {/* Web Search toggle */}
         <TooltipIconButton
-          tooltip={webSearch ? "Web search enabled" : "Enable web search"}
+          tooltip={webSearch ? t("composer.webSearch.on") : t("composer.webSearch.off")}
           variant="ghost"
           type="button"
           className={cn("size-8.5", webSearch && "bg-muted hover:bg-muted")}
@@ -323,13 +325,13 @@ const ComposerAction: FC = () => {
       <AuiIf condition={(s) => !s.thread.isRunning}>
         <ComposerPrimitive.Send asChild>
           <TooltipIconButton
-            tooltip="Send message"
+            tooltip={t("composer.send")}
             side="bottom"
             type="button"
             variant="default"
             size="icon"
             className="aui-composer-send size-8 rounded-full"
-            aria-label="Send message"
+            aria-label={t("composer.send")}
           >
             <ArrowUpIcon className="aui-composer-send-icon size-4" />
           </TooltipIconButton>

@@ -1,124 +1,32 @@
-# Electron + React + Vite Desktop Application
+# Autai
 
-This project combines Electron (for desktop capabilities), React (for UI components), and Vite (for tooling). Below is a detailed explanation of how it works:
+Your personal AI browser assistant.
 
-## 📂 Directory structure
+Autai is a desktop app that lets AI use your browser for you. Just tell it what you want to do, and it will try to handle it — shopping, booking, filling out forms, comparing prices, anything you'd normally do online.
 
-Familiar React application structure, just with `electron` folder on the top :wink:  
-*Files in this folder will be separated from your React application and built into `dist-electron`*  
+## What can it do?
 
-```tree
-├── electron                                 Electron-related code
-│   ├── main                                 Main-process source code
-│   └── preload                              Preload-scripts source code
-│
-├── release                                  Generated after production build, contains executables
-│   └── {version}
-│       ├── {os}-{os_arch}                   Contains unpacked application executable
-│       └── {app_name}_{version}.{ext}       Installer for the application
-│
-├── public                                   Static assets
-└── src                                      Renderer source code, your React application
-```
+You know all those repetitive things you do in a browser every day? Autai can do them for you.
 
-## 🧩 Core Technologies
+- **Browse the web** — Tell it to go to a website and find something, and it will navigate there on its own
+- **Get things done** — Book a flight, add items to your cart, submit an application — if you can do it in a browser, Autai will try
+- **Save you time** — Instead of clicking through dozens of pages yourself, just describe what you need
 
-### 1. Electron
+You don't need to be technical. Just type what you want in plain language, like you're talking to a friend.
 
-- Creates cross-platform desktop apps using web technologies
-- **Main Process**: Node.js environment that manages app lifecycle ([`electron/main/index.ts`](electron/main/index.ts))
-- **Renderer Process**: Chromium-based window displaying your web app (`src/`)
-- **Preload Scripts**: Bridge between main/renderer processes ([`electron/preload/index.ts`](electron/preload/index.ts))
+## Getting started
 
-### 2. React
+1. Download and install Autai
+2. Open the app — a browser window appears alongside a chat panel
+3. Type what you want done
+4. Watch Autai do it for you
 
-- Component-based UI library similar to Svelte
-- Components live in `src/` directory:
-  - [`App.tsx`](src/App.tsx) - Root component
-  - [`main.tsx`](src/main.tsx) - Entry point that mounts React to DOM
+That's it. No setup, no configuration, no learning curve.
 
-### 3. Vite
+## How it works
 
-- Modern frontend build tool with fast HMR (Hot Module Replacement)
-- Configurations:
-  - [`vite.config.ts`](vite.config.ts) - Build configuration
-  - [`tsconfig.json`](tsconfig.json) - TypeScript settings
+Autai is a desktop application with a built-in browser. An AI agent can see the web page, understand what's on it, and interact with it — clicking buttons, typing text, navigating between pages — just like you would. You supervise through the chat panel and step in whenever you want.
 
-## ⚙️ How It Works
+## License
 
-### Startup Sequence
-
-1. **Main Process** starts ([`electron/main/index.ts`](electron/main/index.ts))
-
-   ```typescript
-   app.whenReady().then(() => {
-     createWindow() // Creates browser window
-   })
-   ```
-  
-2. **Preload Script** executes ([`electron/preload/index.ts`](electron/preload/index.ts))
-   - Exposes Node.js APIs safely to renderer:
-
-   ```typescript
-   contextBridge.exposeInMainWorld('ipcRenderer', ipcRenderer)
-   ```
-
-3. **Renderer Process** loads (`dist/index.html` → [`src/main.tsx`](src/main.tsx))
-
-   ```tsx
-   ReactDOM.createRoot(document.getElementById('root')).render(<App />)
-   ```
-
-### Component Architecture (React)
-
-- Similar to Svelte's component model:
-  - `App.tsx` contains main UI
-  - Components in `src/components/`
-  - State management via `useState` hook
-
-### Build Process
-
-1. `npm run dev` triggers:
-   - Vite dev server for renderer (HMR enabled)
-   - Electron main process in watch mode
-2. Production build (`npm run build`):
-   - Outputs to `dist/` (renderer) and `dist-electron/` (main/preload)
-
-## 🔗 IPC Communication
-
-Example from [`src/demos/ipc.ts`](src/demos/ipc.ts):
-
-```ts
-// Renderer → Main
-window.ipcRenderer.send('message', 'Hello from React!')
-
-// Main → Renderer
-ipcMain.on('message', (event, msg) => {
-  event.reply('reply', 'Message received!')
-})
-```
-
-## 🖼️ Static Assets
-
-- Place in `public/` directory (e.g., `public/node.svg`)
-- Reference directly in JSX:
-
-  ```tsx
-  <img src="./node.svg" />
-  ```
-
-## 🚀 Running the Project
-
-```bash
-npm install    # Install dependencies
-npm run dev    # Start dev environment
-npm run build  # Create production build
-```
-
-## 🔍 Key Files
-
-- [`electron/main/index.ts`](electron/main/index.ts) - Main process
-- [`electron/preload/index.ts`](electron/preload/index.ts) - Preload script
-- [`src/App.tsx`](src/App.tsx) - Root component
-- [`src/main.tsx`](src/main.tsx) - Renderer entry point
-- [`vite.config.ts`](vite.config.ts) - Build configuration
+[MIT](LICENSE) — free to use, modify, and share.

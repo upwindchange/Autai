@@ -105,6 +105,12 @@ export function AboutSection() {
               </p>
               <p className="font-mono">{nodeVersion}</p>
             </div>
+            <div>
+              <p className="text-sm text-muted-foreground">
+                {t("info.author")}
+              </p>
+              <p>{t("info.authorName")}</p>
+            </div>
           </div>
         </CardContent>
       </Card>
