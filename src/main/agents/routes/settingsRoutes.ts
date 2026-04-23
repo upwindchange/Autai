@@ -4,7 +4,7 @@ import {
   threadPersistenceService,
   threadIntelligenceService,
 } from "@/services";
-import { i18n } from "@/i18n";
+import { i18n, resolveLanguage } from "@/i18n";
 import {
   SettingsStateSchema,
   TestConnectionConfigSchema,
@@ -41,7 +41,7 @@ settingsRoutes.put("/", async (c) => {
     settingsService.saveSettings(settings);
 
     if (settings.language) {
-      i18n.changeLanguage(settings.language);
+      i18n.changeLanguage(resolveLanguage(settings.language));
     }
 
     if (settings.logLevel) {

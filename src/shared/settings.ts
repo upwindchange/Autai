@@ -74,7 +74,7 @@ const DEFAULT_SETTINGS = {
   autoTagEnabled: true,
   autoTagCreationEnabled: true,
   systemPrompt: "",
-  language: "en" as const,
+  language: "system" as const,
 };
 
 // Settings State schema
@@ -98,7 +98,7 @@ export const SettingsStateSchema = z
       .boolean()
       .default(DEFAULT_SETTINGS.autoTagCreationEnabled),
     systemPrompt: z.string().default(DEFAULT_SETTINGS.systemPrompt),
-    language: z.enum(["en", "zh"]).default(DEFAULT_SETTINGS.language),
+    language: z.enum(["system", "en", "zh"]).default(DEFAULT_SETTINGS.language),
   })
   .default(DEFAULT_SETTINGS);
 

@@ -9,7 +9,7 @@ import { SettingsContextType } from "./types";
 import type { SettingsState, UserProviderConfig } from "@shared";
 import { getDefaultSettings } from "@shared";
 import log from "electron-log/renderer";
-import i18n from "@/i18n";
+import i18n, { resolveLanguage } from "@/i18n";
 
 const logger = log.scope("SettingsContext");
 
@@ -43,10 +43,12 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       const loadedSettings = (await res.json()) as SettingsState;
       setSettings(loadedSettings);
       if (
-        loadedSettings.language &&
-        loadedSettings.language !== i18n.language
+        loadedSettings.language
       ) {
-        await i18n.changeLanguage(loadedSettings.language);
+        const resolved = resolveLanguage(loadedSettings.language);
+        if (resolved !== i18n.language) {
+          await i18n.changeLanguage(resolved);
+        }
       }
     } catch (error) {
       logger.error("failed to load settings", error);

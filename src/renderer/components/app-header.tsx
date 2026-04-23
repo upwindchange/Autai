@@ -1,8 +1,8 @@
-import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { useSidebar } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
-import { Moon, PanelRightIcon, Sun, SunMoon, ArrowLeft } from "lucide-react";
+import { Moon, PanelLeftIcon, PanelRightIcon, Sun, SunMoon, ArrowLeft } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useTranslation } from "react-i18next";
 import { useUiStore } from "@/stores/uiStore";
@@ -24,7 +24,7 @@ export const AppHeader: FC<AppHeaderProps> = ({
   const { t } = useTranslation("common");
   const { t: tSettings } = useTranslation("settings");
   const { showSettings, setShowSettings } = useUiStore();
-  const { open } = useSidebar();
+  const { open, toggleSidebar } = useSidebar();
 
   useEffect(() => {
     window.ipcRenderer.send("theme:change", theme);
@@ -35,7 +35,15 @@ export const AppHeader: FC<AppHeaderProps> = ({
   return (
     <header className="bg-background sticky top-0 flex h-14 shrink-0 items-center gap-2">
       <div className="flex flex-1 items-center gap-2 px-3">
-        <SidebarTrigger />
+        <TooltipIconButton
+          variant="ghost"
+          size="icon"
+          side="left"
+          tooltip={t("sidebar.toggle")}
+          onClick={toggleSidebar}
+        >
+          <PanelLeftIcon className="size-4" />
+        </TooltipIconButton>
         <Separator
           orientation="vertical"
           className="mr-2 data-[orientation=vertical]:h-4"

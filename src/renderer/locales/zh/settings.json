@@ -19,5 +19,6 @@
   "general.theme.dark": "深色",
   "general.theme.system": "跟随系统",
   "general.language.title": "语言",
-  "general.language.description": "选择显示语言"
+  "general.language.description": "选择显示语言",
+  "general.language.system": "跟随系统"
 }

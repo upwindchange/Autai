@@ -12,15 +12,17 @@ type SidebarLeftProps = ComponentProps<typeof Sidebar>;
 export function SidebarLeft(props: SidebarLeftProps) {
   return (
     <Sidebar className="border-r-0" {...props}>
-      <SidebarContent>
+      <SidebarContent className="flex-1 overflow-hidden">
         <div className="px-2 pt-2">
           <NewConversationButton />
         </div>
         <div className="mx-2 border-t" />
         <SidebarToolbar />
-        <ThreadList />
-        <NavSecondary className="mt-auto" />
+        <div className="flex-1 overflow-y-auto">
+          <ThreadList />
+        </div>
       </SidebarContent>
+      <NavSecondary className="shrink-0" />
     </Sidebar>
   );
 }

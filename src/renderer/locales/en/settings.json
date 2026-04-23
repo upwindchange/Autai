@@ -19,5 +19,6 @@
   "general.theme.dark": "Dark",
   "general.theme.system": "System",
   "general.language.title": "Language",
-  "general.language.description": "Choose display language"
+  "general.language.description": "Choose display language",
+  "general.language.system": "Follow System"
 }

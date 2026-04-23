@@ -1,6 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "@/i18n";
+import { useTranslation } from "react-i18next";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
@@ -102,6 +103,7 @@ const handleAppMessage = (_event: unknown, message: AppMessage) => {
  * This component must be inside AssistantRuntimeProvider to access the runtime.
  */
 function AppContent() {
+  const { t } = useTranslation("common");
   const { showSettings } = useUiStore();
   const [showSplitView, setShowSplitView] = useState(false);
   const threadTitle = useAuiState((s) => s.threadListItem.title);
@@ -119,8 +121,8 @@ function AppContent() {
           <SidebarInset className="relative flex-1">
             <AppHeader
               title={
-                showSettings ? "Settings" : (
-                  (threadTitle ?? "Autai AI Assistant")
+                showSettings ? t("header.settings") : (
+                  (threadTitle ?? `${t("app.title")} ${t("header.aiAssistant")}`)
                 )
               }
               showSplitView={showSplitView}

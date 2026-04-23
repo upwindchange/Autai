@@ -38,6 +38,16 @@ const resources = {
   },
 };
 
+const SUPPORTED_LANGUAGES = ["en", "zh"];
+
+export function resolveLanguage(pref: string): string {
+  if (pref !== "system") return pref;
+  const locale = navigator.language;
+  if (locale.startsWith("zh")) return "zh";
+  const match = SUPPORTED_LANGUAGES.find((l) => locale.startsWith(l));
+  return match ?? "en";
+}
+
 i18n.use(initReactI18next).init({
   resources,
   lng: "en",

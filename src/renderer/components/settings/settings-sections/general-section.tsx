@@ -25,8 +25,12 @@ export function GeneralSection() {
   const { settings, updateSettings } = useSettings();
 
   const handleLanguageChange = async (lng: string) => {
-    await i18n.changeLanguage(lng);
-    await updateSettings({ ...settings, language: lng as "en" | "zh" });
+    const { resolveLanguage } = await import("@/i18n");
+    await i18n.changeLanguage(resolveLanguage(lng));
+    await updateSettings({
+      ...settings,
+      language: lng as "system" | "en" | "zh",
+    });
   };
 
   return (
@@ -107,6 +111,9 @@ export function GeneralSection() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="system">
+                {t("general.language.system")}
+              </SelectItem>
               <SelectItem value="en">English</SelectItem>
               <SelectItem value="zh">中文</SelectItem>
             </SelectContent>
