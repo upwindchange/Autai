@@ -1,1 +1,1 @@
-git submodule foreach 'branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed "s|origin/||"); git checkout ${branch:-main} && git pull'
+git submodule foreach 'if [ -z "$(git config submodule.$path.url 2>/dev/null || true)" ] && ! git config -f $toplevel/.gitmodules --get submodule.$path.url >/dev/null 2>&1; then echo "Skipping $path (no URL configured)"; else branch=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed "s|origin/||"); git checkout ${branch:-main} && git pull; fi'
