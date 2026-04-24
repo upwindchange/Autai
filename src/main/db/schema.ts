@@ -62,6 +62,8 @@ export const messages = sqliteTable("messages", {
 export const tags = sqliteTable("tags", {
   id: integer().primaryKey({ autoIncrement: true }),
   name: text().notNull().unique(),
+  emoji: text(),
+  color: text(),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: text("created_at")
     .notNull()
@@ -78,7 +80,5 @@ export const threadTags = sqliteTable(
       .notNull()
       .references(() => tags.id, { onDelete: "cascade" }),
   },
-  (table) => ({
-    pk: primaryKey({ columns: [table.threadId, table.tagId] }),
-  }),
+  (table) => [primaryKey({ columns: [table.threadId, table.tagId] })],
 );

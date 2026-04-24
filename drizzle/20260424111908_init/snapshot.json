@@ -1,10 +1,10 @@
 {
-  "id": "2df75bdb-6723-476a-b6e9-d150f0711021",
-  "prevIds": [
-    "d7a32375-d466-4828-b667-1f990adc2fae"
-  ],
   "version": "7",
   "dialect": "sqlite",
+  "id": "049e62ae-4a6c-4ff5-a08c-1f990cbd5aa5",
+  "prevIds": [
+    "00000000-0000-0000-0000-000000000000"
+  ],
   "ddl": [
     {
       "name": "messages",
@@ -161,6 +161,26 @@
       "default": null,
       "generated": null,
       "name": "name",
+      "entityType": "columns",
+      "table": "tags"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "emoji",
+      "entityType": "columns",
+      "table": "tags"
+    },
+    {
+      "type": "text",
+      "notNull": false,
+      "autoincrement": false,
+      "default": null,
+      "generated": null,
+      "name": "color",
       "entityType": "columns",
       "table": "tags"
     },

@@ -139,7 +139,8 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
     <ThreadPrimitive.Root
       className="aui-root aui-thread-root @container flex h-full flex-col bg-background"
       style={{
-        ["--thread-max-width" as string]: "44rem",
+        ["--thread-max-width" as string]: "88rem",
+        ["--composer-max-width" as string]: "56rem",
         ["--composer-radius" as string]: "24px",
         ["--composer-padding" as string]: "10px",
       }}
@@ -161,9 +162,15 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
                 {() => <ThreadMessage />}
               </ThreadPrimitive.Messages>
 
-              <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mx-auto mt-auto flex w-full max-w-(--thread-max-width) flex-col gap-4 overflow-visible rounded-t-(--composer-radius) bg-background pb-4 md:pb-6">
-                <ThreadScrollToBottom />
-                <Composer />
+              <div className="h-20 shrink-0" />
+              <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mt-auto flex w-full flex-col items-center gap-0 overflow-visible">
+                <div className="pointer-events-none -mt-20 mb-auto h-20 w-full bg-linear-to-t from-background via-background/80 to-transparent" />
+                <div className="w-full bg-background pb-4 pt-2 md:pb-6">
+                  <div className="relative mx-auto w-full max-w-(--composer-max-width) rounded-t-(--composer-radius) px-1 pt-1">
+                    <ThreadScrollToBottom />
+                    <Composer />
+                  </div>
+                </div>
               </ThreadPrimitive.ViewportFooter>
             </ThreadPrimitive.Viewport>
           </ResizablePanel>
@@ -189,9 +196,15 @@ export const Thread: FC<ThreadProps> = ({ showSplitView = false }) => {
             {() => <ThreadMessage />}
           </ThreadPrimitive.Messages>
 
-          <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mx-auto mt-auto flex w-full max-w-(--thread-max-width) flex-col gap-4 overflow-visible rounded-t-(--composer-radius) bg-background/95 backdrop-blur-sm pb-4 md:pb-6 border-t border-border/50 z-10">
-            <ThreadScrollToBottom />
-            <Composer />
+          <div className="h-20 shrink-0" />
+          <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mt-auto flex w-full flex-col items-center gap-0 overflow-visible">
+            <div className="pointer-events-none -mt-20 mb-auto h-20 w-full bg-linear-to-t from-background via-background/80 to-transparent" />
+            <div className="w-full bg-background pb-4 pt-2 md:pb-6">
+              <div className="relative mx-auto w-full max-w-(--composer-max-width) rounded-t-(--composer-radius) px-1 pt-1">
+                <ThreadScrollToBottom />
+                <Composer />
+              </div>
+            </div>
           </ThreadPrimitive.ViewportFooter>
         </ThreadPrimitive.Viewport>
       }
@@ -213,7 +226,7 @@ const ThreadScrollToBottom: FC = () => {
       <TooltipIconButton
         tooltip="Scroll to bottom"
         variant="outline"
-        className="aui-thread-scroll-to-bottom absolute -top-12 z-10 self-center rounded-full p-4 disabled:invisible dark:border-border dark:bg-background dark:hover:bg-accent"
+        className="aui-thread-scroll-to-bottom absolute -top-12 left-1/2 z-10 -translate-x-1/2 rounded-full p-4 disabled:invisible dark:border-border dark:bg-background dark:hover:bg-accent"
       >
         <ArrowDownIcon />
       </TooltipIconButton>

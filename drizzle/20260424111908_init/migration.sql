@@ -23,6 +23,8 @@ CREATE TABLE `settings` (
 CREATE TABLE `tags` (
 	`id` integer PRIMARY KEY AUTOINCREMENT,
 	`name` text NOT NULL UNIQUE,
+	`emoji` text,
+	`color` text,
 	`sort_order` integer DEFAULT 0 NOT NULL,
 	`created_at` text DEFAULT (datetime('now')) NOT NULL
 );

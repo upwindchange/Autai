@@ -1,7 +1,6 @@
 import {
   convertToModelMessages,
   stepCountIs,
-  hasToolCall,
   StreamTextResult,
   ToolSet,
   type UIMessage,
@@ -50,21 +49,6 @@ export class ChatWorker {
         // Safety limit to prevent infinite loops
         stepCountIs(20),
       ];
-
-      // Add stop conditions for common tool patterns if available
-      if (tools && typeof tools === "object") {
-        const toolNames = Object.keys(tools);
-
-        // Stop when answer/task completion tool is called
-        if (toolNames.includes("answer")) {
-          stopConditions.push(hasToolCall("answer"));
-        }
-
-        // Stop when error display tool is called
-        if (toolNames.includes("displayError")) {
-          stopConditions.push(hasToolCall("displayError"));
-        }
-      }
 
       const result = streamText({
         model: chatModel(),

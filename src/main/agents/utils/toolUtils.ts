@@ -8,8 +8,6 @@ import type {
 } from "@ai-sdk/provider-utils";
 import {
   calculateToolSchema,
-  answerToolSchema,
-  displayErrorToolSchema,
   TOOL_NAMES,
   type ToolName,
   repairZodInput,
@@ -151,10 +149,6 @@ function getSchemaForTool(toolName: ToolName): z.ZodSchema<unknown> | null {
   switch (toolName) {
     case TOOL_NAMES.CALCULATE:
       return calculateToolSchema;
-    case TOOL_NAMES.ANSWER:
-      return answerToolSchema;
-    case TOOL_NAMES.DISPLAY_ERROR:
-      return displayErrorToolSchema;
     default:
       return null;
   }
