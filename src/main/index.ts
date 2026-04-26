@@ -167,6 +167,14 @@ app.whenReady().then(async () => {
     return path.join(logPath, filename);
   };
 
+  // Catch errors
+  log.errorHandler.startCatching({
+    showDialog: false,
+    onError: (error) => {
+      log.error("Uncaught error:", error);
+    },
+  });
+
   // Initialize database (single connection, runs Drizzle migrations)
   initializeDatabase();
 
@@ -195,14 +203,6 @@ app.whenReady().then(async () => {
   log.transports.console.level = logLevel as LogLevel;
   log.transports.ipc.level = logLevel as LogLevel;
 
-  // Catch errors
-  log.errorHandler.startCatching({
-    showDialog: false,
-    onError: (error) => {
-      log.error("Uncaught error:", error);
-    },
-  });
-
   logger.info("Application starting", { version: app.getVersion() });
 
   // Initialize telemetry (must be done after settings are loaded)
@@ -210,6 +210,8 @@ app.whenReady().then(async () => {
 
   // Start API server
   apiServer.start();
+
+  // Start window
   createWindow();
 });
 
