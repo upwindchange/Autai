@@ -11,7 +11,7 @@ import log from "electron-log/main";
 export class ApiServer {
   private app: Hono;
   private server: ServerType | null = null;
-  private port: number = 3001;
+  private port: number = 0;
   private logger = log.scope("ApiServer");
 
   constructor() {
@@ -42,12 +42,27 @@ export class ApiServer {
     });
   }
 
-  start(): void {
-    this.server = serve({
-      fetch: this.app.fetch,
-      port: this.port,
+  async start(): Promise<number> {
+    return new Promise((resolve, reject) => {
+      this.server = serve({
+        fetch: this.app.fetch,
+        port: 0,
+        hostname: "127.0.0.1",
+      });
+
+      this.server.on("listening", () => {
+        const addr = this.server!.address();
+        if (addr && typeof addr === "object") {
+          this.port = addr.port;
+        }
+        this.logger.info(
+          `API server running on http://127.0.0.1:${this.port}`,
+        );
+        resolve(this.port);
+      });
+
+      this.server.on("error", reject);
     });
-    this.logger.info(`API server running on http://localhost:${this.port}`);
   }
 
   stop(): void {

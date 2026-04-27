@@ -47,14 +47,8 @@ const logger = log.scope("main");
  */
 process.env.APP_ROOT = path.join(__dirname, "../..");
 
-export const MAIN_DIST = path.join(process.env.APP_ROOT, "out/main");
 export const RENDERER_DIST = path.join(process.env.APP_ROOT, "out/renderer");
-export const ELECTRON_RENDERER_URL = process.env.ELECTRON_RENDERER_URL;
-
-process.env.VITE_PUBLIC =
-  ELECTRON_RENDERER_URL ?
-    path.join(process.env.APP_ROOT, "public")
-  : RENDERER_DIST;
+const ELECTRON_RENDERER_URL = process.env.ELECTRON_RENDERER_URL;
 
 /**
  * Platform-specific configurations
@@ -81,10 +75,7 @@ async function createWindow() {
   win = new BrowserWindow({
     title: i18n.t("common.mainWindowTitle"),
     autoHideMenuBar: true,
-    icon:
-      process.env.VITE_PUBLIC ?
-        path.join(process.env.VITE_PUBLIC, "favicon.ico")
-      : undefined,
+    icon: is.dev ? path.join(process.env.APP_ROOT!, "build", "icon.ico") : undefined,
     webPreferences: {
       preload,
       contextIsolation: true,
@@ -106,8 +97,8 @@ async function createWindow() {
     }
   });
 
-  if (is.dev && ELECTRON_RENDERER_URL) {
-    win.loadURL(ELECTRON_RENDERER_URL);
+  if (is.dev) {
+    win.loadURL(ELECTRON_RENDERER_URL!);
     // win.webContents.openDevTools();
   } else {
     win.loadFile(indexHtml);
@@ -209,7 +200,9 @@ app.whenReady().then(async () => {
   initializeTelemetry();
 
   // Start API server
-  apiServer.start();
+  const apiPort = await apiServer.start();
+  ipcMain.handle("get-api-port", () => apiPort);
+  logger.info(`API server started on port ${apiPort}`);
 
   // Start window
   createWindow();

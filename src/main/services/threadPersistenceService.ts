@@ -194,6 +194,8 @@ class ThreadPersistenceService {
       .select({
         id: tags.id,
         name: tags.name,
+        emoji: tags.emoji,
+        color: tags.color,
         sortOrder: tags.sortOrder,
         createdAt: tags.createdAt,
       })

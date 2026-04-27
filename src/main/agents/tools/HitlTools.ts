@@ -26,7 +26,7 @@ export const requestHumanInterventionTool = tool({
       .optional()
       .describe('Label for the confirmation button. Default: "Done"'),
   }),
-  execute: async ({ reason, instructions, buttonLabel }, { toolCallId }) => {
+  execute: async ({ reason }, { toolCallId }) => {
     const hitlService = HitlService.getInstance();
 
     const response = await hitlService.request<{

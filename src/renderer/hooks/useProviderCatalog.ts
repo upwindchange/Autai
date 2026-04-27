@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import type { ProviderDefinition } from "@shared";
-
-const API_BASE = "http://localhost:3001";
+import { getApiBase } from "@/lib/api";
 
 export function useProviderCatalog() {
   const [providers, setProviders] = useState<ProviderDefinition[]>([]);
@@ -16,7 +15,7 @@ export function useProviderCatalog() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/providers`);
+      const res = await fetch(`${getApiBase()}/providers`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as ProviderDefinition[];
       setProviders(data);

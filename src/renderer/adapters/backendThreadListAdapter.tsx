@@ -14,8 +14,7 @@ import { createAssistantStream } from "assistant-stream";
 import type { UIMessage } from "ai";
 import type { TagRow } from "@shared/tag";
 import { useTagStore, type ThreadInfo } from "@/stores/tagStore";
-
-const API_BASE = "http://localhost:3001";
+import { getApiBase } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
 // Backend thread history adapter class — uses aui for thread ID resolution
@@ -43,7 +42,7 @@ class BackendThreadHistoryAdapter implements ThreadHistoryAdapter {
         if (!remoteId) return { messages: [] };
 
         try {
-          const res = await fetch(`${API_BASE}/threads/${remoteId}/messages`);
+          const res = await fetch(`${getApiBase()}/threads/${remoteId}/messages`);
           const { messages } = (await res.json()) as { messages: UIMessage[] };
 
           if (!messages || messages.length === 0) {
@@ -79,7 +78,7 @@ class BackendThreadHistoryAdapter implements ThreadHistoryAdapter {
 
 export const backendThreadListAdapter: RemoteThreadListAdapter = {
   async list() {
-    const res = await fetch(`${API_BASE}/threads`);
+    const res = await fetch(`${getApiBase()}/threads`);
     const data = (await res.json()) as {
       threads: {
         remoteId: string;
@@ -114,7 +113,7 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
   },
 
   async initialize(threadId: string) {
-    const res = await fetch(`${API_BASE}/threads`, {
+    const res = await fetch(`${getApiBase()}/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id: threadId }),
@@ -123,7 +122,7 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
   },
 
   async rename(remoteId: string, newTitle: string) {
-    await fetch(`${API_BASE}/threads/${remoteId}`, {
+    await fetch(`${getApiBase()}/threads/${remoteId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title: newTitle }),
@@ -131,7 +130,7 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
   },
 
   async archive(remoteId: string) {
-    await fetch(`${API_BASE}/threads/${remoteId}`, {
+    await fetch(`${getApiBase()}/threads/${remoteId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "archived" }),
@@ -139,7 +138,7 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
   },
 
   async unarchive(remoteId: string) {
-    await fetch(`${API_BASE}/threads/${remoteId}`, {
+    await fetch(`${getApiBase()}/threads/${remoteId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "regular" }),
@@ -147,13 +146,13 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
   },
 
   async delete(remoteId: string) {
-    await fetch(`${API_BASE}/threads/${remoteId}`, {
+    await fetch(`${getApiBase()}/threads/${remoteId}`, {
       method: "DELETE",
     });
   },
 
   async fetch(threadId: string) {
-    const res = await fetch(`${API_BASE}/threads/${threadId}`);
+    const res = await fetch(`${getApiBase()}/threads/${threadId}`);
     return res.json();
   },
 

@@ -22,8 +22,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { TomlModelList } from "./toml-model-list";
 import type { UserProviderConfig, ProviderDefinition } from "@shared";
-
-const API_BASE = "http://localhost:3001";
+import { getApiBase } from "@/lib/api";
 
 interface ConfiguredProviderCardProps {
   provider: UserProviderConfig;
@@ -88,7 +87,7 @@ export function ConfiguredProviderCard({
 
     setIsTesting(true);
     try {
-      await fetch(`${API_BASE}/settings/test`, {
+      await fetch(`${getApiBase()}/settings/test`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

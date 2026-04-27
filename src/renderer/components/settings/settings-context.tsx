@@ -10,10 +10,9 @@ import type { SettingsState, UserProviderConfig } from "@shared";
 import { getDefaultSettings } from "@shared";
 import log from "electron-log/renderer";
 import i18n, { resolveLanguage } from "@/i18n";
+import { getApiBase } from "@/lib/api";
 
 const logger = log.scope("SettingsContext");
-
-const API_BASE = "http://localhost:3001";
 
 const SettingsContext = createContext<SettingsContextType | null>(null);
 
@@ -39,12 +38,10 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
 
   const loadSettings = async () => {
     try {
-      const res = await fetch(`${API_BASE}/settings`);
+      const res = await fetch(`${getApiBase()}/settings`);
       const loadedSettings = (await res.json()) as SettingsState;
       setSettings(loadedSettings);
-      if (
-        loadedSettings.language
-      ) {
+      if (loadedSettings.language) {
         const resolved = resolveLanguage(loadedSettings.language);
         if (resolved !== i18n.language) {
           await i18n.changeLanguage(resolved);
@@ -60,7 +57,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
 
   const updateSettings = async (newSettings: SettingsState) => {
     setSettings(newSettings);
-    await fetch(`${API_BASE}/settings`, {
+    await fetch(`${getApiBase()}/settings`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(newSettings),

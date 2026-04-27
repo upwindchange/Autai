@@ -38,6 +38,7 @@ import { useTagStore } from "@/stores/tagStore";
 import type { TagRow } from "@shared/tag";
 import { useRemoteThreadListRuntime } from "@assistant-ui/react";
 import { backendThreadListAdapter } from "@/adapters/backendThreadListAdapter";
+import { initApiBase, getApiBase } from "@/lib/api";
 
 import "./index.css";
 import "./demos/ipc";
@@ -158,7 +159,7 @@ function App() {
       useChatRuntime({
         sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
         transport: new AssistantChatTransport({
-          api: "http://localhost:3001/chat",
+          api: `${getApiBase()}/chat`,
           headers: async () => {
             const { useBrowser, webSearch, sessionId } = useUiStore.getState();
             return {
@@ -210,11 +211,13 @@ function App() {
 // Register the message listener once at application startup
 window.ipcRenderer.on("app:message", handleAppMessage);
 
-ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <React.StrictMode>
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <App />
-      <Toaster />
-    </ThemeProvider>
-  </React.StrictMode>,
-);
+initApiBase().then(() => {
+  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+    <React.StrictMode>
+      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+        <App />
+        <Toaster />
+      </ThemeProvider>
+    </React.StrictMode>,
+  );
+});

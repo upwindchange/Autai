@@ -5,8 +5,10 @@
 export interface TagRow {
   id: number;
   name: string;
-  sort_order: number;
-  created_at: string;
+  emoji: string | null;
+  color: string | null;
+  sortOrder: number;
+  createdAt: string;
 }
 
 export interface ThreadWithTags {

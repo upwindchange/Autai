@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import type { ModelDefinition } from "@shared";
-
-const API_BASE = "http://localhost:3001";
+import { getApiBase } from "@/lib/api";
 
 export function useProviderModels(providerDir: string | null) {
   const [models, setModels] = useState<ModelDefinition[]>([]);
@@ -20,7 +19,7 @@ export function useProviderModels(providerDir: string | null) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/providers/${dir}/models`);
+      const res = await fetch(`${getApiBase()}/providers/${dir}/models`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = (await res.json()) as ModelDefinition[];
       setModels(data);

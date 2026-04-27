@@ -17,8 +17,7 @@ import { useTranslation } from "react-i18next";
 import type { SettingsState } from "@shared";
 import type { TagRow } from "@shared/tag";
 import log from "electron-log/renderer";
-
-const API_BASE = "http://localhost:3001";
+import { getApiBase } from "@/lib/api";
 
 const logger = log.scope("ThreadsSection");
 
@@ -40,7 +39,7 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
 
   const loadTags = async () => {
     try {
-      const res = await fetch(`${API_BASE}/tags`);
+      const res = await fetch(`${getApiBase()}/tags`);
       const data = (await res.json()) as { tags: TagRow[] };
       setTags(data.tags);
     } catch (error) {
@@ -68,7 +67,7 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
     const name = newTagName.trim();
     if (!name) return;
     try {
-      await fetch(`${API_BASE}/tags`, {
+      await fetch(`${getApiBase()}/tags`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
@@ -84,7 +83,7 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
     const name = editingTagName.trim();
     if (!name) return;
     try {
-      await fetch(`${API_BASE}/tags/${id}`, {
+      await fetch(`${getApiBase()}/tags/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name }),
@@ -98,7 +97,7 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
 
   const handleDeleteTag = async (id: number) => {
     try {
-      await fetch(`${API_BASE}/tags/${id}`, { method: "DELETE" });
+      await fetch(`${getApiBase()}/tags/${id}`, { method: "DELETE" });
       await loadTags();
     } catch (error) {
       logger.error("Failed to delete tag:", error);

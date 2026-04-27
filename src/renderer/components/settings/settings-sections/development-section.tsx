@@ -23,8 +23,7 @@ import { useSettings } from "@/components/settings";
 import { useTranslation } from "react-i18next";
 import type { SettingsState, LogLevel, LangfuseConfig } from "@shared";
 import log from "electron-log/renderer";
-
-const API_BASE = "http://localhost:3001";
+import { getApiBase } from "@/lib/api";
 
 const logger = log.scope("DevelopmentSection");
 
@@ -57,7 +56,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
 
   useEffect(() => {
     // Get log file path
-    fetch(`${API_BASE}/settings/log-path`)
+    fetch(`${getApiBase()}/settings/log-path`)
       .then((res) => res.json())
       .then((data: { path: string }) => {
         setLogPath(data.path);
@@ -79,7 +78,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
 
   const handleClearLogs = async () => {
     try {
-      await fetch(`${API_BASE}/settings/clear-logs`, { method: "POST" });
+      await fetch(`${getApiBase()}/settings/clear-logs`, { method: "POST" });
       logger.info("Logs cleared successfully");
     } catch (error) {
       logger.error("Failed to clear logs", error);
@@ -88,7 +87,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
 
   const handleOpenLogFolder = async () => {
     try {
-      await fetch(`${API_BASE}/settings/open-log-folder`, { method: "POST" });
+      await fetch(`${getApiBase()}/settings/open-log-folder`, { method: "POST" });
     } catch (error) {
       logger.error("Failed to open log folder", error);
     }
@@ -208,7 +207,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
             <Button
               variant="outline"
               onClick={() => {
-                fetch(`${API_BASE}/settings/open-devtools`, { method: "POST" });
+                fetch(`${getApiBase()}/settings/open-devtools`, { method: "POST" });
               }}
             >
               {t("debug.devtools.open")}
@@ -235,7 +234,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
               className="gap-2 text-destructive hover:text-destructive"
               onClick={() => {
                 if (confirm(t("database.purgeThreads.confirm"))) {
-                  fetch(`${API_BASE}/settings/purge-thread-tables`, {
+                  fetch(`${getApiBase()}/settings/purge-thread-tables`, {
                     method: "POST",
                   });
                 }
@@ -258,7 +257,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
               className="gap-2 text-destructive hover:text-destructive"
               onClick={() => {
                 if (confirm(t("database.purgeSettings.confirm"))) {
-                  fetch(`${API_BASE}/settings/purge-settings-tables`, {
+                  fetch(`${getApiBase()}/settings/purge-settings-tables`, {
                     method: "POST",
                   });
                 }
