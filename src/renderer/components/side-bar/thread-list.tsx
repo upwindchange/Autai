@@ -396,6 +396,11 @@ const ThreadListSkeleton: FC = () => {
 
 const ThreadListItem: FC = () => {
   const remoteId = useAuiState((s) => s.threadListItem.remoteId);
+  const threadTitle = useTagStore((s) =>
+    remoteId
+      ? (s.threads.find((th) => th.remoteId === remoteId)?.title ?? "New Chat")
+      : "New Chat",
+  );
   const threadTags = useTagStore((s) =>
     remoteId ? (s.threadTags[remoteId] ?? EMPTY_TAGS) : EMPTY_TAGS,
   );
@@ -440,7 +445,7 @@ const ThreadListItem: FC = () => {
       <ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger relative flex min-w-0 flex-1 flex-col items-start px-1 py-1 text-start text-sm">
         <div className="flex w-full items-center">
           <span className="aui-thread-list-item-title min-w-0 flex-1 truncate">
-            <ThreadListItemPrimitive.Title fallback="New Chat" />
+            {threadTitle}
           </span>
           <span className="pointer-events-none absolute right-0 top-0 h-6 w-8 shrink-0 bg-linear-to-l from-(--sidebar-background) to-transparent" />
         </div>

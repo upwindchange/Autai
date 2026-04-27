@@ -33,8 +33,9 @@ import {
 import { AppHeader } from "@/components/app-header";
 import { useState, useEffect } from "react";
 import { useSessionLifecycle } from "@/hooks";
-import { refreshThreadListData } from "@/hooks/useThreadListRefresh";
 import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
+import { useTagStore } from "@/stores/tagStore";
+import type { TagRow } from "@shared/tag";
 import { useRemoteThreadListRuntime } from "@assistant-ui/react";
 import { backendThreadListAdapter } from "@/adapters/backendThreadListAdapter";
 
@@ -106,7 +107,13 @@ function AppContent() {
   const { t } = useTranslation("common");
   const { showSettings } = useUiStore();
   const [showSplitView, setShowSplitView] = useState(false);
-  const threadTitle = useAuiState((s) => s.threadListItem.title);
+  const currentRemoteId = useAuiState((s) => s.threadListItem.remoteId);
+  const threadTitle = useTagStore((s) =>
+    currentRemoteId
+      ? (s.threads.find((th) => th.remoteId === currentRemoteId)?.title ??
+        null)
+      : null,
+  );
 
   // Initialize thread lifecycle management
   useSessionLifecycle();
@@ -172,22 +179,20 @@ function App() {
     adapter: backendThreadListAdapter,
   });
 
-  // Listen for backend thread metadata updates and refresh thread list
+  // Listen for backend thread metadata updates and update tagStore directly
   useEffect(() => {
-    const handler = async () => {
-      logger.info("threads:metadataUpdated received, refreshing thread data");
-      try {
-        await refreshThreadListData(runtime);
-      } catch (error) {
-        logger.error(
-          "Failed to refresh thread data, falling back to reload",
-          error,
-        );
-        window.location.reload();
-      }
+    const handler = (_event: unknown, ...args: unknown[]) => {
+      const data = args[0] as {
+        threadId: string;
+        title: string;
+        tags?: TagRow[];
+      };
+      useTagStore
+        .getState()
+        .updateThreadTitle(data.threadId, data.title, data.tags);
     };
     window.ipcRenderer.on("threads:metadataUpdated", handler);
-  }, [runtime]);
+  }, []);
 
   // Configure assistant-ui with tools using the new Tools() API
   const aui = useAui({

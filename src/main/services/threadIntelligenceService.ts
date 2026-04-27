@@ -127,8 +127,13 @@ INSTRUCTIONS:
       }
 
       // Notify renderer to refresh thread metadata
+      const updatedTags = threadPersistenceService.getTagsForThread(threadId);
       BrowserWindow.getAllWindows().forEach((win) => {
-        win.webContents.send("threads:metadataUpdated", { threadId });
+        win.webContents.send("threads:metadataUpdated", {
+          threadId,
+          title: args.title,
+          tags: updatedTags,
+        });
       });
     } catch (error) {
       logger.error("Failed to enrich thread:", error);

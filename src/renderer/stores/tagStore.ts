@@ -61,6 +61,11 @@ interface TagState {
   addTagToThread: (threadRemoteId: string, tagId: number) => Promise<void>;
   removeTagFromThread: (threadRemoteId: string, tagId: number) => Promise<void>;
   renameThread: (threadRemoteId: string, title: string) => Promise<void>;
+  updateThreadTitle: (
+    threadRemoteId: string,
+    title: string,
+    tags?: TagRow[],
+  ) => void;
   getTagsForThread: (remoteId: string | undefined) => TagRow[];
 
   // Multi-select actions
@@ -180,6 +185,47 @@ export const useTagStore = create<TagState>()(
           th.remoteId === threadRemoteId ? { ...th, title } : th,
         ),
       });
+    },
+
+    updateThreadTitle: (threadRemoteId, title, tags) => {
+      const threads = get().threads;
+      const exists = threads.some((th) => th.remoteId === threadRemoteId);
+      if (exists) {
+        set({
+          threads: threads.map((th) => {
+            if (th.remoteId !== threadRemoteId) return th;
+            return { ...th, title, ...(tags !== undefined ? { tags } : {}) };
+          }),
+          ...(tags !== undefined
+            ? {
+                threadTags: {
+                  ...get().threadTags,
+                  [threadRemoteId]: tags,
+                },
+              }
+            : {}),
+        });
+      } else {
+        set({
+          threads: [
+            ...threads,
+            {
+              remoteId: threadRemoteId,
+              title,
+              tags: tags ?? [],
+              status: "regular" as const,
+            },
+          ],
+          ...(tags !== undefined
+            ? {
+                threadTags: {
+                  ...get().threadTags,
+                  [threadRemoteId]: tags,
+                },
+              }
+            : {}),
+        });
+      }
     },
 
     getTagsForThread: (remoteId) => {
