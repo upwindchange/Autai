@@ -2,7 +2,7 @@
   "name": "autai",
   "version": "0.0.1-alpha1",
   "private": true,
-  "description": "An AI-powered desktop app that lets autonomous agents read and interact with web pages for you, with computer use coming soon.",
+  "description": "Autai - AI-Powered Browser Automation",
   "license": "MIT",
   "author": "Yuwei Zhu <zyw@tutamail.com>",
   "type": "module",

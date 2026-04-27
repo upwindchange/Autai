@@ -67,15 +67,27 @@ let sessionTabBridge: SessionTabBridge | null = null;
 let hitlBridge: HitlBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
+const splashHtml = path.join(process.env.APP_ROOT!, "resources/splash.html");
+
+const appIcon = is.dev ?
+  path.join(
+    process.env.APP_ROOT!,
+    "build",
+    process.platform === "win32" ? "icon.ico"
+      : process.platform === "darwin" ? "icon.icns"
+      : "icon.png",
+  )
+: undefined;
 
 /**
  * Creates the main application window with security-focused settings
  */
-async function createWindow() {
+async function createWindow(splash?: BrowserWindow) {
   win = new BrowserWindow({
     title: i18n.t("common.mainWindowTitle"),
     autoHideMenuBar: true,
-    icon: is.dev ? path.join(process.env.APP_ROOT!, "build", "icon.ico") : undefined,
+    show: false,
+    icon: appIcon,
     webPreferences: {
       preload,
       contextIsolation: true,
@@ -103,6 +115,11 @@ async function createWindow() {
   } else {
     win.loadFile(indexHtml);
   }
+
+  win.webContents.on("did-finish-load", () => {
+    splash?.close();
+    win?.show();
+  });
 
   /**
    * Initialize core services
@@ -145,6 +162,27 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  // Show splash screen immediately — wait for it to paint before doing any work
+  const splash = new BrowserWindow({
+    width: 400,
+    height: 240,
+    frame: false,
+    transparent: true,
+    resizable: false,
+    center: true,
+    icon: appIcon,
+  });
+  splash.loadFile(splashHtml);
+  await new Promise<void>((resolve) =>
+    splash.webContents.on("did-finish-load", () => resolve()),
+  );
+
+  const updateSplashStatus = (text: string) => {
+    splash.webContents.executeJavaScript(
+      `document.getElementById('status').textContent = '${text.replace(/'/g, "\\'")}'`,
+    );
+  };
+
   // Initialize electron-log
   log.initialize();
 
@@ -167,6 +205,7 @@ app.whenReady().then(async () => {
   });
 
   // Initialize database (single connection, runs Drizzle migrations)
+  updateSplashStatus("Initializing database...");
   initializeDatabase();
 
   // Initialize services that use the database
@@ -200,12 +239,14 @@ app.whenReady().then(async () => {
   initializeTelemetry();
 
   // Start API server
+  updateSplashStatus("Starting API server...");
   const apiPort = await apiServer.start();
   ipcMain.handle("get-api-port", () => apiPort);
   logger.info(`API server started on port ${apiPort}`);
 
   // Start window
-  createWindow();
+  updateSplashStatus("Loading interface...");
+  createWindow(splash);
 });
 
 app.on("window-all-closed", () => {
