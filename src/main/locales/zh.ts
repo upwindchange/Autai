@@ -21,6 +21,13 @@ const zh = {
     failedNoResponse: "{{modelId}} 没有响应",
     failedBody: "{{modelId}} 连接失败：{{error}}",
   },
+  tags: {
+    coding: "编程",
+    research: "研究",
+    creative: "创意",
+    planning: "规划",
+    learning: "学习",
+  },
   agents: {
     searchingTitle: "同步查找多个话题：{{title}}",
     searchLabel: '查找："{{query}}"',

@@ -21,6 +21,13 @@ const en = {
     failedNoResponse: "{{modelId}} is not responding",
     failedBody: "{{modelId}} connection failed: {{error}}",
   },
+  tags: {
+    coding: "Coding",
+    research: "Research",
+    creative: "Creative",
+    planning: "Planning",
+    learning: "Learning",
+  },
   agents: {
     searchingTitle: "Looking up multiple topics at once: {{title}}",
     searchLabel: 'Looking up: "{{query}}"',

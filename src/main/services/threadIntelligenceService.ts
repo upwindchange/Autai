@@ -2,18 +2,18 @@ import { generateText, tool } from "ai";
 import { z } from "zod";
 import { simpleModel } from "@agents/providers";
 import { settingsService, threadPersistenceService } from "@/services";
+import { i18n } from "@/i18n";
 import log from "electron-log/main";
 import { BrowserWindow } from "electron";
 
 const logger = log.scope("ThreadIntelligenceService");
 
-const DEFAULT_TAGS = [
-  "General",
-  "Coding",
-  "Research",
-  "Creative",
-  "Planning",
-  "Learning",
+const DEFAULT_TAG_KEYS = [
+  "tags.coding",
+  "tags.research",
+  "tags.creative",
+  "tags.planning",
+  "tags.learning",
 ];
 
 class ThreadIntelligenceService {
@@ -25,10 +25,13 @@ class ThreadIntelligenceService {
     try {
       const existingTags = threadPersistenceService.listTags();
       if (existingTags.length === 0) {
-        for (let i = 0; i < DEFAULT_TAGS.length; i++) {
-          threadPersistenceService.createTag(DEFAULT_TAGS[i]!, i);
+        for (let i = 0; i < DEFAULT_TAG_KEYS.length; i++) {
+          threadPersistenceService.createTag(
+            i18n.t(DEFAULT_TAG_KEYS[i]!),
+            i,
+          );
         }
-        logger.info("Seeded default tags:", DEFAULT_TAGS);
+        logger.info("Seeded default tags");
       }
     } catch (error) {
       logger.error("Failed to seed default tags:", error);
