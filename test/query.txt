@@ -2,3 +2,27 @@ A taxi driver earns $9461 per 1-hour of work. If he works 12 hours a day and in 
 navigate to https://geodemo.graphics
 search "what date is chinese new year in 2027" on google.com
 what is the latest budget of NASA approved by congress? how is it compared to the last one?
+
+
+Ship the following items via USPS Priority Mail:
+
+Items:
+
+2x ceramic coffee mugs (8 oz each)
+1x stainless steel water bottle (24 oz)
+3x cotton hand towels
+Package: Medium flat-rate box (14" x 12" x 3.5"), total weight 4 lbs 6 oz.
+
+Ship from:
+John Smith
+742 Evergreen Terrace
+Springfield, IL 62704
+(217) 555-0193
+
+Ship to:
+Suzumiya Haruhi
+1600 Amphitheatre Parkway
+Mountain View, CA 94043
+(650) 555-0172
+
+No insurance needed. Go to USPS.com, start a new shipment under Priority Mail, fill in the addresses, package details, and weight, and walk me through it before submitting so I can confirm.
