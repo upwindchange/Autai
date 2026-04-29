@@ -128,13 +128,30 @@ Now create the execution plan.`;
 export async function browserUsePlanner(
   messages: ModelMessage[],
   sessionId: string,
+  recoveryInstruction?: string,
 ) {
   logger.debug("Starting planner", {
     sessionId,
     messageCount: messages.length,
+    isRecovery: !!recoveryInstruction,
   });
 
-  // Create a context for tool execution
+  let systemPrompt = plannerSystemPrompt;
+
+  if (recoveryInstruction) {
+    systemPrompt += `
+
+## Recovery Context
+A previous execution plan failed. Here is guidance for replanning:
+
+${recoveryInstruction}
+
+When creating the new plan:
+- Account for tasks already completed
+- Do NOT repeat the approach that led to failure
+- You may restructure the plan significantly if needed`;
+  }
+
   const context = {
     sessionId,
   };
@@ -142,7 +159,7 @@ export async function browserUsePlanner(
   const result = streamText({
     model: complexModel(),
     messages,
-    system: plannerSystemPrompt,
+    system: systemPrompt,
     tools: {
       plan: generatePlanTool,
     },
