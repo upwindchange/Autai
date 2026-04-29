@@ -18,6 +18,8 @@ import { hasSuccessfulToolResult } from "@/agents/utils";
 
 const logger = log.scope("browser-use-action-executor");
 
+const MAX_STEPS_PER_SUBTASK = 30;
+
 // ============================================================================
 // System Prompts
 // ============================================================================
@@ -91,10 +93,37 @@ For each subtask:
    - Unchanged: Skip getFlattenDOMTool
 6. Continue until subtask complete or determined to fail
 
+# FAILURE RULES — CRITICAL
+
+You MUST call subtaskComplete(success: false) IMMEDIATELY when ANY of these occur:
+
+## Hard Fail — Stop and report immediately:
+1. The target element does not exist in the DOM after a fresh getFlattenDOMTool call
+2. A navigation action results in an error page (404, 403, 500, connection refused, DNS error)
+3. An unexpected redirect takes you to a completely different site than intended
+4. The page shows a CAPTCHA, bot detection, or access denied message
+5. A tool action returns an error (element not found, action failed, timeout)
+6. The DOM structure does not match what the subtask expects (e.g., looking for a login form but the page shows a product listing)
+7. The page does not provide functionality that you can use to accomplish given instruction.
+
+## Pattern Fail — If the same problem persists after 3 attempts to achieve the same thing, either using the same or different methodology:
+1. An element is found but clicking/filling it does not produce the expected result (after 3 tries)
+2. The page state does not change after performing what should be a state-changing action (after 3 tries)
+3. You cannot locate the expected UI component despite scrolling and DOM exploration (after 3 tries)
+4. You cannot do the thing that you were asking for after 3 tries.
+
+## When in doubt, FAIL. Do NOT:
+- Keep trying variations of the same failed action
+- Scroll endlessly looking for an element
+- Repeatedly call getFlattenDOMTool hoping the page will change
+- Spend more than 5 tool calls trying to accomplish a single action, e.g. entering info into a specific form field.
+
+Failure is not bad — it triggers a recovery system that will replan a better approach. Failing fast is always better than wasting steps.
+
 # Completion
 When the subtask is done (goal achieved or determined impossible), you MUST call the subtaskComplete tool with:
 - success: true if the subtask goal was achieved, false otherwise
-- summary: a brief description of what was accomplished or why it failed
+- summary: a brief description of what was accomplished or why it failed. When reporting failure, describe: what you expected, what actually happened, and what you tried.
 
 This is required to signal completion. Do not just describe the result in text.
 
@@ -103,7 +132,6 @@ Use requestHumanIntervention when the user must physically perform an action in 
 - Login forms, credentials, passwords
 - CAPTCHAs, 2FA, security challenges
 - Payment forms, credit card entry
-- Age verification, cookie consent with specific choices
 - Any operation requiring human judgment or private information
 
 Parameters:
@@ -153,16 +181,12 @@ The user will select option(s) and confirm. Use the returned selection IDs to co
 // Helper Functions
 // ============================================================================
 
-/**
- * Build context for action executor
- */
 function buildSubtaskContext(
   subtask: UIPlanTodo,
   previousSubtasks: UIPlanTodo[],
 ): string {
   let context = "";
 
-  // Add previously completed subtasks
   if (previousSubtasks.length > 0) {
     const completedSubtasks = previousSubtasks.filter(
       (s) => s.status === "completed",
@@ -172,7 +196,6 @@ function buildSubtaskContext(
     }
   }
 
-  // Add current subtask
   context += `## Current Subtask to Execute:\n${JSON.stringify(subtask, null, 2)}`;
 
   return context;
@@ -182,17 +205,6 @@ function buildSubtaskContext(
 // Main Execution Function
 // ============================================================================
 
-/**
- * Execute subtasks sequentially using streamText
- *
- * Modifies subtaskPlan in-place - no need to return it.
- * Returns a StreamTextResult that streams all subtask executions.
- *
- * @param subtaskPlan - The subtask plan to execute (modified in-place)
- * @param sessionId - The current session ID
- * @param subtaskPlanToolCallId - The toolCallId from the subtask planner's plan tool call, used to update the subtask plan UI in-place
- * @returns StreamTextResult that streams all subtask executions
- */
 export async function executeSubtasks(
   subtaskPlan: UIPlanType,
   sessionId: string,
@@ -203,32 +215,20 @@ export async function executeSubtasks(
     subtaskCount: subtaskPlan.todos.length,
   });
 
-  // ============================================================
-  // SETUP CONTEXT (zero-token passing)
-  // ============================================================
   const sessionTabService = SessionTabService.getInstance();
   const activeTabId = sessionTabService.getActiveTabForSession(sessionId);
 
-  // Assert that an active tab exists
   if (!activeTabId) {
-    logger.error("No active tab found for session", {
-      sessionId,
-    });
+    logger.error("No active tab found for session", { sessionId });
     throw new Error(
       "Cannot execute subtasks: No active tab found for this session",
     );
   }
 
-  // ============================================================
-  // CREATE STREAM THAT EXECUTES SUBTASKS SEQUENTIALLY
-  // ============================================================
   return createUIMessageStream({
     execute: async ({ writer }) => {
       let allSuccessful = true;
 
-      // ============================================================
-      // EXECUTE SUBTASKS SEQUENTIALLY
-      // ============================================================
       for (let i = 0; i < subtaskPlan.todos.length; i++) {
         const subtask = subtaskPlan.todos[i];
         const completedSubtasks = subtaskPlan.todos.slice(0, i);
@@ -240,9 +240,7 @@ export async function executeSubtasks(
         });
 
         try {
-          // ============================================================
-          // MARK SUBTASK AS IN_PROGRESS AND UPDATE UI
-          // ============================================================
+          // Mark subtask as in_progress and update UI
           subtask.status = "in_progress";
           writeSimulatedToolCallToStream({
             writer,
@@ -255,17 +253,11 @@ export async function executeSubtasks(
             output: subtaskPlan,
           });
 
-          // ============================================================
-          // BUILD CONTEXT FOR THIS SUBTASK
-          // ============================================================
           const subtaskContext = buildSubtaskContext(
             subtask,
             completedSubtasks,
           );
 
-          // ============================================================
-          // EXECUTE ACTIONS FOR THIS SUBTASK USING streamText
-          // ============================================================
           const result = streamText({
             model: complexModel(),
             messages: [{ role: "user", content: subtaskContext }],
@@ -297,7 +289,7 @@ export async function executeSubtasks(
             toolChoice: "auto",
             stopWhen: [
               hasSuccessfulToolResult("subtaskComplete"),
-              stepCountIs(100),
+              stepCountIs(MAX_STEPS_PER_SUBTASK),
             ],
             experimental_telemetry: {
               isEnabled: settingsService.settings.langfuse.enabled,
@@ -315,12 +307,7 @@ export async function executeSubtasks(
             },
           });
 
-          // ============================================================
-          // STREAM HITL TOOL CALLS TO FRONTEND & EXTRACT RESULTS
-          // ============================================================
-          // Only stream requestHumanIntervention tool calls to the frontend
-          // so the user can interact with HITL prompts. All other tool calls
-          // and text are handled internally without streaming.
+          // Stream HITL tool calls to frontend & extract results
           const HITL_TOOLS = new Set([
             "requestHumanIntervention",
             "requestUserInput",
@@ -343,20 +330,26 @@ export async function executeSubtasks(
             (toolResult) => toolResult.toolName === "subtaskComplete",
           );
 
-          if (!completeResult) {
-            logger.error("Agent did not call subtaskComplete tool", {
-              subtaskId: subtask.id,
-              toolResults: allToolResults,
-            });
-            throw new Error(
-              "Agent failed to complete subtask: subtaskComplete tool not called",
-            );
-          }
+          // Determine success/summary: if subtaskComplete was called, use its
+          // output. Otherwise the step limit was reached — treat as failure.
+          let success: boolean;
+          let summary: string;
 
-          const { success, summary } = completeResult.output as {
-            success: boolean;
-            summary: string;
-          };
+          if (completeResult) {
+            const output = completeResult.output as {
+              success: boolean;
+              summary: string;
+            };
+            success = output.success;
+            summary = output.summary;
+          } else {
+            logger.warn(
+              "Step limit reached without subtaskComplete, treating as failure",
+              { subtaskId: subtask.id },
+            );
+            success = false;
+            summary = `Step limit (${MAX_STEPS_PER_SUBTASK}) reached without completing the subtask. The agent did not signal completion.`;
+          }
 
           logger.debug("Subtask completed", {
             subtaskId: subtask.id,
@@ -364,12 +357,9 @@ export async function executeSubtasks(
             summary,
           });
 
-          // ============================================================
-          // UPDATE SUBTASK STATUS IN-PLACE
-          // ============================================================
+          // Update subtask status in-place
           subtask.status = success ? "completed" : "cancelled";
 
-          // Populate receipt with completion result for task executor
           subtaskPlan.receipt = {
             outcome: success ? "success" : "cancelled",
             summary,
@@ -388,14 +378,6 @@ export async function executeSubtasks(
             output: subtaskPlan,
           });
 
-          logger.debug("Simulated plan tool call for subtask status", {
-            subtaskId: subtask.id,
-            status: subtask.status,
-          });
-
-          // ============================================================
-          // STOP IF SUBTASK FAILED
-          // ============================================================
           if (!success) {
             logger.info("Subtask failed, stopping execution", {
               subtaskId: subtask.id,
@@ -403,29 +385,27 @@ export async function executeSubtasks(
               summary,
             });
             allSuccessful = false;
-            break; // Stop processing more subtasks
+            break;
           }
         } catch (error) {
-          // ============================================================
-          // ERROR HANDLING
-          // ============================================================
           logger.error("Subtask execution error", {
             subtaskId: subtask.id,
             subtaskLabel: subtask.label,
             error,
           });
 
-          // Mark subtask as cancelled
           subtask.status = "cancelled";
+          subtaskPlan.receipt = {
+            outcome: "cancelled",
+            summary: error instanceof Error ? error.message : String(error),
+            at: new Date().toISOString(),
+          };
 
           allSuccessful = false;
-          break; // Stop processing more subtasks
+          break;
         }
       }
 
-      // ============================================================
-      // ALL SUBTASKS COMPLETED (OR FAILED)
-      // ============================================================
       if (allSuccessful) {
         logger.info("All subtasks completed successfully", {
           totalSubtasks: subtaskPlan.todos.length,
