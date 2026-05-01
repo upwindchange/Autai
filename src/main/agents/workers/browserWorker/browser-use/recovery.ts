@@ -1,8 +1,9 @@
-import { streamText, tool, stepCountIs, ModelMessage } from "ai";
+import { streamText, tool, stepCountIs, ModelMessage, generateId } from "ai";
 import { z } from "zod";
 import { complexModel } from "@agents/providers";
-import { settingsService } from "@/services";
+import { settingsService, SessionTabService } from "@/services";
 import { hasSuccessfulToolResult } from "@/agents/utils";
+import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import log from "electron-log/main";
 import type { UIPlanType, UIPlanTodo } from "./planner";
 
@@ -29,6 +30,8 @@ export interface RecoveryContext {
   plan: UIPlanType;
   messages: ModelMessage[];
   sessionId: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  actionExecutorSteps: any[];
 }
 
 // ============================================================================
@@ -108,10 +111,40 @@ export async function recoveryAgent(
     subtaskPlan,
     currentTask,
     plan,
+    actionExecutorSteps,
   } = context;
+
+  const sessionTabService = SessionTabService.getInstance();
+  const activeTabId = sessionTabService.getActiveTabForSession(context.sessionId);
+
+  let currentDOM = "No active tab available — cannot retrieve DOM.";
+  if (activeTabId) {
+    try {
+      const domResult = await getFlattenDOMTool.execute!(
+        {},
+        {
+          toolCallId: generateId(),
+          messages: [],
+          experimental_context: { sessionId: context.sessionId, activeTabId },
+        },
+      );
+      currentDOM = (domResult as { representation: string }).representation;
+    } catch (error) {
+      logger.warn("Failed to get flatten DOM for recovery analysis", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      currentDOM = `Failed to retrieve DOM: ${error instanceof Error ? error.message : String(error)}`;
+    }
+  }
 
   const prompt = `## Failed Subtask
 ${JSON.stringify(failedSubtask, null, 2)}
+
+## Action Executor Steps (what happened before failure)
+${JSON.stringify(actionExecutorSteps, null, 2)}
+
+## Current Page DOM State
+${currentDOM}
 
 ## Subtask Plan (all subtasks for current task)
 ${JSON.stringify(subtaskPlan, null, 2)}

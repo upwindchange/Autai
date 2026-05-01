@@ -209,7 +209,11 @@ export async function executeSubtasks(
   subtaskPlan: UIPlanType,
   sessionId: string,
   subtaskPlanToolCallId: string,
-): Promise<ReturnType<typeof createUIMessageStream>> {
+): Promise<{
+  stream: ReturnType<typeof createUIMessageStream>;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  actionExecutorSteps: any[];
+}> {
   logger.debug("Starting subtask execution stream", {
     sessionId,
     subtaskCount: subtaskPlan.todos.length,
@@ -225,7 +229,10 @@ export async function executeSubtasks(
     );
   }
 
-  return createUIMessageStream({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const actionExecutorSteps: any[] = [];
+
+  const stream = createUIMessageStream({
     execute: async ({ writer }) => {
       let allSuccessful = true;
 
@@ -323,6 +330,7 @@ export async function executeSubtasks(
               writer,
             ),
           ]);
+          actionExecutorSteps.push(...steps);
           const allToolResults = steps.flatMap(
             (step) => step.toolResults ?? [],
           );
@@ -426,4 +434,6 @@ export async function executeSubtasks(
       return error instanceof Error ? error.message : String(error);
     },
   });
+
+  return { stream, actionExecutorSteps };
 }

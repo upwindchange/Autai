@@ -118,7 +118,7 @@ async function planAndExecuteSubtasks(
   currentTaskIndex: number,
   writer: Parameters<Parameters<typeof createUIMessageStream>[0]["execute"]>[0]["writer"],
   recoveryInstruction?: string,
-): Promise<{ subtaskPlan: UIPlanType; failed: boolean }> {
+): Promise<{ subtaskPlan: UIPlanType; failed: boolean; actionExecutorSteps: any[] }> { // eslint-disable-line @typescript-eslint/no-explicit-any
   const currentTask = plan.todos[currentTaskIndex];
   const systemPrompt = buildSystemPrompt(
     currentTask,
@@ -208,7 +208,7 @@ async function planAndExecuteSubtasks(
     subtaskCount: subtaskPlanResultData.todos.length,
   });
 
-  const actionExecutorStream = await executeSubtasks(
+  const { stream: actionExecutorStream, actionExecutorSteps } = await executeSubtasks(
     subtaskPlanResultData,
     sessionId,
     subtaskPlanToolCallId,
@@ -220,7 +220,7 @@ async function planAndExecuteSubtasks(
     (t) => t.status === "cancelled",
   );
 
-  return { subtaskPlan: subtaskPlanResultData, failed };
+  return { subtaskPlan: subtaskPlanResultData, failed, actionExecutorSteps };
 }
 
 // ============================================================================
@@ -284,7 +284,7 @@ export async function browserUseTaskExecutor(
       });
 
       // Plan and execute subtasks
-      const { subtaskPlan, failed } = await planAndExecuteSubtasks(
+      const { subtaskPlan, failed, actionExecutorSteps } = await planAndExecuteSubtasks(
         sessionId,
         plan,
         currentTaskIndex,
@@ -333,6 +333,7 @@ export async function browserUseTaskExecutor(
         plan,
         messages,
         sessionId,
+        actionExecutorSteps,
       });
 
       logger.info("Recovery decision received", {
