@@ -69,7 +69,7 @@
     "@langfuse/otel": "^5.2.0",
     "@langfuse/tracing": "^5.2.0",
     "@openrouter/ai-sdk-provider": "^2.8.0",
-    "@opentelemetry/sdk-node": "^0.215.0",
+    "@opentelemetry/sdk-node": "^0.216.0",
     "@playwright/test": "^1.59.1",
     "@tailwindcss/vite": "^4.2.4",
     "@types/better-sqlite3": "^7.6.13",
