@@ -103,7 +103,7 @@
     "embla-carousel-react": "^8.6.0",
     "eslint": "^10.2.1",
     "gitlab-ai-provider": "^6.6.0",
-    "heat-graph": "^0.0.5",
+    "heat-graph": "^0.0.7",
     "hono": "^4.12.14",
     "i18next": "^26.0.6",
     "input-otp": "^1.4.2",
