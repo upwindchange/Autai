@@ -23,7 +23,7 @@ If you like Autai, please consider giving it a star ⭐ — it helps others disc
 
 ### Browser Automation
 
-Just say _"Add the following shopping list to my Target shopping cart"_ — Autai opens the browser, searches for items and add the to your shopping cart.
+Just say _"Add the following shopping list to my Target shopping cart"_ — Autai opens the browser, searches for items and add them to your shopping cart.
 
 <video src="https://github.com/user-attachments/assets/f8b8d85e-3679-4deb-a5de-8fe64092d161" controls="controls" style="max-width:100%;"></video>
 
