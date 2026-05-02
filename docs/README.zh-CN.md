@@ -32,9 +32,7 @@
 
 切换到研究模式，问一句"2026 年有哪些千元以下值得买的笔记本？"——Autai 会自动搜索网页、阅读多个来源，帮你整理出清晰的答案。
 
-<!-- 替换为实际视频链接 -->
-
-<video src="https://github.com/user/autai/assets/demo-research-mode.mp4" controls="controls" style="max-width:100%;"></video>
+<video src="https://github.com/user-attachments/assets/7ac38b43-3e9c-4034-a7cf-8b8ef081bb13" controls="controls" style="max-width:100%;"></video>
 
 ---
 
