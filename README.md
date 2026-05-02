@@ -16,7 +16,7 @@ Tell Autai what you need, and the AI will use your browser for you — booking f
 
 ### Book a Flight, Hands-Free
 
-Just say _"Book the cheapest flight from SF to NYC next Friday"_ — Autai opens the browser, searches for flights, and walks you through the booking.
+Just say _"Add the following shopping list to my Target shopping cart"_ — Autai opens the browser, searches for items and add the to your shopping cart.
 
 <!-- Replace the src below with your actual video URL -->
 
@@ -82,7 +82,16 @@ That's it. No setup wizards, no configuration files, no learning curve.
 
 ## Roadmap
 
-- _More items coming soon_
+- **alpha 1** — Initial proof of concept
+- **alpha 2** — Deep research mode, improved research agent, input focus fixes
+- **alpha 3** — Simple browser use mode, improved browser agent, tool fixes
+- **alpha 4** — Tag color editing, improved research agent UI
+- **alpha 5** — MCP tools support
+- **alpha 6** — Custom system prompts and profiles for browser use agent
+- **alpha 7** — Per-conversation model and tool selection
+- **alpha 8** — Full-text search across conversations
+- **alpha 9** — CI/CD pipeline, code signing for macOS, Windows, and Flathub
+- **beta 1** — Public issue tracker, community-driven bug fixes
 
 ---
 
