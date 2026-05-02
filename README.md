@@ -27,8 +27,7 @@ Just say _"Add the following shopping list to my Target shopping cart"_ — Auta
 
 https://github.com/user-attachments/assets/f8b8d85e-3679-4deb-a5de-8fe64092d161
 
-Note: Video accelerated due to github video size limit of 10MB. Real performance depends on LLM provider speed.
-
+Videos are sped up due to GitHub's 10MB file size limit. Actual speed depends on your LLM provider.
 
 ### Research Anything
 
@@ -98,7 +97,8 @@ That's it. No setup wizards, no configuration files, no learning curve.
 - **alpha 6** — Custom system prompts and profiles for browser use agent
 - **alpha 7** — Per-conversation model and tool selection
 - **alpha 8** — Full-text search across conversations
-- **alpha 9** — CI/CD pipeline, code signing for macOS, Windows, and Flathub
+- **alpha 9** — Computer use proof of concept (terminal use)
+- **alpha 10** — CI/CD pipeline, code signing for macOS, Windows, and Flathub
 - **beta 1** — Public issue tracker, community-driven bug fixes
 
 ---
@@ -112,7 +112,6 @@ Autai is currently in **active alpha development**. The software is functional a
 ## License
 
 [MIT](LICENSE) — free to use, modify, and share.
-
 
 ---
 
