@@ -24,7 +24,7 @@
 
 比如说一句"帮我把这些商品加到购物车里"——Autai就会打开浏览器，搜索商品，一个个加进购物车。
 
-https://github.com/user-attachments/assets/f8b8d85e-3679-4deb-a5de-8fe64092d161
+<video src="https://github.com/user-attachments/assets/f8b8d85e-3679-4deb-a5de-8fe64092d161" controls="controls" style="max-width:100%;"></video>
 
 视频因GitHub 10MB大小限制做了加速，实际速度取决于你用的 LLM。
 
