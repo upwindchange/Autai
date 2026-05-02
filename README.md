@@ -8,6 +8,11 @@ Tell Autai what you need, and the AI will use your browser for you — booking f
 
 [Download](https://github.com/upwindchange/autai/releases) · [Features](#features) · [How It Works](#how-it-works)
 
+If you like Autai, please consider giving it a star ⭐ — it helps others discover the project!
+
+<!-- Add your star GIF below -->
+<!-- <img src="star-gif-url-here" width="30" height="30" /> -->
+
 </div>
 
 ---
@@ -104,3 +109,8 @@ Autai is currently in **active alpha development**. The software is functional a
 ## License
 
 [MIT](LICENSE) — free to use, modify, and share.
+
+If you like Autai, please consider giving it a star ⭐ — it helps others discover the project!
+
+<!-- Add your star GIF below -->
+<!-- <img src="star-gif-url-here" width="30" height="30" /> -->
