@@ -8,24 +8,27 @@ Tell Autai what you need, and the AI will use your browser for you — booking f
 
 [Download](https://github.com/upwindchange/autai/releases) · [Features](#features) · [How It Works](#how-it-works)
 
+---
+
 If you like Autai, please consider giving it a star ⭐ — it helps others discover the project!
 
 <!-- Add your star GIF below -->
-<!-- <img src="star-gif-url-here" width="30" height="30" /> -->
+<img width="320" height="180" alt="star" src="https://github.com/user-attachments/assets/ac160fea-7073-4f77-9af7-addaba1708d4" />
 
-</div>
+</div align="center">
 
 ---
 
 ## Watch It in Action
 
-### Book a Flight, Hands-Free
+### Browser Automation
 
 Just say _"Add the following shopping list to my Target shopping cart"_ — Autai opens the browser, searches for items and add the to your shopping cart.
 
-<!-- Replace the src below with your actual video URL -->
+https://github.com/user-attachments/assets/f8b8d85e-3679-4deb-a5de-8fe64092d161
 
-<video src="https://github.com/user/autai/assets/demo-flight-booking.mp4" controls="controls" style="max-width:100%;"></video>
+Note: Video accelerated due to github video size limit of 10MB. Real performance depends on LLM provider speed.
+
 
 ### Research Anything
 
@@ -110,7 +113,12 @@ Autai is currently in **active alpha development**. The software is functional a
 
 [MIT](LICENSE) — free to use, modify, and share.
 
+
+---
+
 If you like Autai, please consider giving it a star ⭐ — it helps others discover the project!
 
 <!-- Add your star GIF below -->
-<!-- <img src="star-gif-url-here" width="30" height="30" /> -->
+<img width="320" height="180" alt="star" src="https://github.com/user-attachments/assets/ac160fea-7073-4f77-9af7-addaba1708d4" />
+
+</div align="center">
