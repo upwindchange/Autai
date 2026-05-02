@@ -33,7 +33,7 @@ Videos are sped up due to GitHub's 10MB file size limit. Actual speed depends on
 
 Switch to Research Mode and ask _"What are the best laptops under $1000 in 2026?"_ — Autai searches the web, reads multiple sources, and synthesizes the answer for you.
 
-<video src="https://github.com/user/autai/assets/demo-research-mode.mp4" controls="controls" style="max-width:100%;"></video>
+<video src="[https://github.com/user/autai/assets/demo-research-mode.mp4](https://github.com/user-attachments/assets/7ac38b43-3e9c-4034-a7cf-8b8ef081bb13)" controls="controls" style="max-width:100%;"></video>
 
 ---
 
