@@ -1,20 +1,12 @@
 <div align="center">
-
-<h1><img src="../build/icon.png" alt="Autai" width="64" valign="middle" /> Autai</h1>
+<img src="../build/icon.png" alt="Autai" width="64" valign="middle" />
+<h1>Autai</h1>
 
 ### 你的 AI 浏览器助手
 
 告诉 Autai 你想做什么，AI 就会替你操控浏览器——订机票、填表格、比价、查资料，日常上网能做的事它都能帮你做。我们还在拓展到完整的电脑操控能力，敬请期待。
 
 [下载](https://github.com/upwindchange/autai/releases) · [功能介绍](#功能介绍) · [使用方法](#使用方法)
-
----
-
-觉得好用的话，加个星⭐吧，让更多人看到这个项目！
-
-<img width="320" height="180" alt="star" src="https://github.com/user-attachments/assets/ac160fea-7073-4f77-9af7-addaba1708d4" />
-
-</div align="center">
 
 ---
 
@@ -33,6 +25,14 @@
 切换到研究模式，问一句"2026 年有哪些千元以下值得买的笔记本？"——Autai 会自动搜索网页、阅读多个来源，帮你整理出清晰的答案。
 
 <video src="https://github.com/user-attachments/assets/7ac38b43-3e9c-4034-a7cf-8b8ef081bb13" controls="controls" style="max-width:100%;"></video>
+
+---
+
+觉得好用的话，加个星⭐吧，让更多人看到这个项目！
+
+<img width="320" height="180" alt="star" src="https://github.com/user-attachments/assets/ac160fea-7073-4f77-9af7-addaba1708d4" />
+
+</div align="center">
 
 ---
 

@@ -1,21 +1,12 @@
 <div align="center">
-
-<h1><img src="build/icon.png" alt="Autai" width="64" valign="middle" /> Autai</h1>
+<img src="build/icon.png" alt="Autai" width="64" valign="middle" />
+<h1>Autai</h1>
 
 ### Your AI Browser Assistant
 
 Tell Autai what you need, and the AI will use your browser for you — booking flights, filling out forms, comparing prices, researching topics, and anything else you'd normally do online. We're also working on expanding beyond the browser to full computer use — stay tuned.
 
 [Download](https://github.com/upwindchange/autai/releases) · [Features](#features) · [How It Works](#how-it-works) · [中文文档](docs/README.zh-CN.md)
-
----
-
-If you like Autai, please consider giving it a star ⭐ — it helps others discover the project!
-
-<!-- Add your star GIF below -->
-<img width="320" height="180" alt="star" src="https://github.com/user-attachments/assets/ac160fea-7073-4f77-9af7-addaba1708d4" />
-
-</div align="center">
 
 ---
 
@@ -36,6 +27,15 @@ Switch to Research Mode and ask _"What are the best laptops under $1000 in 2026?
 <video src="https://github.com/user-attachments/assets/7ac38b43-3e9c-4034-a7cf-8b8ef081bb13" controls="controls" style="max-width:100%;"></video>
 
 Videos are edited and sped up due to GitHub's 10MB file size limit. Actual speed depends on your LLM provider.
+
+---
+
+If you like Autai, please consider giving it a star ⭐ — it helps others discover the project!
+
+<!-- Add your star GIF below -->
+<img width="320" height="180" alt="star" src="https://github.com/user-attachments/assets/ac160fea-7073-4f77-9af7-addaba1708d4" />
+
+</div align="center">
 
 ---
 
