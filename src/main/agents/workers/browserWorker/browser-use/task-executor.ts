@@ -60,6 +60,7 @@ Each subtask has:
 - Write instructional descriptions that guide the action-executor agent
 - Do NOT break into atomic actions (click, type). That is for the action-executor agent
 - Consider page state from previous subtasks when writing instructions
+- Do NOT design a task to dismiss popup/overlay.
 
 ## Important
 You MUST call the plan tool to provide your subtask plan. Do not just describe the plan in text — you are required to use the plan tool.`;
