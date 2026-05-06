@@ -9,6 +9,8 @@ import {
 import { navigateTool } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { interceptClickUrlTool } from "@agents/tools/InteractiveTools";
+import { getAttributeTool } from "@agents/tools/InteractiveTools";
+import { getAllAttributesTool } from "@agents/tools/InteractiveTools";
 import { settingsService, SessionTabService } from "@/services";
 import { i18n } from "@/i18n";
 import type { ResearchPlan } from "./planner";
@@ -125,20 +127,63 @@ async function getFlattenDOM(
   return (result as { representation: string }).representation;
 }
 
+function isValidUrl(value: string): boolean {
+  if (!/^https?:\/\//i.test(value)) return false;
+  try {
+    new URL(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function interceptLinkUrl(
   backendNodeId: number,
   sessionId: string,
   activeTabId: string,
 ): Promise<string | null> {
-  const result = await interceptClickUrlTool.execute!(
+  const toolContext = {
+    toolCallId: generateId(),
+    messages: [],
+    experimental_context: { sessionId, activeTabId },
+  };
+
+  // Tier 1: Try getAttribute("href") — single CDP call, ~10ms
+  try {
+    const attrResult = (await getAttributeTool.execute!(
+      { backendNodeId, attributeName: "href" },
+      toolContext,
+    )) as { value?: string | null; exists?: boolean };
+    if (attrResult.exists && attrResult.value && isValidUrl(attrResult.value)) {
+      return attrResult.value;
+    }
+  } catch {
+    // fall through to tier 2
+  }
+
+  // Tier 2: Try getAllAttributes — scan all attribute values for any URL
+  try {
+    const allAttrsResult = (await getAllAttributesTool.execute!(
+      { backendNodeId },
+      toolContext,
+    )) as { attributes?: Record<string, string> };
+    if (allAttrsResult.attributes) {
+      for (const value of Object.values(allAttrsResult.attributes)) {
+        if (isValidUrl(value)) {
+          return value;
+        }
+      }
+    }
+  } catch {
+    // fall through to tier 3
+  }
+
+  // Tier 3: Fallback to click + intercept — slow but handles JS navigation
+  const result = (await interceptClickUrlTool.execute!(
     { backendNodeId },
-    {
-      toolCallId: generateId(),
-      messages: [],
-      experimental_context: { sessionId, activeTabId },
-    },
-  );
-  return (result as { interceptedUrl?: string }).interceptedUrl ?? null;
+    toolContext,
+  )) as { interceptedUrl?: string };
+  return result.interceptedUrl ?? null;
 }
 
 // ===== Dedup =====

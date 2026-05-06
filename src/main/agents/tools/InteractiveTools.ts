@@ -18,10 +18,13 @@ import type {
   DragResult,
   ScrollResult,
   GetAttributeResult,
+  GetAllAttributesResult,
   EvaluateResult,
   GetBasicInfoResult,
 } from "@shared/dom/interaction";
 import type { ToolExecutionContext } from "./types/context";
+
+export type GetAllAttributesToolResult = GetAllAttributesResult;
 
 // ===== Result Types =====
 
@@ -900,6 +903,40 @@ export const getBasicInfoTool = tool({
   },
 });
 
+export const getAllAttributesTool = tool({
+  description:
+    "Get all attributes from an element using its backend node ID. " +
+    "Returns all attributes as key-value pairs. Faster than getBasicInfo.",
+  inputSchema: z.object({
+    backendNodeId: z
+      .number()
+      .describe("Required (number): Backend node ID of the element"),
+  }),
+  execute: async ({ backendNodeId }, { experimental_context }) => {
+    const context = experimental_context as ToolExecutionContext;
+
+    if (!context.activeTabId) {
+      throw new Error(
+        "No active tab in context. " +
+          "Ensure tab selection has run before calling this tool.",
+      );
+    }
+
+    const sessionTabService = SessionTabService.getInstance();
+    const interactionService = sessionTabService.getInteractionService(
+      context.activeTabId!,
+    );
+
+    if (!interactionService) {
+      throw new Error(
+        `Interaction service not found for tab ${context.activeTabId}`,
+      );
+    }
+
+    return await interactionService.getAllAttributes(backendNodeId);
+  },
+});
+
 export const interceptClickUrlTool = tool({
   description:
     "Click an element and intercept the URL it would navigate to, " +
@@ -950,6 +987,7 @@ export const interactiveTools = {
   scrollPages: scrollPagesTool,
   scrollAtCoordinate: scrollAtCoordinateTool,
   getAttribute: getAttributeTool,
+  getAllAttributes: getAllAttributesTool,
   evaluate: evaluateTool,
   getBasicInfo: getBasicInfoTool,
 };

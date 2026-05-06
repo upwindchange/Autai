@@ -25,6 +25,7 @@ import type {
   DragOptions,
   DragResult,
   GetAttributeResult,
+  GetAllAttributesResult,
   EvaluateResult,
   GetBasicInfoResult,
   ElementBasicInfo,
@@ -1976,6 +1977,51 @@ export class ElementInteractionService {
         success: true,
         value: exists ? value : null,
         exists,
+        duration: Date.now() - startTime,
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        duration: Date.now() - startTime,
+      };
+    }
+  }
+
+  /**
+   * Get all attributes from an element using backendNodeId
+   * Uses a single CDP DOM.getAttributes call — faster than getBasicInfo
+   */
+  async getAllAttributes(
+    backendNodeId: number,
+  ): Promise<GetAllAttributesResult> {
+    this.ensureDebuggerAttached();
+    const startTime = Date.now();
+
+    try {
+      const nodeId = await this.getNodeIdFromBackendNodeId(backendNodeId);
+
+      const attributesResult: CDP.DOM.GetAttributesResponse =
+        await sendCDPCommand(
+          this.webContents,
+          "DOM.getAttributes",
+          { nodeId },
+          this.logger,
+        );
+
+      const attributes: Record<string, string> = {};
+      if (attributesResult.attributes) {
+        const attrs = attributesResult.attributes;
+        for (let i = 0; i < attrs.length; i += 2) {
+          if (i + 1 < attrs.length) {
+            attributes[attrs[i]] = attrs[i + 1];
+          }
+        }
+      }
+
+      return {
+        success: true,
+        attributes,
         duration: Date.now() - startTime,
       };
     } catch (error) {

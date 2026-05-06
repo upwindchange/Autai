@@ -384,6 +384,29 @@ export interface GetAttributeResult {
   duration?: number;
 }
 
+// get_all_attributes interfaces
+export interface GetAllAttributesResult {
+  /**
+   * Whether the retrieval was successful
+   */
+  success: boolean;
+
+  /**
+   * All attributes as key-value pairs
+   */
+  attributes?: Record<string, string>;
+
+  /**
+   * Error message if retrieval failed
+   */
+  error?: string;
+
+  /**
+   * Time taken in milliseconds
+   */
+  duration?: number;
+}
+
 // evaluate interfaces
 export interface EvaluateOptions {
   /**
