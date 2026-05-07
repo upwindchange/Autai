@@ -13,6 +13,7 @@ import { getAttributeTool } from "@agents/tools/InteractiveTools";
 import { getAllAttributesTool } from "@agents/tools/InteractiveTools";
 import { settingsService, SessionTabService } from "@/services";
 import { i18n } from "@/i18n";
+import { sendAlert } from "@/utils/messageUtils";
 import type { ResearchPlan } from "./planner";
 import log from "electron-log/main";
 
@@ -337,10 +338,16 @@ async function executeSingleSearchQuery(
     logger.warn("LLM failed to extract search results", { query });
     return [];
   } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : String(error);
     logger.error("Search query failed", {
       query,
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
     });
+    sendAlert(
+      i18n.t("agents.searchErrorTitle"),
+      i18n.t("agents.searchErrorBody", { query, error: errorMessage }),
+    );
     return [];
   }
 }
@@ -417,14 +424,19 @@ export async function executeSearchQueries(
       if (result.status === "fulfilled") {
         allResults.push(...result.value);
       } else {
+        const errorMessage =
+          result.reason instanceof Error ?
+            result.reason.message
+          : String(result.reason);
         logger.error("Parallel search query failed", {
           queryIndex: i,
           query: plan.queries[i].query,
-          error:
-            result.reason instanceof Error ?
-              result.reason.message
-            : String(result.reason),
+          error: errorMessage,
         });
+        sendAlert(
+          i18n.t("agents.searchErrorTitle"),
+          i18n.t("agents.searchErrorBody", { query: plan.queries[i].query, error: errorMessage }),
+        );
       }
     }
 

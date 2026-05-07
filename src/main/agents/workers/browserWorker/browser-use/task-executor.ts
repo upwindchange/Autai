@@ -7,6 +7,8 @@ import {
 } from "ai";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
+import { i18n } from "@/i18n";
+import { sendAlert } from "@/utils/messageUtils";
 import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
@@ -394,11 +396,13 @@ export async function browserUseTaskExecutor(
       }
     },
     onError: (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
       logger.error("Error in task executor stream", {
         error,
         stack: error instanceof Error ? error.stack : undefined,
       });
-      return error instanceof Error ? error.message : String(error);
+      sendAlert(i18n.t("agents.taskErrorTitle"), i18n.t("agents.taskErrorBody", { error: msg }));
+      return msg;
     },
   });
 }

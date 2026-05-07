@@ -10,6 +10,7 @@ import { navigateTool } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { settingsService, SessionTabService } from "@/services";
 import { i18n } from "@/i18n";
+import { sendAlert } from "@/utils/messageUtils";
 import type { SearchResultItem } from "./search-agent";
 import type { ResearchQuery } from "./planner";
 import log from "electron-log/main";
@@ -216,16 +217,23 @@ async function executeSingleExtraction(
       relevant: false,
     };
   } catch (error) {
+    const errorMessage =
+      error instanceof Error ? error.message : String(error);
     logger.error("Extraction failed for URL", {
       url: searchResult.url,
-      error: error instanceof Error ? error.message : String(error),
+      error: errorMessage,
     });
+
+    sendAlert(
+      i18n.t("agents.extractionErrorTitle"),
+      i18n.t("agents.extractionErrorBody", { title: searchResult.title, error: errorMessage }),
+    );
 
     return {
       url: searchResult.url,
       title: searchResult.title,
       summary: i18n.t("agents.extractionFailed", {
-              error: error instanceof Error ? error.message : String(error),
+              error: errorMessage,
             }),
       quotes: [],
       relevant: false,
@@ -304,21 +312,23 @@ export async function extractResultsFromUrls(
       if (result.status === "fulfilled") {
         allExtractions.push(result.value);
       } else {
+        const errorMessage =
+          result.reason instanceof Error ?
+            result.reason.message
+          : String(result.reason);
         logger.error("Parallel extraction failed", {
           url: searchResults[i].url,
-          error:
-            result.reason instanceof Error ?
-              result.reason.message
-            : String(result.reason),
+          error: errorMessage,
         });
+        sendAlert(
+          i18n.t("agents.extractionErrorTitle"),
+          i18n.t("agents.extractionErrorBody", { title: searchResults[i].title, error: errorMessage }),
+        );
         allExtractions.push({
           url: searchResults[i].url,
           title: searchResults[i].title,
           summary: i18n.t("agents.extractionGenericFailed", {
-              error:
-                result.reason instanceof Error ?
-                  result.reason.message
-                : String(result.reason),
+              error: errorMessage,
             }),
           quotes: [],
           relevant: false,

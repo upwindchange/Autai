@@ -40,7 +40,22 @@ const zh = {
     modelNotConfiguredTitle: "模型未配置",
     modelNotConfiguredBody: "还没设置{{role}}模型，请先去设置里配置。",
     providerNotFoundTitle: "找不到提供商",
-    providerNotFoundBody: "找不到「{{providerId}}」，请检查设置。",
+    providerNotFoundBody: "找不到{{providerId}}，请检查设置。",
+    searchErrorTitle: "搜索错误",
+    searchErrorBody:
+      '查询"{{query}}"因服务商错误（如频率限制）被跳过：{{error}}',
+    extractionErrorTitle: "提取错误",
+    extractionErrorBody:
+      '页面"{{title}}"因服务商错误（如频率限制）被跳过：{{error}}',
+    researchErrorTitle: "研究错误",
+    researchErrorBody: "研究过程中发生错误：{{error}}",
+    browserUseErrorTitle: "浏览器代理错误",
+    browserUseErrorBody: "浏览器自动化过程中发生错误：{{error}}",
+    taskErrorTitle: "任务执行错误",
+    taskErrorBody: "任务执行过程中发生错误：{{error}}",
+    actionErrorTitle: "操作错误",
+    actionErrorBody:
+      '子任务"{{label}}"失败：{{error}}',
   },
 };
 

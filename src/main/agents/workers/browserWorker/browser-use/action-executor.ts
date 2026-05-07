@@ -3,6 +3,8 @@ import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
 import { SessionTabService } from "@/services";
+import { i18n } from "@/i18n";
+import { sendAlert } from "@/utils/messageUtils";
 import {
   writeSimulatedToolCallToStream,
   mergeStreamAndWait,
@@ -409,11 +411,14 @@ export async function executeSubtasks(
           // ============================================================
           // ERROR HANDLING
           // ============================================================
+          const msg = error instanceof Error ? error.message : String(error);
           logger.error("Subtask execution error", {
             subtaskId: subtask.id,
             subtaskLabel: subtask.label,
             error,
           });
+
+          sendAlert(i18n.t("agents.actionErrorTitle"), i18n.t("agents.actionErrorBody", { label: subtask.label, error: msg }));
 
           // Mark subtask as cancelled
           subtask.status = "cancelled";
@@ -439,11 +444,13 @@ export async function executeSubtasks(
       }
     },
     onError: (error) => {
+      const msg = error instanceof Error ? error.message : String(error);
       logger.error("Error in action executor stream", {
         error,
         stack: error instanceof Error ? error.stack : undefined,
       });
-      return error instanceof Error ? error.message : String(error);
+      sendAlert(i18n.t("agents.actionErrorTitle"), i18n.t("agents.actionErrorBody", { label: "unknown", error: msg }));
+      return msg;
     },
   });
 }

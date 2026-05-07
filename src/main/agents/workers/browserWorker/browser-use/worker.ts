@@ -7,6 +7,8 @@ import {
 } from "ai";
 import { chatModel } from "@agents/providers";
 import { settingsService, HitlService } from "@/services";
+import { i18n } from "@/i18n";
+import { sendAlert } from "@/utils/messageUtils";
 import { flushTelemetry } from "@/agents/utils/telemetry";
 import log from "electron-log/main";
 import { observe } from "@langfuse/tracing";
@@ -176,11 +178,13 @@ export async function browserUseWorker(
           }
         },
         onError: (error) => {
+          const msg = error instanceof Error ? error.message : String(error);
           logger.error("Error in browser use worker", {
             error,
             stack: error instanceof Error ? error.stack : undefined,
           });
-          return error instanceof Error ? error.message : String(error);
+          sendAlert(i18n.t("agents.browserUseErrorTitle"), i18n.t("agents.browserUseErrorBody", { error: msg }));
+          return msg;
         },
       });
     },

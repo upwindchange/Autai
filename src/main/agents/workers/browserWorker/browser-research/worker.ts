@@ -8,6 +8,7 @@ import {
 import { chatModel } from "@agents/providers";
 import { settingsService, SessionTabService } from "@/services";
 import { i18n } from "@/i18n";
+import { sendAlert } from "@/utils/messageUtils";
 import { flushTelemetry } from "@/agents/utils/telemetry";
 import log from "electron-log/main";
 import { observe } from "@langfuse/tracing";
@@ -176,11 +177,13 @@ export async function browserResearchWorker(
           }
         },
         onError: (error) => {
+          const msg = error instanceof Error ? error.message : String(error);
           logger.error("Error in research worker", {
             error,
             stack: error instanceof Error ? error.stack : undefined,
           });
-          return error instanceof Error ? error.message : String(error);
+          sendAlert(i18n.t("agents.researchErrorTitle"), i18n.t("agents.researchErrorBody", { error: msg }));
+          return msg;
         },
       });
     },
