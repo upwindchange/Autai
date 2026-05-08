@@ -75,6 +75,7 @@ const DEFAULT_SETTINGS = {
   autoTagCreationEnabled: true,
   systemPrompt: "",
   language: "system" as const,
+  maxParallelAgents: 2,
 };
 
 // Settings State schema
@@ -99,6 +100,12 @@ export const SettingsStateSchema = z
       .default(DEFAULT_SETTINGS.autoTagCreationEnabled),
     systemPrompt: z.string().default(DEFAULT_SETTINGS.systemPrompt),
     language: z.enum(["system", "en", "zh"]).default(DEFAULT_SETTINGS.language),
+    maxParallelAgents: z
+      .number()
+      .int()
+      .min(1)
+      .max(10)
+      .default(DEFAULT_SETTINGS.maxParallelAgents),
   })
   .default(DEFAULT_SETTINGS);
 

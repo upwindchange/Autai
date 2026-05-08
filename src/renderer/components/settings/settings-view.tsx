@@ -2,6 +2,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSettings } from "@/components/settings";
 import { useUiStore } from "@/stores/uiStore";
 import { ProvidersModelsSection } from "@/components/settings/settings-sections";
+import { AiAgentsSection } from "@/components/settings/settings-sections";
 import { DevelopmentSection } from "@/components/settings/settings-sections";
 import { GeneralSection } from "@/components/settings/settings-sections";
 import { AboutSection } from "@/components/settings/settings-sections";
@@ -20,6 +21,8 @@ export function SettingsView() {
         return <GeneralSection />;
       case "providers":
         return <ProvidersModelsSection settings={settings} />;
+      case "aiAgents":
+        return <AiAgentsSection settings={settings} />;
       case "threads":
         return <ThreadsSection settings={settings} />;
       case "development":

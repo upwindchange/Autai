@@ -5,6 +5,9 @@ import { complexModel } from "@agents/providers";
 import {
   hasSuccessfulToolResult,
   writeSimulatedToolCallToStream,
+  concurrentBatch,
+  type BatchStatusUpdate,
+  type TaskStatus,
 } from "@agents/utils";
 import { navigateTool } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
@@ -264,45 +267,57 @@ export async function extractResultsFromUrls(
   const tabIds = sessionTabService.getTabsForSession(sessionId);
 
   try {
-    // Emit progress: all extractions "in_progress"
-    writeSimulatedToolCallToStream({
-      writer,
-      toolCallId: extractionPlanId,
-      toolName: "plan",
-      input: {
-        title: i18n.t("agents.extractingTitle"),
-        description: i18n.t("agents.extractingDescription"),
-        todos: searchResults.map((sr, idx) => ({
-          id: `research-extract-${sessionId}-${idx}`,
-          label: i18n.t("agents.readLabel", { title: sr.title }),
-          status: "in_progress" as const,
-          description: sr.url,
-        })),
-      },
-      output: {
-        id: extractionPlanId,
-        title: i18n.t("agents.extractingTitle"),
-        description: i18n.t("agents.extractingDescription"),
-        todos: searchResults.map((sr, idx) => ({
-          id: `research-extract-${sessionId}-${idx}`,
-          label: i18n.t("agents.readLabel", { title: sr.title }),
-          status: "in_progress" as const,
-          description: sr.url,
-        })),
-      },
-    });
+    const concurrency = settingsService.settings.maxParallelAgents ?? 2;
+    const taskStatuses: TaskStatus[] = searchResults.map(() => "pending");
 
-    // Run all extractions in parallel
-    const settledResults = await Promise.allSettled(
-      tabIds.map((tabId, i) =>
-        executeSingleExtraction(
-          searchResults[i],
-          focusDescription,
-          sessionId,
-          tabId,
-          sessionTabService,
-        ),
-      ),
+    const buildTodos = () =>
+      searchResults.map((sr, idx) => ({
+        id: `research-extract-${sessionId}-${idx}`,
+        label: i18n.t("agents.readLabel", { title: sr.title }),
+        status: taskStatuses[idx],
+        description: sr.url,
+      }));
+
+    const emitStatus = () => {
+      writeSimulatedToolCallToStream({
+        writer,
+        toolCallId: extractionPlanId,
+        toolName: "plan",
+        input: {
+          title: i18n.t("agents.extractingTitle"),
+          description: i18n.t("agents.extractingDescription"),
+          todos: buildTodos(),
+        },
+        output: {
+          id: extractionPlanId,
+          title: i18n.t("agents.extractingTitle"),
+          description: i18n.t("agents.extractingDescription"),
+          todos: buildTodos(),
+        },
+      });
+    };
+
+    // Emit initial "pending" state for all
+    emitStatus();
+
+    // Run extractions with bounded concurrency and per-task status
+    const settledResults = await concurrentBatch(
+      tabIds.map((tabId, i) => ({
+        index: i,
+        execute: () =>
+          executeSingleExtraction(
+            searchResults[i],
+            focusDescription,
+            sessionId,
+            tabId,
+            sessionTabService,
+          ),
+      })),
+      concurrency,
+      (update: BatchStatusUpdate) => {
+        taskStatuses[update.index] = update.status;
+        emitStatus();
+      },
     );
 
     // Collect results
@@ -335,34 +350,6 @@ export async function extractResultsFromUrls(
         });
       }
     }
-
-    // Emit progress: all extractions "completed"
-    writeSimulatedToolCallToStream({
-      writer,
-      toolCallId: extractionPlanId,
-      toolName: "plan",
-      input: {
-        title: i18n.t("agents.extractingTitle"),
-        description: i18n.t("agents.extractingDescription"),
-        todos: searchResults.map((sr, idx) => ({
-          id: `research-extract-${sessionId}-${idx}`,
-          label: i18n.t("agents.readLabel", { title: sr.title }),
-          status: "completed" as const,
-          description: sr.url,
-        })),
-      },
-      output: {
-        id: extractionPlanId,
-        title: i18n.t("agents.extractingTitle"),
-        description: i18n.t("agents.extractingDescription"),
-        todos: searchResults.map((sr, idx) => ({
-          id: `research-extract-${sessionId}-${idx}`,
-          label: i18n.t("agents.readLabel", { title: sr.title }),
-          status: "completed" as const,
-          description: sr.url,
-        })),
-      },
-    });
 
     return allExtractions;
   } finally {

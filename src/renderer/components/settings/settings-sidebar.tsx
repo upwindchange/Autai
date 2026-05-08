@@ -1,4 +1,4 @@
-import { Cloud, Code, Info, Tags, ArrowLeft, Settings } from "lucide-react";
+import { Cloud, Code, Info, Tags, ArrowLeft, Settings, Bot } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -32,6 +32,11 @@ const navigationItems: (NavigationItem | "separator")[] = [
     id: "providers",
     labelKey: "sidebar.providers",
     icon: Cloud,
+  },
+  {
+    id: "aiAgents",
+    labelKey: "sidebar.aiAgents",
+    icon: Bot,
   },
   "separator",
   {

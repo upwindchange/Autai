@@ -1,6 +1,7 @@
 {
   "sidebar.general": "General",
   "sidebar.providers": "Providers & Models",
+  "sidebar.aiAgents": "AI Agents",
   "sidebar.threads": "Conversation & Tags",
   "sidebar.development": "Development",
   "sidebar.about": "About",
@@ -8,6 +9,7 @@
   "view.backToChat": "Back to Chat",
   "view.description.general": "Theme, language, and display preferences",
   "view.description.providers": "Configure AI providers and select models for different tasks",
+  "view.description.aiAgents": "Configure agent behavior and concurrency",
   "view.description.threads": "Manage auto-tagging and conversation categories",
   "view.description.development": "Dev tools and debugging options",
   "view.description.about": "App info and resources",
@@ -20,5 +22,12 @@
   "general.theme.system": "System",
   "general.language.title": "Language",
   "general.language.description": "Choose display language",
-  "general.language.system": "Follow System"
+  "general.language.system": "Follow System",
+  "aiAgents.title": "AI Agents",
+  "aiAgents.subtitle": "Control how research agents run in parallel",
+  "aiAgents.concurrency.title": "Parallel Agents",
+  "aiAgents.concurrency.description": "Set the maximum number of agent tasks that can run simultaneously",
+  "aiAgents.concurrency.label": "Max parallel agents",
+  "aiAgents.concurrency.tooltip": "Controls how many search and extraction tasks run at the same time. Higher concurrency increases the risk of hitting your provider's rate limit. Once the limit is reached, tasks may fail or retry automatically, which can make the overall job much slower than a lower concurrency setting. The optimal value depends on your provider's rate limit policy.",
+  "aiAgents.concurrency.hint": "Depends on your provider's rate limit policy"
 }

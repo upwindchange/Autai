@@ -5,6 +5,9 @@ import { complexModel } from "@agents/providers";
 import {
   hasSuccessfulToolResult,
   writeSimulatedToolCallToStream,
+  concurrentBatch,
+  type BatchStatusUpdate,
+  type TaskStatus,
 } from "@agents/utils";
 import { navigateTool } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
@@ -374,47 +377,58 @@ export async function executeSearchQueries(
   const tabIds = sessionTabService.getTabsForSession(sessionId);
 
   try {
-    // Emit progress: all queries "in_progress"
-    writeSimulatedToolCallToStream({
-      writer,
-      toolCallId: searchPlanId,
-      toolName: "plan",
-      input: {
-        title: i18n.t("agents.searchingTitle", { title: plan.title }),
-        description: plan.description,
-        todos: plan.queries.map((q) => ({
-          id: q.id,
-          label: i18n.t("agents.searchLabel", { query: q.query }),
-          status: "in_progress" as const,
-          description: q.focus,
-        })),
-      },
-      output: {
-        id: searchPlanId,
-        title: i18n.t("agents.searchingTitle", { title: plan.title }),
-        description: plan.description,
-        todos: plan.queries.map((q) => ({
-          id: q.id,
-          label: i18n.t("agents.searchLabel", { query: q.query }),
-          status: "in_progress" as const,
-          description: q.focus,
-        })),
-      },
-    });
+    const concurrency = settingsService.settings.maxParallelAgents ?? 2;
+    const taskStatuses: TaskStatus[] = plan.queries.map(() => "pending");
 
-    // Run all queries in parallel
-    const settledResults = await Promise.allSettled(
-      tabIds.map((tabId, i) => {
-        const { query, focus } = plan.queries[i];
-        return executeSingleSearchQuery(
-          query,
-          focus,
-          i,
-          sessionId,
-          tabId,
-          sessionTabService,
-        );
-      }),
+    const buildTodos = () =>
+      plan.queries.map((q, idx) => ({
+        id: q.id,
+        label: i18n.t("agents.searchLabel", { query: q.query }),
+        status: taskStatuses[idx],
+        description: q.focus,
+      }));
+
+    const emitStatus = () => {
+      writeSimulatedToolCallToStream({
+        writer,
+        toolCallId: searchPlanId,
+        toolName: "plan",
+        input: {
+          title: i18n.t("agents.searchingTitle", { title: plan.title }),
+          description: plan.description,
+          todos: buildTodos(),
+        },
+        output: {
+          id: searchPlanId,
+          title: i18n.t("agents.searchingTitle", { title: plan.title }),
+          description: plan.description,
+          todos: buildTodos(),
+        },
+      });
+    };
+
+    // Emit initial "pending" state for all
+    emitStatus();
+
+    // Run queries with bounded concurrency and per-task status
+    const settledResults = await concurrentBatch(
+      tabIds.map((tabId, i) => ({
+        index: i,
+        execute: () =>
+          executeSingleSearchQuery(
+            plan.queries[i].query,
+            plan.queries[i].focus,
+            i,
+            sessionId,
+            tabId,
+            sessionTabService,
+          ),
+      })),
+      concurrency,
+      (update: BatchStatusUpdate) => {
+        taskStatuses[update.index] = update.status;
+        emitStatus();
+      },
     );
 
     // Collect results
@@ -439,34 +453,6 @@ export async function executeSearchQueries(
         );
       }
     }
-
-    // Emit progress: all queries "completed"
-    writeSimulatedToolCallToStream({
-      writer,
-      toolCallId: searchPlanId,
-      toolName: "plan",
-      input: {
-        title: i18n.t("agents.searchingTitle", { title: plan.title }),
-        description: plan.description,
-        todos: plan.queries.map((q) => ({
-          id: q.id,
-          label: i18n.t("agents.searchLabel", { query: q.query }),
-          status: "completed" as const,
-          description: q.focus,
-        })),
-      },
-      output: {
-        id: searchPlanId,
-        title: i18n.t("agents.searchingTitle", { title: plan.title }),
-        description: plan.description,
-        todos: plan.queries.map((q) => ({
-          id: q.id,
-          label: i18n.t("agents.searchLabel", { query: q.query }),
-          status: "completed" as const,
-          description: q.focus,
-        })),
-      },
-    });
 
     return deduplicateResults(allResults);
   } finally {

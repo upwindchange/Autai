@@ -102,6 +102,7 @@ class SettingsService {
         settingsMap.get("auto_tag_creation_enabled") !== "false",
       systemPrompt: settingsMap.get("system_prompt") || defaults.systemPrompt,
       language: settingsMap.get("language") || defaults.language,
+      maxParallelAgents: parseInt(settingsMap.get("max_parallel_agents") || "2", 10),
     });
   }
 
@@ -146,6 +147,7 @@ class SettingsService {
         ],
         ["system_prompt", settingsState.systemPrompt || ""],
         ["language", settingsState.language || "en"],
+        ["max_parallel_agents", String(settingsState.maxParallelAgents)],
       ] as [string, string][]) {
         tx.insert(settings)
           .values({ key, value })

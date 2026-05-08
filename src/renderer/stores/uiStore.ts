@@ -5,6 +5,7 @@ import { subscribeWithSelector } from "zustand/middleware";
 export type SettingsSection =
   | "general"
   | "providers"
+  | "aiAgents"
   | "threads"
   | "development"
   | "about";

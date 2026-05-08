@@ -1,6 +1,11 @@
 export { getAppMode, isDevMode } from "./environment";
 export { PQueueManager } from "./pQueueManager";
 export {
+  concurrentBatch,
+  type BatchStatusUpdate,
+  type TaskStatus,
+} from "./concurrentBatch";
+export {
   initializeTelemetry,
   flushTelemetry,
   shutdownTelemetry,

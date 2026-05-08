@@ -39,4 +39,4 @@ The search stage is the biggest concern: 5 parallel `streamText` calls hitting t
 2. Store this value in backend settings db using a new key, default to two.
 3. Use this number in the search query agent and extracting result agent.
 4. write a new function to help batching the requests. The new function should accept numbr of parallel agents and a call back function to handle the real business logic. It returns/yields/update the finished requests index so that frontend can update status accordingly.
-5. status should be updated accordingly: no racing on each other. if some agent errors out, the status should be cancel instead of completed. inital status should be pending instead of processing. pending, processing, cancel and completed should all be updated correctly.
+5. status should be updated accordingly: no racing on each other. if some agent errors out, the status of that specific agent task should be cancel instead of completed. inital status should be pending instead of processing. pending, processing, cancel and completed should all be updated correctly.
