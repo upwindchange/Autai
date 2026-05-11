@@ -13,7 +13,6 @@ export default defineConfig({
   main: {
     plugins: [
       bindingSqlite3(),
-      copyProviders(),
       copyMigrations(),
       {
         name: "watch-main-reload",
@@ -111,31 +110,6 @@ function bindingSqlite3(): Plugin {
 
       fs.copyFileSync(sourcePath, destPath);
       console.log(`${TAG} Copied native binding to ${destPath}`);
-    },
-  };
-}
-
-// Copies resources/providers/ to out/main/agents/providers/data/
-// so the runtime TOML registry can read provider configs in production
-function copyProviders(): Plugin {
-  const TAG = "[vite-plugin-copy-providers]";
-  const OUTPUT_DIR = "out/main/agents/providers/data";
-  const SOURCE_DIR = "resources/providers";
-
-  return {
-    name: "copy-providers",
-    closeBundle() {
-      const resolvedRoot = process.cwd();
-      const sourceDir = path.resolve(resolvedRoot, SOURCE_DIR);
-      const outputDir = path.resolve(resolvedRoot, OUTPUT_DIR);
-
-      if (!fs.existsSync(sourceDir)) {
-        console.warn(`${TAG} Source directory not found: ${sourceDir}`);
-        return;
-      }
-
-      fs.cpSync(sourceDir, outputDir, { recursive: true });
-      console.log(`${TAG} Copied providers to ${outputDir}`);
     },
   };
 }

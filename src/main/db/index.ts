@@ -1,4 +1,5 @@
 import { app } from "electron";
+import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
@@ -17,8 +18,10 @@ export function initializeDatabase(): void {
   const dbPath = path.join(app.getPath("userData"), "autai.db");
   logger.info("Opening database", { dbPath });
 
+  const bindingPath = path.join(__dirname, "better_sqlite3.node");
+
   sqlite = new Database(dbPath, {
-    nativeBinding: path.join(__dirname, "better_sqlite3.node"),
+    nativeBinding: fs.realpathSync.native(bindingPath),
   });
   sqlite.pragma("journal_mode = WAL");
 

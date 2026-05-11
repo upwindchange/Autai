@@ -67,7 +67,10 @@ let sessionTabBridge: SessionTabBridge | null = null;
 let hitlBridge: HitlBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
-const splashHtml = path.join(process.env.APP_ROOT!, "resources/splash.html");
+const resourcesBase = is.dev
+  ? path.join(process.env.APP_ROOT!, "resources")
+  : path.join(process.resourcesPath, "resources");
+const splashHtml = path.join(resourcesBase, "splash.html");
 
 const appIcon = is.dev ?
   path.join(
@@ -219,7 +222,7 @@ app.whenReady().then(async () => {
   initI18n(settingsService.settings.language || "en");
 
   // Initialize provider registry (reads TOML files)
-  const providersPath = path.resolve(__dirname, "agents/providers/data");
+  const providersPath = path.join(resourcesBase, "providers");
   registry.initialize(providersPath);
 
   // Initialize thread intelligence (seeds default tags if first launch)

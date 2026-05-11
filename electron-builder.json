@@ -2,19 +2,16 @@
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.upwindchange.Autai",
   "productName": "Autai",
-  "asar": false,
+  "asar": true,
+  "asarUnpack": ["out/main/better_sqlite3.node"],
   "directories": {
     "output": "release/${version}"
   },
-  "files": ["out", "resources"],
+  "files": ["out"],
   "extraResources": [
     {
       "from": "resources",
       "to": "resources"
-    },
-    {
-      "from": "out/main/agents/providers/data",
-      "to": "agents/providers/data"
     }
   ],
   "mac": {
