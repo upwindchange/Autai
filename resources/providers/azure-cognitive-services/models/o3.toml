@@ -1,1 +1,7 @@
-../../azure/models/o3.toml
+[extends]
+from = "openai/o3"
+omit = ["structured_output"]
+
+[modalities]
+input = ["text", "image"]
+output = ["text"]

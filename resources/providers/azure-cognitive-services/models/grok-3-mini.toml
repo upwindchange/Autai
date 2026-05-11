@@ -1,1 +1,2 @@
-../../azure/models/grok-3-mini.toml
+[extends]
+from = "xai/grok-3-mini"

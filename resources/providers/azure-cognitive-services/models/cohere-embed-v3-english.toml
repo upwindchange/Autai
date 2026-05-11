@@ -1,1 +1,21 @@
-../../azure/models/cohere-embed-v3-english.toml
+name = "Embed v3 English"
+family = "cohere-embed"
+release_date = "2023-11-07"
+last_updated = "2023-11-07"
+attachment = false
+reasoning = false
+temperature = false
+tool_call = false
+open_weights = true
+
+[cost]
+input = 0.10
+output = 0.00
+
+[limit]
+context = 512
+output = 1_024
+
+[modalities]
+input = ["text"]
+output = ["text"]

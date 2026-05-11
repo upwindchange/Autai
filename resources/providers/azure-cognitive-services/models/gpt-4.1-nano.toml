@@ -1,1 +1,3 @@
-../../azure/models/gpt-4.1-nano.toml
+[extends]
+from = "openai/gpt-4.1-nano"
+omit = ["structured_output"]

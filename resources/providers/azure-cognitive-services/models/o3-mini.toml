@@ -1,1 +1,3 @@
-../../azure/models/o3-mini.toml
+[extends]
+from = "openai/o3-mini"
+omit = ["structured_output"]

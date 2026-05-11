@@ -1,1 +1,7 @@
-../../azure/models/gpt-4o.toml
+[extends]
+from = "openai/gpt-4o"
+omit = ["structured_output"]
+
+[modalities]
+input = ["text", "image"]
+output = ["text"]
