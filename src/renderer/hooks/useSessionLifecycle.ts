@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useAssistantEvent } from "@assistant-ui/react";
+import { useAuiEvent } from "@assistant-ui/react";
 import log from "electron-log/renderer";
 
 const logger = log.scope("useSessionLifecycle");
@@ -12,7 +12,7 @@ export function useSessionLifecycle() {
   const previousSessionIdRef = useRef<string | null>(null);
 
   // Handle session switch events (scope: "*" to capture events at app root level)
-  useAssistantEvent(
+  useAuiEvent(
     { event: "threadListItem.switchedTo", scope: "*" },
     (event) => {
       logger.debug("session switch event", { sessionId: event.threadId });
@@ -28,7 +28,7 @@ export function useSessionLifecycle() {
   );
 
   // Handle session initialization
-  useAssistantEvent("thread.initialize", (event) => {
+  useAuiEvent("thread.initialize", (event) => {
     logger.debug("session initialize event", { sessionId: event.threadId });
 
     if (event.threadId) {

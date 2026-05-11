@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useAssistantState } from "@assistant-ui/react";
+import { useAuiState } from "@assistant-ui/react";
 import { useUiStore } from "@/stores/uiStore";
 import log from "electron-log/renderer";
 
@@ -14,7 +14,7 @@ const logger = log.scope("useTabVisibility");
  */
 export function useTabVisibility() {
   const { containerRef, containerBounds } = useUiStore();
-  const mainTabId = useAssistantState(({ threads }) => threads.mainThreadId);
+  const mainTabId = useAuiState(({ threads }) => threads.mainThreadId);
 
   useEffect(() => {
     const updateVisibility = async (isVisible: boolean) => {

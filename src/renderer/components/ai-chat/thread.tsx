@@ -28,7 +28,7 @@ import {
   MessagePrimitive,
   SuggestionPrimitive,
   ThreadPrimitive,
-  useAssistantEvent,
+  useAuiEvent,
   useAuiState,
 } from "@assistant-ui/react";
 
@@ -78,7 +78,7 @@ function ThreadIdTracker() {
   const setSessionId = useUiStore((state) => state.setSessionId);
 
   // Listen for composer send events to update sessionId from the event
-  useAssistantEvent("composer.send", (event) => {
+  useAuiEvent("composer.send", (event) => {
     setSessionId(event.threadId);
   });
 
@@ -390,19 +390,34 @@ const AssistantMessage: FC = () => {
       data-role="assistant"
     >
       <div className="aui-assistant-message-content wrap-break-word px-2 text-foreground leading-relaxed">
-        <MessagePrimitive.Parts
-          components={{
-            Text: () => <MarkdownText />,
-            Reasoning,
-            ReasoningGroup,
-            tools: {
-              Fallback: (props) => <ToolFallback {...props} />,
-            },
-            Source: (props) => <Sources {...props} />,
-            Image: (props) => <Image {...props} />,
-            File: (props) => <File {...props} />,
+        <MessagePrimitive.GroupedParts
+          groupBy={(part) => {
+            if (part.type === "reasoning")
+              return ["group-chainOfThought", "group-reasoning"];
+            return null;
           }}
-        />
+        >
+          {({ part, children }) => {
+            switch (part.type) {
+              case "text":
+                return <MarkdownText />;
+              case "reasoning":
+                return <Reasoning {...part} />;
+              case "group-reasoning":
+                return <ReasoningGroup {...part}>{children}</ReasoningGroup>;
+              case "tool-call":
+                return part.toolUI ?? <ToolFallback {...part} />;
+              case "source":
+                return <Sources {...part} />;
+              case "image":
+                return <Image {...part} />;
+              case "file":
+                return <File {...part} />;
+              default:
+                return null;
+            }
+          }}
+        </MessagePrimitive.GroupedParts>
         <MessageError />
       </div>
 
