@@ -115,12 +115,12 @@ function bindingSqlite3(): Plugin {
   };
 }
 
-// Copies src/main/agents/providers/data/ to out/main/agents/providers/data/
+// Copies resources/providers/ to out/main/agents/providers/data/
 // so the runtime TOML registry can read provider configs in production
 function copyProviders(): Plugin {
   const TAG = "[vite-plugin-copy-providers]";
   const OUTPUT_DIR = "out/main/agents/providers/data";
-  const SOURCE_DIR = "src/main/agents/providers/data";
+  const SOURCE_DIR = "resources/providers";
 
   return {
     name: "copy-providers",
