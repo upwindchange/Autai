@@ -18,19 +18,15 @@ import type { FC } from "react";
 
 interface AppHeaderProps {
   title: string;
-  showSplitView: boolean;
-  onToggleSplitView: () => void;
 }
 
 export const AppHeader: FC<AppHeaderProps> = ({
   title,
-  showSplitView,
-  onToggleSplitView,
 }) => {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const { t } = useTranslation("common");
   const { t: tSettings } = useTranslation("settings");
-  const { showSettings, setShowSettings } = useUiStore();
+  const { showSettings, setShowSettings, showSplitView, toggleSplitView } = useUiStore();
   const { open, toggleSidebar } = useSidebar();
 
   useEffect(() => {
@@ -96,7 +92,7 @@ export const AppHeader: FC<AppHeaderProps> = ({
           size="icon"
           side="left"
           tooltip={showSplitView ? t("splitView.hide") : t("splitView.show")}
-          onClick={onToggleSplitView}
+          onClick={toggleSplitView}
         >
           <PanelRightIcon className="size-4" />
         </TooltipIconButton>

@@ -31,8 +31,14 @@ import {
   AssistantChatTransport,
 } from "@assistant-ui/react-ai-sdk";
 import { AppHeader } from "@/components/app-header";
-import { useState, useEffect } from "react";
-import { useSessionLifecycle } from "@/hooks";
+import { useRef, useEffect } from "react";
+import { useSessionLifecycle, useTabVisibility } from "@/hooks";
+import {
+  ResizablePanelGroup,
+  ResizablePanel,
+  ResizableHandle,
+} from "@/components/ui/resizable";
+import { WorkspaceWelcome } from "@/components/ai-chat/workspace-welcome";
 import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { useTagStore } from "@/stores/tagStore";
 import type { TagRow } from "@shared/tag";
@@ -106,8 +112,12 @@ const handleAppMessage = (_event: unknown, message: AppMessage) => {
  */
 function AppContent() {
   const { t } = useTranslation("common");
-  const { showSettings } = useUiStore();
-  const [showSplitView, setShowSplitView] = useState(false);
+  const {
+    showSettings,
+    showSplitView,
+    setContainerRef,
+    setContainerBounds,
+  } = useUiStore();
   const currentRemoteId = useAuiState((s) => s.threadListItem.remoteId);
   const threadTitle = useTagStore((s) =>
     currentRemoteId ?
@@ -118,6 +128,44 @@ function AppContent() {
   // Initialize thread lifecycle management
   useSessionLifecycle();
 
+  // Sync tab visibility with container state (moved from Thread)
+  useTabVisibility();
+
+  const workspaceRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (showSplitView && !showSettings && workspaceRef.current) {
+      setContainerRef(workspaceRef.current);
+      const { width, height, x, y } =
+        workspaceRef.current.getBoundingClientRect();
+      setContainerBounds({ width, height, x, y });
+
+      const resizeObserver = new ResizeObserver(() => {
+        if (workspaceRef.current) {
+          const { width, height, x, y } =
+            workspaceRef.current.getBoundingClientRect();
+          setContainerBounds({ width, height, x, y });
+        }
+      });
+      resizeObserver.observe(workspaceRef.current);
+
+      return () => {
+        resizeObserver.disconnect();
+        setContainerRef(null);
+        setContainerBounds(null);
+      };
+    } else {
+      setContainerRef(null);
+      setContainerBounds(null);
+      return undefined;
+    }
+  }, [showSplitView, showSettings, setContainerRef, setContainerBounds]);
+
+  const headerTitle =
+    showSettings ?
+      t("header.settings")
+    : (threadTitle ?? `${t("app.title")} ${t("header.aiAssistant")}`);
+
   return (
     <SettingsProvider>
       <div className="w-dvw flex flex-row h-dvh">
@@ -126,21 +174,33 @@ function AppContent() {
             <SettingsSidebar />
           : <SidebarLeft />}
           <SidebarInset className="relative flex-1">
-            <AppHeader
-              title={
-                showSettings ?
-                  t("header.settings")
-                : (threadTitle ??
-                  `${t("app.title")} ${t("header.aiAssistant")}`)
-              }
-              showSplitView={showSplitView}
-              onToggleSplitView={() => setShowSplitView(!showSplitView)}
-            />
-            <div className="relative flex flex-1 flex-col overflow-hidden h-full">
-              {showSettings ?
-                <SettingsView />
-              : <AssistantChatContainer showSplitView={showSplitView} />}
-            </div>
+            {showSplitView && !showSettings ?
+              <ResizablePanelGroup orientation="horizontal" className="flex-1">
+                <ResizablePanel defaultSize={50} minSize={30} className="h-full">
+                  <AppHeader title={headerTitle} />
+                  <div className="relative flex flex-1 flex-col overflow-hidden h-full">
+                    <AssistantChatContainer />
+                  </div>
+                </ResizablePanel>
+                <ResizableHandle withHandle />
+                <ResizablePanel defaultSize={50} minSize={30}>
+                  <div
+                    ref={workspaceRef}
+                    className="h-full bg-muted/30 flex flex-col items-center justify-center text-muted-foreground overflow-auto"
+                  >
+                    <WorkspaceWelcome />
+                  </div>
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            : <>
+                <AppHeader title={headerTitle} />
+                <div className="relative flex flex-1 flex-col overflow-hidden h-full">
+                  {showSettings ?
+                    <SettingsView />
+                  : <AssistantChatContainer />}
+                </div>
+              </>
+            }
           </SidebarInset>
         </SidebarProvider>
       </div>

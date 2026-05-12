@@ -32,6 +32,11 @@ interface UiState {
   setUseBrowser: (useBrowser: boolean) => void;
   setWebSearch: (webSearch: boolean) => void;
 
+  // Split view state
+  showSplitView: boolean;
+  setShowSplitView: (show: boolean) => void;
+  toggleSplitView: () => void;
+
   // Session state (thread-based)
   sessionId: string | null;
   setSessionId: (sessionId: string | null) => void;
@@ -79,6 +84,12 @@ export const useUiStore = create<UiState>()(
         // Mutually exclusive: if webSearch is true, useBrowser must be false
         useBrowser: webSearch ? false : state.useBrowser,
       })),
+
+    // Split view state
+    showSplitView: false,
+    setShowSplitView: (show) => set({ showSplitView: show }),
+    toggleSplitView: () =>
+      set((state) => ({ showSplitView: !state.showSplitView })),
 
     // Session state (thread-based)
     sessionId: null,
