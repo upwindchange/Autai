@@ -418,7 +418,13 @@ export async function executeSubtasks(
             error,
           });
 
-          sendAlert(i18n.t("agents.actionErrorTitle"), i18n.t("agents.actionErrorBody", { label: subtask.label, error: msg }));
+          sendAlert(
+            i18n.t("agents.actionErrorTitle"),
+            i18n.t("agents.actionErrorBody", {
+              label: subtask.label,
+              error: msg,
+            }),
+          );
 
           // Mark subtask as cancelled
           subtask.status = "cancelled";
@@ -449,7 +455,10 @@ export async function executeSubtasks(
         error,
         stack: error instanceof Error ? error.stack : undefined,
       });
-      sendAlert(i18n.t("agents.actionErrorTitle"), i18n.t("agents.actionErrorBody", { label: "unknown", error: msg }));
+      sendAlert(
+        i18n.t("agents.actionErrorTitle"),
+        i18n.t("agents.actionErrorBody", { label: "unknown", error: msg }),
+      );
       return msg;
     },
   });

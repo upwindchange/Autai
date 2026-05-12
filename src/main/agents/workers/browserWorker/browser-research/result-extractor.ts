@@ -220,8 +220,7 @@ async function executeSingleExtraction(
       relevant: false,
     };
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error("Extraction failed for URL", {
       url: searchResult.url,
       error: errorMessage,
@@ -229,15 +228,18 @@ async function executeSingleExtraction(
 
     sendAlert(
       i18n.t("agents.extractionErrorTitle"),
-      i18n.t("agents.extractionErrorBody", { title: searchResult.title, error: errorMessage }),
+      i18n.t("agents.extractionErrorBody", {
+        title: searchResult.title,
+        error: errorMessage,
+      }),
     );
 
     return {
       url: searchResult.url,
       title: searchResult.title,
       summary: i18n.t("agents.extractionFailed", {
-              error: errorMessage,
-            }),
+        error: errorMessage,
+      }),
       quotes: [],
       relevant: false,
     };
@@ -337,14 +339,17 @@ export async function extractResultsFromUrls(
         });
         sendAlert(
           i18n.t("agents.extractionErrorTitle"),
-          i18n.t("agents.extractionErrorBody", { title: searchResults[i].title, error: errorMessage }),
+          i18n.t("agents.extractionErrorBody", {
+            title: searchResults[i].title,
+            error: errorMessage,
+          }),
         );
         allExtractions.push({
           url: searchResults[i].url,
           title: searchResults[i].title,
           summary: i18n.t("agents.extractionGenericFailed", {
-              error: errorMessage,
-            }),
+            error: errorMessage,
+          }),
           quotes: [],
           relevant: false,
         });

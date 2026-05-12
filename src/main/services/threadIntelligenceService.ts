@@ -26,10 +26,7 @@ class ThreadIntelligenceService {
       const existingTags = threadPersistenceService.listTags();
       if (existingTags.length === 0) {
         for (let i = 0; i < DEFAULT_TAG_KEYS.length; i++) {
-          threadPersistenceService.createTag(
-            i18n.t(DEFAULT_TAG_KEYS[i]!),
-            i,
-          );
+          threadPersistenceService.createTag(i18n.t(DEFAULT_TAG_KEYS[i]!), i);
         }
         logger.info("Seeded default tags");
       }

@@ -54,8 +54,7 @@ const zh = {
     taskErrorTitle: "任务执行错误",
     taskErrorBody: "任务执行过程中发生错误：{{error}}",
     actionErrorTitle: "操作错误",
-    actionErrorBody:
-      '子任务"{{label}}"失败：{{error}}',
+    actionErrorBody: '子任务"{{label}}"失败：{{error}}',
   },
 };
 

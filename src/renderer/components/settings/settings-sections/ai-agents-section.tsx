@@ -46,9 +46,7 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
     <div className="space-y-6">
       <div>
         <h2 className="text-2xl font-bold">{t("aiAgents.title")}</h2>
-        <p className="text-muted-foreground mt-1">
-          {t("aiAgents.subtitle")}
-        </p>
+        <p className="text-muted-foreground mt-1">{t("aiAgents.subtitle")}</p>
       </div>
 
       <Card>

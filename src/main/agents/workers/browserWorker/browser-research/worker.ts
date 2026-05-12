@@ -182,7 +182,10 @@ export async function browserResearchWorker(
             error,
             stack: error instanceof Error ? error.stack : undefined,
           });
-          sendAlert(i18n.t("agents.researchErrorTitle"), i18n.t("agents.researchErrorBody", { error: msg }));
+          sendAlert(
+            i18n.t("agents.researchErrorTitle"),
+            i18n.t("agents.researchErrorBody", { error: msg }),
+          );
           return msg;
         },
       });

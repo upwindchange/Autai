@@ -2,7 +2,14 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
-import { Moon, PanelLeftIcon, PanelRightIcon, Sun, SunMoon, ArrowLeft } from "lucide-react";
+import {
+  Moon,
+  PanelLeftIcon,
+  PanelRightIcon,
+  Sun,
+  SunMoon,
+  ArrowLeft,
+} from "lucide-react";
 import { useTheme } from "next-themes";
 import { useTranslation } from "react-i18next";
 import { useUiStore } from "@/stores/uiStore";

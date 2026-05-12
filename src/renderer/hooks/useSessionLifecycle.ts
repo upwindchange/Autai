@@ -12,20 +12,17 @@ export function useSessionLifecycle() {
   const previousSessionIdRef = useRef<string | null>(null);
 
   // Handle session switch events (scope: "*" to capture events at app root level)
-  useAuiEvent(
-    { event: "threadListItem.switchedTo", scope: "*" },
-    (event) => {
-      logger.debug("session switch event", { sessionId: event.threadId });
+  useAuiEvent({ event: "threadListItem.switchedTo", scope: "*" }, (event) => {
+    logger.debug("session switch event", { sessionId: event.threadId });
 
-      if (event.threadId && event.threadId !== previousSessionIdRef.current) {
-        logger.debug("sending sessiontab:switched ipc", {
-          sessionId: event.threadId,
-        });
-        window.ipcRenderer.send("sessiontab:switched", event.threadId);
-        previousSessionIdRef.current = event.threadId;
-      }
-    },
-  );
+    if (event.threadId && event.threadId !== previousSessionIdRef.current) {
+      logger.debug("sending sessiontab:switched ipc", {
+        sessionId: event.threadId,
+      });
+      window.ipcRenderer.send("sessiontab:switched", event.threadId);
+      previousSessionIdRef.current = event.threadId;
+    }
+  });
 
   // Handle session initialization
   useAuiEvent("thread.initialize", (event) => {

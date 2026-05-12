@@ -320,7 +320,7 @@ function DiffViewerLine({
       {showLineNumbers && (
         <span
           data-slot="diff-viewer-line-number"
-          className="w-12 shrink-0 select-none px-2 text-right text-muted-foreground"
+          className="w-12 shrink-0 select-none px-2 text-end text-muted-foreground"
         >
           {line.type === "del" ?
             line.oldLineNumber
@@ -374,12 +374,12 @@ function DiffViewerSplitLine({
         data-slot="diff-viewer-split-left"
         data-type={left?.type ?? "empty"}
         className={cn(
-          "flex w-1/2 border-r",
+          "flex w-1/2 border-e",
           diffLineVariants({ type: left?.type ?? "empty" }),
         )}
       >
         {showLineNumbers && (
-          <span className="w-12 shrink-0 select-none px-2 text-right text-muted-foreground">
+          <span className="w-12 shrink-0 select-none px-2 text-end text-muted-foreground">
             {left?.oldLineNumber ?? ""}
           </span>
         )}
@@ -413,7 +413,7 @@ function DiffViewerSplitLine({
         )}
       >
         {showLineNumbers && (
-          <span className="w-12 shrink-0 select-none px-2 text-right text-muted-foreground">
+          <span className="w-12 shrink-0 select-none px-2 text-end text-muted-foreground">
             {right?.newLineNumber ?? ""}
           </span>
         )}

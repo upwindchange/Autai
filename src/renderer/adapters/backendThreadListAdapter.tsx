@@ -42,7 +42,9 @@ class BackendThreadHistoryAdapter implements ThreadHistoryAdapter {
         if (!remoteId) return { messages: [] };
 
         try {
-          const res = await fetch(`${getApiBase()}/threads/${remoteId}/messages`);
+          const res = await fetch(
+            `${getApiBase()}/threads/${remoteId}/messages`,
+          );
           const { messages } = (await res.json()) as { messages: UIMessage[] };
 
           if (!messages || messages.length === 0) {

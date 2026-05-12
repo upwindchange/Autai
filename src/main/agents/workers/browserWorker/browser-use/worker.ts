@@ -183,7 +183,10 @@ export async function browserUseWorker(
             error,
             stack: error instanceof Error ? error.stack : undefined,
           });
-          sendAlert(i18n.t("agents.browserUseErrorTitle"), i18n.t("agents.browserUseErrorBody", { error: msg }));
+          sendAlert(
+            i18n.t("agents.browserUseErrorTitle"),
+            i18n.t("agents.browserUseErrorBody", { error: msg }),
+          );
           return msg;
         },
       });

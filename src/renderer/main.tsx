@@ -110,10 +110,9 @@ function AppContent() {
   const [showSplitView, setShowSplitView] = useState(false);
   const currentRemoteId = useAuiState((s) => s.threadListItem.remoteId);
   const threadTitle = useTagStore((s) =>
-    currentRemoteId
-      ? (s.threads.find((th) => th.remoteId === currentRemoteId)?.title ??
-        null)
-      : null,
+    currentRemoteId ?
+      (s.threads.find((th) => th.remoteId === currentRemoteId)?.title ?? null)
+    : null,
   );
 
   // Initialize thread lifecycle management
@@ -129,9 +128,10 @@ function AppContent() {
           <SidebarInset className="relative flex-1">
             <AppHeader
               title={
-                showSettings ? t("header.settings") : (
-                  (threadTitle ?? `${t("app.title")} ${t("header.aiAssistant")}`)
-                )
+                showSettings ?
+                  t("header.settings")
+                : (threadTitle ??
+                  `${t("app.title")} ${t("header.aiAssistant")}`)
               }
               showSplitView={showSplitView}
               onToggleSplitView={() => setShowSplitView(!showSplitView)}

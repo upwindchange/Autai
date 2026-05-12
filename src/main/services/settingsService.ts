@@ -102,7 +102,10 @@ class SettingsService {
         settingsMap.get("auto_tag_creation_enabled") !== "false",
       systemPrompt: settingsMap.get("system_prompt") || defaults.systemPrompt,
       language: settingsMap.get("language") || defaults.language,
-      maxParallelAgents: parseInt(settingsMap.get("max_parallel_agents") || "2", 10),
+      maxParallelAgents: parseInt(
+        settingsMap.get("max_parallel_agents") || "2",
+        10,
+      ),
     });
   }
 
@@ -192,7 +195,10 @@ class SettingsService {
     try {
       this.logger.info("testing connection", { config });
 
-      sendInfo(i18n.t("settings.testingTitle"), i18n.t("settings.testingBody", { modelId: config.modelId }));
+      sendInfo(
+        i18n.t("settings.testingTitle"),
+        i18n.t("settings.testingBody", { modelId: config.modelId }),
+      );
 
       const userProvider: UserProviderConfig = {
         id: "test-provider",
@@ -242,7 +248,10 @@ class SettingsService {
       this.logger.error("connection test failed", { error: errorMessage });
       sendAlert(
         i18n.t("settings.failedTitle"),
-        i18n.t("settings.failedBody", { modelId: config.modelId, error: errorMessage }),
+        i18n.t("settings.failedBody", {
+          modelId: config.modelId,
+          error: errorMessage,
+        }),
       );
     }
   }

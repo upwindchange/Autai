@@ -55,9 +55,7 @@ export class ApiServer {
         if (addr && typeof addr === "object") {
           this.port = addr.port;
         }
-        this.logger.info(
-          `API server running on http://127.0.0.1:${this.port}`,
-        );
+        this.logger.info(`API server running on http://127.0.0.1:${this.port}`);
         resolve(this.port);
       });
 

@@ -60,7 +60,9 @@ function createModel(role: ModelRole): LanguageModel {
   if (!providerRow) {
     sendAlert(
       i18n.t("agents.providerNotFoundTitle"),
-      i18n.t("agents.providerNotFoundBody", { providerId: assignment.providerId }),
+      i18n.t("agents.providerNotFoundBody", {
+        providerId: assignment.providerId,
+      }),
     );
     throw new Error(`Provider ${assignment.providerId} not found`);
   }

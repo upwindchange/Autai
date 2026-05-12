@@ -1,4 +1,12 @@
-import { Cloud, Code, Info, Tags, ArrowLeft, Settings, Bot } from "lucide-react";
+import {
+  Cloud,
+  Code,
+  Info,
+  Tags,
+  ArrowLeft,
+  Settings,
+  Bot,
+} from "lucide-react";
 import {
   Sidebar,
   SidebarContent,

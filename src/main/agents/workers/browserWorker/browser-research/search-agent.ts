@@ -341,8 +341,7 @@ async function executeSingleSearchQuery(
     logger.warn("LLM failed to extract search results", { query });
     return [];
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : String(error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error("Search query failed", {
       query,
       error: errorMessage,
@@ -449,7 +448,10 @@ export async function executeSearchQueries(
         });
         sendAlert(
           i18n.t("agents.searchErrorTitle"),
-          i18n.t("agents.searchErrorBody", { query: plan.queries[i].query, error: errorMessage }),
+          i18n.t("agents.searchErrorBody", {
+            query: plan.queries[i].query,
+            error: errorMessage,
+          }),
         );
       }
     }

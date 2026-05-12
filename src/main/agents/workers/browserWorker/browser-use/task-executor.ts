@@ -401,7 +401,10 @@ export async function browserUseTaskExecutor(
         error,
         stack: error instanceof Error ? error.stack : undefined,
       });
-      sendAlert(i18n.t("agents.taskErrorTitle"), i18n.t("agents.taskErrorBody", { error: msg }));
+      sendAlert(
+        i18n.t("agents.taskErrorTitle"),
+        i18n.t("agents.taskErrorBody", { error: msg }),
+      );
       return msg;
     },
   });

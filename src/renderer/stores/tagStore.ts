@@ -196,14 +196,14 @@ export const useTagStore = create<TagState>()(
             if (th.remoteId !== threadRemoteId) return th;
             return { ...th, title, ...(tags !== undefined ? { tags } : {}) };
           }),
-          ...(tags !== undefined
-            ? {
-                threadTags: {
-                  ...get().threadTags,
-                  [threadRemoteId]: tags,
-                },
-              }
-            : {}),
+          ...(tags !== undefined ?
+            {
+              threadTags: {
+                ...get().threadTags,
+                [threadRemoteId]: tags,
+              },
+            }
+          : {}),
         });
       } else {
         set({
@@ -216,14 +216,14 @@ export const useTagStore = create<TagState>()(
               status: "regular" as const,
             },
           ],
-          ...(tags !== undefined
-            ? {
-                threadTags: {
-                  ...get().threadTags,
-                  [threadRemoteId]: tags,
-                },
-              }
-            : {}),
+          ...(tags !== undefined ?
+            {
+              threadTags: {
+                ...get().threadTags,
+                [threadRemoteId]: tags,
+              },
+            }
+          : {}),
         });
       }
     },

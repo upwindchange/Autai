@@ -67,20 +67,22 @@ let sessionTabBridge: SessionTabBridge | null = null;
 let hitlBridge: HitlBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
-const resourcesBase = is.dev
-  ? path.join(process.env.APP_ROOT!, "resources")
+const resourcesBase =
+  is.dev ?
+    path.join(process.env.APP_ROOT!, "resources")
   : path.join(process.resourcesPath, "resources");
 const splashHtml = path.join(resourcesBase, "splash.html");
 
-const appIcon = is.dev ?
-  path.join(
-    process.env.APP_ROOT!,
-    "build",
-    process.platform === "win32" ? "icon.ico"
+const appIcon =
+  is.dev ?
+    path.join(
+      process.env.APP_ROOT!,
+      "build",
+      process.platform === "win32" ? "icon.ico"
       : process.platform === "darwin" ? "icon.icns"
       : "icon.png",
-  )
-: undefined;
+    )
+  : undefined;
 
 /**
  * Creates the main application window with security-focused settings

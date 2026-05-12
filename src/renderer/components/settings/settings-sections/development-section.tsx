@@ -87,7 +87,9 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
 
   const handleOpenLogFolder = async () => {
     try {
-      await fetch(`${getApiBase()}/settings/open-log-folder`, { method: "POST" });
+      await fetch(`${getApiBase()}/settings/open-log-folder`, {
+        method: "POST",
+      });
     } catch (error) {
       logger.error("Failed to open log folder", error);
     }
@@ -207,7 +209,9 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
             <Button
               variant="outline"
               onClick={() => {
-                fetch(`${getApiBase()}/settings/open-devtools`, { method: "POST" });
+                fetch(`${getApiBase()}/settings/open-devtools`, {
+                  method: "POST",
+                });
               }}
             >
               {t("debug.devtools.open")}

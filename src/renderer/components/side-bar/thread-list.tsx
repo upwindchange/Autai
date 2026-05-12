@@ -397,9 +397,9 @@ const ThreadListSkeleton: FC = () => {
 const ThreadListItem: FC = () => {
   const remoteId = useAuiState((s) => s.threadListItem.remoteId);
   const threadTitle = useTagStore((s) =>
-    remoteId
-      ? (s.threads.find((th) => th.remoteId === remoteId)?.title ?? "New Chat")
-      : "New Chat",
+    remoteId ?
+      (s.threads.find((th) => th.remoteId === remoteId)?.title ?? "New Chat")
+    : "New Chat",
   );
   const threadTags = useTagStore((s) =>
     remoteId ? (s.threadTags[remoteId] ?? EMPTY_TAGS) : EMPTY_TAGS,

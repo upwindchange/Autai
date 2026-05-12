@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { ExternalLink, FileText, Heart } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { GitHubIcon } from "@/components/assistant-ui/github";
+import { GitHubIcon } from "@/components/icons/github";
 
 export function AboutSection() {
   const { t } = useTranslation("about");

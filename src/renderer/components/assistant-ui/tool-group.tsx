@@ -125,7 +125,7 @@ function ToolGroupTrigger({
       <span
         data-slot="tool-group-trigger-label"
         className={cn(
-          "aui-tool-group-trigger-label-wrapper relative inline-block text-left font-medium leading-none",
+          "aui-tool-group-trigger-label-wrapper relative inline-block text-start font-medium leading-none",
           "group-data-[variant=outline]/tool-group-root:grow",
           "group-data-[variant=muted]/tool-group-root:grow",
         )}
@@ -209,6 +209,12 @@ const ToolGroupImpl: FC<
   );
 };
 
+/**
+ * @deprecated This wrapper targets the legacy `components.ToolGroup` prop
+ * on `<MessagePrimitive.Parts>`. Use `<MessagePrimitive.GroupedParts>` with
+ * a `groupBy` returning `"group-tool"` and compose `ToolGroupRoot` /
+ * `ToolGroupTrigger` / `ToolGroupContent` directly. See `thread.tsx`.
+ */
 const ToolGroup = memo(ToolGroupImpl) as unknown as ToolGroupComponent;
 
 ToolGroup.displayName = "ToolGroup";

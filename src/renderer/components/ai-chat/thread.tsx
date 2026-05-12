@@ -49,7 +49,13 @@ import {
   ComposerAttachments,
   UserMessageAttachments,
 } from "@/components/ai-chat/attachment";
-import { Reasoning, ReasoningGroup } from "@/components/assistant-ui/reasoning";
+import {
+  Reasoning,
+  ReasoningRoot,
+  ReasoningTrigger,
+  ReasoningContent,
+  ReasoningText,
+} from "@/components/assistant-ui/reasoning";
 import { MessageTiming } from "@/components/assistant-ui/message-timing";
 import {
   QuoteBlock,
@@ -403,8 +409,19 @@ const AssistantMessage: FC = () => {
                 return <MarkdownText />;
               case "reasoning":
                 return <Reasoning {...part} />;
-              case "group-reasoning":
-                return <ReasoningGroup {...part}>{children}</ReasoningGroup>;
+              case "group-chainOfThought":
+                return <div data-slot="aui_chain-of-thought">{children}</div>;
+              case "group-reasoning": {
+                const running = part.status.type === "running";
+                return (
+                  <ReasoningRoot defaultOpen={running}>
+                    <ReasoningTrigger active={running} />
+                    <ReasoningContent aria-busy={running}>
+                      <ReasoningText>{children}</ReasoningText>
+                    </ReasoningContent>
+                  </ReasoningRoot>
+                );
+              }
               case "tool-call":
                 return part.toolUI ?? <ToolFallback {...part} />;
               case "source":

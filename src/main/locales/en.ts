@@ -51,8 +51,7 @@ const en = {
     extractionErrorBody:
       'Page "{{title}}" was skipped due to a service error (e.g. rate limit): {{error}}',
     researchErrorTitle: "Research Error",
-    researchErrorBody:
-      "An error occurred during research: {{error}}",
+    researchErrorBody: "An error occurred during research: {{error}}",
     browserUseErrorTitle: "Browser Agent Error",
     browserUseErrorBody:
       "An error occurred during browser automation: {{error}}",
