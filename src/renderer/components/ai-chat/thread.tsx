@@ -79,8 +79,7 @@ export const Thread: FC = () => {
     <ThreadPrimitive.Root
       className="aui-root aui-thread-root @container flex h-full flex-col bg-background"
       style={{
-        ["--thread-max-width" as string]: "88rem",
-        ["--composer-max-width" as string]: "56rem",
+        ["--thread-max-width" as string]: "44rem",
         ["--composer-radius" as string]: "24px",
         ["--composer-padding" as string]: "10px",
       }}
@@ -106,19 +105,12 @@ export const Thread: FC = () => {
               {() => <ThreadMessage />}
             </ThreadPrimitive.Messages>
           </div>
-        </div>
 
-        {/* --- custom: spacer + gradient overlay + centered composer --- */}
-        <div className="h-20 shrink-0" />
-        <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mt-auto flex w-full flex-col items-center gap-0 overflow-visible">
-          <div className="pointer-events-none -mt-20 mb-auto h-20 w-full bg-linear-to-t from-background via-background/80 to-transparent" />
-          <div className="w-full bg-background pb-4 pt-2 md:pb-6">
-            <div className="relative mx-auto w-full max-w-(--composer-max-width) rounded-t-(--composer-radius) px-1 pt-1">
-              <ThreadScrollToBottom />
-              <Composer />
-            </div>
-          </div>
-        </ThreadPrimitive.ViewportFooter>
+          <ThreadPrimitive.ViewportFooter className="aui-thread-viewport-footer sticky bottom-0 mt-auto flex flex-col gap-4 overflow-visible rounded-t-(--composer-radius) bg-background pb-4 md:pb-6">
+            <ThreadScrollToBottom />
+            <Composer />
+          </ThreadPrimitive.ViewportFooter>
+        </div>
       </ThreadPrimitive.Viewport>
     </ThreadPrimitive.Root>
   );
@@ -185,7 +177,7 @@ const ThreadSuggestionItem: FC = () => {
       <SuggestionPrimitive.Trigger send asChild>
         <Button
           variant="ghost"
-          className="aui-thread-welcome-suggestion h-auto w-full @md:flex-col flex-wrap items-start justify-start gap-1 rounded-3xl border bg-background px-4 py-3 text-left text-sm transition-colors hover:bg-muted"
+          className="aui-thread-welcome-suggestion h-auto w-full @md:flex-col flex-wrap items-start justify-start gap-1 rounded-3xl border bg-background px-4 py-3 text-start text-sm transition-colors hover:bg-muted"
         >
           <SuggestionPrimitive.Title className="aui-thread-welcome-suggestion-text-1 font-medium" />
           <SuggestionPrimitive.Description className="aui-thread-welcome-suggestion-text-2 text-muted-foreground empty:hidden" />
