@@ -176,10 +176,12 @@ function AppContent() {
           <SidebarInset className="relative flex-1">
             {showSplitView && !showSettings ?
               <ResizablePanelGroup orientation="horizontal" className="flex-1">
-                <ResizablePanel defaultSize={50} minSize={30} className="h-full">
-                  <AppHeader title={headerTitle} />
-                  <div className="relative flex flex-1 flex-col overflow-hidden h-full">
-                    <AssistantChatContainer />
+                <ResizablePanel defaultSize={50} minSize={30}>
+                  <div className="flex h-full flex-col overflow-hidden">
+                    <AppHeader title={headerTitle} />
+                    <div className="relative flex flex-1 flex-col overflow-hidden min-h-0">
+                      <AssistantChatContainer />
+                    </div>
                   </div>
                 </ResizablePanel>
                 <ResizableHandle withHandle />
