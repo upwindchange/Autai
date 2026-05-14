@@ -27,6 +27,14 @@ function SourceIcon({
   const [hasError, setHasError] = useState(false);
   const domain = extractDomain(url);
 
+  let faviconSrc: string;
+  try {
+    const { origin } = new URL(url);
+    faviconSrc = `${origin}/favicon.ico`;
+  } catch {
+    faviconSrc = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
+  }
+
   if (hasError) {
     return (
       <span
@@ -45,7 +53,7 @@ function SourceIcon({
   return (
     <img
       data-slot="source-icon"
-      src={`https://www.google.com/s2/favicons?domain=${domain}&sz=32`}
+      src={faviconSrc}
       alt=""
       className={cn("size-3 shrink-0 rounded-sm", className)}
       onError={() => setHasError(true)}
