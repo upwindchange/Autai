@@ -1,14 +1,21 @@
 "use client";
 
+import "katex/dist/katex.min.css";
+
 import { StreamdownTextPrimitive } from "@assistant-ui/react-streamdown";
 import { code } from "@streamdown/code";
-import { math } from "@streamdown/math";
+import { createMathPlugin } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
 import { cjk } from "@streamdown/cjk";
 
 export const MarkdownText = () => (
   <StreamdownTextPrimitive
-    plugins={{ code, math, mermaid, cjk }}
+    plugins={{
+      code,
+      math: createMathPlugin({ singleDollarTextMath: true }),
+      mermaid,
+      cjk,
+    }}
     shikiTheme={["github-light", "github-dark"]}
     caret="block"
     remend={{
@@ -23,9 +30,15 @@ export const MarkdownText = () => (
       katex: true,
       setextHeadings: true,
     }}
-    allowedTags={{
-      div: ["class", "id"],
-      span: ["class", "style"],
+    controls={{
+      code: true,
+      mermaid: {
+        download: true,
+        copy: true,
+        fullscreen: true,
+        panZoom: true,
+      },
+      table: true,
     }}
   />
 );
