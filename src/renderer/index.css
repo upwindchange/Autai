@@ -2,6 +2,9 @@
 @import "tw-animate-css";
 @import "katex/dist/katex.min.css";
 @import "tw-shimmer";
+@import "streamdown/styles.css";
+
+@source "../../node_modules/streamdown/dist/*.js";
 
 @custom-variant dark (&:is(.dark *));
 
