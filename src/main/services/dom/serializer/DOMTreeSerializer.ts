@@ -348,7 +348,6 @@ export class DOMTreeSerializer implements IDOMTreeSerializer {
    */
   private async highlightInteractiveNodes(root: SimplifiedNode): Promise<void> {
     try {
-      // Enable DOM agent if not already enabled
       await sendCDPCommand(
         this.webContents,
         "DOM.enable",
@@ -356,7 +355,6 @@ export class DOMTreeSerializer implements IDOMTreeSerializer {
         this.logger,
       );
 
-      // Traverse tree and highlight interactive nodes
       await this.traverseAndHighlight(root);
     } catch (error) {
       this.logger.warn("Failed to highlight interactive nodes:", error);
@@ -367,47 +365,56 @@ export class DOMTreeSerializer implements IDOMTreeSerializer {
    * Traverse simplified tree and highlight interactive nodes
    */
   private async traverseAndHighlight(node: SimplifiedNode): Promise<void> {
-    // Highlight current node if it's interactive and passed filtering
     if (
       node.interactiveIndex !== null &&
       !node.ignoredByPaintOrder &&
       !node.excludedByBoundingBox &&
-      node.originalNode.nodeId
+      node.originalNode?.backendNodeId
     ) {
       try {
-        // Apply simplified highlighting with single color
-        await sendCDPCommand(
+        // Resolve fresh nodeId from stable backendNodeId
+        const { nodeIds } = await sendCDPCommand<{
+          nodeIds: number[];
+        }>(
           this.webContents,
-          "DOM.setAttributeValue",
-          {
-            nodeId: node.originalNode.nodeId,
-            name: "style",
-            value:
-              "outline: 3px solid #FF6B6B !important; outline-offset: 2px !important;",
-          },
+          "DOM.pushNodesByBackendIdsToFrontend",
+          { backendNodeIds: [node.originalNode.backendNodeId] },
           this.logger,
         );
 
-        // Add simple data attribute for identification
-        await sendCDPCommand(
-          this.webContents,
-          "DOM.setAttributeValue",
-          {
-            nodeId: node.originalNode.nodeId,
-            name: "data-autai-interactive",
-            value: "true",
-          },
-          this.logger,
-        );
+        const freshNodeId = nodeIds?.[0];
+        if (freshNodeId) {
+          await sendCDPCommand(
+            this.webContents,
+            "DOM.setAttributeValue",
+            {
+              nodeId: freshNodeId,
+              name: "style",
+              value:
+                "outline: 3px solid #FF6B6B !important; outline-offset: 2px !important;",
+            },
+            this.logger,
+          );
+
+          await sendCDPCommand(
+            this.webContents,
+            "DOM.setAttributeValue",
+            {
+              nodeId: freshNodeId,
+              name: "data-autai-interactive",
+              value: "true",
+            },
+            this.logger,
+          );
+        }
       } catch (error) {
         this.logger.debug(
-          `Failed to highlight node ${node.originalNode.nodeId}:`,
+          `Failed to highlight node (backendNodeId: ${node.originalNode.backendNodeId}):`,
           error,
         );
       }
     }
 
-    // Recursively process children
     for (const child of node.children) {
       await this.traverseAndHighlight(child);
     }
