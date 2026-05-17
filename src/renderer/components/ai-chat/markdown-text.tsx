@@ -1,7 +1,7 @@
 "use client";
 
 import "katex/dist/katex.min.css";
-
+import "./caret.css";
 import { StreamdownTextPrimitive } from "@assistant-ui/react-streamdown";
 import { code } from "@streamdown/code";
 import { createMathPlugin } from "@streamdown/math";
@@ -17,7 +17,6 @@ export const MarkdownText = () => (
       cjk,
     }}
     shikiTheme={["github-light", "github-dark"]}
-    caret="block"
     remend={{
       links: true,
       images: true,
