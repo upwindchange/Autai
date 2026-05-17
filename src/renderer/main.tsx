@@ -136,9 +136,6 @@ function AppContent() {
   useEffect(() => {
     if (showSplitView && !showSettings && workspaceRef.current) {
       setContainerRef(workspaceRef.current);
-      const { width, height, x, y } =
-        workspaceRef.current.getBoundingClientRect();
-      setContainerBounds({ width, height, x, y });
 
       const resizeObserver = new ResizeObserver(() => {
         if (workspaceRef.current) {

@@ -13,7 +13,7 @@ const logger = log.scope("useTabVisibility");
  * The backend handles tab switching between threads via sessiontab:switched events.
  */
 export function useTabVisibility() {
-  const { containerRef, containerBounds } = useUiStore();
+  const containerRef = useUiStore((s) => s.containerRef);
   const mainTabId = useAuiState(({ threads }) => threads.mainThreadId);
 
   useEffect(() => {
@@ -21,16 +21,7 @@ export function useTabVisibility() {
       logger.debug("updating visibility", {
         isVisible,
         sessionId: mainTabId,
-        hasContainerBounds: !!containerBounds,
       });
-
-      if (containerBounds) {
-        logger.debug("sending bounds ipc", { containerBounds });
-        // Set visibility (now using send since it's one-way)
-        window.ipcRenderer.send("sessiontab:setBounds", {
-          bounds: containerBounds,
-        });
-      }
 
       logger.debug("sending visibility ipc", {
         isVisible,
