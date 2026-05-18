@@ -4,7 +4,7 @@
   }
 }
 
-:where([data-status="running"]):empty::after,
+[data-slot="aui_assistant-message-content"]:not([data-status]):empty::after,
 :where([data-status="running"])
   > div
   > :where(:not(ol):not(ul):not([data-streamdown="code-block"])):last-child::after,

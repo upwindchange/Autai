@@ -300,6 +300,7 @@ const AssistantMessage: FC = () => {
   // for pt-[n] use -mb-[n + 6] & min-h-[n + 6] to preserve compensation
   const ACTION_BAR_PT = "pt-1.5";
   const ACTION_BAR_HEIGHT = `-mb-7.5 min-h-7.5 ${ACTION_BAR_PT}`;
+  const status = useAuiState((s) => s.message.status?.type);
 
   return (
     <MessagePrimitive.Root
@@ -309,6 +310,7 @@ const AssistantMessage: FC = () => {
     >
       <div
         data-slot="aui_assistant-message-content"
+        data-status={status !== "running" ? status : undefined}
         className="wrap-break-word px-2 text-foreground leading-relaxed"
       >
         <MessagePrimitive.GroupedParts
@@ -332,8 +334,6 @@ const AssistantMessage: FC = () => {
               }
               case "text":
                 return <MarkdownText />;
-              case "reasoning":
-                return <Reasoning {...part} />;
               case "tool-call":
                 return part.toolUI ?? <ToolFallback {...part} />;
               // custom: rendering more message types
