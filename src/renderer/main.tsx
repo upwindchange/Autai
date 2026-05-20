@@ -11,7 +11,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import log from "electron-log/renderer";
 import { SidebarLeft } from "@/components/side-bar/sidebar-left";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { AssistantChatContainer } from "@/components/ai-chat";
+import { Thread } from "@/components/ai-chat";
 import { SettingsProvider, SettingsView } from "@/components/settings";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useUiStore } from "@/stores/uiStore";
@@ -177,7 +177,7 @@ function AppContent() {
                   <div className="flex h-full flex-col overflow-hidden">
                     <AppHeader title={headerTitle} />
                     <div className="relative flex flex-1 flex-col overflow-hidden min-h-0">
-                      <AssistantChatContainer />
+                      <Thread />
                     </div>
                   </div>
                 </ResizablePanel>
@@ -196,7 +196,7 @@ function AppContent() {
                 <div className="relative flex flex-1 flex-col overflow-hidden h-full">
                   {showSettings ?
                     <SettingsView />
-                  : <AssistantChatContainer />}
+                  : <Thread />}
                 </div>
               </>
             }
