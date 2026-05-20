@@ -10,6 +10,7 @@ export { domTools } from "./DOMTools";
 export { sessionTools } from "./SessionTabTools";
 export { navigationTools } from "./TabControlTools";
 export { hitlTools } from "./HitlTools";
+export { sourceTools } from "./SourceTools";
 
 // Export all types
 export type { ToolExecutionContext, ToolContextOptions } from "./types/context";
@@ -42,6 +43,7 @@ import { domTools } from "./DOMTools";
 import { sessionTools } from "./SessionTabTools";
 import { navigationTools } from "./TabControlTools";
 import { hitlTools } from "./HitlTools";
+import { sourceTools } from "./SourceTools";
 
 export const allBrowserTools = {
   ...interactiveTools,
@@ -49,6 +51,7 @@ export const allBrowserTools = {
   ...sessionTools,
   ...navigationTools,
   ...hitlTools,
+  ...sourceTools,
 };
 
 // Tool names enum for type safety

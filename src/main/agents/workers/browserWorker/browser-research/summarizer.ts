@@ -2,6 +2,7 @@ import { streamText, type ModelMessage } from "ai";
 import { chatModel } from "@agents/providers";
 import { settingsService } from "@/services";
 import type { ExtractionResult } from "./result-extractor";
+import { sourceTools } from "@agents/tools/SourceTools";
 import log from "electron-log/main";
 
 const logger = log.scope("research-summarizer");
@@ -19,6 +20,7 @@ const summarizerSystemPrompt = `You are a research assistant. Synthesize the pro
 6. If sources conflict, note the disagreement
 7. If information is incomplete, acknowledge what you could not find
 8. Keep the answer focused and relevant to the original question
+9. After writing your answer, call the presentSources tool with every source URL you referenced so the user can visit them
 
 ## Citation Format
 - Use numbered citations like [1], [2], etc. inline
@@ -71,6 +73,7 @@ ${quotesText}`;
     model: chatModel(),
     messages: summaryMessages,
     system: summarizerSystemPrompt,
+    tools: sourceTools,
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "research-summarizer",

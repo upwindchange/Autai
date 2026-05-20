@@ -5,6 +5,19 @@ export const calculateToolSchema = z.object({
   expression: z.string(),
 });
 
+export const presentSourcesToolSchema = z.object({
+  sources: z
+    .array(
+      z.object({
+        url: z.string().describe("Source URL"),
+        title: z.string().optional().describe("Display title (defaults to domain)"),
+      }),
+    )
+    .min(1)
+    .max(10)
+    .describe("Sources to present to the user"),
+});
+
 // Type inference for parameters and results
 export type CalculateToolParams = z.infer<typeof calculateToolSchema>;
 export type CalculateToolResult = number | string; // mathjs result or error string
