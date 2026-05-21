@@ -442,6 +442,71 @@ export class SessionTabService extends EventEmitter {
   }
 
   // ===================
+  // NAVIGATION
+  // ===================
+
+  async navigateActiveTabToUrl(url: string): Promise<TabId | null> {
+    if (!this.activeSessionId) {
+      this.logger.warn("Cannot navigate: no active session");
+      return null;
+    }
+
+    let activeTabId = this.getActiveTabForSession(this.activeSessionId);
+    const tab = activeTabId ? this.tabs.get(activeTabId) : undefined;
+
+    if (!activeTabId || !tab) {
+      if (activeTabId) {
+        this.logger.debug(
+          `Tab ${activeTabId} not found in tabs map, creating new tab`,
+        );
+      } else {
+        this.logger.debug(
+          `No active tab for session ${this.activeSessionId}, creating one`,
+        );
+      }
+      activeTabId = await this.createTab({
+        sessionId: this.activeSessionId,
+        url,
+      });
+      // Promote the new tab to active for this session
+      const state = this.sessionStates.get(this.activeSessionId);
+      if (state) {
+        state.activeTabId = activeTabId;
+      }
+      if (this.activeSessionId === this.activeSessionId) {
+        this.activeTab = this.tabs.get(activeTabId) || null;
+        await this.updateTabVisibility(activeTabId);
+      }
+      return activeTabId;
+    }
+
+    this.updateTabTimestamp(activeTabId);
+    try {
+      await tab.webContents.loadURL(url);
+    } catch (error) {
+      const errorCode = (error as { code?: string })?.code;
+      if (errorCode === "ERR_ABORTED") {
+        this.logger.debug("Navigation aborted (superseded)", {
+          tabId: activeTabId,
+          url,
+        });
+        return activeTabId;
+      }
+      this.logger.error("Failed to navigate tab", {
+        tabId: activeTabId,
+        url,
+        error,
+      });
+      return null;
+    }
+    this.logger.info("Navigated active tab to URL", {
+      tabId: activeTabId,
+      url,
+    });
+    return activeTabId;
+  }
+
+  // ===================
   // GETTERS
   // ===================
 

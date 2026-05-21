@@ -131,10 +131,20 @@ function AppContent() {
   // Sync tab visibility with container state (moved from Thread)
   useTabVisibility();
 
+  // Switch to settings-session when settings opens, switch back to thread when closed
+  const mainTabId = useAuiState(({ threads }) => threads.mainThreadId);
+  useEffect(() => {
+    if (showSettings) {
+      window.ipcRenderer.send("sessiontab:switched", "settings-session");
+    } else if (mainTabId) {
+      window.ipcRenderer.send("sessiontab:switched", mainTabId);
+    }
+  }, [showSettings, mainTabId]);
+
   const workspaceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (showSplitView && !showSettings && workspaceRef.current) {
+    if (showSplitView && workspaceRef.current) {
       setContainerRef(workspaceRef.current);
 
       const resizeObserver = new ResizeObserver(() => {
@@ -156,7 +166,7 @@ function AppContent() {
       setContainerBounds(null);
       return undefined;
     }
-  }, [showSplitView, showSettings, setContainerRef, setContainerBounds]);
+  }, [showSplitView, setContainerRef, setContainerBounds]);
 
   const headerTitle =
     showSettings ?
@@ -171,13 +181,15 @@ function AppContent() {
             <SettingsSidebar />
           : <SidebarLeft />}
           <SidebarInset className="relative flex-1">
-            {showSplitView && !showSettings ?
+            {showSplitView ?
               <ResizablePanelGroup orientation="horizontal" className="flex-1">
                 <ResizablePanel defaultSize={50} minSize={30}>
                   <div className="flex h-full flex-col overflow-hidden">
                     <AppHeader title={headerTitle} />
                     <div className="relative flex flex-1 flex-col overflow-hidden min-h-0">
-                      <Thread />
+                      {showSettings ?
+                        <SettingsView />
+                      : <Thread />}
                     </div>
                   </div>
                 </ResizablePanel>
@@ -269,6 +281,11 @@ function App() {
 
 // Register the message listener once at application startup
 window.ipcRenderer.on("app:message", handleAppMessage);
+
+// Listen for split view activation from main process (internal link navigation)
+window.ipcRenderer.on("splitview:activate", () => {
+  useUiStore.getState().setShowSplitView(true);
+});
 
 initApiBase().then(() => {
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(

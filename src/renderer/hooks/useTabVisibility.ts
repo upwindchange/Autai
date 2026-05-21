@@ -14,23 +14,27 @@ const logger = log.scope("useTabVisibility");
  */
 export function useTabVisibility() {
   const containerRef = useUiStore((s) => s.containerRef);
+  const showSettings = useUiStore((s) => s.showSettings);
   const mainTabId = useAuiState(({ threads }) => threads.mainThreadId);
+
+  // Use settings-session when settings is active, otherwise use thread session
+  const sessionId = showSettings ? "settings-session" : mainTabId;
 
   useEffect(() => {
     const updateVisibility = async (isVisible: boolean) => {
       logger.debug("updating visibility", {
         isVisible,
-        sessionId: mainTabId,
+        sessionId,
       });
 
       logger.debug("sending visibility ipc", {
         isVisible,
-        sessionId: mainTabId,
+        sessionId,
       });
       // Set visibility (now using send since it's one-way)
       window.ipcRenderer.send("sessiontab:setVisibility", {
         isVisible,
-        sessionId: mainTabId,
+        sessionId,
       });
     };
 
@@ -45,5 +49,5 @@ export function useTabVisibility() {
       logger.debug("cleaning up, hiding tab");
       updateVisibility(false);
     };
-  }, [containerRef, mainTabId]);
+  }, [containerRef, sessionId]);
 }

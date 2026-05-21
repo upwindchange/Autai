@@ -1,30 +1,18 @@
 import { useState, useMemo } from "react";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, ExternalLink, Plus } from "lucide-react";
+import { Search, ExternalLink, Plus, ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useProviderCatalog } from "@/hooks/useProviderCatalog";
 import type { ProviderDefinition } from "@shared";
 
 interface ProviderCatalogProps {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
   onSelect: (provider: ProviderDefinition) => void;
+  onBack: () => void;
 }
 
-export function ProviderCatalog({
-  open,
-  onOpenChange,
-  onSelect,
-}: ProviderCatalogProps) {
+export function ProviderCatalog({ onSelect, onBack }: ProviderCatalogProps) {
   const { providers, loading } = useProviderCatalog();
   const [search, setSearch] = useState("");
   const { t } = useTranslation("providers");
@@ -41,45 +29,49 @@ export function ProviderCatalog({
   }, [providers, search]);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[90vw] sm:max-w-5xl max-h-[85vh]">
-        <DialogHeader>
-          <DialogTitle>{t("catalog.title")}</DialogTitle>
-        </DialogHeader>
+    <div className="flex flex-col gap-4">
+      <div className="flex items-center gap-3">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={onBack}
+        >
+          <ArrowLeft className="h-4 w-4" />
+        </Button>
+        <h2 className="text-2xl font-bold">{t("catalog.title")}</h2>
+      </div>
 
-        <div className="relative">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={t("catalog.search")}
-            className="pl-9"
-          />
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder={t("catalog.search")}
+          className="pl-9"
+        />
+      </div>
+
+      {loading ?
+        <div className="py-8 text-center text-sm text-muted-foreground">
+          {t("catalog.loading")}
         </div>
-
-        {loading ?
-          <div className="py-8 text-center text-sm text-muted-foreground">
-            {t("catalog.loading")}
-          </div>
-        : <ScrollArea className="max-h-[65vh]">
-            <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4 pr-3 pb-2">
-              {filtered.map((provider) => (
-                <ProviderCatalogCard
-                  key={provider.dir}
-                  provider={provider}
-                  onSelect={onSelect}
-                />
-              ))}
-              {filtered.length === 0 && (
-                <div className="col-span-full py-8 text-center text-sm text-muted-foreground">
-                  {t("catalog.empty")}
-                </div>
-              )}
+      : <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
+          {filtered.map((provider) => (
+            <ProviderCatalogCard
+              key={provider.dir}
+              provider={provider}
+              onSelect={onSelect}
+            />
+          ))}
+          {filtered.length === 0 && (
+            <div className="col-span-full py-8 text-center text-sm text-muted-foreground">
+              {t("catalog.empty")}
             </div>
-          </ScrollArea>
-        }
-      </DialogContent>
-    </Dialog>
+          )}
+        </div>
+      }
+    </div>
   );
 }
 
@@ -92,10 +84,7 @@ function ProviderCatalogCard({
 }) {
   const { t } = useTranslation("providers");
   return (
-    <Card
-      className="group flex items-start gap-3 p-4 cursor-pointer hover:bg-accent/50 transition-colors overflow-hidden"
-      onClick={() => onSelect(provider)}
-    >
+    <Card className="group flex items-start gap-3 p-4 transition-colors overflow-hidden">
       {provider.logo ?
         <span
           className="h-10 w-10 shrink-0 text-foreground [&_svg]:h-full [&_svg]:w-full"
@@ -108,25 +97,22 @@ function ProviderCatalogCard({
       <div className="flex-1 min-w-0">
         <div className="font-medium text-sm">{provider.name}</div>
         {provider.doc && (
-          <div className="flex items-center gap-1 mt-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5 shrink-0"
-              onClick={(e) => {
-                e.stopPropagation();
-                window.open(provider.doc, "_blank");
-              }}
-            >
-              <ExternalLink className="h-3 w-3" />
-            </Button>
-            <span className="text-xs text-muted-foreground truncate">
-              {t("catalog.doc")}
-            </span>
-          </div>
+          <button
+            type="button"
+            className="flex items-center gap-1 mt-1 text-muted-foreground hover:text-foreground transition-colors"
+            onClick={() => window.open(provider.doc, "_blank")}
+          >
+            <ExternalLink className="h-3 w-3 shrink-0" />
+            <span className="text-xs truncate">{t("catalog.doc")}</span>
+          </button>
         )}
         <div className="flex items-center gap-1 mt-2">
-          <Button variant="outline" size="sm" className="h-7 text-xs">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            onClick={() => onSelect(provider)}
+          >
             <Plus className="h-3 w-3 mr-1" />
             {t("catalog.add")}
           </Button>

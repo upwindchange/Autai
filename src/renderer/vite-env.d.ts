@@ -55,6 +55,12 @@ declare global {
         listener: (event: IpcRendererEvent, message: AppMessage) => void,
       ): void;
 
+      // Split view activation (internal link navigation)
+      on(
+        channel: "splitview:activate",
+        listener: (event: IpcRendererEvent) => void,
+      ): void;
+
       // Logger operations
       invoke(channel: "logger:setLevel", level: LogLevel): Promise<void>;
       invoke(channel: "logger:getLogPath"): Promise<string>;

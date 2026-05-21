@@ -114,20 +114,8 @@ async function createWindow(splash?: BrowserWindow) {
     }
   });
 
-  if (is.dev) {
-    win.loadURL(ELECTRON_RENDERER_URL!);
-    // win.webContents.openDevTools();
-  } else {
-    win.loadFile(indexHtml);
-  }
-
-  win.webContents.on("did-finish-load", () => {
-    splash?.close();
-    win?.show();
-  });
-
   /**
-   * Initialize core services
+   * Initialize core services BEFORE loading renderer to avoid IPC race conditions
    */
   // Initialize SessionTabService singleton
   sessionTabService = SessionTabService.getInstance(win);
@@ -150,17 +138,78 @@ async function createWindow(splash?: BrowserWindow) {
   hitlBridge.setupHandlers();
 
   // Create initial default session so activeTab is never null
-  // This ensures bounds/visibility updates always have a tab to target
   const defaultSessionId = "default-session";
   await sessionTabService.createSession(defaultSessionId);
   logger.info(`Default session ${defaultSessionId} created on startup`);
 
+  // Create settings session so links in settings page have their own tab
+  await sessionTabService.createSession("settings-session");
+  logger.info("Settings session created on startup");
+
   /**
-   * Force external links to open in default browser
+   * Route link clicks to internal browser tab instead of external browser
    */
+
+  /**
+   * Route link clicks to internal browser tab instead of external browser
+   */
+
+  // Intercept regular <a> clicks (without target="_blank")
+  win.webContents.on("will-navigate", (event, url) => {
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      event.preventDefault();
+      sessionTabService
+        .navigateActiveTabToUrl(url)
+        .then((tabId) => {
+          if (tabId && win && !win.isDestroyed()) {
+            win.webContents.send("splitview:activate");
+          }
+        })
+        .catch((err) =>
+          logger.warn("will-navigate: failed to route internally", {
+            url,
+            err,
+          }),
+        );
+    }
+  });
+
+  // Intercept target="_blank" and window.open()
   win.webContents.setWindowOpenHandler(({ url }) => {
-    if (url.startsWith("https:")) shell.openExternal(url);
+    if (url.startsWith("http://") || url.startsWith("https://")) {
+      sessionTabService
+        .navigateActiveTabToUrl(url)
+        .then((tabId) => {
+          if (tabId && win && !win.isDestroyed()) {
+            win.webContents.send("splitview:activate");
+          }
+        })
+        .catch((err) =>
+          logger.warn("setWindowOpenHandler: failed to route internally", {
+            url,
+            err,
+          }),
+        );
+    } else if (
+      url.startsWith("mailto:") ||
+      url.startsWith("tel:") ||
+      url.startsWith("sms:")
+    ) {
+      shell.openExternal(url);
+    }
     return { action: "deny" };
+  });
+
+  // Load renderer AFTER services and handlers are fully initialized
+  if (is.dev) {
+    win.loadURL(ELECTRON_RENDERER_URL!);
+  } else {
+    win.loadFile(indexHtml);
+  }
+
+  win.webContents.on("did-finish-load", () => {
+    splash?.close();
+    win?.show();
   });
 
   update();
@@ -408,9 +457,17 @@ ipcMain.handle("app:getSystemInfo", () => {
 });
 
 /**
- * Handler for opening external URLs
+ * Handler for opening URLs.
+ * Routes http/https URLs to internal browser tab, others to external browser.
  */
-ipcMain.handle("shell:openExternal", async (_, url) => {
+ipcMain.handle("shell:openExternal", async (event, url) => {
+  if (typeof url === "string" && (url.startsWith("http://") || url.startsWith("https://"))) {
+    const tabId = await sessionTabService.navigateActiveTabToUrl(url);
+    if (tabId && !event.sender.isDestroyed()) {
+      event.sender.send("splitview:activate");
+    }
+    return { success: true };
+  }
   await shell.openExternal(url);
   return { success: true };
 });

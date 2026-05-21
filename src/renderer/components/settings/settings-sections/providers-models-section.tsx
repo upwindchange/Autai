@@ -147,6 +147,15 @@ export function ProvidersModelsSection({
 
   const providers = settings?.providers || [];
 
+  if (catalogOpen) {
+    return (
+      <ProviderCatalog
+        onSelect={handleSelectFromCatalog}
+        onBack={() => setCatalogOpen(false)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Section Header */}
@@ -160,13 +169,6 @@ export function ProvidersModelsSection({
           {t("btn.addProvider")}
         </Button>
       </div>
-
-      {/* Provider Catalog Dialog */}
-      <ProviderCatalog
-        open={catalogOpen}
-        onOpenChange={setCatalogOpen}
-        onSelect={handleSelectFromCatalog}
-      />
 
       {/* Configured providers */}
       {providers.map((provider) => {
