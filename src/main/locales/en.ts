@@ -59,6 +59,7 @@ const en = {
     taskErrorBody: "An error occurred during task execution: {{error}}",
     actionErrorTitle: "Action Error",
     actionErrorBody: 'Subtask "{{label}}" failed: {{error}}',
+    deepResearchTitle: "Deep Research: {{title}}",
   },
 };
 
