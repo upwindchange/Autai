@@ -11,6 +11,7 @@ export { sessionTools } from "./SessionTabTools";
 export { navigationTools } from "./TabControlTools";
 export { hitlTools } from "./HitlTools";
 export { sourceTools } from "./SourceTools";
+export { calculateTool } from "./CalculateTool";
 
 // Export all types
 export type { ToolExecutionContext, ToolContextOptions } from "./types/context";

@@ -39,7 +39,6 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable";
 import { WorkspaceWelcome } from "@/components/ai-chat/workspace-welcome";
-import { lastAssistantMessageIsCompleteWithToolCalls } from "ai";
 import { useTagStore } from "@/stores/tagStore";
 import type { TagRow } from "@shared/tag";
 import { useRemoteThreadListRuntime } from "@assistant-ui/react";
@@ -228,7 +227,6 @@ function App() {
   const runtime = useRemoteThreadListRuntime({
     runtimeHook: () =>
       useChatRuntime({
-        sendAutomaticallyWhen: lastAssistantMessageIsCompleteWithToolCalls,
         transport: new AssistantChatTransport({
           api: `${getApiBase()}/chat`,
           headers: async () => {

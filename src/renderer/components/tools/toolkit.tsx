@@ -1,8 +1,6 @@
 import { type Toolkit } from "@assistant-ui/react";
-import { evaluate } from "mathjs";
 import { CalculatorIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { calculateToolSchema } from "@shared/tools";
 import { Plan } from "@/components/tool-ui/plan";
 import { safeParseSerializablePlan } from "@/components/tool-ui/plan/schema";
 import { ToolUI } from "@/components/tool-ui/shared";
@@ -18,20 +16,9 @@ import {
 } from "@/components/assistant-ui/sources";
 
 export const frontendToolkit: Toolkit = {
-  // Calculator tool - executes on frontend
+  // Calculator tool - executes on backend, renders result on frontend
   calculate: {
-    description: "Evaluate mathematical expressions using mathjs",
-    parameters: calculateToolSchema,
-    execute: async ({ expression }) => {
-      try {
-        const result = evaluate(expression);
-        return { result: Number(result) };
-      } catch (error) {
-        return {
-          error: error instanceof Error ? error.message : String(error),
-        };
-      }
-    },
+    type: "backend",
     render: ({ args, status, result }) => {
       return (
         <div

@@ -8,10 +8,9 @@ import {
 } from "ai";
 import { chatModel } from "@agents/providers";
 import { repairToolCall } from "@agents/utils";
+import { calculateTool } from "@agents/tools";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
-import { frontendTools } from "@assistant-ui/react-ai-sdk";
-
 const systemPrompt = `You are a helpful AI assistant integrated into a web browser automation tool.
                      You can help users navigate web pages, answer questions about the current page content,
                      and provide assistance with browser automation tasks.
@@ -41,9 +40,6 @@ export class ChatWorker {
     try {
       this.logger.debug("creating stream with chat model");
 
-      // Use frontend tools if provided, otherwise no tools
-      const toolsToUse = tools || {};
-
       // Configure stop conditions based on available tools
       const stopConditions = [
         // Safety limit to prevent infinite loops
@@ -55,7 +51,9 @@ export class ChatWorker {
         messages: await convertToModelMessages(messages),
         system: `${systemPrompt} ${system || ""}`,
         stopWhen: stopConditions,
-        tools: frontendTools(toolsToUse),
+        tools: {
+          calculate: calculateTool,
+        },
         experimental_repairToolCall: repairToolCall,
         experimental_telemetry: {
           isEnabled: settingsService.settings.langfuse.enabled,
