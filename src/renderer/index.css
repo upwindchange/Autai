@@ -1,10 +1,12 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "katex/dist/katex.min.css";
 @import "tw-shimmer";
-@import "streamdown/styles.css";
 
 @source "../../node_modules/streamdown/dist/*.js";
+@source "../../node_modules/@streamdown/code/dist/*.js";
+@source "../../node_modules/@streamdown/mermaid/dist/*.js";
+@source "../../node_modules/@streamdown/math/dist/*.js";
+@source "../../node_modules/@streamdown/cjk/dist/*.js";
 
 @custom-variant dark (&:is(.dark *));
 

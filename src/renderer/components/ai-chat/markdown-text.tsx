@@ -1,5 +1,6 @@
 "use client";
 
+import "streamdown/styles.css";
 import "katex/dist/katex.min.css";
 import "./caret.css";
 import { StreamdownTextPrimitive } from "@assistant-ui/react-streamdown";
