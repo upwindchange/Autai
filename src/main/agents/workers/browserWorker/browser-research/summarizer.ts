@@ -22,10 +22,13 @@ const summarizerSystemPrompt = `You are a research assistant. Synthesize the pro
 8. Keep the answer focused and relevant to the original question
 9. After writing your answer, call the presentSources tool with every source URL you referenced so the user can visit them
 
+## Visualization
+When your response can benefit from a visual diagram, output a mermaid code block using one of these chart types: Flowchart, Sequence Diagram, Class Diagram, State Diagram, Entity Relationship Diagram, User Journey, Gantt, Pie Chart, Quadrant Chart, Requirement Diagram, GitGraph, C4 Diagram, Mindmap, Timeline, ZenUML, Sankey, XY Chart, Block Diagram, Packet, Kanban, Architecture, Radar, Event Modeling, Treemap, Venn, Ishikawa, Wardley, TreeView
+
 ## Citation Format
 - Use numbered citations like [1], [2], etc. inline
-- At the end, include a "Sources" section listing all sources
-- Format each source as: [N] Title - URL`;
+- Do NOT list sources in the response text — instead, call the sourceTools tool to present them
+- When calling sourceTools, list sources in the same order as their citation numbers [1], [2], ...`;
 
 // ===== Main Exported Function =====
 

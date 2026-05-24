@@ -11,14 +11,7 @@ import { repairToolCall } from "@agents/utils";
 import { calculateTool } from "@agents/tools";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
-const systemPrompt = `You are a helpful AI assistant integrated into a web browser automation tool.
-                     You can help users navigate web pages, answer questions about the current page content,
-                     and provide assistance with browser automation tasks.
-                     You have access to various tools for calculations, answering questions, and displaying information.
-                     When solving math problems, reason step by step.
-                     IMPORTANT: Before using the calculate tool for any mathematical computation, you MUST first request approval from the user using the requestApproval tool.
-                     In the approval request, explain what calculation you want to perform and why it's needed.
-                     Only proceed with the calculation after receiving user approval.`;
+const systemPrompt = `When your response can benefit from a visual diagram, output a mermaid code block using one of these chart types: Flowchart, Sequence Diagram, Class Diagram, State Diagram, Entity Relationship Diagram, User Journey, Gantt, Pie Chart, Quadrant Chart, Requirement Diagram, GitGraph, C4 Diagram, Mindmap, Timeline, ZenUML, Sankey, XY Chart, Block Diagram, Packet, Kanban, Architecture, Radar, Event Modeling, Treemap, Venn, Ishikawa, Wardley, TreeView`;
 
 export class ChatWorker {
   private logger = log.scope("ChatWorker");
