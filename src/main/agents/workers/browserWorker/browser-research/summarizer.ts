@@ -2,6 +2,7 @@ import { streamText, type ModelMessage } from "ai";
 import { chatModel } from "@agents/providers";
 import { settingsService } from "@/services";
 import type { ExtractionResult } from "./result-extractor";
+import type { SearchResultItem } from "./search-agent";
 import { sourceTools } from "@agents/tools/SourceTools";
 import log from "electron-log/main";
 
@@ -85,6 +86,53 @@ ${quotesText}`;
 
   result.finishReason.then((reason) => {
     logger.info("Summarizer stream completed", { finishReason: reason });
+  });
+
+  return result;
+}
+
+// ===== Quick Search Variant =====
+
+export async function summarizeFindingsFromSnippets(
+  messages: ModelMessage[],
+  searchResults: SearchResultItem[],
+  sessionId: string,
+) {
+  logger.debug("Starting quick summarizer", {
+    sessionId,
+    resultCount: searchResults.length,
+  });
+
+  const researchContext = searchResults
+    .map((result, index) => {
+      return `### Source [${index + 1}]: ${result.title}
+URL: ${result.url}
+
+Snippet: ${result.snippet}`;
+    })
+    .join("\n\n---\n\n");
+
+  const summaryMessages: ModelMessage[] = [
+    ...messages,
+    {
+      role: "user" as const,
+      content: `Here are the web search results:\n\n${researchContext || "No relevant results were found during the search."}\n\nBased on these results, please answer the original question.`,
+    } as ModelMessage,
+  ];
+
+  const result = streamText({
+    model: chatModel(),
+    messages: summaryMessages,
+    system: summarizerSystemPrompt,
+    tools: sourceTools,
+    experimental_telemetry: {
+      isEnabled: settingsService.settings.langfuse.enabled,
+      functionId: "research-summarizer-quick",
+    },
+  });
+
+  result.finishReason.then((reason) => {
+    logger.info("Quick summarizer stream completed", { finishReason: reason });
   });
 
   return result;

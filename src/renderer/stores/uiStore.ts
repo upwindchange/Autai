@@ -29,8 +29,12 @@ interface UiState {
   // Browser toggle state
   useBrowser: boolean;
   webSearch: boolean;
+  deepResearch: boolean;
+  quickSearch: boolean;
   setUseBrowser: (useBrowser: boolean) => void;
   setWebSearch: (webSearch: boolean) => void;
+  setDeepResearch: (deepResearch: boolean) => void;
+  setQuickSearch: (quickSearch: boolean) => void;
 
   // Split view state
   showSplitView: boolean;
@@ -72,17 +76,31 @@ export const useUiStore = create<UiState>()(
     // Browser toggle state
     useBrowser: false,
     webSearch: false,
+    deepResearch: false,
+    quickSearch: false,
     setUseBrowser: (useBrowser) =>
       set((state) => ({
         useBrowser,
-        // Mutually exclusive: if useBrowser is true, webSearch must be false
         webSearch: useBrowser ? false : state.webSearch,
+        deepResearch: useBrowser ? false : state.deepResearch,
+        quickSearch: useBrowser ? false : state.quickSearch,
       })),
     setWebSearch: (webSearch) =>
       set((state) => ({
         webSearch,
-        // Mutually exclusive: if webSearch is true, useBrowser must be false
         useBrowser: webSearch ? false : state.useBrowser,
+        deepResearch: webSearch ? state.deepResearch : false,
+        quickSearch: webSearch ? state.quickSearch : false,
+      })),
+    setDeepResearch: (deepResearch) =>
+      set((state) => ({
+        deepResearch,
+        quickSearch: deepResearch ? false : state.quickSearch,
+      })),
+    setQuickSearch: (quickSearch) =>
+      set((state) => ({
+        quickSearch,
+        deepResearch: quickSearch ? false : state.deepResearch,
       })),
 
     // Split view state

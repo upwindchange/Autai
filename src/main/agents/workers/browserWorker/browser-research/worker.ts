@@ -15,7 +15,7 @@ import { observe } from "@langfuse/tracing";
 import { researchPlanner, type ResearchPlan } from "./planner";
 import { executeSearchQueries } from "./search-agent";
 import { extractResultsFromUrls } from "./result-extractor";
-import { summarizeFindings } from "./summarizer";
+import { summarizeFindings, summarizeFindingsFromSnippets } from "./summarizer";
 import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
@@ -28,6 +28,7 @@ export async function browserResearchWorker(
   sessionId: string,
   originalMessages: UIMessage[],
   onFinish?: (messages: UIMessage[]) => void,
+  options?: { skipExtraction?: boolean },
 ): Promise<ReadableStream<UIMessageChunk>> {
   logger.info("Entering Browser Research worker", { sessionId });
 
@@ -141,35 +142,50 @@ export async function browserResearchWorker(
             }
 
             // ============================================================
-            // Stage 3: Extract Results from URLs
+            // Stage 3: Extract Results from URLs (skipped in quick mode)
             // ============================================================
-            logger.debug("Stage 3: Extracting results from URLs");
-            const extractionResults = await extractResultsFromUrls(
-              searchResults,
-              plan.queries,
-              sessionId,
-              writer,
-            );
+            if (options?.skipExtraction) {
+              // Quick mode: skip extraction, summarize from snippets directly
+              logger.debug("Stage 3: Skipped (quick search mode)");
+              logger.debug("Stage 4: Summarizing findings from snippets");
+              const summaryResult = await summarizeFindingsFromSnippets(
+                messages,
+                searchResults,
+                sessionId,
+              );
+              await mergeStreamAndWait(
+                summaryResult.toUIMessageStream({ sendStart: false }),
+                writer,
+              );
+            } else {
+              // Full mode: extract then summarize
+              logger.debug("Stage 3: Extracting results from URLs");
+              const extractionResults = await extractResultsFromUrls(
+                searchResults,
+                plan.queries,
+                sessionId,
+                writer,
+              );
 
-            logger.info("Extraction complete", {
-              extractionCount: extractionResults.length,
-              relevantCount: extractionResults.filter((r) => r.relevant).length,
-            });
+              logger.info("Extraction complete", {
+                extractionCount: extractionResults.length,
+                relevantCount: extractionResults.filter((r) => r.relevant).length,
+              });
 
-            // ============================================================
-            // Stage 4: Summarize Findings
-            // ============================================================
-            logger.debug("Stage 4: Summarizing findings");
-            const summaryResult = await summarizeFindings(
-              messages,
-              extractionResults,
-              sessionId,
-            );
-
-            await mergeStreamAndWait(
-              summaryResult.toUIMessageStream({ sendStart: false }),
-              writer,
-            );
+              // ============================================================
+              // Stage 4: Summarize Findings
+              // ============================================================
+              logger.debug("Stage 4: Summarizing findings");
+              const summaryResult = await summarizeFindings(
+                messages,
+                extractionResults,
+                sessionId,
+              );
+              await mergeStreamAndWait(
+                summaryResult.toUIMessageStream({ sendStart: false }),
+                writer,
+              );
+            }
 
             logger.info("Research workflow completed successfully");
           } finally {

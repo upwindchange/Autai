@@ -41,11 +41,12 @@ import {
   MoreHorizontalIcon,
   PencilIcon,
   RefreshCwIcon,
+  CircleHelpIcon,
   Search,
   SquareIcon,
   StopCircleIcon,
 } from "lucide-react";
-import type { FC } from "react";
+import { type FC, useState, useRef, useCallback } from "react";
 
 // --- custom imports ---
 import { useTranslation } from "react-i18next";
@@ -59,6 +60,27 @@ import { Sources } from "@/components/assistant-ui/sources";
 import { Image } from "@/components/assistant-ui/image";
 import { File } from "@/components/assistant-ui/file";
 import { useUiStore } from "@/stores/uiStore";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Slider } from "@/components/ui/slider";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
+// --- custom: hover popover hook ---
+function useHoverPopover(delay = 100) {
+  const [open, setOpen] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleMouseEnter = useCallback(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setOpen(true), delay);
+  }, [delay]);
+
+  const handleMouseLeave = useCallback(() => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => setOpen(false), delay);
+  }, [delay]);
+
+  return { open, setOpen, handleMouseEnter, handleMouseLeave };
+}
 
 // --- custom: session tracking ---
 function ThreadIdTracker() {
@@ -219,8 +241,13 @@ const Composer: FC = () => {
 
 const ComposerAction: FC = () => {
   // --- custom: browser/search toggles + i18n ---
-  const { useBrowser, webSearch, setUseBrowser, setWebSearch } = useUiStore();
+  const { useBrowser, webSearch, deepResearch, quickSearch, setUseBrowser, setWebSearch, setDeepResearch, setQuickSearch } = useUiStore();
   const { t } = useTranslation("common");
+  const { open: popoverOpen, setOpen: setPopoverOpen, handleMouseEnter, handleMouseLeave } = useHoverPopover();
+
+  // effort: 0 = quick, 1 = standard, 2 = thorough
+  const effort = quickSearch ? 0 : deepResearch ? 2 : 1;
+  const searchIconColor = effort === 0 ? "text-green-500" : effort === 2 ? "text-purple-500" : webSearch ? "text-blue-500" : "";
 
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
@@ -238,18 +265,75 @@ const ComposerAction: FC = () => {
         >
           <Globe className={cn("size-5", useBrowser && "text-blue-500")} />
         </TooltipIconButton>
-        {/* --- custom: web search toggle --- */}
-        <TooltipIconButton
-          tooltip={
-            webSearch ? t("composer.webSearch.on") : t("composer.webSearch.off")
-          }
-          variant="ghost"
-          type="button"
-          className={cn("size-8.5", webSearch && "bg-muted hover:bg-muted")}
-          onClick={() => setWebSearch(!webSearch)}
+        {/* --- custom: web search toggle with effort slider popover --- */}
+        <Popover
+          open={popoverOpen}
+          onOpenChange={() => {}}
+          modal={false}
         >
-          <Search className={cn("size-5", webSearch && "text-blue-500")} />
-        </TooltipIconButton>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              type="button"
+              className={cn("aui-button-icon size-8.5 p-1", webSearch && "bg-muted hover:bg-muted")}
+              onClick={() => {
+                if (!webSearch) {
+                  setWebSearch(true);
+                  setPopoverOpen(true);
+                } else {
+                  setWebSearch(false);
+                  setPopoverOpen(false);
+                }
+              }}
+              onMouseEnter={webSearch ? handleMouseEnter : undefined}
+              onMouseLeave={webSearch ? handleMouseLeave : undefined}
+            >
+              <Search className={cn("size-5", searchIconColor)} />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            side="top"
+            align="center"
+            className="w-40 p-3"
+            onMouseEnter={handleMouseEnter}
+            onMouseLeave={handleMouseLeave}
+            onOpenAutoFocus={(e) => e.preventDefault()}
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium">{t("composer.effort.label")}</span>
+                <TooltipProvider delayDuration={0}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <CircleHelpIcon className="size-3.5 text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent side="top" className="max-w-56 text-xs">
+                      {t("composer.effort.description")}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
+              <Slider
+                value={[webSearch ? effort : 1]}
+                min={0}
+                max={2}
+                step={1}
+                disabled={!webSearch}
+                onValueChange={([v]) => {
+                  if (v === 0) { setQuickSearch(true); }
+                  else if (v === 2) { setDeepResearch(true); }
+                  else { setDeepResearch(false); setQuickSearch(false); }
+                }}
+              />
+              <div className="flex justify-between text-[10px] text-muted-foreground">
+                <span>{t("composer.effort.quick")}</span>
+                <span>{t("composer.effort.standard")}</span>
+                <span>{t("composer.effort.thorough")}</span>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
 
       <AuiIf condition={(s) => !s.thread.isRunning}>

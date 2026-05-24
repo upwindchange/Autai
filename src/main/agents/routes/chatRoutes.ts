@@ -33,6 +33,7 @@ chatRoutes.post("/", async (c) => {
     const useBrowser = c.req.header("x-use-browser") === "true";
     const webSearch = c.req.header("x-web-search") === "true";
     const deepResearch = c.req.header("x-deep-research") === "true";
+    const quickSearch = c.req.header("x-quick-search") === "true";
 
     const sessionTabService = SessionTabService.getInstance();
     const sessionId =
@@ -67,11 +68,12 @@ chatRoutes.post("/", async (c) => {
         });
     }
 
-    if (useBrowser || webSearch || deepResearch) {
+    if (useBrowser || webSearch || deepResearch || quickSearch) {
       logger.info("browser mode enabled, using browser-use worker", {
         useBrowser,
         webSearch,
         deepResearch,
+        quickSearch,
       });
       const stream = await BrowserWorker(
         messages,
@@ -79,6 +81,7 @@ chatRoutes.post("/", async (c) => {
         useBrowser,
         webSearch,
         deepResearch,
+        quickSearch,
         (finalMessages) => {
           threadPersistenceService.saveMessages(sessionId, finalMessages);
         },

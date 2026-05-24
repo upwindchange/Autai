@@ -15,6 +15,7 @@ export async function BrowserWorker(
   useBrowser: boolean,
   webSearch: boolean,
   deepResearch: boolean,
+  quickSearch: boolean,
   onFinish?: (messages: UIMessage[]) => void,
 ): Promise<ReadableStream<UIMessageChunk>> {
   logger.info("request received", {
@@ -33,10 +34,10 @@ export async function BrowserWorker(
   } else if (useBrowser) {
     logger.info("routing to browser use node");
     return browserUseWorker(modelMessages, sessionId, messages, onFinish);
-  } else if (webSearch) {
-    logger.info("routing to research node");
-    return browserResearchWorker(modelMessages, sessionId, messages, onFinish);
+  } else if (webSearch || quickSearch) {
+    logger.info("routing to research node", { quickSearch });
+    return browserResearchWorker(modelMessages, sessionId, messages, onFinish, { skipExtraction: quickSearch });
   } else {
-    throw new Error("Either useBrowser, webSearch, or deepResearch must be true");
+    throw new Error("Either useBrowser, webSearch, deepResearch, or quickSearch must be true");
   }
 }

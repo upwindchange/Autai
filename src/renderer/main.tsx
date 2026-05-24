@@ -230,10 +230,12 @@ function App() {
         transport: new AssistantChatTransport({
           api: `${getApiBase()}/chat`,
           headers: async () => {
-            const { useBrowser, webSearch, sessionId } = useUiStore.getState();
+            const { useBrowser, webSearch, deepResearch, quickSearch, sessionId } = useUiStore.getState();
             return {
               "X-Use-Browser": String(useBrowser),
               "X-Web-Search": String(webSearch),
+              "X-Deep-Research": String(deepResearch),
+              "X-Quick-Search": String(quickSearch),
               "X-Session-Id": sessionId || "",
             };
           },
