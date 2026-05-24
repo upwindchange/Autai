@@ -332,6 +332,8 @@ const AssistantMessage: FC = () => {
                   </ReasoningRoot>
                 );
               }
+              case "reasoning":
+                return <Reasoning {...part} />;
               case "text":
                 return <MarkdownText />;
               case "tool-call":

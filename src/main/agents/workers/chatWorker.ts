@@ -51,9 +51,9 @@ export class ChatWorker {
         messages: await convertToModelMessages(messages),
         system: `${systemPrompt} ${system || ""}`,
         stopWhen: stopConditions,
-        tools: {
-          calculate: calculateTool,
-        },
+        // tools: {
+        //   calculate: calculateTool,
+        // },
         experimental_repairToolCall: repairToolCall,
         experimental_telemetry: {
           isEnabled: settingsService.settings.langfuse.enabled,

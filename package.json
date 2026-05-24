@@ -13,7 +13,7 @@
     "build:win": "electron-vite build && electron-builder --win",
     "build:linux": "electron-vite build && electron-builder --linux",
     "build:mac": "electron-vite build && electron-builder --mac",
-    "build:all": "electron-vite build && electron-builder --win --linux --mac",
+    "build:all": "node scripts/build-all-platforms.js",
     "preview": "electron-vite preview",
     "start": "electron-vite preview --skipBuild",
     "tsc:node": "tsc --noEmit -p tsconfig.node.json --composite false",
@@ -154,8 +154,5 @@
     "env": {
       "VITE_DEV_SERVER_URL": "http://127.0.0.1:7777/"
     }
-  },
-  "dependencies": {
-    "@assistant-ui/core": "^0.2.4"
   }
 }
