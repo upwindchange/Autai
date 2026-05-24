@@ -31,15 +31,9 @@ import type {
 
 const logger = log.scope("Deep Research Worker");
 
-// ===== Silent writer (no-op) for subtopic internals =====
-
-const silentWriter = { write: () => {} };
-
 // ===== Citation Remapping =====
 
-function buildGlobalCitationsAndRemap(
-  subtopicResults: SubtopicResult[],
-): {
+function buildGlobalCitationsAndRemap(subtopicResults: SubtopicResult[]): {
   remappedSummaries: RemappedSubtopic[];
   globalCitations: GlobalCitationEntry[];
 } {
@@ -103,11 +97,14 @@ const compositionSystemPrompt = `You are a research synthesis agent. You are giv
 8. After writing your answer, call the presentSources tool with every unique source URL you referenced so the user can visit them.
 
 ## Structure
-- Start with a brief overview answering the user's question
+- Start with a table of contents
+- Use journal article format
+- use the abstract section to briefly answering the user's question
 - Organize information logically by theme
-- Use headers or sections for complex answers
+- Use headers or sections
 - End with a brief conclusion
-- Include a "Sources" section listing all sources as [N] Title - URL`;
+- Do NOT list sources in the response text — instead, call the sourceTools tool to present them
+- When calling sourceTools, list sources in the same order as their citation numbers [1], [2], ...`;
 
 // ===== Plan Extraction Helper =====
 
@@ -118,8 +115,7 @@ async function extractPlanFromPlanner(
   const planToolResult = planSteps
     .flatMap((s) => s.toolResults ?? [])
     .find(
-      (tr) =>
-        tr.toolName === "showResearchPlan" && tr.type === "tool-result",
+      (tr) => tr.toolName === "showResearchPlan" && tr.type === "tool-result",
     );
   const plan = planToolResult?.output as ResearchPlan | undefined;
   if (!plan) {
@@ -219,17 +215,14 @@ export async function browserDeepResearchWorker(
             // Stage 2: Per-subtopic research loop (sequential)
             // ============================================================
             const subtopicResults: SubtopicResult[] = [];
-            const subtopicStatuses: Array<"pending" | "in_progress" | "completed"> =
-              deepPlan.subtopics.map(() => "pending");
+            const subtopicStatuses: Array<
+              "pending" | "in_progress" | "completed"
+            > = deepPlan.subtopics.map(() => "pending");
 
             // Emit initial pending state
             emitDeepPlanStatus(subtopicStatuses);
 
-            for (
-              let subIdx = 0;
-              subIdx < deepPlan.subtopics.length;
-              subIdx++
-            ) {
+            for (let subIdx = 0; subIdx < deepPlan.subtopics.length; subIdx++) {
               const subtopic = deepPlan.subtopics[subIdx];
               subtopicStatuses[subIdx] = "in_progress";
               emitDeepPlanStatus(subtopicStatuses);
@@ -260,12 +253,13 @@ export async function browserDeepResearchWorker(
                   queryCount: plan.queries.length,
                 });
 
-                // 2b. Execute searches (silent writer to avoid ID collisions)
+                // 2b. Execute searches
                 const searchResults = await executeSearchQueries(
                   plan,
                   sessionId,
                   tabId,
-                  silentWriter,
+                  writer,
+                  `deep-search-${sessionId}-${subIdx}`,
                 );
 
                 if (searchResults.length === 0) {
@@ -281,16 +275,18 @@ export async function browserDeepResearchWorker(
                   continue;
                 }
 
-                // 2c. Extract results from URLs (silent writer)
+                // 2c. Extract results from URLs
                 const extractionResults = await extractResultsFromUrls(
                   searchResults,
                   plan.queries,
                   sessionId,
-                  silentWriter,
+                  writer,
+                  `deep-extract-${sessionId}-${subIdx}`,
                 );
 
-                const relevantExtractions =
-                  extractionResults.filter((r) => r.relevant);
+                const relevantExtractions = extractionResults.filter(
+                  (r) => r.relevant,
+                );
 
                 if (relevantExtractions.length === 0) {
                   logger.warn("No relevant extractions for subtopic", {

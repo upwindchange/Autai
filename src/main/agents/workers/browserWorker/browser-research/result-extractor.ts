@@ -254,10 +254,11 @@ export async function extractResultsFromUrls(
   sessionId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   writer: { write: (chunk: any) => void },
+  planId?: string,
 ): Promise<ExtractionResult[]> {
   const sessionTabService = SessionTabService.getInstance();
   const focusDescription = researchFocus.map((q) => q.focus).join("; ");
-  const extractionPlanId = `research-extraction-${sessionId}`;
+  const extractionPlanId = planId ?? `research-extraction-${sessionId}`;
 
   // Destroy all existing session tabs
   await sessionTabService.destroyAllTabs(sessionId);
@@ -274,7 +275,7 @@ export async function extractResultsFromUrls(
 
     const buildTodos = () =>
       searchResults.map((sr, idx) => ({
-        id: `research-extract-${sessionId}-${idx}`,
+        id: `${extractionPlanId}-${idx}`,
         label: i18n.t("agents.readLabel", { title: sr.title }),
         status: taskStatuses[idx],
         description: sr.url,

@@ -362,9 +362,10 @@ export async function executeSearchQueries(
   _activeTabId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   writer: { write: (chunk: any) => void },
+  planId?: string,
 ): Promise<SearchResultItem[]> {
   const sessionTabService = SessionTabService.getInstance();
-  const searchPlanId = `research-search-${sessionId}`;
+  const searchPlanId = planId ?? `research-search-${sessionId}`;
 
   // Close ALL existing tabs in the session
   await sessionTabService.destroyAllTabs(sessionId);
