@@ -136,6 +136,8 @@ export async function browserResearchWorker(
             // ============================================================
             // Stage 3: Extract Results from URLs (skipped in quick mode)
             // ============================================================
+            let presentableSources: Array<{ url: string; title: string }>;
+
             if (options?.skipExtraction) {
               // Quick mode: skip extraction, summarize from snippets directly
               logger.debug("Stage 3: Skipped (quick search mode)");
@@ -149,6 +151,10 @@ export async function browserResearchWorker(
                 summaryResult.toUIMessageStream({ sendStart: false }),
                 writer,
               );
+              presentableSources = searchResults.map((r) => ({
+                url: r.url,
+                title: r.title,
+              }));
             } else {
               // Full mode: extract then summarize
               logger.debug("Stage 3: Extracting results from URLs");
@@ -177,6 +183,34 @@ export async function browserResearchWorker(
                 summaryResult.toUIMessageStream({ sendStart: false }),
                 writer,
               );
+              presentableSources = extractionResults
+                .filter((r) => r.relevant)
+                .map((r) => ({ url: r.url, title: r.title }));
+            }
+
+            // ============================================================
+            // Stage 5: Append References + Present Sources
+            // ============================================================
+            if (presentableSources.length > 0) {
+              const referenceList = presentableSources
+                .map((s, i) => `[${i + 1}] ${s.title} - ${s.url}`)
+                .join("\n");
+              const refId = "text-references";
+              writer.write({ type: "text-start", id: refId });
+              writer.write({
+                type: "text-delta",
+                id: refId,
+                delta: `\n\n<details>\n<summary>References</summary>\n\n${referenceList}\n\n</details>`,
+              });
+              writer.write({ type: "text-end", id: refId });
+
+              writeSimulatedToolCallToStream({
+                writer,
+                toolCallId: `research-sources-${sessionId}`,
+                toolName: "presentSources",
+                input: { sources: presentableSources },
+                output: { sources: presentableSources },
+              });
             }
 
             logger.info("Research workflow completed successfully");

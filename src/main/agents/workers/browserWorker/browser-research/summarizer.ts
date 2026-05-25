@@ -4,7 +4,6 @@ import { TIMEOUTS } from "@agents/utils";
 import { settingsService } from "@/services";
 import type { ExtractionResult } from "./result-extractor";
 import type { SearchResultItem } from "./search-agent";
-import { sourceTools } from "@agents/tools/SourceTools";
 import log from "electron-log/main";
 
 const logger = log.scope("research-summarizer");
@@ -22,15 +21,14 @@ const summarizerSystemPrompt = `You are a research assistant. Synthesize the pro
 6. If sources conflict, note the disagreement
 7. If information is incomplete, acknowledge what you could not find
 8. Keep the answer focused and relevant to the original question
-9. After writing your answer, call the presentSources tool with every source URL you referenced so the user can visit them
+9. Do NOT list sources at the end of your response — only use inline [N] citation markers
 
 ## Visualization
 When your response can benefit from a visual diagram, output a mermaid code block using one of these chart types: Flowchart, Sequence Diagram, Class Diagram, State Diagram, Entity Relationship Diagram, User Journey, Gantt, Pie Chart, Quadrant Chart, Requirement Diagram, GitGraph, C4 Diagram, Mindmap, Timeline, ZenUML, Sankey, XY Chart, Block Diagram, Packet, Kanban, Architecture, Radar, Event Modeling, Treemap, Venn, Ishikawa, Wardley, TreeView
 
 ## Citation Format
 - Use numbered citations like [1], [2], etc. inline
-- Do NOT list sources in the response text — instead, call the presentSources tool to present them
-- When calling presentSources, list sources in the same order as their citation numbers [1], [2], ...
+- Do NOT list sources in the response text — they will be appended automatically
 
 ## Math
 For inline math expressions, use double dollar signs like $$E = mc^2$$. Never use single dollar signs for math.`;
@@ -81,7 +79,6 @@ ${quotesText}`;
     model: chatModel(),
     messages: summaryMessages,
     system: summarizerSystemPrompt,
-    tools: sourceTools,
     timeout: TIMEOUTS.chat,
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
@@ -129,7 +126,6 @@ Snippet: ${result.snippet}`;
     model: chatModel(),
     messages: summaryMessages,
     system: summarizerSystemPrompt,
-    tools: sourceTools,
     timeout: TIMEOUTS.chat,
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,

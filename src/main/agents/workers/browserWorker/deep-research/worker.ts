@@ -95,6 +95,7 @@ const compositionSystemPrompt = `You are a research synthesis agent. You are giv
 5. Add transitional sentences between sections for smooth reading.
 6. Organize information by theme, not by subtopic order.
 7. If information is incomplete across subtopics, acknowledge what could not be found.
+8. Do NOT list a references section at the end — only use inline [N] citation markers. A reference list will be appended automatically.
 
 ## Structure
 - Start with a table of contents
@@ -393,15 +394,11 @@ export async function browserDeepResearchWorker(
               )
               .join("\n\n---\n\n");
 
-            const citationTable = globalCitations
-              .map((c) => `[${c.globalIndex}] ${c.title} - ${c.url}`)
-              .join("\n");
-
             const compositionMessages: ModelMessage[] = [
               ...messages,
               {
                 role: "user" as const,
-                content: `Here are the research findings from ${remappedSummaries.length} subtopic investigations:\n\n${subtopicSections}\n\n---\n\nGlobal Citation Index:\n${citationTable}\n\nPlease compose these findings into a comprehensive, well-organized answer.`,
+                content: `Here are the research findings from ${remappedSummaries.length} subtopic investigations:\n\n${subtopicSections}\n\nPlease compose these findings into a comprehensive, well-organized answer.`,
               } as ModelMessage,
             ];
 
@@ -421,7 +418,20 @@ export async function browserDeepResearchWorker(
               writer,
             );
 
-            // Present sources directly to the UI
+            // Append references to the markdown body
+            const referenceList = globalCitations
+              .map((c) => `[${c.globalIndex}] ${c.title} - ${c.url}`)
+              .join("\n");
+            const refId = "text-references";
+            writer.write({ type: "text-start", id: refId });
+            writer.write({
+              type: "text-delta",
+              id: refId,
+              delta: `\n\n<details>\n<summary>References</summary>\n\n${referenceList}\n\n</details>`,
+            });
+            writer.write({ type: "text-end", id: refId });
+
+            // Present sources as a separate tool card
             const presentableSources = globalCitations.map((c) => ({
               url: c.url,
               title: c.title,
