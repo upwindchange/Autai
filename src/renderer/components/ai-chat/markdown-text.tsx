@@ -5,7 +5,7 @@ import "katex/dist/katex.min.css";
 import "./caret.css";
 import { StreamdownTextPrimitive } from "@assistant-ui/react-streamdown";
 import { code } from "@streamdown/code";
-import { createMathPlugin } from "@streamdown/math";
+import { math } from "@streamdown/math";
 import { mermaid } from "@streamdown/mermaid";
 import { cjk } from "@streamdown/cjk";
 
@@ -13,7 +13,7 @@ export const MarkdownText = () => (
   <StreamdownTextPrimitive
     plugins={{
       code,
-      math: createMathPlugin({ singleDollarTextMath: true }),
+      math,
       mermaid,
       cjk,
     }}

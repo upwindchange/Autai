@@ -23,7 +23,9 @@ import {
 
 const logger = log.scope("Browser Use Worker");
 
-const systemPrompt = `You are a browser automation assistant. Summarize what was accomplished and provide any relevant next steps or recommendations.`;
+const systemPrompt = `You are a browser automation assistant. Summarize what was accomplished and provide any relevant next steps or recommendations.
+
+For inline math expressions, use double dollar signs like $$E = mc^2$$. Never use single dollar signs for math.`;
 
 export async function browserUseWorker(
   messages: ModelMessage[],

@@ -106,7 +106,10 @@ const compositionSystemPrompt = `You are a research synthesis agent. You are giv
 - Use headers or sections
 - End with a brief conclusion
 - Do NOT list sources in the response text — instead, call the sourceTools tool to present them
-- When calling sourceTools, list sources in the same order as their citation numbers [1], [2], ...`;
+- When calling sourceTools, list sources in the same order as their citation numbers [1], [2], ...
+
+## Math
+For inline math expressions, use double dollar signs like $$E = mc^2$$. Never use single dollar signs for math.`;
 
 // ===== Plan Extraction Helper =====
 
