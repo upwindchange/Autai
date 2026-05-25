@@ -5,8 +5,8 @@ export const TIMEOUTS = {
   chat: { stepMs: 120_000, chunkMs: 60_000 } satisfies TimeoutConfiguration,
   /** Planning agents — single-step tool calls */
   planning: {
-    totalMs: 120_000,
-    stepMs: 60_000,
+    stepMs: 120_000,
+    chunkMs: 60_000,
   } satisfies TimeoutConfiguration,
   /** Action execution — multi-step browser automation loops */
   actionExecution: {
