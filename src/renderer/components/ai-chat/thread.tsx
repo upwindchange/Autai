@@ -3,7 +3,7 @@ import {
   ComposerAttachments,
   UserMessageAttachments,
 } from "@/components/ai-chat/attachment";
-import { MarkdownText } from "@/components/ai-chat/markdown-text";
+import { MarkdownText } from "@/components/ai-chat/streamdown";
 import {
   Reasoning,
   ReasoningContent,
@@ -60,9 +60,18 @@ import { Sources } from "@/components/assistant-ui/sources";
 import { Image } from "@/components/assistant-ui/image";
 import { File } from "@/components/assistant-ui/file";
 import { useUiStore } from "@/stores/uiStore";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // --- custom: hover popover hook ---
 function useHoverPopover(delay = 100) {
@@ -151,10 +160,11 @@ const ThreadMessage: FC = () => {
 };
 
 const ThreadScrollToBottom: FC = () => {
+  const { t } = useTranslation("common");
   return (
     <ThreadPrimitive.ScrollToBottom asChild>
       <TooltipIconButton
-        tooltip="Scroll to bottom"
+        tooltip={t("thread.scrollToBottom")}
         variant="outline"
         className="aui-thread-scroll-to-bottom absolute -top-12 left-1/2 -translate-x-1/2 z-10 rounded-full p-4 disabled:invisible dark:border-border dark:bg-background dark:hover:bg-accent"
       >
@@ -230,7 +240,7 @@ const Composer: FC = () => {
             className="aui-composer-input max-h-32 min-h-10 w-full resize-none bg-transparent px-1.75 py-1 text-sm outline-none placeholder:text-muted-foreground/80"
             rows={1}
             autoFocus
-            aria-label="Message input"
+            aria-label={t("composer.ariaLabel")}
           />
           <ComposerAction />
         </div>
@@ -241,13 +251,34 @@ const Composer: FC = () => {
 
 const ComposerAction: FC = () => {
   // --- custom: browser/search toggles + i18n ---
-  const { useBrowser, webSearch, deepResearch, quickSearch, setUseBrowser, setWebSearch, setDeepResearch, setQuickSearch } = useUiStore();
+  const {
+    useBrowser,
+    webSearch,
+    deepResearch,
+    quickSearch,
+    setUseBrowser,
+    setWebSearch,
+    setDeepResearch,
+    setQuickSearch,
+  } = useUiStore();
   const { t } = useTranslation("common");
-  const { open: popoverOpen, setOpen: setPopoverOpen, handleMouseEnter, handleMouseLeave } = useHoverPopover();
+  const {
+    open: popoverOpen,
+    setOpen: setPopoverOpen,
+    handleMouseEnter,
+    handleMouseLeave,
+  } = useHoverPopover();
 
   // effort: 0 = quick, 1 = standard, 2 = thorough
-  const effort = quickSearch ? 0 : deepResearch ? 2 : 1;
-  const searchIconColor = effort === 0 ? "text-green-500" : effort === 2 ? "text-purple-500" : webSearch ? "text-blue-500" : "";
+  const effort =
+    quickSearch ? 0
+    : deepResearch ? 2
+    : 1;
+  const searchIconColor =
+    effort === 0 ? "text-green-500"
+    : effort === 2 ? "text-purple-500"
+    : webSearch ? "text-blue-500"
+    : "";
 
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
@@ -266,86 +297,110 @@ const ComposerAction: FC = () => {
           <Globe className={cn("size-5", useBrowser && "text-blue-500")} />
         </TooltipIconButton>
         {/* --- custom: web search toggle with effort slider popover --- */}
-        <Popover
-          open={popoverOpen}
-          onOpenChange={() => {}}
-          modal={false}
-        >
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              type="button"
-              className={cn("aui-button-icon size-8.5 p-1", webSearch && "bg-muted hover:bg-muted")}
-              onClick={() => {
-                if (!webSearch) {
-                  setWebSearch(true);
-                  setPopoverOpen(true);
-                } else {
+        {webSearch ? (
+          <Popover open={popoverOpen} onOpenChange={() => {}} modal={false}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                type="button"
+                className={cn(
+                  "aui-button-icon size-8.5 p-1",
+                  webSearch && "bg-muted hover:bg-muted",
+                )}
+                onClick={() => {
                   setWebSearch(false);
                   setPopoverOpen(false);
-                }
-              }}
-              onMouseEnter={webSearch ? handleMouseEnter : undefined}
-              onMouseLeave={webSearch ? handleMouseLeave : undefined}
-            >
-              <Search className={cn("size-5", searchIconColor)} />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            side="top"
-            align="center"
-            className="w-40 p-3"
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
-            onOpenAutoFocus={(e) => e.preventDefault()}
-          >
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium">{t("composer.effort.label")}</span>
-                <TooltipProvider delayDuration={0}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <CircleHelpIcon className="size-3.5 text-muted-foreground" />
-                    </TooltipTrigger>
-                    <TooltipContent side="top" className="max-w-56 text-xs">
-                      {t("composer.effort.description")}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
-              </div>
-              <Slider
-                value={[webSearch ? effort : 1]}
-                min={0}
-                max={2}
-                step={1}
-                disabled={!webSearch}
-                onValueChange={([v]) => {
-                  if (v === 0) { setQuickSearch(true); }
-                  else if (v === 2) { setDeepResearch(true); }
-                  else { setDeepResearch(false); setQuickSearch(false); }
                 }}
-              />
-              <div className="flex justify-between text-[10px] text-muted-foreground">
-                <span>{t("composer.effort.quick")}</span>
-                <span>{t("composer.effort.standard")}</span>
-                <span>{t("composer.effort.thorough")}</span>
+                onMouseEnter={handleMouseEnter}
+                onMouseLeave={handleMouseLeave}
+              >
+                <Search className={cn("size-5", searchIconColor)} />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              side="top"
+              align="center"
+              className="w-40 p-3"
+              onMouseEnter={handleMouseEnter}
+              onMouseLeave={handleMouseLeave}
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium">
+                    {t("composer.effort.label")}
+                  </span>
+                  <TooltipProvider delayDuration={0}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <CircleHelpIcon className="size-3.5 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-56 text-xs">
+                        {t("composer.effort.description")}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <Slider
+                  value={[effort]}
+                  min={0}
+                  max={2}
+                  step={1}
+                  onValueChange={([v]) => {
+                    if (v === 0) {
+                      setQuickSearch(true);
+                    } else if (v === 2) {
+                      setDeepResearch(true);
+                    } else {
+                      setDeepResearch(false);
+                      setQuickSearch(false);
+                    }
+                  }}
+                />
+                <div className="flex justify-between text-[10px] text-muted-foreground">
+                  <span>{t("composer.effort.quick")}</span>
+                  <span>{t("composer.effort.standard")}</span>
+                  <span>{t("composer.effort.thorough")}</span>
+                </div>
               </div>
-            </div>
-          </PopoverContent>
-        </Popover>
+            </PopoverContent>
+          </Popover>
+        ) : (
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  type="button"
+                  className="aui-button-icon size-8.5 p-1"
+                  onClick={() => {
+                    setWebSearch(true);
+                    setPopoverOpen(true);
+                  }}
+                >
+                  <Search className="size-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {t("composer.webSearch.off")}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </div>
 
       <AuiIf condition={(s) => !s.thread.isRunning}>
         <ComposerPrimitive.Send asChild>
           <TooltipIconButton
-            tooltip="Send message"
+            tooltip={t("composer.sendMessage")}
             side="bottom"
             type="button"
             variant="default"
             size="icon"
             className="aui-composer-send size-8 rounded-full"
-            aria-label="Send message"
+            aria-label={t("composer.sendMessage")}
           >
             <ArrowUpIcon className="aui-composer-send-icon size-4" />
           </TooltipIconButton>
@@ -358,7 +413,7 @@ const ComposerAction: FC = () => {
             variant="default"
             size="icon"
             className="aui-composer-cancel size-8 rounded-full"
-            aria-label="Stop generating"
+            aria-label={t("composer.stopGenerating")}
           >
             <SquareIcon className="aui-composer-cancel-icon size-3 fill-current" />
           </Button>
@@ -449,6 +504,7 @@ const AssistantMessage: FC = () => {
 };
 
 const AssistantActionBar: FC = () => {
+  const { t } = useTranslation("common");
   return (
     <ActionBarPrimitive.Root
       hideWhenRunning
@@ -460,7 +516,7 @@ const AssistantActionBar: FC = () => {
         condition={(s) => (s.message as Record<string, unknown>).speech == null}
       >
         <ActionBarPrimitive.Speak asChild>
-          <TooltipIconButton tooltip="Read aloud">
+          <TooltipIconButton tooltip={t("action.readAloud")}>
             <AudioLinesIcon />
           </TooltipIconButton>
         </ActionBarPrimitive.Speak>
@@ -469,13 +525,13 @@ const AssistantActionBar: FC = () => {
         condition={(s) => (s.message as Record<string, unknown>).speech != null}
       >
         <ActionBarPrimitive.StopSpeaking asChild>
-          <TooltipIconButton tooltip="Stop">
+          <TooltipIconButton tooltip={t("action.stop")}>
             <StopCircleIcon />
           </TooltipIconButton>
         </ActionBarPrimitive.StopSpeaking>
       </AuiIf>
       <ActionBarPrimitive.Copy asChild>
-        <TooltipIconButton tooltip="Copy">
+        <TooltipIconButton tooltip={t("action.copy")}>
           <AuiIf condition={(s) => s.message.isCopied}>
             <CheckIcon />
           </AuiIf>
@@ -485,7 +541,7 @@ const AssistantActionBar: FC = () => {
         </TooltipIconButton>
       </ActionBarPrimitive.Copy>
       <ActionBarPrimitive.Reload asChild>
-        <TooltipIconButton tooltip="Refresh">
+        <TooltipIconButton tooltip={t("action.refresh")}>
           <RefreshCwIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Reload>
@@ -494,7 +550,7 @@ const AssistantActionBar: FC = () => {
       <ActionBarMorePrimitive.Root>
         <ActionBarMorePrimitive.Trigger asChild>
           <TooltipIconButton
-            tooltip="More"
+            tooltip={t("action.more")}
             className="data-[state=open]:bg-accent"
           >
             <MoreHorizontalIcon />
@@ -508,7 +564,7 @@ const AssistantActionBar: FC = () => {
           <ActionBarPrimitive.ExportMarkdown asChild>
             <ActionBarMorePrimitive.Item className="aui-action-bar-more-item flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
               <DownloadIcon className="size-4" />
-              Export as Markdown
+              {t("action.exportMarkdown")}
             </ActionBarMorePrimitive.Item>
           </ActionBarPrimitive.ExportMarkdown>
         </ActionBarMorePrimitive.Content>
@@ -548,6 +604,7 @@ const UserMessage: FC = () => {
 };
 
 const UserActionBar: FC = () => {
+  const { t } = useTranslation("common");
   return (
     <ActionBarPrimitive.Root
       hideWhenRunning
@@ -555,7 +612,7 @@ const UserActionBar: FC = () => {
       className="aui-user-action-bar-root flex flex-col items-end"
     >
       <ActionBarPrimitive.Edit asChild>
-        <TooltipIconButton tooltip="Edit" className="aui-user-action-edit p-4">
+        <TooltipIconButton tooltip={t("action.edit")} className="aui-user-action-edit p-4">
           <PencilIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Edit>
@@ -564,6 +621,7 @@ const UserActionBar: FC = () => {
 };
 
 const EditComposer: FC = () => {
+  const { t } = useTranslation("common");
   return (
     <MessagePrimitive.Root
       data-slot="aui_edit-composer-wrapper"
@@ -577,11 +635,11 @@ const EditComposer: FC = () => {
         <div className="aui-edit-composer-footer mx-3 mb-3 flex items-center gap-2 self-end">
           <ComposerPrimitive.Cancel asChild>
             <Button variant="ghost" size="sm">
-              Cancel
+              {t("common.cancel")}
             </Button>
           </ComposerPrimitive.Cancel>
           <ComposerPrimitive.Send asChild>
-            <Button size="sm">Update</Button>
+            <Button size="sm">{t("action.update")}</Button>
           </ComposerPrimitive.Send>
         </div>
       </ComposerPrimitive.Root>
@@ -593,6 +651,7 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
   className,
   ...rest
 }) => {
+  const { t } = useTranslation("common");
   return (
     <BranchPickerPrimitive.Root
       hideWhenSingleBranch
@@ -603,7 +662,7 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
       {...rest}
     >
       <BranchPickerPrimitive.Previous asChild>
-        <TooltipIconButton tooltip="Previous">
+        <TooltipIconButton tooltip={t("branch.previous")}>
           <ChevronLeftIcon />
         </TooltipIconButton>
       </BranchPickerPrimitive.Previous>
@@ -611,7 +670,7 @@ const BranchPicker: FC<BranchPickerPrimitive.Root.Props> = ({
         <BranchPickerPrimitive.Number /> / <BranchPickerPrimitive.Count />
       </span>
       <BranchPickerPrimitive.Next asChild>
-        <TooltipIconButton tooltip="Next">
+        <TooltipIconButton tooltip={t("branch.next")}>
           <ChevronRightIcon />
         </TooltipIconButton>
       </BranchPickerPrimitive.Next>

@@ -61,5 +61,19 @@
   "composer.addAttachment": "Add Attachment",
   "composer.send": "Send",
   "composer.placeholder": "Send a message...",
-  "common.confirm": "Confirm"
+  "common.confirm": "Confirm",
+  "thread.scrollToBottom": "Scroll to bottom",
+  "composer.ariaLabel": "Message input",
+  "composer.sendMessage": "Send message",
+  "composer.stopGenerating": "Stop generating",
+  "action.readAloud": "Read aloud",
+  "action.stop": "Stop",
+  "action.copy": "Copy",
+  "action.refresh": "Refresh",
+  "action.more": "More",
+  "action.exportMarkdown": "Export as Text File",
+  "action.edit": "Edit",
+  "action.update": "Update",
+  "branch.previous": "Previous",
+  "branch.next": "Next"
 }

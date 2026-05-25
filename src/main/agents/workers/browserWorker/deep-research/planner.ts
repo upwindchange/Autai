@@ -21,7 +21,9 @@ const subtopicSchema = z.object({
   rationale: z
     .string()
     .min(1)
-    .describe("Why this subtopic is necessary for answering the overall question"),
+    .describe(
+      "Why this subtopic is necessary for answering the overall question",
+    ),
 });
 
 const deepResearchPlanSchema = z.object({
@@ -32,12 +34,13 @@ const deepResearchPlanSchema = z.object({
   researchQuestion: z
     .string()
     .min(1)
-    .describe("The high-level research question derived from the user's message"),
+    .describe(
+      "The high-level research question derived from the user's message",
+    ),
   subtopics: z
     .array(subtopicSchema)
     .min(2)
-    .max(5)
-    .describe("Independent subtopics to research (2-5)"),
+    .describe("Independent subtopics to research (>2, as many as you need)"),
 });
 
 // ===== Tool =====
@@ -62,7 +65,7 @@ const showDeepResearchPlanTool = tool({
 
 // ===== System Prompt =====
 
-const deepPlannerSystemPrompt = `You are a deep research planner. Analyze the user's question and decompose it into 2-5 independent subtopics that together provide a comprehensive answer.
+const deepPlannerSystemPrompt = `You are a deep research planner. Analyze the user's question and decompose it into independent subtopics (>2, as many as you need) that together provide a comprehensive answer.
 
 ## Your Task
 1. Understand the full scope of the user's question
