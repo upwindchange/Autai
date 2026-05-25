@@ -7,7 +7,7 @@ import {
   streamText,
 } from "ai";
 import { chatModel } from "@agents/providers";
-import { repairToolCall } from "@agents/utils";
+import { repairToolCall, TIMEOUTS } from "@agents/utils";
 import { calculateTool } from "@agents/tools";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
@@ -44,6 +44,7 @@ export class ChatWorker {
         messages: await convertToModelMessages(messages),
         system: `${systemPrompt} ${system || ""}`,
         stopWhen: stopConditions,
+        timeout: TIMEOUTS.chat,
         // tools: {
         //   calculate: calculateTool,
         // },

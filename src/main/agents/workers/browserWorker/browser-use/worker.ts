@@ -17,6 +17,8 @@ import { browserUseTaskExecutor } from "./task-executor";
 import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
+  TIMEOUTS,
+  isTimeoutError,
 } from "@agents/utils";
 
 const logger = log.scope("Browser Use Worker");
@@ -160,6 +162,7 @@ export async function browserUseWorker(
               model: chatModel(),
               messages,
               system: systemPrompt,
+              timeout: TIMEOUTS.chat,
               experimental_telemetry: {
                 isEnabled: settingsService.settings.langfuse.enabled,
                 functionId: "browser-use-summary",
@@ -183,10 +186,17 @@ export async function browserUseWorker(
             error,
             stack: error instanceof Error ? error.stack : undefined,
           });
-          sendAlert(
-            i18n.t("agents.browserUseErrorTitle"),
-            i18n.t("agents.browserUseErrorBody", { error: msg }),
-          );
+          if (isTimeoutError(error)) {
+            sendAlert(
+              i18n.t("agents.timeoutErrorTitle"),
+              i18n.t("agents.timeoutErrorBody"),
+            );
+          } else {
+            sendAlert(
+              i18n.t("agents.browserUseErrorTitle"),
+              i18n.t("agents.browserUseErrorBody", { error: msg }),
+            );
+          }
           return msg;
         },
       });

@@ -22,6 +22,8 @@ import { sourceTools } from "@agents/tools/SourceTools";
 import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
+  TIMEOUTS,
+  isTimeoutError,
 } from "@agents/utils";
 import type {
   SubtopicResult,
@@ -328,6 +330,12 @@ export async function browserDeepResearchWorker(
                   subtopicIndex: subIdx,
                   error: errorMsg,
                 });
+                if (isTimeoutError(error)) {
+                  sendAlert(
+                    i18n.t("agents.timeoutErrorTitle"),
+                    i18n.t("agents.timeoutErrorBody"),
+                  );
+                }
                 subtopicResults.push({
                   subtopic,
                   extractionResults: [],
@@ -358,6 +366,7 @@ export async function browserDeepResearchWorker(
                 messages,
                 system:
                   "You are a research assistant. Inform the user that no relevant search results were found for their query across multiple research subtopics, and suggest they try rephrasing their question.",
+                timeout: TIMEOUTS.chat,
                 experimental_telemetry: {
                   isEnabled: settingsService.settings.langfuse.enabled,
                   functionId: "deep-research-no-results",
@@ -399,6 +408,7 @@ export async function browserDeepResearchWorker(
               messages: compositionMessages,
               system: compositionSystemPrompt,
               tools: sourceTools,
+              timeout: TIMEOUTS.chat,
               experimental_telemetry: {
                 isEnabled: settingsService.settings.langfuse.enabled,
                 functionId: "deep-research-composer",
@@ -421,10 +431,17 @@ export async function browserDeepResearchWorker(
             error,
             stack: error instanceof Error ? error.stack : undefined,
           });
-          sendAlert(
-            i18n.t("agents.researchErrorTitle"),
-            i18n.t("agents.researchErrorBody", { error: msg }),
-          );
+          if (isTimeoutError(error)) {
+            sendAlert(
+              i18n.t("agents.timeoutErrorTitle"),
+              i18n.t("agents.timeoutErrorBody"),
+            );
+          } else {
+            sendAlert(
+              i18n.t("agents.researchErrorTitle"),
+              i18n.t("agents.researchErrorBody", { error: msg }),
+            );
+          }
           return msg;
         },
       });

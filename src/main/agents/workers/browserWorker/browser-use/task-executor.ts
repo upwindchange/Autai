@@ -17,7 +17,7 @@ import log from "electron-log/main";
 import { planInputSchema } from "./planner";
 import type { UIPlanType, UIPlanTodo } from "./planner";
 import { executeSubtasks } from "./action-executor";
-import { hasSuccessfulToolResult } from "@/agents/utils";
+import { hasSuccessfulToolResult, TIMEOUTS, isTimeoutError } from "@/agents/utils";
 
 const logger = log.scope("browser-use-task-executor");
 
@@ -233,6 +233,7 @@ export async function browserUseTaskExecutor(
         },
         experimental_context: context,
         stopWhen: [hasSuccessfulToolResult("plan"), stepCountIs(100)],
+        timeout: TIMEOUTS.planning,
         experimental_telemetry: {
           isEnabled: settingsService.settings.langfuse.enabled,
           functionId: "browser-use-task-executor",
@@ -401,10 +402,17 @@ export async function browserUseTaskExecutor(
         error,
         stack: error instanceof Error ? error.stack : undefined,
       });
-      sendAlert(
-        i18n.t("agents.taskErrorTitle"),
-        i18n.t("agents.taskErrorBody", { error: msg }),
-      );
+      if (isTimeoutError(error)) {
+        sendAlert(
+          i18n.t("agents.timeoutErrorTitle"),
+          i18n.t("agents.timeoutErrorBody"),
+        );
+      } else {
+        sendAlert(
+          i18n.t("agents.taskErrorTitle"),
+          i18n.t("agents.taskErrorBody", { error: msg }),
+        );
+      }
       return msg;
     },
   });

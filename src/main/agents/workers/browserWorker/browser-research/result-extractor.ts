@@ -6,6 +6,8 @@ import {
   hasSuccessfulToolResult,
   writeSimulatedToolCallToStream,
   concurrentBatch,
+  TIMEOUTS,
+  isTimeoutError,
   type BatchStatusUpdate,
   type TaskStatus,
 } from "@agents/utils";
@@ -172,6 +174,7 @@ async function executeSingleExtraction(
         hasSuccessfulToolResult("showExtractionResult"),
         stepCountIs(10),
       ],
+      timeout: TIMEOUTS.planning,
       experimental_telemetry: {
         isEnabled: settingsService.settings.langfuse.enabled,
         functionId: "research-result-extraction",
@@ -226,13 +229,20 @@ async function executeSingleExtraction(
       error: errorMessage,
     });
 
-    sendAlert(
-      i18n.t("agents.extractionErrorTitle"),
-      i18n.t("agents.extractionErrorBody", {
-        title: searchResult.title,
-        error: errorMessage,
-      }),
-    );
+    if (isTimeoutError(error)) {
+      sendAlert(
+        i18n.t("agents.timeoutErrorTitle"),
+        i18n.t("agents.timeoutErrorBody"),
+      );
+    } else {
+      sendAlert(
+        i18n.t("agents.extractionErrorTitle"),
+        i18n.t("agents.extractionErrorBody", {
+          title: searchResult.title,
+          error: errorMessage,
+        }),
+      );
+    }
 
     return {
       url: searchResult.url,

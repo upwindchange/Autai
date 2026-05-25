@@ -1,7 +1,7 @@
 import { streamText, stepCountIs, type ModelMessage, tool } from "ai";
 import { z } from "zod";
 import { complexModel } from "@agents/providers";
-import { hasSuccessfulToolResult } from "@/agents/utils";
+import { hasSuccessfulToolResult, TIMEOUTS } from "@/agents/utils";
 import { settingsService } from "@/services";
 import type { DeepResearchPlan } from "./types";
 import log from "electron-log/main";
@@ -105,6 +105,7 @@ export async function deepResearchPlanner(
       hasSuccessfulToolResult("showDeepResearchPlan"),
       stepCountIs(20),
     ],
+    timeout: TIMEOUTS.planning,
     experimental_context: { sessionId },
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,

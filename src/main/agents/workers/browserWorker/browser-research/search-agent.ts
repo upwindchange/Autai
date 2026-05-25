@@ -6,6 +6,8 @@ import {
   hasSuccessfulToolResult,
   writeSimulatedToolCallToStream,
   concurrentBatch,
+  TIMEOUTS,
+  isTimeoutError,
   type BatchStatusUpdate,
   type TaskStatus,
 } from "@agents/utils";
@@ -299,6 +301,7 @@ async function executeSingleSearchQuery(
         toolName: "showSearchResults",
       },
       stopWhen: [hasSuccessfulToolResult("showSearchResults"), stepCountIs(10)],
+      timeout: TIMEOUTS.planning,
       experimental_telemetry: {
         isEnabled: settingsService.settings.langfuse.enabled,
         functionId: "research-search-analysis",
@@ -346,10 +349,17 @@ async function executeSingleSearchQuery(
       query,
       error: errorMessage,
     });
-    sendAlert(
-      i18n.t("agents.searchErrorTitle"),
-      i18n.t("agents.searchErrorBody", { query, error: errorMessage }),
-    );
+    if (isTimeoutError(error)) {
+      sendAlert(
+        i18n.t("agents.timeoutErrorTitle"),
+        i18n.t("agents.timeoutErrorBody"),
+      );
+    } else {
+      sendAlert(
+        i18n.t("agents.searchErrorTitle"),
+        i18n.t("agents.searchErrorBody", { query, error: errorMessage }),
+      );
+    }
     return [];
   }
 }

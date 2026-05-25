@@ -1,7 +1,7 @@
 import { streamText, stepCountIs, ModelMessage, tool } from "ai";
 import { z } from "zod";
 import { complexModel } from "@agents/providers";
-import { hasSuccessfulToolResult } from "@/agents/utils";
+import { hasSuccessfulToolResult, TIMEOUTS } from "@/agents/utils";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
 
@@ -106,6 +106,7 @@ export async function researchPlanner(
       toolName: "showResearchPlan",
     },
     stopWhen: [hasSuccessfulToolResult("showResearchPlan"), stepCountIs(20)],
+    timeout: TIMEOUTS.planning,
     experimental_context: { sessionId },
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,

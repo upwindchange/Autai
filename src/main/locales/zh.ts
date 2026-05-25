@@ -56,6 +56,9 @@ const zh = {
     actionErrorTitle: "操作错误",
     actionErrorBody: '子任务"{{label}}"失败：{{error}}',
     deepResearchTitle: "深度研究：{{title}}",
+    noResultsFound: "未找到与您查询相关的搜索结果，请尝试换个说法或使用不同的关键词。",
+    timeoutErrorTitle: "请求超时",
+    timeoutErrorBody: "请求耗时过长已自动取消，请重试。",
   },
 };
 

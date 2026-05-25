@@ -1,5 +1,6 @@
 import { streamText, type ModelMessage } from "ai";
 import { chatModel } from "@agents/providers";
+import { TIMEOUTS } from "@agents/utils";
 import { settingsService } from "@/services";
 import type { ExtractionResult } from "./result-extractor";
 import type { SearchResultItem } from "./search-agent";
@@ -78,6 +79,7 @@ ${quotesText}`;
     messages: summaryMessages,
     system: summarizerSystemPrompt,
     tools: sourceTools,
+    timeout: TIMEOUTS.chat,
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "research-summarizer",
@@ -125,6 +127,7 @@ Snippet: ${result.snippet}`;
     messages: summaryMessages,
     system: summarizerSystemPrompt,
     tools: sourceTools,
+    timeout: TIMEOUTS.chat,
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "research-summarizer-quick",

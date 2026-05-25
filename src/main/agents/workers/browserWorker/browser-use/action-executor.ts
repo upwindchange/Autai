@@ -9,6 +9,8 @@ import {
   writeSimulatedToolCallToStream,
   mergeStreamAndWait,
   createToolFilteredStream,
+  TIMEOUTS,
+  isTimeoutError,
 } from "@agents/utils";
 import log from "electron-log/main";
 import { interactiveTools } from "@agents/tools/InteractiveTools";
@@ -301,6 +303,7 @@ export async function executeSubtasks(
               hasSuccessfulToolResult("subtaskComplete"),
               stepCountIs(100),
             ],
+            timeout: TIMEOUTS.actionExecution,
             experimental_telemetry: {
               isEnabled: settingsService.settings.langfuse.enabled,
               functionId: "browser-use-action-executor",
@@ -418,13 +421,20 @@ export async function executeSubtasks(
             error,
           });
 
-          sendAlert(
-            i18n.t("agents.actionErrorTitle"),
-            i18n.t("agents.actionErrorBody", {
-              label: subtask.label,
-              error: msg,
-            }),
-          );
+          if (isTimeoutError(error)) {
+            sendAlert(
+              i18n.t("agents.timeoutErrorTitle"),
+              i18n.t("agents.timeoutErrorBody"),
+            );
+          } else {
+            sendAlert(
+              i18n.t("agents.actionErrorTitle"),
+              i18n.t("agents.actionErrorBody", {
+                label: subtask.label,
+                error: msg,
+              }),
+            );
+          }
 
           // Mark subtask as cancelled
           subtask.status = "cancelled";
@@ -455,10 +465,17 @@ export async function executeSubtasks(
         error,
         stack: error instanceof Error ? error.stack : undefined,
       });
-      sendAlert(
-        i18n.t("agents.actionErrorTitle"),
-        i18n.t("agents.actionErrorBody", { label: "unknown", error: msg }),
-      );
+      if (isTimeoutError(error)) {
+        sendAlert(
+          i18n.t("agents.timeoutErrorTitle"),
+          i18n.t("agents.timeoutErrorBody"),
+        );
+      } else {
+        sendAlert(
+          i18n.t("agents.actionErrorTitle"),
+          i18n.t("agents.actionErrorBody", { label: "unknown", error: msg }),
+        );
+      }
       return msg;
     },
   });

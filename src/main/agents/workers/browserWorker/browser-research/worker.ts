@@ -1,12 +1,10 @@
 import {
-  streamText,
   createUIMessageStream,
   UIMessageChunk,
   ModelMessage,
   type UIMessage,
 } from "ai";
-import { chatModel } from "@agents/providers";
-import { settingsService, SessionTabService } from "@/services";
+import { SessionTabService } from "@/services";
 import { i18n } from "@/i18n";
 import { sendAlert } from "@/utils/messageUtils";
 import { flushTelemetry } from "@/agents/utils/telemetry";
@@ -19,6 +17,7 @@ import { summarizeFindings, summarizeFindingsFromSnippets } from "./summarizer";
 import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
+  isTimeoutError,
 } from "@agents/utils";
 
 const logger = log.scope("Browser Research Worker");
@@ -123,21 +122,14 @@ export async function browserResearchWorker(
             });
 
             if (searchResults.length === 0) {
-              // No results found - stream a message and return
-              const noResultStream = streamText({
-                model: chatModel(),
-                messages,
-                system:
-                  "You are a research assistant. Inform the user that no relevant search results were found for their query and suggest they try rephrasing their question.",
-                experimental_telemetry: {
-                  isEnabled: settingsService.settings.langfuse.enabled,
-                  functionId: "research-no-results",
-                },
+              const textId = "text-no-results";
+              writer.write({ type: "text-start", id: textId });
+              writer.write({
+                type: "text-delta",
+                id: textId,
+                delta: i18n.t("agents.noResultsFound"),
               });
-              await mergeStreamAndWait(
-                noResultStream.toUIMessageStream({ sendStart: false }),
-                writer,
-              );
+              writer.write({ type: "text-end", id: textId });
               return;
             }
 
@@ -198,10 +190,17 @@ export async function browserResearchWorker(
             error,
             stack: error instanceof Error ? error.stack : undefined,
           });
-          sendAlert(
-            i18n.t("agents.researchErrorTitle"),
-            i18n.t("agents.researchErrorBody", { error: msg }),
-          );
+          if (isTimeoutError(error)) {
+            sendAlert(
+              i18n.t("agents.timeoutErrorTitle"),
+              i18n.t("agents.timeoutErrorBody"),
+            );
+          } else {
+            sendAlert(
+              i18n.t("agents.researchErrorTitle"),
+              i18n.t("agents.researchErrorBody", { error: msg }),
+            );
+          }
           return msg;
         },
       });
