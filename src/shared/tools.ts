@@ -14,7 +14,6 @@ export const presentSourcesToolSchema = z.object({
       }),
     )
     .min(1)
-    .max(10)
     .describe("Sources to present to the user"),
 });
 

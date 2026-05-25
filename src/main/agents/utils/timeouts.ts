@@ -2,16 +2,16 @@ import type { TimeoutConfiguration } from "ai";
 
 export const TIMEOUTS = {
   /** Interactive chat, summaries — user is waiting */
-  chat: { stepMs: 120_000, chunkMs: 60_000 } satisfies TimeoutConfiguration,
+  chat: { stepMs: 300_000, chunkMs: 120_000 } satisfies TimeoutConfiguration,
   /** Planning agents — single-step tool calls */
   planning: {
-    stepMs: 120_000,
-    chunkMs: 60_000,
+    stepMs: 300_000,
+    chunkMs: 120_000,
   } satisfies TimeoutConfiguration,
   /** Action execution — multi-step browser automation loops */
   actionExecution: {
-    stepMs: 120_000,
-    chunkMs: 60_000,
+    stepMs: 480_000,
+    chunkMs: 120_000,
   } satisfies TimeoutConfiguration,
 } as const;
 

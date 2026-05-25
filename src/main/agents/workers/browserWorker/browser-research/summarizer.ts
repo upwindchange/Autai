@@ -29,8 +29,8 @@ When your response can benefit from a visual diagram, output a mermaid code bloc
 
 ## Citation Format
 - Use numbered citations like [1], [2], etc. inline
-- Do NOT list sources in the response text — instead, call the sourceTools tool to present them
-- When calling sourceTools, list sources in the same order as their citation numbers [1], [2], ...
+- Do NOT list sources in the response text — instead, call the presentSources tool to present them
+- When calling presentSources, list sources in the same order as their citation numbers [1], [2], ...
 
 ## Math
 For inline math expressions, use double dollar signs like $$E = mc^2$$. Never use single dollar signs for math.`;

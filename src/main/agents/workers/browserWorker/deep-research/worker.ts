@@ -18,7 +18,6 @@ import type { ResearchPlan } from "../browser-research/planner";
 import { executeSearchQueries } from "../browser-research/search-agent";
 import { extractResultsFromUrls } from "../browser-research/result-extractor";
 import { summarizeFindings } from "../browser-research/summarizer";
-import { sourceTools } from "@agents/tools/SourceTools";
 import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
@@ -96,17 +95,17 @@ const compositionSystemPrompt = `You are a research synthesis agent. You are giv
 5. Add transitional sentences between sections for smooth reading.
 6. Organize information by theme, not by subtopic order.
 7. If information is incomplete across subtopics, acknowledge what could not be found.
-8. After writing your answer, call the presentSources tool with every unique source URL you referenced so the user can visit them.
 
 ## Structure
 - Start with a table of contents
 - Use journal article format
-- use the abstract section to briefly answering the user's question
+- Use the abstract section to briefly answer the user's question
 - Organize information logically by theme
 - Use headers or sections
 - End with a brief conclusion
-- Do NOT list sources in the response text — instead, call the sourceTools tool to present them
-- When calling sourceTools, list sources in the same order as their citation numbers [1], [2], ...
+
+## Visualization
+When your response can benefit from a visual diagram, output a mermaid code block using one of these chart types: Flowchart, Sequence Diagram, Class Diagram, State Diagram, Entity Relationship Diagram, User Journey, Gantt, Pie Chart, Quadrant Chart, Requirement Diagram, GitGraph, C4 Diagram, Mindmap, Timeline, ZenUML, Sankey, XY Chart, Block Diagram, Packet, Kanban, Architecture, Radar, Event Modeling, Treemap, Venn, Ishikawa, Wardley, TreeView
 
 ## Math
 For inline math expressions, use double dollar signs like $$E = mc^2$$. Never use single dollar signs for math.`;
@@ -410,7 +409,6 @@ export async function browserDeepResearchWorker(
               model: chatModel(),
               messages: compositionMessages,
               system: compositionSystemPrompt,
-              tools: sourceTools,
               timeout: TIMEOUTS.chat,
               experimental_telemetry: {
                 isEnabled: settingsService.settings.langfuse.enabled,
@@ -422,6 +420,19 @@ export async function browserDeepResearchWorker(
               compositionResult.toUIMessageStream({ sendStart: false }),
               writer,
             );
+
+            // Present sources directly to the UI
+            const presentableSources = globalCitations.map((c) => ({
+              url: c.url,
+              title: c.title,
+            }));
+            writeSimulatedToolCallToStream({
+              writer,
+              toolCallId: `deep-sources-${sessionId}`,
+              toolName: "presentSources",
+              input: { sources: presentableSources },
+              output: { sources: presentableSources },
+            });
 
             logger.info("Deep research workflow completed successfully");
           } finally {

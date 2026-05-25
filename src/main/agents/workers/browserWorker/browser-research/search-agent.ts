@@ -301,7 +301,7 @@ async function executeSingleSearchQuery(
         toolName: "showSearchResults",
       },
       stopWhen: [hasSuccessfulToolResult("showSearchResults"), stepCountIs(10)],
-      timeout: TIMEOUTS.planning,
+      timeout: TIMEOUTS.actionExecution,
       experimental_telemetry: {
         isEnabled: settingsService.settings.langfuse.enabled,
         functionId: "research-search-analysis",

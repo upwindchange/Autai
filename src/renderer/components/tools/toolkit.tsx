@@ -256,8 +256,9 @@ export const frontendToolkit: Toolkit = {
   presentSources: {
     type: "backend",
     render: ({ result }) => {
-      const { sources } = result as {
-        sources: Array<{ url: string; title?: string }>;
+      if (!result) return null;
+      const { sources = [] } = result as {
+        sources?: Array<{ url: string; title?: string }>;
       };
       return (
         <div className="flex flex-wrap gap-1.5 my-1">

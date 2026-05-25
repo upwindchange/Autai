@@ -174,7 +174,7 @@ async function executeSingleExtraction(
         hasSuccessfulToolResult("showExtractionResult"),
         stepCountIs(10),
       ],
-      timeout: TIMEOUTS.planning,
+      timeout: TIMEOUTS.actionExecution,
       experimental_telemetry: {
         isEnabled: settingsService.settings.langfuse.enabled,
         functionId: "research-result-extraction",
