@@ -166,18 +166,18 @@ function buildSubtaskContext(
 ): string {
   let context = "";
 
-  // Add previously completed subtasks
+  // Add previously completed tasks
   if (previousSubtasks.length > 0) {
     const completedSubtasks = previousSubtasks.filter(
       (s) => s.status === "completed",
     );
     if (completedSubtasks.length > 0) {
-      context += `## Previously Completed Subtasks:\n${JSON.stringify(completedSubtasks, null, 2)}\n\n`;
+      context += `## Previously Completed Tasks:\n${JSON.stringify(completedSubtasks, null, 2)}\n\n`;
     }
   }
 
-  // Add current subtask
-  context += `## Current Subtask to Execute:\n${JSON.stringify(subtask, null, 2)}`;
+  // Add current task
+  context += `## Current Task to Execute:\n${JSON.stringify(subtask, null, 2)}`;
 
   return context;
 }
@@ -189,22 +189,22 @@ function buildSubtaskContext(
 /**
  * Execute subtasks sequentially using streamText
  *
- * Modifies subtaskPlan in-place - no need to return it.
+ * Modifies plan in-place - no need to return it.
  * Returns a StreamTextResult that streams all subtask executions.
  *
- * @param subtaskPlan - The subtask plan to execute (modified in-place)
+ * @param plan - The subtask plan to execute (modified in-place)
  * @param sessionId - The current session ID
- * @param subtaskPlanToolCallId - The toolCallId from the subtask planner's plan tool call, used to update the subtask plan UI in-place
+ * @param planToolCallId - The toolCallId from the planner's plan tool call, used to update the plan UI in-place
  * @returns StreamTextResult that streams all subtask executions
  */
 export async function executeSubtasks(
-  subtaskPlan: UIPlanType,
+  plan: UIPlanType,
   sessionId: string,
-  subtaskPlanToolCallId: string,
+  planToolCallId: string,
 ): Promise<ReturnType<typeof createUIMessageStream>> {
   logger.debug("Starting subtask execution stream", {
     sessionId,
-    subtaskCount: subtaskPlan.todos.length,
+    subtaskCount: plan.todos.length,
   });
 
   // ============================================================
@@ -233,9 +233,9 @@ export async function executeSubtasks(
       // ============================================================
       // EXECUTE SUBTASKS SEQUENTIALLY
       // ============================================================
-      for (let i = 0; i < subtaskPlan.todos.length; i++) {
-        const subtask = subtaskPlan.todos[i];
-        const completedSubtasks = subtaskPlan.todos.slice(0, i);
+      for (let i = 0; i < plan.todos.length; i++) {
+        const subtask = plan.todos[i];
+        const completedSubtasks = plan.todos.slice(0, i);
 
         logger.debug("Executing subtask", {
           subtaskId: subtask.id,
@@ -250,13 +250,13 @@ export async function executeSubtasks(
           subtask.status = "in_progress";
           writeSimulatedToolCallToStream({
             writer,
-            toolCallId: subtaskPlanToolCallId,
+            toolCallId: planToolCallId,
             toolName: "plan",
             input: {
-              title: subtaskPlan.title,
-              todos: subtaskPlan.todos,
+              title: plan.title,
+              todos: plan.todos,
             },
-            output: subtaskPlan,
+            output: plan,
           });
 
           // ============================================================
@@ -375,7 +375,7 @@ export async function executeSubtasks(
           subtask.status = success ? "completed" : "cancelled";
 
           // Populate receipt with completion result for task executor
-          subtaskPlan.receipt = {
+          plan.receipt = {
             outcome: success ? "success" : "cancelled",
             summary,
             at: new Date().toISOString(),
@@ -384,13 +384,13 @@ export async function executeSubtasks(
           // Stream the subtask status to the frontend
           writeSimulatedToolCallToStream({
             writer,
-            toolCallId: subtaskPlanToolCallId,
+            toolCallId: planToolCallId,
             toolName: "plan",
             input: {
-              title: subtaskPlan.title,
-              todos: subtaskPlan.todos,
+              title: plan.title,
+              todos: plan.todos,
             },
-            output: subtaskPlan,
+            output: plan,
           });
 
           logger.debug("Simulated plan tool call for subtask status", {
@@ -449,12 +449,12 @@ export async function executeSubtasks(
       // ============================================================
       if (allSuccessful) {
         logger.info("All subtasks completed successfully", {
-          totalSubtasks: subtaskPlan.todos.length,
+          totalSubtasks: plan.todos.length,
         });
       } else {
         logger.info("Some subtasks failed", {
-          totalSubtasks: subtaskPlan.todos.length,
-          failedCount: subtaskPlan.todos.filter((t) => t.status === "cancelled")
+          totalSubtasks: plan.todos.length,
+          failedCount: plan.todos.filter((t) => t.status === "cancelled")
             .length,
         });
       }

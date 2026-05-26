@@ -9,17 +9,14 @@ export class SessionTabBridge extends BaseBridge {
   }
 
   setupHandlers(): void {
-    // Thread lifecycle handlers (one-way, no response needed)
-    this.on<SessionId>("sessiontab:created", async (_, threadId) => {
-      await this.sessionTabService.createSession(threadId);
+    // Session activation — ensures session exists and makes it active
+    this.on<SessionId>("sessiontab:activate", async (_, sessionId) => {
+      await this.sessionTabService.activateSession(sessionId);
     });
 
-    this.on<SessionId>("sessiontab:switched", async (_, threadId) => {
-      await this.sessionTabService.switchSession(threadId);
-    });
-
-    this.on<SessionId>("sessiontab:deleted", async (_, threadId) => {
-      await this.sessionTabService.deleteSession(threadId);
+    // Session deletion
+    this.on<SessionId>("sessiontab:deleted", async (_, sessionId) => {
+      await this.sessionTabService.deleteSession(sessionId);
     });
 
     // Thread query handlers (need response)
@@ -31,18 +28,15 @@ export class SessionTabBridge extends BaseBridge {
       },
     );
 
-    // View visibility handlers (one-way, no response needed)
-    this.on<{ viewId: TabId; isVisible: boolean; sessionId?: SessionId }>(
+    // View visibility (one-way, no response needed)
+    this.on<{ isVisible: boolean }>(
       "sessiontab:setVisibility",
-      async (_, { isVisible, sessionId }) => {
-        await this.sessionTabService.setFrontendVisibility(
-          isVisible,
-          sessionId,
-        );
+      async (_, { isVisible }) => {
+        await this.sessionTabService.setFrontendVisibility(isVisible);
       },
     );
 
-    // View bounds handlers (one-way, no response needed)
+    // View bounds (one-way, no response needed)
     this.on<{ bounds: Rectangle }>(
       "sessiontab:setBounds",
       async (_, { bounds }) => {

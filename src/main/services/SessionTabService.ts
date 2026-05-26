@@ -1,9 +1,12 @@
 import { WebContentsView, BrowserWindow, Rectangle } from "electron";
 import { EventEmitter } from "events";
+import path from "node:path";
+import fs from "node:fs";
 import type { SessionId, TabId, sessionTabState } from "@shared";
 import { DOMService } from "./dom";
 import { ElementInteractionService } from "./interaction/ElementInteractionService";
 import { applyFingerprintObfuscation } from "@/utils/fingerprintObfuscation";
+import { i18n } from "@/i18n";
 import log from "electron-log/main";
 
 interface TabMetadata {
@@ -61,13 +64,17 @@ export class SessionTabService extends EventEmitter {
   // SESSION LIFECYCLE
   // ===================
 
-  async createSession(sessionId: SessionId): Promise<void> {
-    if (this.sessionStates.has(sessionId)) {
-      this.logger.info(`Session ${sessionId} already exists, switching to it`);
-      this.activeSessionId = sessionId;
-      return;
-    }
+  async activateSession(sessionId: SessionId): Promise<void> {
+    if (this.activeSessionId === sessionId) return;
 
+    if (!this.sessionStates.has(sessionId)) {
+      await this.createSession(sessionId);
+    } else {
+      await this.switchSession(sessionId);
+    }
+  }
+
+  private async createSession(sessionId: SessionId): Promise<void> {
     // Initialize session state
     this.sessionStates.set(sessionId, {
       sessionId: sessionId,
@@ -90,7 +97,7 @@ export class SessionTabService extends EventEmitter {
     this.logger.info(`Initial tab ${tabId} created for session ${sessionId}`);
   }
 
-  async switchSession(sessionId: SessionId): Promise<void> {
+  private async switchSession(sessionId: SessionId): Promise<void> {
     this.logger.info(
       `Switching from session ${this.activeSessionId} to ${sessionId}`,
     );
@@ -232,14 +239,21 @@ export class SessionTabService extends EventEmitter {
       this.logger.debug("page loaded");
       setupDOMBuilding();
     } else {
-      // Load about:blank to ensure DOM tree exists
-      this.logger.debug("Loading about:blank to initialize DOM");
-      await tab.webContents.loadURL("about:blank");
+      // Load localized welcome page as default content
+      const welcomePath = path.join(
+        process.env.APP_ROOT!,
+        "resources",
+        "welcome.html",
+      );
+      let html = fs.readFileSync(welcomePath, "utf-8");
+      html = html.replace(/\{\{([^}]+)\}\}/g, (_, key) => i18n.t(`welcome.${key}`));
+      const dataUrl = `data:text/html,${encodeURIComponent(html)}`;
+      this.logger.debug("Loading welcome page to initialize DOM");
+      await tab.webContents.loadURL(dataUrl);
       setupDOMBuilding();
     }
 
     this.logger.info("createTab", tabId, sessionId);
-    this.emit("sessiontab:created", { tabId, sessionId });
     return tabId;
   }
 
@@ -343,25 +357,8 @@ export class SessionTabService extends EventEmitter {
   // VISIBILITY MANAGEMENT
   // ===================
 
-  async setFrontendVisibility(
-    isVisible: boolean,
-    sessionId?: SessionId,
-  ): Promise<void> {
+  async setFrontendVisibility(isVisible: boolean): Promise<void> {
     this.frontendVisibility = isVisible;
-
-    // When showing and a session ID is provided, switch to it
-    if (isVisible && sessionId && sessionId !== this.activeSessionId) {
-      if (this.sessionStates.has(sessionId)) {
-        await this.switchSession(sessionId);
-        return;
-      }
-      // Session doesn't exist yet — store frontendVisibility=true and
-      // let createSession (called later) handle showing the tab
-      this.logger.debug(
-        `Frontend visibility set to true for pending session ${sessionId}`,
-      );
-      return;
-    }
 
     // Update visibility for the active session's active tab
     if (this.activeSessionId) {

@@ -79,7 +79,7 @@ const generatePlanTool = tool({
     const plan = {
       ...input,
       id: `plan-${context.sessionId}`,
-      maxVisibleTodos: 4,
+      maxVisibleTodos: 6,
     };
     // Populate todo ids
     plan.todos = plan.todos.map((todo, index) => ({
@@ -93,7 +93,7 @@ const generatePlanTool = tool({
 
 // ===== System Prompt =====
 
-const plannerSystemPrompt = `You are a browser automation planner. Break down the user's request into logical high-level tasks.
+const plannerSystemPrompt = `You are a browser automation planner. Break down the user's request into specific, actionable steps that can be directly executed using browser tools.
 
 ## Your Capabilities
 You can control browsers: navigate, interact with pages, fill forms, extract information, and coordinate multi-page workflows.
@@ -101,22 +101,38 @@ You can control browsers: navigate, interact with pages, fill forms, extract inf
 ## Planning Strategy
 1. Understand what the user wants to accomplish
 2. Identify the logical flow - what must happen first, then next
-3. Break into 3-10 major tasks that represent coherent phases
+3. Break into actionable steps at the instruction level
 
 ## Plan Format
 Generate a plan with this structure:
 - title: Short human-readable title of the plan
-- description: Optional detailed description
+- description: Detailed description of the plan
 - todos: Array of todo items, where each todo has:
-  - label: Short title of the step
+  - label: Brief action title (e.g., "Navigate to login page and locate login form")
   - status: Always start with "pending"
-  - description: Detailed description of what this step involves
+  - description: Clear instructions on what this step should accomplish
+
+## Step Guidelines
+- Group related actions together into coherent steps
+- Browser and tab are always available. Do NOT plan setup tasks like "open browser" or "ensure tab is ready"
+- Write instructional descriptions that guide the action-executor agent
+- Do NOT break into atomic actions (click, type). That is for the action-executor agent
+- Consider page state from previous steps when writing instructions
+- Do NOT design a task to dismiss popup/overlay
+
+## Example
+If the user wants to "Log in to example.com and check messages", create:
+1. "Navigate to example.com" - Go to the website URL
+2. "Locate and navigate to the login portal" - Find and access the login page
+3. "Find the username and password input fields" - Locate the login form elements
+4. "Fill in the credentials and submit" - Enter username and password, submit the form
+5. "Navigate to the messages section" - After login, go to the messages area
+6. "Review and summarize messages" - Read the messages and provide a summary
 
 ## Important
-- Each todo will be expanded into subtasks by another AI
-- Think at the "what" level, not "how"
-- Example: "Log in to the site" is ONE task. Another AI will expand it to: find login form → enter username → enter password → submit
-- If complex, break into more tasks rather than fewer
+- Produce steps that can each be accomplished as a unit of browser interaction
+- Think at the "instructional" level - what the action executor should do, not individual clicks
+- If complex, break into more steps rather than fewer
 
 ## Tool Usage
 Call generatePlan with the complete plan (including title, description, todos array).
@@ -162,6 +178,137 @@ export async function browserUsePlanner(
   // Log when plan generation completes (in background)
   result.finishReason.then((reason) => {
     logger.info("Planner stream completed", {
+      finishReason: reason,
+    });
+  });
+
+  return result;
+}
+
+// ===== Replanner =====
+
+/**
+ * Build system prompt for replanning after a task failure
+ */
+function buildReplannerSystemPrompt(
+  previousPlan: UIPlanType,
+  failedTodoIndex: number,
+): string {
+  const completedTodos = previousPlan.todos
+    .slice(0, failedTodoIndex)
+    .filter((t) => t.status === "completed");
+  const failedTodo = previousPlan.todos[failedTodoIndex];
+  const remainingTodos = previousPlan.todos
+    .slice(failedTodoIndex + 1)
+    .filter((t) => t.status === "pending");
+
+  let completedSection = "";
+  if (completedTodos.length > 0) {
+    completedSection = `
+## Already Completed
+${JSON.stringify(completedTodos, null, 2)}`;
+  }
+
+  let remainingSection = "";
+  if (remainingTodos.length > 0) {
+    remainingSection = `
+## Remaining Steps (not yet attempted)
+${JSON.stringify(remainingTodos, null, 2)}`;
+  }
+
+  return `You are replanning a browser automation task that encountered a failure.
+
+## Original Goal
+${previousPlan.description}
+
+${completedSection}
+
+## Failed Step
+${JSON.stringify(failedTodo, null, 2)}
+
+${remainingSection}
+
+## Your Responsibility
+1. Analyze what went wrong and adjust the approach
+2. Replan the failed step and any remaining steps
+3. Consider whether remaining steps need modification given the failure
+4. Do NOT include already-completed steps
+5. Do NOT simply repeat the same plan - adjust based on the failure
+
+## Step Guidelines
+- Group related actions together into coherent steps
+- Browser and tab are always available. Do NOT plan setup tasks like "open browser" or "ensure tab is ready"
+- Write instructional descriptions that guide the action-executor agent
+- Do NOT break into atomic actions (click, type). That is for the action-executor agent
+- Consider page state from previous steps when writing instructions
+- Do NOT design a task to dismiss popup/overlay
+
+## Plan Format
+Generate a plan with this structure:
+- title: Short human-readable title of the plan
+- description: Detailed description of the plan
+- todos: Array of todo items, where each todo has:
+  - label: Brief action title
+  - status: Always start with "pending"
+  - description: Clear instructions on what this step should accomplish
+
+## Tool Usage
+Call generatePlan with the revised plan for remaining work.`;
+}
+
+/**
+ * Replan after a task failure
+ *
+ * Produces a new plan for the remaining work, taking into account
+ * which steps completed and why the current step failed.
+ */
+export async function browserUseReplanner(
+  sessionId: string,
+  previousPlan: UIPlanType,
+  failedTodoIndex: number,
+) {
+  logger.debug("Starting replanner", {
+    sessionId,
+    failedTodoIndex,
+    previousPlanId: previousPlan.id,
+  });
+
+  const systemPrompt = buildReplannerSystemPrompt(
+    previousPlan,
+    failedTodoIndex,
+  );
+
+  const result = streamText({
+    model: complexModel(),
+    messages: [
+      {
+        role: "user",
+        content: "Create the revised plan for the remaining work.",
+      },
+    ],
+    system: systemPrompt,
+    tools: {
+      plan: generatePlanTool,
+    },
+    toolChoice: {
+      type: "tool",
+      toolName: "plan",
+    },
+    stopWhen: [hasSuccessfulToolResult("plan"), stepCountIs(100)],
+    timeout: TIMEOUTS.planning,
+    experimental_context: { sessionId },
+    experimental_telemetry: {
+      isEnabled: settingsService.settings.langfuse.enabled,
+      functionId: "browser-use-replanner",
+      metadata: {
+        failedTodoIndex,
+        previousPlanId: previousPlan.id,
+      },
+    },
+  });
+
+  result.finishReason.then((reason) => {
+    logger.info("Replanner stream completed", {
       finishReason: reason,
     });
   });

@@ -8,7 +8,7 @@ import {
 } from "ai";
 import { chatModel } from "@agents/providers";
 import { repairToolCall, TIMEOUTS } from "@agents/utils";
-import { calculateTool } from "@agents/tools";
+// import { calculateTool } from "@agents/tools";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
 const systemPrompt = `When your response can benefit from a visual diagram, output a mermaid code block using one of these chart types: Flowchart, Sequence Diagram, Class Diagram, State Diagram, Entity Relationship Diagram, User Journey, Gantt, Pie Chart, Quadrant Chart, Requirement Diagram, GitGraph, C4 Diagram, Mindmap, Timeline, ZenUML, Sankey, XY Chart, Block Diagram, Packet, Kanban, Architecture, Radar, Event Modeling, Treemap, Venn, Ishikawa, Wardley, TreeView

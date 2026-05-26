@@ -38,7 +38,6 @@ import {
   ResizablePanel,
   ResizableHandle,
 } from "@/components/ui/resizable";
-import { WorkspaceWelcome } from "@/components/ai-chat/workspace-welcome";
 import { useTagStore } from "@/stores/tagStore";
 import type { TagRow } from "@shared/tag";
 import { useRemoteThreadListRuntime } from "@assistant-ui/react";
@@ -130,16 +129,6 @@ function AppContent() {
   // Sync tab visibility with container state (moved from Thread)
   useTabVisibility();
 
-  // Switch to settings-session when settings opens, switch back to thread when closed
-  const mainTabId = useAuiState(({ threads }) => threads.mainThreadId);
-  useEffect(() => {
-    if (showSettings) {
-      window.ipcRenderer.send("sessiontab:switched", "settings-session");
-    } else if (mainTabId) {
-      window.ipcRenderer.send("sessiontab:switched", mainTabId);
-    }
-  }, [showSettings, mainTabId]);
-
   const workspaceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -189,17 +178,13 @@ function AppContent() {
                       {showSettings ?
                         <SettingsView />
                       : <Thread />}
+                      <div id="chat-panel-portal" />
                     </div>
                   </div>
                 </ResizablePanel>
                 <ResizableHandle withHandle />
                 <ResizablePanel defaultSize={50} minSize={30}>
-                  <div
-                    ref={workspaceRef}
-                    className="h-full bg-muted/30 flex flex-col items-center justify-center text-muted-foreground overflow-auto"
-                  >
-                    <WorkspaceWelcome />
-                  </div>
+                  <div ref={workspaceRef} className="h-full" />
                 </ResizablePanel>
               </ResizablePanelGroup>
             : <>
@@ -208,6 +193,7 @@ function AppContent() {
                   {showSettings ?
                     <SettingsView />
                   : <Thread />}
+                  <div id="chat-panel-portal" />
                 </div>
               </>
             }

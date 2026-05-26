@@ -6,11 +6,11 @@
   "btn.cancel": "取消",
   "btn.save": "保存",
   "btn.loading": "加载中...",
-  "theme.system": "跟随系统",
-  "theme.light": "浅色",
-  "theme.dark": "深色",
-  "splitView.show": "显示分屏",
-  "splitView.hide": "隐藏分屏",
+  "theme.system": "跟随系统主题颜色",
+  "theme.light": "浅色主题",
+  "theme.dark": "深色主题",
+  "splitView.label": "分屏浏览",
+  "splitView.tooltip": "在研究和浏览器使用模式下，分屏查看网页操作",
   "settings.navLabel": "设置",
   "value.unknown": "未知",
   "sidebar.toggle": "切换侧边栏",
@@ -85,5 +85,7 @@
   "linkSafety.openInAutai": "在Autai中打开",
   "source.openInExternalBrowser": "在浏览器中打开",
   "source.openInAutai": "在Autai中打开",
-  "source.copyLink": "复制链接"
+  "source.copyLink": "复制链接",
+  "greeting.title": "你好！",
+  "greeting.subtitle": "有什么我能帮你的？"
 }

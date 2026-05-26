@@ -1,54 +1,24 @@
-import { useEffect, useRef } from "react";
-import { useAuiEvent } from "@assistant-ui/react";
+import { useEffect } from "react";
+import { useAuiState } from "@assistant-ui/react";
+import { useUiStore } from "@/stores/uiStore";
 import log from "electron-log/renderer";
 
 const logger = log.scope("useSessionLifecycle");
 
 /**
- * Hook that bridges assistant-ui v0.12 session events to backend IPC.
- * Handles session lifecycle events: creation, switching, and deletion.
+ * Hook that activates the appropriate backend session based on UI state.
+ * Derives the active session from showSettings and mainTabId, and sends
+ * sessiontab:activate to ensure the session exists and is made active.
  */
 export function useSessionLifecycle() {
-  const previousSessionIdRef = useRef<string | null>(null);
+  const showSettings = useUiStore((s) => s.showSettings);
+  const mainTabId = useAuiState(({ threads }) => threads.mainThreadId);
+  const activeSessionId = showSettings ? "settings-session" : mainTabId;
 
-  // Handle session switch events (scope: "*" to capture events at app root level)
-  useAuiEvent({ event: "threadListItem.switchedTo", scope: "*" }, (event) => {
-    logger.debug("session switch event", { sessionId: event.threadId });
-
-    if (event.threadId && event.threadId !== previousSessionIdRef.current) {
-      logger.debug("sending sessiontab:switched ipc", {
-        sessionId: event.threadId,
-      });
-      window.ipcRenderer.send("sessiontab:switched", event.threadId);
-      previousSessionIdRef.current = event.threadId;
-    }
-  });
-
-  // Handle session initialization
-  useAuiEvent("thread.initialize", (event) => {
-    logger.debug("session initialize event", { sessionId: event.threadId });
-
-    if (event.threadId) {
-      logger.debug("sending sessiontab:created ipc", {
-        sessionId: event.threadId,
-      });
-      window.ipcRenderer.send("sessiontab:created", event.threadId);
-      previousSessionIdRef.current = event.threadId;
-    }
-  });
-
-  // Handle session cleanup (when component unmounts)
   useEffect(() => {
-    return () => {
-      if (previousSessionIdRef.current) {
-        logger.debug("cleanup: sending sessiontab:deleted ipc", {
-          sessionId: previousSessionIdRef.current,
-        });
-        window.ipcRenderer.send(
-          "sessiontab:deleted",
-          previousSessionIdRef.current,
-        );
-      }
-    };
-  }, []);
+    if (activeSessionId) {
+      logger.debug("activating session", { activeSessionId });
+      window.ipcRenderer.send("sessiontab:activate", activeSessionId);
+    }
+  }, [activeSessionId]);
 }

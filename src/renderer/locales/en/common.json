@@ -6,11 +6,11 @@
   "btn.cancel": "Cancel",
   "btn.save": "Save",
   "btn.loading": "Loading...",
-  "theme.system": "System",
-  "theme.light": "Light",
-  "theme.dark": "Dark",
-  "splitView.show": "Show Split View",
-  "splitView.hide": "Hide Split View",
+  "theme.system": "Follow system theme",
+  "theme.light": "Light theme",
+  "theme.dark": "Dark theme",
+  "splitView.label": "Split View",
+  "splitView.tooltip": "View webpages alongside chat in research and browser use modes",
   "settings.navLabel": "Settings",
   "value.unknown": "Unknown",
   "sidebar.toggle": "Toggle Sidebar",
@@ -85,5 +85,7 @@
   "linkSafety.openInAutai": "Open in Autai",
   "source.openInExternalBrowser": "Open in External Browser",
   "source.openInAutai": "Open in Autai",
-  "source.copyLink": "Copy Link"
+  "source.copyLink": "Copy Link",
+  "greeting.title": "Hello there!",
+  "greeting.subtitle": "How can I help you today?"
 }

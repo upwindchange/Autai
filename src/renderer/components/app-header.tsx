@@ -1,6 +1,8 @@
 import { useSidebar } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import { Toggle } from "@/components/ui/toggle";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import {
   Moon,
@@ -87,15 +89,23 @@ export const AppHeader: FC<AppHeaderProps> = ({
             <Moon className="size-4" />
           : <Sun className="size-4" />}
         </TooltipIconButton>
-        <TooltipIconButton
-          variant="ghost"
-          size="icon"
-          side="left"
-          tooltip={showSplitView ? t("splitView.hide") : t("splitView.show")}
-          onClick={toggleSplitView}
-        >
-          <PanelRightIcon className="size-4" />
-        </TooltipIconButton>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Toggle
+              variant="outline"
+              size="sm"
+              pressed={showSplitView}
+              onPressedChange={toggleSplitView}
+              className="gap-1.5 rounded-lg px-2 text-xs data-[state=on]:bg-blue-500/10 data-[state=on]:text-blue-500 data-[state=on]:border-blue-500/40"
+            >
+              <PanelRightIcon className="size-4" />
+              {t("splitView.label")}
+            </Toggle>
+          </TooltipTrigger>
+          <TooltipContent side="left">
+            {t("splitView.tooltip")}
+          </TooltipContent>
+        </Tooltip>
       </div>
     </header>
   );

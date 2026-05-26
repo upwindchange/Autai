@@ -37,10 +37,9 @@ declare global {
       // Send operations (rarely used in renderer)
       send(channel: string, ...args: unknown[]): void;
 
-      // Thread operations
-      send(channel: "sessiontab:created", threadId: string): void;
-      send(channel: "sessiontab:switched", threadId: string): void;
-      send(channel: "sessiontab:deleted", threadId: string): void;
+      // Session operations
+      send(channel: "sessiontab:activate", sessionId: string): void;
+      send(channel: "sessiontab:deleted", sessionId: string): void;
 
       // View operations
       send(

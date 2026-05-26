@@ -176,7 +176,7 @@ const ThreadScrollToBottom: FC = () => {
 
 const ThreadWelcome: FC = () => {
   // --- custom: i18n ---
-  const { t } = useTranslation("welcome");
+  const { t } = useTranslation("common");
   return (
     <div className="aui-thread-welcome-root my-auto flex grow flex-col">
       <div className="aui-thread-welcome-center flex w-full grow flex-col items-center justify-center">

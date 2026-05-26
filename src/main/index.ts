@@ -137,15 +137,6 @@ async function createWindow(splash?: BrowserWindow) {
   hitlBridge = new HitlBridge(HitlService.getInstance());
   hitlBridge.setupHandlers();
 
-  // Create initial default session so activeTab is never null
-  const defaultSessionId = "default-session";
-  await sessionTabService.createSession(defaultSessionId);
-  logger.info(`Default session ${defaultSessionId} created on startup`);
-
-  // Create settings session so links in settings page have their own tab
-  await sessionTabService.createSession("settings-session");
-  logger.info("Settings session created on startup");
-
   /**
    * Route link clicks to internal browser tab instead of external browser
    */
@@ -154,7 +145,7 @@ async function createWindow(splash?: BrowserWindow) {
   win.webContents.on("will-navigate", (event, url) => {
     if (url.startsWith("http://") || url.startsWith("https://")) {
       event.preventDefault();
-      sessionTabService
+      sessionTabService!
         .navigateActiveTabToUrl(url)
         .then((tabId) => {
           if (tabId && win && !win.isDestroyed()) {
@@ -173,7 +164,7 @@ async function createWindow(splash?: BrowserWindow) {
   // Intercept target="_blank" and window.open()
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith("http://") || url.startsWith("https://")) {
-      sessionTabService
+      sessionTabService!
         .navigateActiveTabToUrl(url)
         .then((tabId) => {
           if (tabId && win && !win.isDestroyed()) {
@@ -461,7 +452,7 @@ ipcMain.handle("shell:openExternal", async (event, url) => {
     typeof url === "string" &&
     (url.startsWith("http://") || url.startsWith("https://"))
   ) {
-    const tabId = await sessionTabService.navigateActiveTabToUrl(url);
+    const tabId = await sessionTabService!.navigateActiveTabToUrl(url);
     if (tabId && !event.sender.isDestroyed()) {
       event.sender.send("splitview:activate");
     }

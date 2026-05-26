@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   CheckIcon,
   CopyIcon,
@@ -41,9 +42,6 @@ export function LinkSafetyModal({
   useEffect(() => {
     if (!isOpen) return;
 
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
     };
@@ -51,16 +49,18 @@ export function LinkSafetyModal({
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = prev;
     };
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
-  return (
+  const portalContainer = document.getElementById("chat-panel-portal");
+  if (!portalContainer?.parentElement) return null;
+
+  return createPortal(
     <div
       className={cn(
-        "fixed inset-0 z-50 flex items-center justify-center",
+        "absolute inset-0 z-50 flex items-center justify-center",
         "bg-background/50 backdrop-blur-sm",
       )}
       data-streamdown="link-safety-modal"
@@ -157,6 +157,7 @@ export function LinkSafetyModal({
           <span>{t("linkSafety.openInBrowser")}</span>
         </button>
       </div>
-    </div>
+    </div>,
+    portalContainer.parentElement,
   );
 }

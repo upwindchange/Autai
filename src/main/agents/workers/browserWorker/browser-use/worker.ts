@@ -12,8 +12,8 @@ import { sendAlert } from "@/utils/messageUtils";
 import { flushTelemetry } from "@/agents/utils/telemetry";
 import log from "electron-log/main";
 import { observe } from "@langfuse/tracing";
-import { browserUsePlanner, type UIPlanType } from "./planner";
-import { browserUseTaskExecutor } from "./task-executor";
+import { browserUsePlanner, browserUseReplanner, type UIPlanType } from "./planner";
+import { executeSubtasks } from "./action-executor";
 import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
@@ -115,49 +115,115 @@ export async function browserUseWorker(
             });
 
             // ============================================================
-            // Stage 2-3: Task execution loop
+            // Stage 2: Execute plan + replan on failure
             // ============================================================
-            let currentTaskIndex = 0;
+            let currentPlan = plan;
+            let currentPlanToolCallId = planToolCallId;
+            let attemptCount = 0;
+            const maxRetries = 3;
 
-            while (currentTaskIndex < plan.todos.length) {
-              logger.debug("Processing task", {
-                currentTaskIndex,
-                totalTasks: plan.todos.length,
+            while (attemptCount <= maxRetries) {
+              logger.debug("Executing plan", {
+                attemptCount,
+                taskCount: currentPlan.todos.length,
               });
 
-              // Execute task (including subtask planning and execution)
-              const taskExecutorStream = await browserUseTaskExecutor(
-                messages,
+              const actionExecutorStream = await executeSubtasks(
+                currentPlan,
                 sessionId,
-                plan,
-                currentTaskIndex,
-                planToolCallId,
+                currentPlanToolCallId,
+              );
+              await mergeStreamAndWait(actionExecutorStream, writer);
+
+              // Find first failed todo
+              const failedTodoIndex = currentPlan.todos.findIndex(
+                (t) => t.status === "cancelled",
               );
 
-              // Merge task execution stream and wait for completion
-              await mergeStreamAndWait(taskExecutorStream, writer);
-
-              // Check if task completed successfully
-              if (plan.todos[currentTaskIndex].status === "completed") {
-                logger.info("Task completed, moving to next", {
-                  completedIndex: currentTaskIndex,
-                });
-
-                // Move to next task
-                currentTaskIndex += 1;
-              } else {
-                // Task failed (status will be "cancelled" after max retries)
-                logger.error("Task failed after multiple attempts", {
-                  currentTaskIndex,
-                  taskStatus: plan.todos[currentTaskIndex].status,
-                });
-                // Break out of the loop since task failed permanently
+              if (failedTodoIndex === -1) {
+                logger.info("All tasks completed successfully");
                 break;
               }
+
+              if (attemptCount >= maxRetries) {
+                // Max retries exceeded, mark remaining pending todos as cancelled
+                logger.error("Max retries exceeded after task failure", {
+                  failedTodoIndex,
+                  attemptCount,
+                });
+                for (
+                  let i = failedTodoIndex + 1;
+                  i < currentPlan.todos.length;
+                  i++
+                ) {
+                  if (currentPlan.todos[i].status === "pending") {
+                    currentPlan.todos[i].status = "cancelled";
+                  }
+                }
+                writeSimulatedToolCallToStream({
+                  writer,
+                  toolCallId: currentPlanToolCallId,
+                  toolName: "plan",
+                  input: {
+                    title: currentPlan.title,
+                    description: currentPlan.description,
+                    todos: currentPlan.todos,
+                  },
+                  output: currentPlan,
+                });
+                break;
+              }
+
+              // Replan remaining work
+              attemptCount++;
+              logger.info("Replanning after task failure", {
+                failedTodoIndex,
+                attemptCount,
+                maxRetries,
+              });
+
+              const replanResult = await browserUseReplanner(
+                sessionId,
+                currentPlan,
+                failedTodoIndex,
+              );
+              const replanSteps = await replanResult.steps;
+              const newPlanToolCallId = replanSteps
+                .flatMap((s) => s.toolCalls ?? [])
+                .find((tc) => tc.toolName === "plan")!.toolCallId;
+              const newPlan = replanSteps
+                .flatMap((s) => s.toolResults ?? [])
+                .find((tr) => tr.toolName === "plan")?.output as
+                | UIPlanType
+                | undefined;
+
+              if (!newPlan) {
+                logger.error("Replanning failed: plan tool not called");
+                throw new Error(
+                  "Replanning failed: plan tool not called",
+                );
+              }
+
+              logger.info("Replan generated successfully", {
+                title: newPlan.title,
+                todoCount: newPlan.todos.length,
+              });
+
+              // Stream new plan to UI
+              writeSimulatedToolCallToStream({
+                writer,
+                toolCallId: newPlanToolCallId,
+                toolName: "plan",
+                input: newPlan,
+                output: newPlan,
+              });
+
+              currentPlan = newPlan;
+              currentPlanToolCallId = newPlanToolCallId;
             }
 
             // ============================================================
-            // Stage 4: Final summary
+            // Stage 3: Final summary
             // ============================================================
             logger.debug("Stage 4: Generating final summary");
             const summaryResult = streamText({

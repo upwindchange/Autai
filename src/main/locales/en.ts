@@ -1,4 +1,18 @@
 const en = {
+  welcome: {
+    title: "Welcome to Autai",
+    subtitle: "Your AI Browser Assistant",
+    description:
+      "Tell Autai what you need, and the AI will use your browser for you — it will try to handle most things you'd normally do online.",
+    "feature.browse.title": "Browse",
+    "feature.browse.description": "Open and navigate websites automatically",
+    "feature.automate.title": "Automate",
+    "feature.automate.description": "AI uses your browser for you",
+    "feature.extract.title": "Organize",
+    "feature.extract.description": "Organize information from the web",
+    "prompt.suggestion":
+      'Try asking me to "Book the cheapest flight from SF to NYC next Friday" or "Fill out and submit this application form"',
+  },
   common: {
     mainWindowTitle: "Autai",
   },
