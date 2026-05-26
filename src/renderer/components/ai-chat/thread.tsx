@@ -46,7 +46,7 @@ import {
   SquareIcon,
   StopCircleIcon,
 } from "lucide-react";
-import { type FC, useState, useRef, useCallback } from "react";
+import { type FC, useMemo, useState, useRef, useCallback } from "react";
 
 // --- custom imports ---
 import { useTranslation } from "react-i18next";
@@ -505,6 +505,13 @@ const AssistantMessage: FC = () => {
 
 const AssistantActionBar: FC = () => {
   const { t } = useTranslation("common");
+  const threadTitle = useAuiState((s) => s.threadListItem.title);
+  const exportFilename = useMemo(() => {
+    const now = new Date();
+    const ts = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}.${String(now.getMinutes()).padStart(2, "0")}`;
+    const title = threadTitle?.trim() || "message";
+    return `${title} ${ts}.md`;
+  }, [threadTitle]);
   return (
     <ActionBarPrimitive.Root
       hideWhenRunning
@@ -561,7 +568,7 @@ const AssistantActionBar: FC = () => {
           align="start"
           className="aui-action-bar-more-content z-50 min-w-32 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
         >
-          <ActionBarPrimitive.ExportMarkdown asChild>
+          <ActionBarPrimitive.ExportMarkdown filename={exportFilename} asChild>
             <ActionBarMorePrimitive.Item className="aui-action-bar-more-item flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
               <DownloadIcon className="size-4" />
               {t("action.exportMarkdown")}
