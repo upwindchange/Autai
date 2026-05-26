@@ -10,6 +10,7 @@ import { mermaid } from "@streamdown/mermaid";
 import { cjk } from "@streamdown/cjk";
 import { useTheme } from "next-themes";
 import { useAuiState } from "@assistant-ui/react";
+import { LinkSafetyModal } from "./link-safety-modal";
 
 export const MarkdownText = () => {
   const { resolvedTheme } = useTheme();
@@ -46,6 +47,10 @@ export const MarkdownText = () => {
         code: true,
         mermaid: true,
         table: true,
+      }}
+      linkSafety={{
+        enabled: true,
+        renderModal: (props) => <LinkSafetyModal {...props} />,
       }}
     />
   );

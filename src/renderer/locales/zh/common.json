@@ -75,5 +75,15 @@
   "action.edit": "编辑",
   "action.update": "更新",
   "branch.previous": "上一条",
-  "branch.next": "下一条"
+  "branch.next": "下一条",
+  "linkSafety.title": "打开外部链接",
+  "linkSafety.warning": "此链接将前往外部网站，请确认链接地址安全后再打开。",
+  "linkSafety.close": "关闭",
+  "linkSafety.copyLink": "复制链接",
+  "linkSafety.copied": "已复制",
+  "linkSafety.openInBrowser": "在浏览器中打开",
+  "linkSafety.openInAutai": "在Autai中打开",
+  "source.openInExternalBrowser": "在浏览器中打开",
+  "source.openInAutai": "在Autai中打开",
+  "source.copyLink": "复制链接"
 }

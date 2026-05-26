@@ -75,5 +75,15 @@
   "action.edit": "Edit",
   "action.update": "Update",
   "branch.previous": "Previous",
-  "branch.next": "Next"
+  "branch.next": "Next",
+  "linkSafety.title": "Open External Link",
+  "linkSafety.warning": "This link will take you to an external website. Make sure you trust the URL before proceeding.",
+  "linkSafety.close": "Close",
+  "linkSafety.copyLink": "Copy link",
+  "linkSafety.copied": "Copied",
+  "linkSafety.openInBrowser": "Open in Browser",
+  "linkSafety.openInAutai": "Open in Autai",
+  "source.openInExternalBrowser": "Open in External Browser",
+  "source.openInAutai": "Open in Autai",
+  "source.copyLink": "Copy Link"
 }

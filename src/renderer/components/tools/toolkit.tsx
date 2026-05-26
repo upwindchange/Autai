@@ -1,5 +1,11 @@
 import { type Toolkit } from "@assistant-ui/react";
-import { CalculatorIcon, ExternalLinkIcon, CopyIcon } from "lucide-react";
+import {
+  CalculatorIcon,
+  CopyIcon,
+  ExternalLinkIcon,
+  GlobeIcon,
+} from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import {
   ContextMenu,
@@ -266,41 +272,58 @@ export const frontendToolkit: Toolkit = {
       const { sources = [] } = result as {
         sources?: Array<{ url: string; title?: string }>;
       };
-      return (
-        <div className="flex flex-wrap gap-1.5 my-1">
-          {sources.map((s, i) => (
-            <ContextMenu key={i}>
-              <ContextMenuTrigger asChild>
-                <Source href={s.url}>
-                  <span className="text-muted-foreground text-xs font-medium tabular-nums">
-                    [{i + 1}]
-                  </span>
-                  <SourceIcon url={s.url} />
-                  <SourceTitle>{s.title || extractDomain(s.url)}</SourceTitle>
-                </Source>
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <ContextMenuItem
-                  onClick={() => {
-                    window.ipcRenderer.invoke("shell:openInSystemBrowser", s.url);
-                  }}
-                >
-                  <ExternalLinkIcon />
-                  Open in External Browser
-                </ContextMenuItem>
-                <ContextMenuItem
-                  onClick={() => {
-                    navigator.clipboard.writeText(s.url);
-                  }}
-                >
-                  <CopyIcon />
-                  Copy Link
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-          ))}
-        </div>
-      );
+      return <SourcesWithContextMenu sources={sources} />;
     },
   },
 };
+
+function SourcesWithContextMenu({
+  sources,
+}: {
+  sources: Array<{ url: string; title?: string }>;
+}) {
+  const { t } = useTranslation("common");
+  return (
+    <div className="flex flex-wrap gap-1.5 my-1">
+      {sources.map((s, i) => (
+        <ContextMenu key={i}>
+          <ContextMenuTrigger asChild>
+            <Source href={s.url}>
+              <span className="text-muted-foreground text-xs font-medium tabular-nums">
+                [{i + 1}]
+              </span>
+              <SourceIcon url={s.url} />
+              <SourceTitle>{s.title || extractDomain(s.url)}</SourceTitle>
+            </Source>
+          </ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem
+              onClick={() => {
+                window.ipcRenderer.invoke("shell:openExternal", s.url);
+              }}
+            >
+              <GlobeIcon />
+              {t("source.openInAutai")}
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => {
+                window.ipcRenderer.invoke("shell:openInSystemBrowser", s.url);
+              }}
+            >
+              <ExternalLinkIcon />
+              {t("source.openInExternalBrowser")}
+            </ContextMenuItem>
+            <ContextMenuItem
+              onClick={() => {
+                navigator.clipboard.writeText(s.url);
+              }}
+            >
+              <CopyIcon />
+              {t("source.copyLink")}
+            </ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      ))}
+    </div>
+  );
+}
