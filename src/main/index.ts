@@ -150,10 +150,6 @@ async function createWindow(splash?: BrowserWindow) {
    * Route link clicks to internal browser tab instead of external browser
    */
 
-  /**
-   * Route link clicks to internal browser tab instead of external browser
-   */
-
   // Intercept regular <a> clicks (without target="_blank")
   win.webContents.on("will-navigate", (event, url) => {
     if (url.startsWith("http://") || url.startsWith("https://")) {
@@ -461,7 +457,10 @@ ipcMain.handle("app:getSystemInfo", () => {
  * Routes http/https URLs to internal browser tab, others to external browser.
  */
 ipcMain.handle("shell:openExternal", async (event, url) => {
-  if (typeof url === "string" && (url.startsWith("http://") || url.startsWith("https://"))) {
+  if (
+    typeof url === "string" &&
+    (url.startsWith("http://") || url.startsWith("https://"))
+  ) {
     const tabId = await sessionTabService.navigateActiveTabToUrl(url);
     if (tabId && !event.sender.isDestroyed()) {
       event.sender.send("splitview:activate");
@@ -470,6 +469,16 @@ ipcMain.handle("shell:openExternal", async (event, url) => {
   }
   await shell.openExternal(url);
   return { success: true };
+});
+
+/**
+ * Handler for opening URLs in the system's default browser.
+ * Unlike shell:openExternal, this bypasses internal tab routing.
+ */
+ipcMain.handle("shell:openInSystemBrowser", async (_event, url) => {
+  if (typeof url === "string") {
+    await shell.openExternal(url);
+  }
 });
 
 /**

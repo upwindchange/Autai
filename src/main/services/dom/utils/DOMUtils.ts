@@ -5,7 +5,7 @@
 import type { EnhancedSnapshotNode, EnhancedDOMTreeNode } from "@shared/dom";
 import type { Protocol as CDP } from "devtools-protocol";
 import type { WebContents } from "electron";
-import type { LogFunctions } from "electron-log/src";
+import type { LogFunctions } from "electron-log";
 
 /**
  * Build snapshot lookup using official DOMSnapshot structure

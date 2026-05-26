@@ -1,6 +1,12 @@
 import { type Toolkit } from "@assistant-ui/react";
-import { CalculatorIcon } from "lucide-react";
+import { CalculatorIcon, ExternalLinkIcon, CopyIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { Plan } from "@/components/tool-ui/plan";
 import { safeParseSerializablePlan } from "@/components/tool-ui/plan/schema";
 import { ToolUI } from "@/components/tool-ui/shared";
@@ -263,13 +269,35 @@ export const frontendToolkit: Toolkit = {
       return (
         <div className="flex flex-wrap gap-1.5 my-1">
           {sources.map((s, i) => (
-            <Source key={i} href={s.url}>
-              <span className="text-muted-foreground text-xs font-medium tabular-nums">
-                [{i + 1}]
-              </span>
-              <SourceIcon url={s.url} />
-              <SourceTitle>{s.title || extractDomain(s.url)}</SourceTitle>
-            </Source>
+            <ContextMenu key={i}>
+              <ContextMenuTrigger asChild>
+                <Source href={s.url}>
+                  <span className="text-muted-foreground text-xs font-medium tabular-nums">
+                    [{i + 1}]
+                  </span>
+                  <SourceIcon url={s.url} />
+                  <SourceTitle>{s.title || extractDomain(s.url)}</SourceTitle>
+                </Source>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem
+                  onClick={() => {
+                    window.ipcRenderer.invoke("shell:openInSystemBrowser", s.url);
+                  }}
+                >
+                  <ExternalLinkIcon />
+                  Open in External Browser
+                </ContextMenuItem>
+                <ContextMenuItem
+                  onClick={() => {
+                    navigator.clipboard.writeText(s.url);
+                  }}
+                >
+                  <CopyIcon />
+                  Copy Link
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           ))}
         </div>
       );
