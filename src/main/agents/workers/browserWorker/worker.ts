@@ -13,6 +13,7 @@ export async function BrowserWorker(
   messages: UIMessage[],
   sessionId: string,
   useBrowser: boolean,
+  usePlannedBrowser: boolean,
   webSearch: boolean,
   deepResearch: boolean,
   quickSearch: boolean,
@@ -32,8 +33,8 @@ export async function BrowserWorker(
       onFinish,
     );
   } else if (useBrowser) {
-    logger.info("routing to browser use node");
-    return browserUseWorker(modelMessages, sessionId, messages, onFinish);
+    logger.info("routing to browser use node", { planned: usePlannedBrowser });
+    return browserUseWorker(modelMessages, sessionId, messages, onFinish, { planned: usePlannedBrowser });
   } else if (webSearch || quickSearch) {
     logger.info("routing to research node", { quickSearch });
     return browserResearchWorker(modelMessages, sessionId, messages, onFinish, { skipExtraction: quickSearch });

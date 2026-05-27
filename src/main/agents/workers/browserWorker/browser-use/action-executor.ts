@@ -46,7 +46,7 @@ Note: If you see "No DOM tree available", it means no page is loaded yet. Browse
 # DOM State Management Rules
 
 ## Call getFlattenDOMTool:
-1. First action of each subtask
+1. First action of each task
 2. After state-changing actions: clickElementTool, navigateTool, refreshTool, fillElementTool with submit=true
 3. After 3+ actions without checking DOM
 4. When uncertain about page state

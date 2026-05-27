@@ -14,6 +14,7 @@ import log from "electron-log/main";
 import { observe } from "@langfuse/tracing";
 import { browserUsePlanner, browserUseReplanner, type UIPlanType } from "./planner";
 import { executeSubtasks } from "./action-executor";
+import { executeSimpleBrowserTask } from "./simple-executor";
 import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
@@ -32,9 +33,31 @@ export async function browserUseWorker(
   sessionId: string,
   originalMessages: UIMessage[],
   onFinish?: (messages: UIMessage[]) => void,
+  options?: { planned?: boolean },
 ): Promise<ReadableStream<UIMessageChunk>> {
-  logger.info("Entering Browser Use worker");
+  logger.info("Entering Browser Use worker", { planned: options?.planned });
 
+  // Simple mode: direct execution, no planner
+  if (!options?.planned) {
+    const simpleStream = await executeSimpleBrowserTask(messages, sessionId);
+    return createUIMessageStream({
+      originalMessages,
+      onFinish:
+        onFinish ?
+          ({ messages: finalMessages }) => onFinish(finalMessages)
+        : undefined,
+      execute: async ({ writer }) => {
+        await mergeStreamAndWait(simpleStream, writer);
+      },
+      onError: (error) => {
+        const msg = error instanceof Error ? error.message : String(error);
+        logger.error("Error in simple browser use worker", { error });
+        return msg;
+      },
+    });
+  }
+
+  // Planned mode: planner → approval → action-executor → replanner → summary
   const wrapped = observe(
     async () => {
       return createUIMessageStream({

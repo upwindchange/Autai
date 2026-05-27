@@ -31,6 +31,7 @@ chatRoutes.post("/", async (c) => {
 
     // Read metadata from headers
     const useBrowser = c.req.header("x-use-browser") === "true";
+    const usePlannedBrowser = c.req.header("x-use-planned-browser") === "true";
     const webSearch = c.req.header("x-web-search") === "true";
     const deepResearch = c.req.header("x-deep-research") === "true";
     const quickSearch = c.req.header("x-quick-search") === "true";
@@ -79,6 +80,7 @@ chatRoutes.post("/", async (c) => {
         messages,
         sessionId,
         useBrowser,
+        usePlannedBrowser,
         webSearch,
         deepResearch,
         quickSearch,

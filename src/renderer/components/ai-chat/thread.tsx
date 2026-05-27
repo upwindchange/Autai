@@ -66,6 +66,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
@@ -253,21 +254,34 @@ const ComposerAction: FC = () => {
   // --- custom: browser/search toggles + i18n ---
   const {
     useBrowser,
+    usePlannedBrowser,
     webSearch,
     deepResearch,
     quickSearch,
     setUseBrowser,
+    setUsePlannedBrowser,
     setWebSearch,
     setDeepResearch,
     setQuickSearch,
   } = useUiStore();
   const { t } = useTranslation("common");
   const {
-    open: popoverOpen,
-    setOpen: setPopoverOpen,
-    handleMouseEnter,
-    handleMouseLeave,
+    open: searchPopoverOpen,
+    setOpen: setSearchPopoverOpen,
+    handleMouseEnter: handleSearchMouseEnter,
+    handleMouseLeave: handleSearchMouseLeave,
   } = useHoverPopover();
+  const {
+    open: browserPopoverOpen,
+    setOpen: setBrowserPopoverOpen,
+    handleMouseEnter: handleBrowserMouseEnter,
+    handleMouseLeave: handleBrowserMouseLeave,
+  } = useHoverPopover();
+
+  const browserIconColor =
+    usePlannedBrowser ? "text-purple-500"
+    : useBrowser ? "text-blue-500"
+    : "";
 
   // effort: 0 = quick, 1 = standard, 2 = thorough
   const effort =
@@ -284,21 +298,110 @@ const ComposerAction: FC = () => {
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
       <div className="flex items-center gap-1">
         <ComposerAddAttachment />
-        {/* --- custom: browser toggle --- */}
-        <TooltipIconButton
-          tooltip={
-            useBrowser ? t("composer.browser.on") : t("composer.browser.off")
-          }
-          variant="ghost"
-          type="button"
-          className={cn("size-8.5", useBrowser && "bg-muted hover:bg-muted")}
-          onClick={() => setUseBrowser(!useBrowser)}
-        >
-          <Globe className={cn("size-5", useBrowser && "text-blue-500")} />
-        </TooltipIconButton>
+        {/* --- custom: browser toggle with mode popover --- */}
+        {useBrowser ?
+          <Popover
+            open={browserPopoverOpen}
+            onOpenChange={() => {}}
+            modal={false}
+          >
+            <PopoverTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                type="button"
+                className={cn(
+                  "aui-button-icon size-8.5 p-1",
+                  useBrowser && "bg-muted hover:bg-muted",
+                )}
+                onClick={() => {
+                  setUseBrowser(false);
+                  setBrowserPopoverOpen(false);
+                }}
+                onMouseEnter={handleBrowserMouseEnter}
+                onMouseLeave={handleBrowserMouseLeave}
+              >
+                <Globe className={cn("size-5", browserIconColor)} />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent
+              side="top"
+              align="center"
+              className="w-36 p-3"
+              onMouseEnter={handleBrowserMouseEnter}
+              onMouseLeave={handleBrowserMouseLeave}
+              onOpenAutoFocus={(e) => e.preventDefault()}
+            >
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium">
+                    {t("composer.browser.mode.label")}
+                  </span>
+                  <TooltipProvider delayDuration={0}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <CircleHelpIcon className="size-3.5 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent side="top" className="max-w-56 text-xs">
+                        {t("composer.browser.mode.description")}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <div className="flex items-center justify-between gap-2">
+                  <span
+                    className={cn(
+                      "text-xs",
+                      !usePlannedBrowser && "text-foreground font-medium",
+                      usePlannedBrowser && "text-muted-foreground",
+                    )}
+                  >
+                    {t("composer.browser.mode.simple")}
+                  </span>
+                  <Switch
+                    size="sm"
+                    checked={usePlannedBrowser}
+                    onCheckedChange={setUsePlannedBrowser}
+                  />
+                  <span
+                    className={cn(
+                      "text-xs",
+                      usePlannedBrowser && "text-foreground font-medium",
+                      !usePlannedBrowser && "text-muted-foreground",
+                    )}
+                  >
+                    {t("composer.browser.mode.planned")}
+                  </span>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        : <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  type="button"
+                  className="aui-button-icon size-8.5 p-1"
+                  onClick={() => setUseBrowser(true)}
+                >
+                  <Globe className="size-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {t("composer.browser.off")}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        }
         {/* --- custom: web search toggle with effort slider popover --- */}
-        {webSearch ? (
-          <Popover open={popoverOpen} onOpenChange={() => {}} modal={false}>
+        {webSearch ?
+          <Popover
+            open={searchPopoverOpen}
+            onOpenChange={() => {}}
+            modal={false}
+          >
             <PopoverTrigger asChild>
               <Button
                 variant="ghost"
@@ -310,10 +413,10 @@ const ComposerAction: FC = () => {
                 )}
                 onClick={() => {
                   setWebSearch(false);
-                  setPopoverOpen(false);
+                  setSearchPopoverOpen(false);
                 }}
-                onMouseEnter={handleMouseEnter}
-                onMouseLeave={handleMouseLeave}
+                onMouseEnter={handleSearchMouseEnter}
+                onMouseLeave={handleSearchMouseLeave}
               >
                 <Search className={cn("size-5", searchIconColor)} />
               </Button>
@@ -322,8 +425,8 @@ const ComposerAction: FC = () => {
               side="top"
               align="center"
               className="w-40 p-3"
-              onMouseEnter={handleMouseEnter}
-              onMouseLeave={handleMouseLeave}
+              onMouseEnter={handleSearchMouseEnter}
+              onMouseLeave={handleSearchMouseLeave}
               onOpenAutoFocus={(e) => e.preventDefault()}
             >
               <div className="space-y-2">
@@ -366,8 +469,7 @@ const ComposerAction: FC = () => {
               </div>
             </PopoverContent>
           </Popover>
-        ) : (
-          <TooltipProvider delayDuration={0}>
+        : <TooltipProvider delayDuration={0}>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -377,7 +479,7 @@ const ComposerAction: FC = () => {
                   className="aui-button-icon size-8.5 p-1"
                   onClick={() => {
                     setWebSearch(true);
-                    setPopoverOpen(true);
+                    setSearchPopoverOpen(true);
                   }}
                 >
                   <Search className="size-5" />
@@ -388,7 +490,7 @@ const ComposerAction: FC = () => {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-        )}
+        }
       </div>
 
       <AuiIf condition={(s) => !s.thread.isRunning}>
@@ -619,7 +721,10 @@ const UserActionBar: FC = () => {
       className="aui-user-action-bar-root flex flex-col items-end"
     >
       <ActionBarPrimitive.Edit asChild>
-        <TooltipIconButton tooltip={t("action.edit")} className="aui-user-action-edit p-4">
+        <TooltipIconButton
+          tooltip={t("action.edit")}
+          className="aui-user-action-edit p-4"
+        >
           <PencilIcon />
         </TooltipIconButton>
       </ActionBarPrimitive.Edit>

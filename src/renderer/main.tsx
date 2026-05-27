@@ -216,9 +216,10 @@ function App() {
         transport: new AssistantChatTransport({
           api: `${getApiBase()}/chat`,
           headers: async () => {
-            const { useBrowser, webSearch, deepResearch, quickSearch, sessionId } = useUiStore.getState();
+            const { useBrowser, usePlannedBrowser, webSearch, deepResearch, quickSearch, sessionId } = useUiStore.getState();
             return {
               "X-Use-Browser": String(useBrowser),
+              "X-Use-Planned-Browser": String(usePlannedBrowser),
               "X-Web-Search": String(webSearch),
               "X-Deep-Research": String(deepResearch),
               "X-Quick-Search": String(quickSearch),

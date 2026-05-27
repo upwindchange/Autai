@@ -28,10 +28,12 @@ interface UiState {
 
   // Browser toggle state
   useBrowser: boolean;
+  usePlannedBrowser: boolean;
   webSearch: boolean;
   deepResearch: boolean;
   quickSearch: boolean;
   setUseBrowser: (useBrowser: boolean) => void;
+  setUsePlannedBrowser: (usePlannedBrowser: boolean) => void;
   setWebSearch: (webSearch: boolean) => void;
   setDeepResearch: (deepResearch: boolean) => void;
   setQuickSearch: (quickSearch: boolean) => void;
@@ -75,16 +77,19 @@ export const useUiStore = create<UiState>()(
 
     // Browser toggle state
     useBrowser: false,
+    usePlannedBrowser: false,
     webSearch: false,
     deepResearch: false,
     quickSearch: false,
     setUseBrowser: (useBrowser) =>
       set((state) => ({
         useBrowser,
+        usePlannedBrowser: useBrowser ? false : state.usePlannedBrowser,
         webSearch: useBrowser ? false : state.webSearch,
         deepResearch: useBrowser ? false : state.deepResearch,
         quickSearch: useBrowser ? false : state.quickSearch,
       })),
+    setUsePlannedBrowser: (usePlannedBrowser) => set({ usePlannedBrowser }),
     setWebSearch: (webSearch) =>
       set((state) => ({
         webSearch,
