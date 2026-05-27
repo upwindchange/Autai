@@ -91,5 +91,7 @@
   "source.openInAutai": "Open in Autai",
   "source.copyLink": "Copy Link",
   "greeting.title": "Hello there!",
-  "greeting.subtitle": "How can I help you today?"
+  "greeting.subtitle": "How can I help you today?",
+  "optionList.other": "Other...",
+  "optionList.otherPlaceholder": "Type your own answer..."
 }

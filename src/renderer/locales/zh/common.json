@@ -91,5 +91,7 @@
   "source.openInAutai": "在Autai中打开",
   "source.copyLink": "复制链接",
   "greeting.title": "你好！",
-  "greeting.subtitle": "有什么我能帮你的？"
+  "greeting.subtitle": "有什么我能帮你的？",
+  "optionList.other": "其他...",
+  "optionList.otherPlaceholder": "输入你自己的回答..."
 }
