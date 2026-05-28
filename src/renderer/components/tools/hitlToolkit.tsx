@@ -1,12 +1,15 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { type Toolkit } from "@assistant-ui/react";
 import { useTranslation } from "react-i18next";
 import { PencilLine } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 import { ApprovalCard } from "@/components/tool-ui/approval-card";
 import { InputCard } from "@/components/tool-ui/input-card";
 import { OptionList } from "@/components/tool-ui/option-list";
 import type { OptionListSelection } from "@/components/tool-ui/option-list";
+import { QuestionFlow } from "@/components/tool-ui/question-flow/question-flow";
+import type { QuestionFlowChoice } from "@/components/tool-ui/question-flow/schema";
 
 const CUSTOM_OPTION_ID = "__custom__";
 
@@ -172,6 +175,200 @@ function OptionListWithCustom({
   );
 }
 
+function QuestionFlowWrapper({
+  args,
+  toolCallId,
+  result,
+}: {
+  args: {
+    prompt: string;
+    steps: Array<{
+      id: string;
+      title: string;
+      description?: string;
+      options: Array<{
+        id: string;
+        label: string;
+        description?: string;
+        disabled?: boolean;
+      }>;
+      selectionMode?: "single" | "multi";
+    }>;
+  };
+  toolCallId?: string;
+  result: unknown;
+}) {
+  const { t } = useTranslation("common");
+
+  const sendResponse = useCallback(
+    (answers: Record<string, string[]>, cancelled: boolean) => {
+      window.ipcRenderer.invoke("hitl:respond", {
+        id: toolCallId,
+        response: { answers, cancelled },
+      });
+    },
+    [toolCallId],
+  );
+
+  const [phase, setPhase] = useState<"flow" | "custom-input">("flow");
+  const [flowAnswers, setFlowAnswers] = useState<Record<string, string[]>>({});
+  const [customTexts, setCustomTexts] = useState<Record<string, string>>({});
+
+  // Build per-step sets of original option IDs for free-text detection
+  const originalOptionIds = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const step of args.steps) {
+      map.set(step.id, new Set(step.options.map((o) => o.id)));
+    }
+    return map;
+  }, [args.steps]);
+
+  // Receipt view
+  if (result) {
+    const raw = result as Record<string, unknown>;
+    const cancelled = raw.cancelled === true;
+    const answers = (raw.answers ?? {}) as Record<string, string[]>;
+
+    if (cancelled) {
+      const choice: QuestionFlowChoice = {
+        title: args.prompt,
+        summary: [{ label: t("optionList.cancelled"), value: "—" }],
+      };
+      return (
+        <QuestionFlow id={toolCallId ?? "unknown"} choice={choice} />
+      );
+    }
+
+    const summary = args.steps.map((step) => {
+      const selectedIds = answers[step.id] ?? [];
+      const knownIds = originalOptionIds.get(step.id) ?? new Set();
+
+      const optionLabels = step.options
+        .filter((opt) => selectedIds.includes(opt.id))
+        .map((opt) => opt.label);
+
+      const freeText = selectedIds.filter(
+        (id) => !knownIds.has(id) && id.length > 0,
+      );
+
+      const allLabels = [...optionLabels, ...freeText];
+      return {
+        label: step.title,
+        value: allLabels.length > 0 ? allLabels.join(", ") : "—",
+      };
+    });
+
+    const choice: QuestionFlowChoice = {
+      title: args.prompt,
+      summary,
+    };
+
+    return (
+      <QuestionFlow id={toolCallId ?? "unknown"} choice={choice} />
+    );
+  }
+
+  // Phase 1: QuestionFlow with "Other..." appended to each step
+  if (phase === "flow") {
+    const stepsWithCustom = args.steps.map((step) => ({
+      ...step,
+      options: [
+        ...step.options,
+        { id: CUSTOM_OPTION_ID, label: t("optionList.other") },
+      ],
+    }));
+
+    return (
+      <div className="flex flex-col gap-3">
+        <QuestionFlow
+          id={toolCallId ?? "unknown"}
+          steps={stepsWithCustom}
+          onComplete={(answers) => {
+            const customStepIds = Object.entries(answers)
+              .filter(([, ids]) => ids.includes(CUSTOM_OPTION_ID))
+              .map(([stepId]) => stepId);
+
+            if (customStepIds.length === 0) {
+              sendResponse(answers, false);
+            } else {
+              setFlowAnswers(answers);
+              setPhase("custom-input");
+            }
+          }}
+        />
+        <div className="flex justify-start">
+          <Button
+            variant="ghost"
+            size="default"
+            onClick={() => sendResponse({}, true)}
+            className="gap-1 rounded-full text-muted-foreground"
+          >
+            {t("optionList.skip")}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // Phase 2: Free-text input for steps where "Other..." was selected
+  const customSteps = args.steps.filter((step) =>
+    (flowAnswers[step.id] ?? []).includes(CUSTOM_OPTION_ID),
+  );
+
+  return (
+    <div className="flex flex-col gap-3">
+      {customSteps.map((step) => (
+        <div
+          key={step.id}
+          className="bg-card w-full max-w-md min-w-80 rounded-2xl border px-4 py-3 shadow-xs"
+        >
+          <span className="mb-2 block text-sm font-medium">{step.title}</span>
+          <Textarea
+            value={customTexts[step.id] ?? ""}
+            onChange={(e) =>
+              setCustomTexts((prev) => ({
+                ...prev,
+                [step.id]: e.target.value,
+              }))
+            }
+            placeholder={t("optionList.otherPlaceholder")}
+            className="max-h-48 min-h-[60px] resize-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
+            autoFocus
+          />
+        </div>
+      ))}
+      <div className="flex items-center justify-between pt-2">
+        <Button
+          variant="ghost"
+          size="default"
+          onClick={() => sendResponse({}, true)}
+          className="gap-1 rounded-full text-muted-foreground"
+        >
+          {t("optionList.skip")}
+        </Button>
+        <Button
+          variant="default"
+          size="default"
+          onClick={() => {
+            const finalAnswers: Record<string, string[]> = {};
+            for (const [stepId, ids] of Object.entries(flowAnswers)) {
+              finalAnswers[stepId] = ids.map((id) =>
+                id === CUSTOM_OPTION_ID ?
+                  (customTexts[stepId]?.trim() || CUSTOM_OPTION_ID)
+                : id,
+              );
+            }
+            sendResponse(finalAnswers, false);
+          }}
+          className="rounded-full"
+        >
+          {t("optionList.submit")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export const hitlToolkit: Toolkit = {
   // User input tool - renders InputCard with textarea for text feedback
   requestUserInput: {
@@ -271,6 +468,18 @@ export const hitlToolkit: Toolkit = {
     type: "backend",
     render: ({ args, result, toolCallId }) => (
       <OptionListWithCustom
+        args={args}
+        toolCallId={toolCallId}
+        result={result}
+      />
+    ),
+  },
+
+  // Question flow tool - renders multi-step QuestionFlow
+  requestQuestionFlow: {
+    type: "backend",
+    render: ({ args, result, toolCallId }) => (
+      <QuestionFlowWrapper
         args={args}
         toolCallId={toolCallId}
         result={result}

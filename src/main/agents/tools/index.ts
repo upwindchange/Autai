@@ -10,6 +10,7 @@ export { domTools } from "./DOMTools";
 export { sessionTools } from "./SessionTabTools";
 export { navigationTools } from "./TabControlTools";
 export { hitlTools } from "./HitlTools";
+export { askUserTool } from "./HitlAgentTool";
 export { sourceTools } from "./SourceTools";
 export { calculateTool } from "./CalculateTool";
 
@@ -44,6 +45,7 @@ import { domTools } from "./DOMTools";
 import { sessionTools } from "./SessionTabTools";
 import { navigationTools } from "./TabControlTools";
 import { hitlTools } from "./HitlTools";
+import { askUserTool } from "./HitlAgentTool";
 import { sourceTools } from "./SourceTools";
 
 export const allBrowserTools = {
@@ -52,6 +54,7 @@ export const allBrowserTools = {
   ...sessionTools,
   ...navigationTools,
   ...hitlTools,
+  askUser: askUserTool,
   ...sourceTools,
 };
 
@@ -91,6 +94,8 @@ export const AI_TOOL_NAMES = {
   REQUEST_HUMAN_INTERVENTION: "requestHumanIntervention",
   REQUEST_USER_INPUT: "requestUserInput",
   REQUEST_OPTION_LIST: "requestOptionList",
+  REQUEST_QUESTION_FLOW: "requestQuestionFlow",
+  ASK_USER: "askUser",
 } as const;
 
 export type AIToolName = (typeof AI_TOOL_NAMES)[keyof typeof AI_TOOL_NAMES];

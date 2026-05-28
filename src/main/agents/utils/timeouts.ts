@@ -13,6 +13,11 @@ export const TIMEOUTS = {
     stepMs: 480_000,
     chunkMs: 120_000,
   } satisfies TimeoutConfiguration,
+  /** HITL agent — user interaction sub-agent (includes user wait time) */
+  hitlAgent: {
+    stepMs: 600_000,
+    chunkMs: 120_000,
+  } satisfies TimeoutConfiguration,
 } as const;
 
 export function isTimeoutError(error: unknown): boolean {

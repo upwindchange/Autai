@@ -157,8 +157,94 @@ export const requestOptionListTool = tool({
   },
 });
 
+export const requestQuestionFlowTool = tool({
+  description:
+    "Present the user with a multi-step question flow where each step has options to choose from. " +
+    "Use this when the user needs to make a series of related decisions, such as configuring a product " +
+    "(pick size, then color, then material), completing a multi-part survey, or going through a guided selection. " +
+    "Each step can have single-select or multi-select options.",
+  inputSchema: z.object({
+    prompt: z
+      .string()
+      .min(1)
+      .describe("A description of what the user is choosing across all steps"),
+    steps: z
+      .array(
+        z.object({
+          id: z.string().min(1).describe("Unique identifier for this step"),
+          title: z.string().min(1).describe("Title displayed for this step"),
+          description: z
+            .string()
+            .optional()
+            .describe("Secondary text explaining this step"),
+          options: z
+            .array(
+              z.object({
+                id: z
+                  .string()
+                  .min(1)
+                  .describe("Unique identifier for this option"),
+                label: z.string().min(1).describe("Display text"),
+                description: z
+                  .string()
+                  .optional()
+                  .describe("Secondary text explaining this option"),
+                disabled: z
+                  .boolean()
+                  .optional()
+                  .describe("Whether this option is non-selectable"),
+              }),
+            )
+            .min(1)
+            .max(8)
+            .describe("Options for this step (max 8)"),
+          selectionMode: z
+            .enum(["single", "multi"])
+            .optional()
+            .describe('Selection mode. Default: "single"'),
+        }),
+      )
+      .min(1)
+      .max(5)
+      .describe("Steps to present (max 5)"),
+  }),
+  execute: async ({ prompt, steps }, { toolCallId }) => {
+    const hitlService = HitlService.getInstance();
+
+    const response = await hitlService.request<{
+      answers: Record<string, string[]>;
+      cancelled: boolean;
+    }>(toolCallId);
+
+    if (response.cancelled) {
+      return { cancelled: true, answers: {}, prompt };
+    }
+
+    const enrichedSteps = steps.map((step) => {
+      const selectedIds = response.answers[step.id] ?? [];
+      const knownIds = new Set(step.options.map((o) => o.id));
+      return {
+        id: step.id,
+        title: step.title,
+        selectedOptions: step.options.filter((opt) =>
+          selectedIds.includes(opt.id),
+        ),
+        customAnswers: selectedIds.filter((id) => !knownIds.has(id)),
+      };
+    });
+
+    return {
+      cancelled: false,
+      answers: response.answers,
+      prompt,
+      steps: enrichedSteps,
+    };
+  },
+});
+
 export const hitlTools = {
   requestHumanIntervention: requestHumanInterventionTool,
   requestUserInput: requestUserInputTool,
   requestOptionList: requestOptionListTool,
+  requestQuestionFlow: requestQuestionFlowTool,
 };

@@ -17,6 +17,7 @@ import { interactiveTools } from "@agents/tools/InteractiveTools";
 import { navigationTools } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { hitlTools } from "@agents/tools/HitlTools";
+import { askUserTool } from "@agents/tools/HitlAgentTool";
 import type { UIPlanType, UIPlanTodo } from "./planner";
 import { hasSuccessfulToolResult } from "@/agents/utils";
 
@@ -279,6 +280,7 @@ export async function executeSubtasks(
               ...interactiveTools,
               ...navigationTools,
               ...hitlTools,
+              askUser: askUserTool,
               subtaskComplete: tool({
                 description:
                   "Signal that the current subtask has been completed. Call this when you have accomplished the subtask goal or determined it cannot be completed. YOU MUST CALL THIS TOOL when finished to signal completion.",
@@ -317,6 +319,7 @@ export async function executeSubtasks(
             experimental_context: {
               sessionId,
               activeTabId,
+              writer,
             },
           });
 

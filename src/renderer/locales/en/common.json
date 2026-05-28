@@ -93,5 +93,8 @@
   "greeting.title": "Hello there!",
   "greeting.subtitle": "How can I help you today?",
   "optionList.other": "Other...",
-  "optionList.otherPlaceholder": "Type your own answer..."
+  "optionList.otherPlaceholder": "Type your own answer...",
+  "optionList.skip": "Skip",
+  "optionList.cancelled": "Cancelled",
+  "optionList.submit": "Submit"
 }

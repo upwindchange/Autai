@@ -12,6 +12,7 @@ import { interactiveTools } from "@agents/tools/InteractiveTools";
 import { navigationTools } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { hitlTools } from "@agents/tools/HitlTools";
+import { askUserTool } from "@agents/tools/HitlAgentTool";
 import { i18n } from "@/i18n";
 import type { ModelMessage } from "ai";
 
@@ -160,6 +161,7 @@ export async function executeSimpleBrowserTask(
           ...interactiveTools,
           ...navigationTools,
           ...hitlTools,
+          askUser: askUserTool,
         },
         toolChoice: "auto",
         stopWhen: [stepCountIs(100)],
@@ -172,6 +174,7 @@ export async function executeSimpleBrowserTask(
         experimental_context: {
           sessionId,
           activeTabId,
+          writer,
         },
       });
 

@@ -93,5 +93,8 @@
   "greeting.title": "你好！",
   "greeting.subtitle": "有什么我能帮你的？",
   "optionList.other": "其他...",
-  "optionList.otherPlaceholder": "输入你自己的回答..."
+  "optionList.otherPlaceholder": "输入你自己的回答...",
+  "optionList.skip": "跳过",
+  "optionList.cancelled": "已取消",
+  "optionList.submit": "提交"
 }
