@@ -4,10 +4,15 @@ import { HitlService } from "@/services";
 
 export const requestHumanInterventionTool = tool({
   description:
-    "Request human intervention when you encounter an operation that cannot be automated, " +
-    "such as login forms, CAPTCHAs, two-factor authentication, payment information, " +
-    "or any other interaction requiring human judgment or credentials. " +
-    "The user will perform the action in the browser, then confirm when finished.",
+    "Ask the user to take over and perform a physical action in the browser themselves. " +
+    "Use when the AI agent cannot complete an action automatically and human hands are required. " +
+    "Good for: login forms, CAPTCHAs, two-factor authentication (2FA), entering payment details, " +
+    "solving puzzles, completing biometric verification, or any sensitive operation " +
+    "requiring human judgment or credentials. " +
+    "The user will interact directly with the browser page, then confirm when done. " +
+    "Always provide clear `instructions` so the user knows exactly what to do in the browser. " +
+    "Do NOT use when: you just need text input from the user (use requestUserInput), " +
+    "or the user is choosing from known options (use requestOptionList or requestQuestionFlow).",
   inputSchema: z.object({
     reason: z
       .string()
@@ -48,10 +53,16 @@ export const requestHumanInterventionTool = tool({
 
 export const requestUserInputTool = tool({
   description:
-    "Ask the user a question and wait for their text response. " +
-    "Use this when you need information that cannot be determined from the page, " +
-    "such as login credentials, search queries, preferences, or clarification on ambiguous instructions. " +
-    "The user's text answer will be returned so you can continue the task.",
+    "Ask the user a free-form text question and wait for their typed response. " +
+    "Use when the answer cannot be predicted or enumerated — the user needs to express " +
+    "something in their own words. " +
+    "Good for: search queries, explanations, preferences, clarifying ambiguous instructions, " +
+    "names, addresses, dates, or any open-ended information. " +
+    "Provide `context` to explain why you're asking — it helps the user give a better answer. " +
+    "Use `placeholder` to hint at the expected format or content. " +
+    "Do NOT use when: the answer is one of a known set of choices (use requestOptionList), " +
+    "the user needs to make multiple related selections (use requestQuestionFlow), " +
+    "or the user must physically interact with the browser (use requestHumanIntervention).",
   inputSchema: z.object({
     question: z.string().min(1).describe("The question to ask the user"),
     context: z
@@ -81,11 +92,18 @@ export const requestUserInputTool = tool({
 
 export const requestOptionListTool = tool({
   description:
-    "Present the user with a list of options to choose from. " +
-    "Use this when the user needs to select from a known set of choices, " +
-    "such as picking a shipping method, choosing a color, selecting from search results, " +
-    "or deciding between multiple alternatives. " +
-    "Supports both single-select and multi-select modes.",
+    "Present the user with a list of predefined options to choose from (>1 items). " +
+    "Use when you can enumerate the most likely choices, even if the user might have an unexpected answer - " +
+    'the user will automatically get an "Other" option with a free-text fallback, so you only need to ' +
+    'provide the main candidates. Do NOT include an "Other" or "None of the above" option yourself. ' +
+    "Good for: picking a shipping method, choosing a color/size, selecting from search results, " +
+    "confirming or rejecting a suggestion, choosing between alternatives found on the page. " +
+    "Add a `description` to each option when the label alone might be ambiguous or when extra detail " +
+    "helps the user decide (e.g., price, delivery time, pros/cons). " +
+    "Supports single-select and multi-select modes. " +
+    "Do NOT use when: the answer is **FULLY** open-ended with no reasonable options to suggest (use requestUserInput), " +
+    "the user needs to make a series of related decisions across multiple categories " +
+    "(use requestQuestionFlow), or the user must physically act in the browser (use requestHumanIntervention).",
   inputSchema: z.object({
     prompt: z
       .string()
@@ -159,10 +177,18 @@ export const requestOptionListTool = tool({
 
 export const requestQuestionFlowTool = tool({
   description:
-    "Present the user with a multi-step question flow where each step has options to choose from. " +
-    "Use this when the user needs to make a series of related decisions, such as configuring a product " +
-    "(pick size, then color, then material), completing a multi-part survey, or going through a guided selection. " +
-    "Each step can have single-select or multi-select options.",
+    "Present the user with a multi-step selection flow (2-5 steps), where each step presents its own set of options. " +
+    "Use when the user needs to make a series of related decisions that build on each other - " +
+    "each step narrows the choices for the next. " +
+    'Like requestOptionList, each step automatically adds an "Other" free-text fallback for the user, ' +
+    'so just provide the main candidate options per step. Do NOT include an "Other" option yourself. ' +
+    "Good for: product configuration (size → color → material), guided setup wizards, " +
+    "multi-filter selection (category → price range → sort order), multi-part surveys. " +
+    "Add a `description` to each step and option when extra detail helps the user decide. " +
+    "Each step can have single-select or multi-select options, with up to 8 options per step. " +
+    "Do NOT use when: only a single choice is needed (use requestOptionList), " +
+    "the answer is **FULLY** open-ended with no reasonable options to suggest (use requestUserInput), " +
+    "or the user must physically act in the browser (use requestHumanIntervention).",
   inputSchema: z.object({
     prompt: z
       .string()
