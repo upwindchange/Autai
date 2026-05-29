@@ -13,7 +13,7 @@ import { flushTelemetry } from "@/agents/utils/telemetry";
 import log from "electron-log/main";
 import { observe } from "@langfuse/tracing";
 import { browserUsePlanner, browserUseReplanner, type UIPlanType } from "./planner";
-import { executeSubtasks } from "./action-executor";
+import { executeSubtasks, type ExecutionOutcome } from "./action-executor";
 import { executeSimpleBrowserTask } from "./simple-executor";
 import {
   mergeStreamAndWait,
@@ -138,8 +138,23 @@ export async function browserUseWorker(
             });
 
             // ============================================================
-            // Stage 2: Execute plan + replan on failure
+            // Stage 2: Execute plan + replan on failure or executor request
             // ============================================================
+            // Extract the last user message for executor context
+            const lastUserMessage = messages
+              .filter((m) => m.role === "user")
+              .pop();
+            if (!lastUserMessage) {
+              throw new Error("No user message found for planned execution");
+            }
+            const userRequest: string =
+              typeof lastUserMessage.content === "string" ?
+                lastUserMessage.content
+              : lastUserMessage.content
+                  .filter((p): p is { type: "text"; text: string } => p.type === "text")
+                  .map((p) => p.text)
+                  .join("\n");
+
             let currentPlan = plan;
             let currentPlanToolCallId = planToolCallId;
             let attemptCount = 0;
@@ -151,31 +166,38 @@ export async function browserUseWorker(
                 taskCount: currentPlan.todos.length,
               });
 
+              const outcome: ExecutionOutcome = {};
               const actionExecutorStream = await executeSubtasks(
                 currentPlan,
                 sessionId,
                 currentPlanToolCallId,
+                outcome,
+                userRequest,
               );
               await mergeStreamAndWait(actionExecutorStream, writer);
 
-              // Find first failed todo
+              // Check for replan request from executor and/or failed todos
+              const replanRequest = outcome.replanRequest;
               const failedTodoIndex = currentPlan.todos.findIndex(
                 (t) => t.status === "cancelled",
               );
 
-              if (failedTodoIndex === -1) {
+              if (failedTodoIndex === -1 && !replanRequest) {
                 logger.info("All tasks completed successfully");
                 break;
               }
 
               if (attemptCount >= maxRetries) {
                 // Max retries exceeded, mark remaining pending todos as cancelled
-                logger.error("Max retries exceeded after task failure", {
+                logger.error("Max retries exceeded", {
                   failedTodoIndex,
+                  replanRequest: !!replanRequest,
                   attemptCount,
                 });
+                const startIndex =
+                  failedTodoIndex >= 0 ? failedTodoIndex + 1 : 0;
                 for (
-                  let i = failedTodoIndex + 1;
+                  let i = startIndex;
                   i < currentPlan.todos.length;
                   i++
                 ) {
@@ -197,18 +219,43 @@ export async function browserUseWorker(
                 break;
               }
 
-              // Replan remaining work
+              // Determine replan context
               attemptCount++;
-              logger.info("Replanning after task failure", {
-                failedTodoIndex,
-                attemptCount,
-                maxRetries,
-              });
+              let replanFromIndex: number;
+              let replanReason: string;
+
+              if (replanRequest) {
+                // Executor requested replan with detailed reason
+                const requestingIndex = currentPlan.todos.findIndex(
+                  (t) => t.id === replanRequest.requestingTaskId,
+                );
+                replanFromIndex =
+                  replanRequest.fromPosition === "current" ?
+                    requestingIndex
+                  : requestingIndex + 1;
+                replanReason = replanRequest.reason;
+                logger.info("Replanning per executor request", {
+                  reason: replanReason,
+                  fromPosition: replanRequest.fromPosition,
+                  replanFromIndex,
+                  attemptCount,
+                });
+              } else {
+                // Traditional failure-triggered replan
+                replanFromIndex = failedTodoIndex;
+                replanReason = `Task failed: ${currentPlan.todos[failedTodoIndex].label}`;
+                logger.info("Replanning after task failure", {
+                  failedTodoIndex,
+                  attemptCount,
+                  maxRetries,
+                });
+              }
 
               const replanResult = await browserUseReplanner(
                 sessionId,
                 currentPlan,
-                failedTodoIndex,
+                replanFromIndex,
+                replanReason,
               );
               const replanSteps = await replanResult.steps;
               const newPlanToolCallId = replanSteps

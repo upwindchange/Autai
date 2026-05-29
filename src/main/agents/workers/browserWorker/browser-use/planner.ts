@@ -188,18 +188,22 @@ export async function browserUsePlanner(
 // ===== Replanner =====
 
 /**
- * Build system prompt for replanning after a task failure
+ * Build system prompt for replanning after a task failure or executor request
  */
 function buildReplannerSystemPrompt(
   previousPlan: UIPlanType,
-  failedTodoIndex: number,
+  replanFromIndex: number,
+  reason?: string,
 ): string {
   const completedTodos = previousPlan.todos
-    .slice(0, failedTodoIndex)
+    .slice(0, replanFromIndex)
     .filter((t) => t.status === "completed");
-  const failedTodo = previousPlan.todos[failedTodoIndex];
+  const taskAtPosition =
+    replanFromIndex < previousPlan.todos.length ?
+      previousPlan.todos[replanFromIndex]
+    : null;
   const remainingTodos = previousPlan.todos
-    .slice(failedTodoIndex + 1)
+    .slice(replanFromIndex + 1)
     .filter((t) => t.status === "pending");
 
   let completedSection = "";
@@ -209,6 +213,13 @@ function buildReplannerSystemPrompt(
 ${JSON.stringify(completedTodos, null, 2)}`;
   }
 
+  let taskAtPositionSection = "";
+  if (taskAtPosition) {
+    taskAtPositionSection = `
+## Task at Replan Position
+${JSON.stringify(taskAtPosition, null, 2)}`;
+  }
+
   let remainingSection = "";
   if (remainingTodos.length > 0) {
     remainingSection = `
@@ -216,24 +227,38 @@ ${JSON.stringify(completedTodos, null, 2)}`;
 ${JSON.stringify(remainingTodos, null, 2)}`;
   }
 
-  return `You are replanning a browser automation task that encountered a failure.
+  let reasonSection = "";
+  if (reason) {
+    reasonSection = `
+## Reason for Replanning
+${reason}
+
+This replan was triggered by the action executor based on what it encountered on the page. The replan may have been requested because:
+- Page structure differs from what the plan assumed
+- Steps are achievable in a different order than planned
+- A redirect or page change completed or invalidated other planned tasks
+- New information discovered during execution changes the approach`;
+  }
+
+  return `You are replanning a browser automation task.
 
 ## Original Goal
 ${previousPlan.description}
 
 ${completedSection}
 
-## Failed Step
-${JSON.stringify(failedTodo, null, 2)}
+${taskAtPositionSection}
 
 ${remainingSection}
 
+${reasonSection}
+
 ## Your Responsibility
-1. Analyze what went wrong and adjust the approach
-2. Replan the failed step and any remaining steps
-3. Consider whether remaining steps need modification given the failure
+1. Analyze what went wrong or what changed and adjust the approach
+2. Replan from the replan position and any remaining steps
+3. Consider whether remaining steps need modification given the new context
 4. Do NOT include already-completed steps
-5. Do NOT simply repeat the same plan - adjust based on the failure
+5. Do NOT simply repeat the same plan - adjust based on the new information
 
 ## Step Guidelines
 - Group related actions together into coherent steps
@@ -257,25 +282,28 @@ Call generatePlan with the revised plan for remaining work.`;
 }
 
 /**
- * Replan after a task failure
+ * Replan after a task failure or executor request
  *
  * Produces a new plan for the remaining work, taking into account
- * which steps completed and why the current step failed.
+ * which steps completed and why replanning was requested.
  */
 export async function browserUseReplanner(
   sessionId: string,
   previousPlan: UIPlanType,
-  failedTodoIndex: number,
+  replanFromIndex: number,
+  reason?: string,
 ) {
   logger.debug("Starting replanner", {
     sessionId,
-    failedTodoIndex,
+    replanFromIndex,
     previousPlanId: previousPlan.id,
+    hasReason: !!reason,
   });
 
   const systemPrompt = buildReplannerSystemPrompt(
     previousPlan,
-    failedTodoIndex,
+    replanFromIndex,
+    reason,
   );
 
   const result = streamText({
@@ -301,7 +329,7 @@ export async function browserUseReplanner(
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "browser-use-replanner",
       metadata: {
-        failedTodoIndex,
+        replanFromIndex,
         previousPlanId: previousPlan.id,
       },
     },
