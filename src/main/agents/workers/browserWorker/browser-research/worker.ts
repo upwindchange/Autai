@@ -14,6 +14,8 @@ import { researchPlanner, type ResearchPlan } from "./planner";
 import { executeSearchQueries } from "./search-agent";
 import { extractResultsFromUrls } from "./result-extractor";
 import { summarizeFindings, summarizeFindingsFromSnippets } from "./summarizer";
+import { preResearch } from "./pre-research";
+import { assessAndClarifyScope } from "./scope-assessor";
 import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
@@ -56,10 +58,44 @@ export async function browserResearchWorker(
             // its own per-query tabs. tabId is only used as a seed.
 
             // ============================================================
-            // Stage 1: Research Planning
+            // Stage 0: Pre-Research (broad exploratory search)
+            // ============================================================
+            logger.debug("Stage 0: Pre-researching topic");
+            const preResearchResult = await preResearch(
+              messages,
+              sessionId,
+              tabId,
+              writer,
+            );
+
+            logger.info("Pre-research complete", {
+              resultCount: preResearchResult.searchResults.length,
+              summaryLength: preResearchResult.summary.length,
+            });
+
+            // ============================================================
+            // Stage 0.5: Scope Assessment + HITL Clarification
+            // ============================================================
+            logger.debug("Stage 0.5: Assessing scope and clarifying");
+            const { hitlAnswer } = await assessAndClarifyScope(
+              messages,
+              preResearchResult.summary,
+              sessionId,
+              writer,
+            );
+
+            logger.info("Scope assessment complete", {
+              hasHitlAnswer: !!hitlAnswer,
+            });
+
+            // ============================================================
+            // Stage 1: Research Planning (with enrichment context)
             // ============================================================
             logger.debug("Stage 1: Generating research plan");
-            const planResult = await researchPlanner(messages, sessionId);
+            const planResult = await researchPlanner(messages, sessionId, {
+              preResearchSummary: preResearchResult.summary,
+              hitlAnswer: hitlAnswer ?? undefined,
+            });
 
             // Extract plan programmatically (no streaming)
             const planSteps = await planResult.steps;
