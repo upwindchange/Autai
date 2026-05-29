@@ -74,9 +74,9 @@ const en = {
     actionErrorTitle: "Action Error",
     actionErrorBody: 'Subtask "{{label}}" failed: {{error}}',
     deepResearchTitle: "Deep Research: {{title}}",
-    preResearchTitle: "Exploring: {{title}}",
-    preResearchDescription:
-      "Getting a quick overview of the topic before planning",
+    preResearchTitle: "Pre-Research Scan",
+    preResearchDescription: "Quickly scanning the web for initial context",
+    preResearchScanning: "Scanning web for context",
     noResultsFound:
       "No relevant search results were found for your query. Please try rephrasing your question or using different keywords.",
     timeoutErrorTitle: "Request Timed Out",

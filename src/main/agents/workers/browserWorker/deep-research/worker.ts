@@ -1,6 +1,7 @@
 import {
   streamText,
   createUIMessageStream,
+  stepCountIs,
   type UIMessageChunk,
   type ModelMessage,
   type UIMessage,
@@ -18,6 +19,8 @@ import type { ResearchPlan } from "../browser-research/planner";
 import { executeSearchQueries } from "../browser-research/search-agent";
 import { extractResultsFromUrls } from "../browser-research/result-extractor";
 import { summarizeFindings } from "../browser-research/summarizer";
+import { askUserTool } from "@agents/tools/HitlAgentTool";
+import { runPreResearch } from "./pre-research";
 import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
@@ -111,6 +114,32 @@ When your response can benefit from a visual diagram, output a mermaid code bloc
 ## Math
 For inline math expressions, use double dollar signs like $$E = mc^2$$. Never use single dollar signs for math.`;
 
+// ===== HITL Decision System Prompt =====
+
+const hitlDecisionSystemPrompt = `You are a research scope evaluator. You are given a user's research question and a summary of initial web research findings.
+
+## Your Task
+Analyze whether the research question has ambiguities, scope creep, undefined areas, or unclear direction that would benefit from user clarification before decomposing into a detailed research plan.
+
+## When to Ask the User
+- The question is vague (e.g., "research AI" without specifying what aspect)
+- Multiple valid interpretations exist (e.g., "best framework" for what language/use-case?)
+- Critical constraints are unknown (budget, region, timeframe, target audience)
+- The pre-research reveals the topic is much broader than the question implies
+- Technical vs. non-technical audience is unclear
+
+## When NOT to Ask the User
+- The question is specific enough to decompose unambiguously
+- The pre-research provides sufficient context to understand the scope
+- Any ambiguity is minor and can be handled by covering multiple angles in subtopics
+- The question is straightforward factual research
+
+## If You Decide to Ask
+Call the askUser tool with a concise question that resolves the key ambiguity. Focus on the single most important clarification needed.
+
+## If You Decide NOT to Ask
+Simply respond with "NO_CLARIFICATION_NEEDED" and nothing else. Do not call any tool.`;
+
 // ===== Plan Extraction Helper =====
 
 async function extractPlanFromPlanner(
@@ -163,11 +192,142 @@ export async function browserDeepResearchWorker(
             }
 
             // ============================================================
+            // Stage 0: Pre-Research (quick scan for context)
+            // ============================================================
+            logger.debug("Stage 0: Running pre-research scan");
+
+            const preResearchResult = await runPreResearch(
+              messages,
+              sessionId,
+              tabId,
+              writer,
+            );
+
+            logger.info("Pre-research completed", {
+              resultCount: preResearchResult.searchResults.length,
+              summaryLength: preResearchResult.summaryText.length,
+            });
+
+            // ============================================================
+            // Stage 0.5: HITL Clarification (optional)
+            // ============================================================
+            let hitlAnswer: string | null = null;
+
+            if (preResearchResult.summaryText.length > 0) {
+              logger.debug(
+                "Stage 0.5: Evaluating if clarification is needed",
+              );
+
+              // Extract user text from messages for the decision prompt
+              const userText = messages
+                .filter((m) => m.role === "user")
+                .map((m) =>
+                  typeof m.content === "string" ?
+                    m.content
+                  : Array.isArray(m.content) ?
+                    m.content
+                      .filter(
+                        (p): p is { type: "text"; text: string } =>
+                          "type" in p && p.type === "text",
+                      )
+                      .map((p) => p.text)
+                      .join("\n")
+                  : "",
+                )
+                .join("\n");
+
+              const hitlDecisionMessages: ModelMessage[] = [
+                {
+                  role: "user" as const,
+                  content: `## Research Question\n${userText}\n\n## Pre-Research Summary\n${preResearchResult.summaryText}`,
+                } as ModelMessage,
+              ];
+
+              const hitlResult = streamText({
+                model: chatModel(),
+                messages: hitlDecisionMessages,
+                system: hitlDecisionSystemPrompt,
+                tools: {
+                  askUser: askUserTool,
+                },
+                toolChoice: "auto",
+                stopWhen: [stepCountIs(3)],
+                timeout: TIMEOUTS.hitlAgent,
+                experimental_context: {
+                  sessionId,
+                  writer,
+                },
+                experimental_telemetry: {
+                  isEnabled: settingsService.settings.langfuse.enabled,
+                  functionId: "deep-research-hitl-decision",
+                },
+              });
+
+              // Wait for completion — do NOT merge the main stream into the
+              // writer. Only the askUserTool's internal HITL stream (option
+              // lists, input forms) should appear in the UI.
+              await hitlResult.text;
+
+              const hitlSteps = await hitlResult.steps;
+              const askUserResult = hitlSteps
+                .flatMap((s) => s.toolResults ?? [])
+                .find(
+                  (tr) =>
+                    tr.toolName === "askUser" && tr.type === "tool-result",
+                );
+
+              if (askUserResult) {
+                const output = askUserResult.output as
+                  | { answer: string }
+                  | undefined;
+                hitlAnswer = output?.answer ?? null;
+                logger.info("HITL clarification received", {
+                  answerLength: hitlAnswer?.length ?? 0,
+                });
+              } else {
+                logger.debug("No HITL clarification needed");
+              }
+            }
+
+            // ============================================================
             // Stage 1: Deep Research Planning (decompose into subtopics)
             // ============================================================
+
+            // Build enriched messages with pre-research context and optional
+            // HITL answer compiled into a single supplementary block
+            const enrichedMessages: ModelMessage[] = [];
+            const contextParts: string[] = [];
+
+            if (preResearchResult.summaryText.length > 0) {
+              contextParts.push(
+                `## Pre-Research Context\nA quick web scan was performed. Here is a summary of initial findings:\n\n${preResearchResult.summaryText}`,
+              );
+            }
+            if (hitlAnswer) {
+              contextParts.push(
+                `## User Clarification\nThe user provided this clarification:\n\n${hitlAnswer}`,
+              );
+            }
+
+            if (contextParts.length > 0) {
+              enrichedMessages.push(
+                {
+                  role: "user" as const,
+                  content: contextParts.join("\n\n"),
+                } as ModelMessage,
+                {
+                  role: "assistant" as const,
+                  content:
+                    "Understood. I will incorporate this context into the research plan.",
+                } as ModelMessage,
+              );
+            }
+
+            enrichedMessages.push(...messages);
+
             logger.debug("Stage 1: Generating deep research plan");
             const deepPlanResult = await deepResearchPlanner(
-              messages,
+              enrichedMessages,
               sessionId,
             );
             const deepPlanSteps = await deepPlanResult.steps;
