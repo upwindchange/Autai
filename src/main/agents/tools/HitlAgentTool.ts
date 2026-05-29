@@ -13,7 +13,8 @@ import log from "electron-log/main";
 
 const logger = log.scope("hitl-agent");
 
-const HITL_TOOL_NAMES = new Set([
+export const HITL_TOOL_NAMES = new Set([
+  "askUser",
   "requestHumanIntervention",
   "requestUserInput",
   "requestOptionList",

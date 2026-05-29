@@ -7,8 +7,6 @@ import { i18n } from "@/i18n";
 import { sendAlert } from "@/utils/messageUtils";
 import {
   writeSimulatedToolCallToStream,
-  mergeStreamAndWait,
-  createToolFilteredStream,
   TIMEOUTS,
   isTimeoutError,
 } from "@agents/utils";
@@ -16,7 +14,6 @@ import log from "electron-log/main";
 import { interactiveTools } from "@agents/tools/InteractiveTools";
 import { navigationTools } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
-import { hitlTools } from "@agents/tools/HitlTools";
 import { askUserTool } from "@agents/tools/HitlAgentTool";
 import type { UIPlanType, UIPlanTodo } from "./planner";
 import { hasSuccessfulToolResult } from "@/agents/utils";
@@ -36,9 +33,7 @@ Page navigation: navigate, refresh, go back, go forward
 Page scrolling: scroll by pages or at coordinates
 DOM analysis: getFlattenDOMTool (flattened DOM representation)
 Element inspection: get attributes, evaluate JavaScript, get basic info
-Human intervention: requestHumanIntervention (ask user to handle operations you cannot automate)
-User input: requestUserInput (ask the user a question and receive a text response)
-Option selection: requestOptionList (present choices for the user to select from)
+User interaction: askUser (ask the user for information, a decision, or hands-on help)
 
 # Tab Context
 Active tab is pre-selected. All interactive tools use this tab automatically. Do NOT specify tabId.
@@ -103,56 +98,13 @@ When the subtask is done (goal achieved or determined impossible), you MUST call
 
 This is required to signal completion. Do not just describe the result in text.
 
-# Human Intervention (requestHumanIntervention)
-Use requestHumanIntervention when the user must physically perform an action in the browser that you cannot automate. This includes ALL sensitive operations:
-- Login forms, credentials, passwords
-- CAPTCHAs, 2FA, security challenges
-- Payment forms, credit card entry
-- Age verification, cookie consent with specific choices
-- Any operation requiring human judgment or private information
+# User Interaction (askUser)
+Use askUser when you need information, a decision, or hands-on help from the user to continue the task. Provide:
+- request: what you need from the user (e.g., "Which shipping method?", "Login credentials needed")
+- context: the current page state, relevant data/choices found on the page, and the overall task goal
 
-Parameters:
-- reason: a short explanation of what intervention is needed
-- instructions: what the user should do (e.g., "Please log in with your credentials")
-- buttonLabel: context-appropriate text for the confirm button (e.g., "Login Complete", "CAPTCHA Solved", "Done")
-
-The user will complete the action in the browser and confirm. Once confirmed, call getFlattenDOMTool to see the updated page state, then continue with the task.
-Always try to complete as much as possible before requesting intervention (e.g., navigate to the login page first, then ask the user to log in).
-
-# User Input (requestUserInput)
-Use requestUserInput to ask the user a question and receive a text answer. This is ONLY for non-sensitive information needed to complete the current task:
-- Search queries (e.g., "What would you like to search for?")
-- Preferences (e.g., "Which color scheme do you prefer?")
-- Clarification on ambiguous instructions (e.g., "Which shipping option should I select?")
-- Non-sensitive values to enter (e.g., "What name should I use for the account?")
-
-Parameters:
-- question: the question you need answered
-- context: why you need this information
-- placeholder: optional example text for the input field
-- buttonLabel: context-appropriate text for the submit button (e.g., "Search", "Confirm", "Submit")
-
-NEVER use requestUserInput to ask for passwords, payment details, or other sensitive information. Use requestHumanIntervention instead to let the user enter those directly in the browser.
-The user will type their response and submit it. Use the returned answer to continue the task.
-
-# Option List (requestOptionList)
-Use requestOptionList when the user needs to choose from a known, finite set of options. Ideal when the valid choices are enumerable:
-- Selection between alternatives (e.g., "Which shipping method?", "Which color?")
-- Picking from discovered results (e.g., "Which of these products to view?")
-- Configuration choices (e.g., "Which date format?", "Which layout?")
-- Disambiguation (e.g., "Which 'John Smith' do you mean?")
-
-Parameters:
-- prompt: a clear question describing what the user is choosing
-- options: array of choices, each with id, label, and optional description. Use at most 8 options for readability.
-- selectionMode: "single" (default) or "multi" for allowing multiple selections
-- minSelections / maxSelections: constraints on multi-select (optional)
-- defaultValue: pre-selected option ID(s) (optional)
-
-Prefer requestOptionList over requestUserInput when the valid answers form a small, known set (typically 2-8 options) and you can enumerate the choices (e.g., options found on the current page).
-Prefer requestUserInput when the answer is open-ended text or you don't know the possible answers in advance.
-NEVER use requestOptionList for sensitive information. Use requestHumanIntervention instead.
-The user will select option(s) and confirm. Use the returned selection IDs to continue the task.`;
+The sub-agent will pick the best interaction format (text input, option list, multi-step flow, or manual browser intervention). Returns the user's response as free text.
+Always try to complete as much as possible before asking (e.g., navigate to the login page first, then ask the user to log in).`;
 
 // ============================================================================
 // Helper Functions
@@ -279,7 +231,6 @@ export async function executeSubtasks(
               getFlattenDOMTool,
               ...interactiveTools,
               ...navigationTools,
-              ...hitlTools,
               askUser: askUserTool,
               subtaskComplete: tool({
                 description:
@@ -324,26 +275,12 @@ export async function executeSubtasks(
           });
 
           // ============================================================
-          // STREAM HITL TOOL CALLS TO FRONTEND & EXTRACT RESULTS
+          // EXTRACT RESULTS — no streaming needed here
           // ============================================================
-          // Only stream requestHumanIntervention tool calls to the frontend
-          // so the user can interact with HITL prompts. All other tool calls
-          // and text are handled internally without streaming.
-          const HITL_TOOLS = new Set([
-            "requestHumanIntervention",
-            "requestUserInput",
-            "requestOptionList",
-          ]);
-          const [steps] = await Promise.all([
-            result.steps,
-            mergeStreamAndWait(
-              createToolFilteredStream(
-                result.toUIMessageStream({ sendStart: false }),
-                HITL_TOOLS,
-              ),
-              writer,
-            ),
-          ]);
+          // HITL tool calls are streamed to the frontend by the askUser
+          // sub-agent itself. We only need the steps to find the
+          // subtaskComplete result.
+          const steps = await result.steps;
           const allToolResults = steps.flatMap(
             (step) => step.toolResults ?? [],
           );
