@@ -127,6 +127,7 @@ async function executeSingleExtraction(
   sessionId: string,
   tabId: string,
   sessionTabService: SessionTabService,
+  signal?: AbortSignal,
 ): Promise<ExtractionResult> {
   logger.debug("Extracting from URL", {
     url: searchResult.url,
@@ -175,6 +176,7 @@ async function executeSingleExtraction(
         stepCountIs(10),
       ],
       timeout: TIMEOUTS.actionExecution,
+      abortSignal: signal,
       experimental_telemetry: {
         isEnabled: settingsService.settings.langfuse.enabled,
         functionId: "research-result-extraction",
@@ -265,6 +267,7 @@ export async function extractResultsFromUrls(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   writer: { write: (chunk: any) => void },
   planId?: string,
+  signal?: AbortSignal,
 ): Promise<ExtractionResult[]> {
   const sessionTabService = SessionTabService.getInstance();
   const focusDescription = researchFocus.map((q) => q.focus).join("; ");
@@ -324,6 +327,7 @@ export async function extractResultsFromUrls(
             sessionId,
             tabId,
             sessionTabService,
+            signal,
           ),
       })),
       concurrency,

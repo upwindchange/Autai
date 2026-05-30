@@ -87,6 +87,7 @@ Call the showDeepResearchPlan tool with your decomposition.`;
 export async function deepResearchPlanner(
   messages: ModelMessage[],
   sessionId: string,
+  signal?: AbortSignal,
 ) {
   logger.debug("Starting deep research planner", {
     sessionId,
@@ -109,6 +110,7 @@ export async function deepResearchPlanner(
       stepCountIs(20),
     ],
     timeout: TIMEOUTS.planning,
+    abortSignal: signal,
     experimental_context: { sessionId },
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,

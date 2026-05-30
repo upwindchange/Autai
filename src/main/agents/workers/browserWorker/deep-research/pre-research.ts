@@ -101,6 +101,7 @@ export async function runPreResearch(
   tabId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   writer: { write: (chunk: any) => void },
+  signal?: AbortSignal,
 ): Promise<PreResearchResult> {
   logger.debug("Starting pre-research scan");
 
@@ -126,6 +127,7 @@ export async function runPreResearch(
         stepCountIs(10),
       ],
       timeout: TIMEOUTS.planning,
+      abortSignal: signal,
       experimental_telemetry: {
         isEnabled: settingsService.settings.langfuse.enabled,
         functionId: "deep-research-pre-research-queries",
@@ -173,6 +175,7 @@ export async function runPreResearch(
       tabId,
       writer,
       `pre-research-search-${sessionId}`,
+      signal,
     );
 
     logger.info("Pre-research searches complete", {
@@ -207,6 +210,7 @@ export async function runPreResearch(
       ],
       system: INTERNAL_SUMMARY_PROMPT,
       timeout: TIMEOUTS.chat,
+      abortSignal: signal,
       experimental_telemetry: {
         isEnabled: settingsService.settings.langfuse.enabled,
         functionId: "deep-research-pre-research-summary",

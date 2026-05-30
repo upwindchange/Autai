@@ -144,6 +144,7 @@ Now create the execution plan.`;
 export async function browserUsePlanner(
   messages: ModelMessage[],
   sessionId: string,
+  signal?: AbortSignal,
 ) {
   logger.debug("Starting planner", {
     sessionId,
@@ -168,6 +169,7 @@ export async function browserUsePlanner(
     },
     stopWhen: [hasSuccessfulToolResult("plan"), stepCountIs(100)],
     timeout: TIMEOUTS.planning,
+    abortSignal: signal,
     experimental_context: context,
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
@@ -292,6 +294,7 @@ export async function browserUseReplanner(
   previousPlan: UIPlanType,
   replanFromIndex: number,
   reason?: string,
+  signal?: AbortSignal,
 ) {
   logger.debug("Starting replanner", {
     sessionId,
@@ -324,6 +327,7 @@ export async function browserUseReplanner(
     },
     stopWhen: [hasSuccessfulToolResult("plan"), stepCountIs(100)],
     timeout: TIMEOUTS.planning,
+    abortSignal: signal,
     experimental_context: { sessionId },
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,

@@ -90,6 +90,7 @@ Always try to complete as much as possible before asking (e.g., navigate to the 
 export async function executeSimpleBrowserTask(
   messages: ModelMessage[],
   sessionId: string,
+  signal?: AbortSignal,
 ): Promise<ReturnType<typeof createUIMessageStream>> {
   logger.debug("Starting simple browser task", { sessionId });
 
@@ -118,6 +119,7 @@ export async function executeSimpleBrowserTask(
         toolChoice: "auto",
         stopWhen: [stepCountIs(100)],
         timeout: TIMEOUTS.actionExecution,
+        abortSignal: signal,
         experimental_telemetry: {
           isEnabled: settingsService.settings.langfuse.enabled,
           functionId: "browser-use-simple-executor",
@@ -127,6 +129,7 @@ export async function executeSimpleBrowserTask(
           sessionId,
           activeTabId,
           writer,
+          abortSignal: signal,
         },
       });
 

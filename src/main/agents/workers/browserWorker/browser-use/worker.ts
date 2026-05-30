@@ -19,6 +19,7 @@ import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
   TIMEOUTS,
+  isAbortError,
   isTimeoutError,
 } from "@agents/utils";
 
@@ -34,12 +35,13 @@ export async function browserUseWorker(
   originalMessages: UIMessage[],
   onFinish?: (messages: UIMessage[]) => void,
   options?: { planned?: boolean },
+  signal?: AbortSignal,
 ): Promise<ReadableStream<UIMessageChunk>> {
   logger.info("Entering Browser Use worker", { planned: options?.planned });
 
   // Simple mode: direct execution, no planner
   if (!options?.planned) {
-    const simpleStream = await executeSimpleBrowserTask(messages, sessionId);
+    const simpleStream = await executeSimpleBrowserTask(messages, sessionId, signal);
     return createUIMessageStream({
       originalMessages,
       onFinish:
@@ -72,7 +74,7 @@ export async function browserUseWorker(
             // Stage 1: Planning
             // ============================================================
             logger.debug("Stage 1: Generating high-level plan");
-            const planResult = await browserUsePlanner(messages, sessionId);
+            const planResult = await browserUsePlanner(messages, sessionId, signal);
 
             // Wait for plan to complete (programmatic access only, not streamed)
             const steps = await planResult.steps;
@@ -106,9 +108,27 @@ export async function browserUseWorker(
             });
 
             logger.info("Waiting for plan approval", { planId: plan.id });
-            const approvalDecision = await HitlService.getInstance().request<
-              "approved" | "rejected"
-            >(plan.id);
+            const abortOnCancel = signal
+              ? new Promise<never>((_, reject) => {
+                  signal.addEventListener(
+                    "abort",
+                    () => reject(new DOMException("Aborted", "AbortError")),
+                    { once: true },
+                  );
+                })
+              : null;
+            const approvalDecision = await (abortOnCancel
+              ? Promise.race([
+                  HitlService.getInstance().request<"approved" | "rejected">(
+                    plan.id,
+                    undefined,
+                    signal,
+                  ),
+                  abortOnCancel,
+                ])
+              : HitlService.getInstance().request<"approved" | "rejected">(
+                  plan.id,
+                ));
 
             if (approvalDecision === "rejected") {
               logger.info("Plan rejected by user", { planId: plan.id });
@@ -161,6 +181,12 @@ export async function browserUseWorker(
             const maxRetries = 3;
 
             while (attemptCount <= maxRetries) {
+              // Abort guard: stop if request was cancelled
+              if (signal?.aborted) {
+                logger.info("Plan execution aborted", { attemptCount });
+                break;
+              }
+
               logger.debug("Executing plan", {
                 attemptCount,
                 taskCount: currentPlan.todos.length,
@@ -173,6 +199,7 @@ export async function browserUseWorker(
                 currentPlanToolCallId,
                 outcome,
                 userRequest,
+                signal,
               );
               await mergeStreamAndWait(actionExecutorStream, writer);
 
@@ -256,6 +283,7 @@ export async function browserUseWorker(
                 currentPlan,
                 replanFromIndex,
                 replanReason,
+                signal,
               );
               const replanSteps = await replanResult.steps;
               const newPlanToolCallId = replanSteps
@@ -301,6 +329,7 @@ export async function browserUseWorker(
               messages,
               system: systemPrompt,
               timeout: TIMEOUTS.chat,
+              abortSignal: signal,
               experimental_telemetry: {
                 isEnabled: settingsService.settings.langfuse.enabled,
                 functionId: "browser-use-summary",
@@ -319,6 +348,10 @@ export async function browserUseWorker(
           }
         },
         onError: (error) => {
+          if (isAbortError(error)) {
+            logger.info("Browser use worker cancelled by user");
+            return "";
+          }
           const msg = error instanceof Error ? error.message : String(error);
           logger.error("Error in browser use worker", {
             error,

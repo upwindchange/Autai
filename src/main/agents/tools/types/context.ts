@@ -8,6 +8,7 @@ export interface ToolExecutionContext {
   sessionId: string;
   activeTabId?: string;
   writer?: { write: (chunk: unknown) => void };
+  abortSignal?: AbortSignal;
 }
 
 /**

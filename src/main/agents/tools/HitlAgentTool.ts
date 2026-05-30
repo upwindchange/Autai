@@ -83,6 +83,13 @@ export const askUserTool = tool({
       toolChoice: "auto",
       stopWhen: [stepCountIs(10)],
       timeout: TIMEOUTS.hitlAgent,
+      abortSignal: ctx.abortSignal,
+      experimental_context: {
+        sessionId: ctx.sessionId,
+        activeTabId: ctx.activeTabId,
+        writer: ctx.writer,
+        abortSignal: ctx.abortSignal,
+      },
       experimental_telemetry: {
         isEnabled: settingsService.settings.langfuse.enabled,
         functionId: "hitl-agent",

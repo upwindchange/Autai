@@ -213,6 +213,7 @@ export async function executeSubtasks(
   planToolCallId: string,
   outcome: ExecutionOutcome,
   userRequest: string,
+  signal?: AbortSignal,
 ): Promise<ReturnType<typeof createUIMessageStream>> {
   logger.debug("Starting subtask execution stream", {
     sessionId,
@@ -247,6 +248,15 @@ export async function executeSubtasks(
       // ============================================================
       for (let i = 0; i < plan.todos.length; i++) {
         const subtask = plan.todos[i];
+
+        // Abort guard: stop processing if request was cancelled
+        if (signal?.aborted) {
+          logger.info("Subtask execution aborted", {
+            subtaskId: subtask.id,
+            index: i,
+          });
+          break;
+        }
 
         // Skip tasks already resolved by side effects from a previous subtask
         if (
@@ -371,6 +381,7 @@ export async function executeSubtasks(
               stepCountIs(100),
             ],
             timeout: TIMEOUTS.actionExecution,
+            abortSignal: signal,
             experimental_telemetry: {
               isEnabled: settingsService.settings.langfuse.enabled,
               functionId: "browser-use-action-executor",
@@ -385,6 +396,7 @@ export async function executeSubtasks(
               sessionId,
               activeTabId,
               writer,
+              abortSignal: signal,
             },
           });
 

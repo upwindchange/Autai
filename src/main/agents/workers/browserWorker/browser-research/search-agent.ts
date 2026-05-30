@@ -258,6 +258,7 @@ async function executeSingleSearchQuery(
   sessionId: string,
   tabId: string,
   sessionTabService: SessionTabService,
+  signal?: AbortSignal,
 ): Promise<SearchResultItem[]> {
   const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
 
@@ -302,6 +303,7 @@ async function executeSingleSearchQuery(
       },
       stopWhen: [hasSuccessfulToolResult("showSearchResults"), stepCountIs(10)],
       timeout: TIMEOUTS.actionExecution,
+      abortSignal: signal,
       experimental_telemetry: {
         isEnabled: settingsService.settings.langfuse.enabled,
         functionId: "research-search-analysis",
@@ -373,6 +375,7 @@ export async function executeSearchQueries(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   writer: { write: (chunk: any) => void },
   planId?: string,
+  signal?: AbortSignal,
 ): Promise<SearchResultItem[]> {
   const sessionTabService = SessionTabService.getInstance();
   const searchPlanId = planId ?? `research-search-${sessionId}`;
@@ -432,6 +435,7 @@ export async function executeSearchQueries(
             sessionId,
             tabId,
             sessionTabService,
+            signal,
           ),
       })),
       concurrency,

@@ -23,6 +23,7 @@ export class ChatWorker {
     sessionId: string,
     system?: string,
     tools?: ToolSet[],
+    signal?: AbortSignal,
   ): Promise<StreamTextResult<any, any>> {
     this.logger.debug("request received", {
       messagesCount: messages?.length,
@@ -47,6 +48,7 @@ export class ChatWorker {
         system: `${systemPrompt} ${system || ""}`,
         stopWhen: stopConditions,
         timeout: TIMEOUTS.chat,
+        abortSignal: signal,
         // tools: {
         //   calculate: calculateTool,
         // },

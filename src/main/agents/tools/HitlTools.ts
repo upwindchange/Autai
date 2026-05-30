@@ -31,13 +31,14 @@ export const requestHumanInterventionTool = tool({
       .optional()
       .describe('Label for the confirmation button. Default: "Done"'),
   }),
-  execute: async ({ reason }, { toolCallId }) => {
+  execute: async ({ reason }, { toolCallId, experimental_context }) => {
     const hitlService = HitlService.getInstance();
+    const ctx = experimental_context as { abortSignal?: AbortSignal } | undefined;
 
     const response = await hitlService.request<{
       completed: boolean;
       message?: string;
-    }>(toolCallId);
+    }>(toolCallId, undefined, ctx?.abortSignal);
 
     return {
       completed: response.completed,
@@ -78,10 +79,11 @@ export const requestUserInputTool = tool({
       .optional()
       .describe('Label for the submit button. Default: "Submit"'),
   }),
-  execute: async ({ question }, { toolCallId }) => {
+  execute: async ({ question }, { toolCallId, experimental_context }) => {
     const hitlService = HitlService.getInstance();
+    const ctx = experimental_context as { abortSignal?: AbortSignal } | undefined;
 
-    const response = await hitlService.request<{ answer: string }>(toolCallId);
+    const response = await hitlService.request<{ answer: string }>(toolCallId, undefined, ctx?.abortSignal);
 
     return {
       answer: response.answer,
@@ -146,13 +148,14 @@ export const requestOptionListTool = tool({
       .optional()
       .describe("Pre-selected option ID(s)"),
   }),
-  execute: async ({ prompt, options }, { toolCallId }) => {
+  execute: async ({ prompt, options }, { toolCallId, experimental_context }) => {
     const hitlService = HitlService.getInstance();
+    const ctx = experimental_context as { abortSignal?: AbortSignal } | undefined;
 
     const response = await hitlService.request<{
       selection: string | string[] | null;
       cancelled: boolean;
-    }>(toolCallId);
+    }>(toolCallId, undefined, ctx?.abortSignal);
 
     if (response.cancelled || response.selection == null) {
       return {
@@ -234,13 +237,14 @@ export const requestQuestionFlowTool = tool({
       .max(5)
       .describe("Steps to present (max 5)"),
   }),
-  execute: async ({ prompt, steps }, { toolCallId }) => {
+  execute: async ({ prompt, steps }, { toolCallId, experimental_context }) => {
     const hitlService = HitlService.getInstance();
+    const ctx = experimental_context as { abortSignal?: AbortSignal } | undefined;
 
     const response = await hitlService.request<{
       answers: Record<string, string[]>;
       cancelled: boolean;
-    }>(toolCallId);
+    }>(toolCallId, undefined, ctx?.abortSignal);
 
     if (response.cancelled) {
       return { cancelled: true, answers: {}, prompt };

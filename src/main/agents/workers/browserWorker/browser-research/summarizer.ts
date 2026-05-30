@@ -39,6 +39,7 @@ export async function summarizeFindings(
   messages: ModelMessage[],
   extractionResults: ExtractionResult[],
   sessionId: string,
+  signal?: AbortSignal,
 ) {
   logger.debug("Starting summarizer", {
     sessionId,
@@ -80,6 +81,7 @@ ${quotesText}`;
     messages: summaryMessages,
     system: summarizerSystemPrompt,
     timeout: TIMEOUTS.chat,
+    abortSignal: signal,
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "research-summarizer",
@@ -99,6 +101,7 @@ export async function summarizeFindingsFromSnippets(
   messages: ModelMessage[],
   searchResults: SearchResultItem[],
   sessionId: string,
+  signal?: AbortSignal,
 ) {
   logger.debug("Starting quick summarizer", {
     sessionId,
@@ -127,6 +130,7 @@ Snippet: ${result.snippet}`;
     messages: summaryMessages,
     system: summarizerSystemPrompt,
     timeout: TIMEOUTS.chat,
+    abortSignal: signal,
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "research-summarizer-quick",

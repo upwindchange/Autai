@@ -20,15 +20,20 @@ export const TIMEOUTS = {
   } satisfies TimeoutConfiguration,
 } as const;
 
+export function isAbortError(error: unknown): boolean {
+  if (error instanceof DOMException && error.name === "AbortError") return true;
+  if (error instanceof Error && error.name === "AbortError") return true;
+  return false;
+}
+
 export function isTimeoutError(error: unknown): boolean {
+  if (isAbortError(error)) return false;
   if (error instanceof Error) {
     const msg = error.message.toLowerCase();
     return (
       msg.includes("timeout") ||
       msg.includes("timed out") ||
-      msg.includes("aborted") ||
-      error.name === "TimeoutError" ||
-      error.name === "AbortError"
+      error.name === "TimeoutError"
     );
   }
   return false;

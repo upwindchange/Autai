@@ -76,6 +76,21 @@ chatRoutes.post("/", async (c) => {
         deepResearch,
         quickSearch,
       });
+
+      // Create derived AbortController from the HTTP request signal
+      const abortController = new AbortController();
+      c.req.raw.signal.addEventListener(
+        "abort",
+        () => {
+          if (!abortController.signal.aborted) {
+            abortController.abort(
+              c.req.raw.signal.reason ?? "Client disconnected",
+            );
+          }
+        },
+        { once: true },
+      );
+
       const stream = await BrowserWorker(
         messages,
         sessionId,
@@ -87,15 +102,32 @@ chatRoutes.post("/", async (c) => {
         (finalMessages) => {
           threadPersistenceService.saveMessages(sessionId, finalMessages);
         },
+        abortController.signal,
       );
       return createUIMessageStreamResponse({ stream });
     } else {
       logger.info("using chat worker");
+
+      // Create derived AbortController from the HTTP request signal
+      const abortController = new AbortController();
+      c.req.raw.signal.addEventListener(
+        "abort",
+        () => {
+          if (!abortController.signal.aborted) {
+            abortController.abort(
+              c.req.raw.signal.reason ?? "Client disconnected",
+            );
+          }
+        },
+        { once: true },
+      );
+
       const result = await chatWorker.handleChat(
         messages,
         sessionId,
         system,
         tools as ToolSet[] | undefined,
+        abortController.signal,
       );
       return result.toUIMessageStreamResponse({
         originalMessages: messages,

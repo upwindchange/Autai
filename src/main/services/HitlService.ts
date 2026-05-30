@@ -39,18 +39,41 @@ export class HitlService {
   /**
    * Request a human-in-the-loop response. The worker awaits the returned Promise.
    * Resolves when the user responds via IPC.
-   * Rejects on timeout or if the service is cleaned up.
+   * Rejects on timeout, abort, or if the service is cleaned up.
    */
-  request<T = unknown>(id: string, timeoutMs?: number): Promise<T> {
+  request<T = unknown>(
+    id: string,
+    timeoutMs?: number,
+    signal?: AbortSignal,
+  ): Promise<T> {
     const timeout = timeoutMs ?? this.defaultTimeoutMs;
 
     return new Promise<T>((resolve, reject) => {
+      // If already aborted, reject immediately
+      if (signal?.aborted) {
+        reject(new DOMException("Aborted", "AbortError"));
+        return;
+      }
+
       const timer = setTimeout(() => {
-        this.pending.delete(id);
+        cleanup();
         reject(
           new Error(`HITL request for "${id}" timed out after ${timeout}ms`),
         );
       }, timeout);
+
+      const onAbort = () => {
+        cleanup();
+        reject(new DOMException("Aborted", "AbortError"));
+      };
+
+      const cleanup = () => {
+        clearTimeout(timer);
+        this.pending.delete(id);
+        signal?.removeEventListener("abort", onAbort);
+      };
+
+      signal?.addEventListener("abort", onAbort, { once: true });
 
       this.pending.set(id, {
         resolve: resolve as (response: unknown) => void,

@@ -17,6 +17,7 @@ import { summarizeFindings, summarizeFindingsFromSnippets } from "./summarizer";
 import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
+  isAbortError,
   isTimeoutError,
 } from "@agents/utils";
 
@@ -28,6 +29,7 @@ export async function browserResearchWorker(
   originalMessages: UIMessage[],
   onFinish?: (messages: UIMessage[]) => void,
   options?: { skipExtraction?: boolean },
+  signal?: AbortSignal,
 ): Promise<ReadableStream<UIMessageChunk>> {
   logger.info("Entering Browser Research worker", { sessionId });
 
@@ -59,7 +61,7 @@ export async function browserResearchWorker(
             // Stage 1: Research Planning
             // ============================================================
             logger.debug("Stage 1: Generating research plan");
-            const planResult = await researchPlanner(messages, sessionId);
+            const planResult = await researchPlanner(messages, sessionId, signal);
 
             // Extract plan programmatically (no streaming)
             const planSteps = await planResult.steps;
@@ -115,6 +117,8 @@ export async function browserResearchWorker(
               sessionId,
               tabId,
               writer,
+              undefined,
+              signal,
             );
 
             logger.info("Search complete", {
@@ -146,6 +150,7 @@ export async function browserResearchWorker(
                 messages,
                 searchResults,
                 sessionId,
+                signal,
               );
               await mergeStreamAndWait(
                 summaryResult.toUIMessageStream({ sendStart: false }),
@@ -163,6 +168,8 @@ export async function browserResearchWorker(
                 plan.queries,
                 sessionId,
                 writer,
+                undefined,
+                signal,
               );
 
               logger.info("Extraction complete", {
@@ -178,6 +185,7 @@ export async function browserResearchWorker(
                 messages,
                 extractionResults,
                 sessionId,
+                signal,
               );
               await mergeStreamAndWait(
                 summaryResult.toUIMessageStream({ sendStart: false }),
@@ -219,6 +227,10 @@ export async function browserResearchWorker(
           }
         },
         onError: (error) => {
+          if (isAbortError(error)) {
+            logger.info("Research worker cancelled by user");
+            return "";
+          }
           const msg = error instanceof Error ? error.message : String(error);
           logger.error("Error in research worker", {
             error,

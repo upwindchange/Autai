@@ -25,6 +25,7 @@ import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
   TIMEOUTS,
+  isAbortError,
   isTimeoutError,
 } from "@agents/utils";
 import type {
@@ -167,6 +168,7 @@ export async function browserDeepResearchWorker(
   sessionId: string,
   originalMessages: UIMessage[],
   onFinish?: (messages: UIMessage[]) => void,
+  signal?: AbortSignal,
 ): Promise<ReadableStream<UIMessageChunk>> {
   logger.info("Entering Deep Research worker", { sessionId });
 
@@ -201,6 +203,7 @@ export async function browserDeepResearchWorker(
               sessionId,
               tabId,
               writer,
+              signal,
             );
 
             logger.info("Pre-research completed", {
@@ -217,6 +220,12 @@ export async function browserDeepResearchWorker(
               logger.debug(
                 "Stage 0.5: Evaluating if clarification is needed",
               );
+
+              // Abort guard: skip HITL if already cancelled
+              if (signal?.aborted) {
+                logger.info("Deep research aborted before HITL decision");
+                throw new DOMException("Aborted", "AbortError");
+              }
 
               // Extract user text from messages for the decision prompt
               const userText = messages
@@ -253,9 +262,11 @@ export async function browserDeepResearchWorker(
                 toolChoice: "auto",
                 stopWhen: [stepCountIs(3)],
                 timeout: TIMEOUTS.hitlAgent,
+                abortSignal: signal,
                 experimental_context: {
                   sessionId,
                   writer,
+                  abortSignal: signal,
                 },
                 experimental_telemetry: {
                   isEnabled: settingsService.settings.langfuse.enabled,
@@ -329,6 +340,7 @@ export async function browserDeepResearchWorker(
             const deepPlanResult = await deepResearchPlanner(
               enrichedMessages,
               sessionId,
+              signal,
             );
             const deepPlanSteps = await deepPlanResult.steps;
             const deepPlan = extractDeepPlanFromSteps(deepPlanSteps);
@@ -388,6 +400,14 @@ export async function browserDeepResearchWorker(
             emitDeepPlanStatus(subtopicStatuses);
 
             for (let subIdx = 0; subIdx < deepPlan.subtopics.length; subIdx++) {
+              // Abort guard: stop processing subtopics if cancelled
+              if (signal?.aborted) {
+                logger.info("Deep research aborted during subtopic loop", {
+                  subtopicIndex: subIdx,
+                });
+                break;
+              }
+
               const subtopic = deepPlan.subtopics[subIdx];
               subtopicStatuses[subIdx] = "in_progress";
               emitDeepPlanStatus(subtopicStatuses);
@@ -410,6 +430,7 @@ export async function browserDeepResearchWorker(
                 const planResult = await researchPlanner(
                   subtopicMessages,
                   sessionId,
+                  signal,
                 );
                 const plan = await extractPlanFromPlanner(planResult);
 
@@ -425,6 +446,7 @@ export async function browserDeepResearchWorker(
                   tabId,
                   writer,
                   `deep-search-${sessionId}-${subIdx}`,
+                  signal,
                 );
 
                 if (searchResults.length === 0) {
@@ -447,6 +469,7 @@ export async function browserDeepResearchWorker(
                   sessionId,
                   writer,
                   `deep-extract-${sessionId}-${subIdx}`,
+                  signal,
                 );
 
                 const relevantExtractions = extractionResults.filter(
@@ -471,6 +494,7 @@ export async function browserDeepResearchWorker(
                   subtopicMessages,
                   extractionResults,
                   sessionId,
+                  signal,
                 );
                 const summaryText = await summaryResult.text;
 
@@ -530,6 +554,7 @@ export async function browserDeepResearchWorker(
                 system:
                   "You are a research assistant. Inform the user that no relevant search results were found for their query across multiple research subtopics, and suggest they try rephrasing their question.",
                 timeout: TIMEOUTS.chat,
+                abortSignal: signal,
                 experimental_telemetry: {
                   isEnabled: settingsService.settings.langfuse.enabled,
                   functionId: "deep-research-no-results",
@@ -567,6 +592,7 @@ export async function browserDeepResearchWorker(
               messages: compositionMessages,
               system: compositionSystemPrompt,
               timeout: TIMEOUTS.chat,
+              abortSignal: signal,
               experimental_telemetry: {
                 isEnabled: settingsService.settings.langfuse.enabled,
                 functionId: "deep-research-composer",
@@ -610,6 +636,10 @@ export async function browserDeepResearchWorker(
           }
         },
         onError: (error) => {
+          if (isAbortError(error)) {
+            logger.info("Deep research worker cancelled by user");
+            return "";
+          }
           const msg = error instanceof Error ? error.message : String(error);
           logger.error("Error in deep research worker", {
             error,

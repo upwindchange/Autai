@@ -88,6 +88,7 @@ Call the showResearchPlan tool with your research plan.`;
 export async function researchPlanner(
   messages: ModelMessage[],
   sessionId: string,
+  signal?: AbortSignal,
 ) {
   logger.debug("Starting research planner", {
     sessionId,
@@ -107,6 +108,7 @@ export async function researchPlanner(
     },
     stopWhen: [hasSuccessfulToolResult("showResearchPlan"), stepCountIs(20)],
     timeout: TIMEOUTS.planning,
+    abortSignal: signal,
     experimental_context: { sessionId },
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
