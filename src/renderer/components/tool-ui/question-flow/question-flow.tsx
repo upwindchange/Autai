@@ -16,8 +16,11 @@ import type {
   QuestionFlowReceiptProps,
   QuestionFlowOption,
 } from "./schema";
-import { cn, Button, Separator } from "./_adapter";
-import { Check, ChevronLeft } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { cn, Button, Separator, Textarea } from "./_adapter";
+import { Check, ChevronLeft, PencilLine } from "lucide-react";
+
+const CUSTOM_OPTION_ID = "__custom__";
 
 interface SelectionIndicatorProps {
   mode: "single" | "multi";
@@ -252,6 +255,10 @@ interface StepContentProps {
   stepKey?: string;
   exitingStepData?: StepBodyData | null;
   transitionDirection?: "forward" | "backward";
+  isCustomSelected?: boolean;
+  customText?: string;
+  onCustomTextChange?: (text: string) => void;
+  customPlaceholder?: string;
 }
 
 function StepBodyContent({
@@ -464,6 +471,10 @@ function StepContent({
   stepKey,
   exitingStepData,
   transitionDirection = "forward",
+  isCustomSelected,
+  customText,
+  onCustomTextChange,
+  customPlaceholder,
 }: StepContentProps) {
   const isTransitioning =
     exitingStepData !== null && exitingStepData !== undefined;
@@ -540,6 +551,18 @@ function StepContent({
           />
         </div>
 
+        {isCustomSelected && (
+          <div className="flex flex-col px-1">
+            <Textarea
+              value={customText ?? ""}
+              onChange={(e) => onCustomTextChange?.(e.target.value)}
+              placeholder={customPlaceholder ?? "Type your own answer..."}
+              className="max-h-48 min-h-15 resize-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
+              autoFocus
+            />
+          </div>
+        )}
+
         <div className="flex items-center justify-between pt-2">
           {showBack ? (
             <Button
@@ -582,9 +605,26 @@ function QuestionFlowProgressive({
   onBack,
   className,
 }: QuestionFlowProgressiveProps) {
+  const { t } = useTranslation("common");
+  const [customText, setCustomText] = useState("");
+
+  const expandedOptions = useMemo(
+    () => [
+      ...options,
+      {
+        id: CUSTOM_OPTION_ID,
+        label: t("optionList.other"),
+        icon: <PencilLine className="size-4" />,
+      },
+    ],
+    [options, t],
+  );
+
   const [selectedIds, setSelectedIds] = useState<Set<string>>(
     () => new Set(defaultValue ?? []),
   );
+
+  const isCustomSelected = selectedIds.has(CUSTOM_OPTION_ID);
 
   const handleToggle = useCallback(
     (optionId: string) => {
@@ -600,7 +640,11 @@ function QuestionFlowProgressive({
         } else {
           if (next.has(optionId)) {
             next.delete(optionId);
+          } else if (optionId === CUSTOM_OPTION_ID) {
+            next.clear();
+            next.add(optionId);
           } else {
+            next.delete(CUSTOM_OPTION_ID);
             next.add(optionId);
           }
         }
@@ -612,9 +656,11 @@ function QuestionFlowProgressive({
 
   const handleNext = useCallback(() => {
     if (selectedIds.size === 0) return;
-    const selection = Array.from(selectedIds);
+    const selection = Array.from(selectedIds).map((id) =>
+      id === CUSTOM_OPTION_ID ? (customText.trim() || CUSTOM_OPTION_ID) : id,
+    );
     onSelect?.(selection);
-  }, [onSelect, selectedIds]);
+  }, [onSelect, selectedIds, customText]);
 
   return (
     <StepContent
@@ -622,7 +668,7 @@ function QuestionFlowProgressive({
       step={step}
       title={title}
       description={description}
-      options={options}
+      options={expandedOptions}
       selectionMode={selectionMode}
       selectedIds={selectedIds}
       onToggle={handleToggle}
@@ -631,6 +677,10 @@ function QuestionFlowProgressive({
       showBack={step > 1 && onBack !== undefined}
       isLastStep={false}
       className={className}
+      isCustomSelected={isCustomSelected}
+      customText={customText}
+      onCustomTextChange={setCustomText}
+      customPlaceholder={t("optionList.otherPlaceholder")}
     />
   );
 }
@@ -642,8 +692,10 @@ function QuestionFlowUpfront({
   onComplete,
   className,
 }: QuestionFlowUpfrontProps) {
+  const { t } = useTranslation("common");
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string[]>>({});
+  const [customTexts, setCustomTexts] = useState<Record<string, string>>({});
   const [exitingStepData, setExitingStepData] = useState<StepBodyData | null>(
     null,
   );
@@ -651,9 +703,26 @@ function QuestionFlowUpfront({
     "forward" | "backward"
   >("forward");
 
-  const currentStep = steps[currentStepIndex];
-  const isLastStep = currentStepIndex === steps.length - 1;
-  const totalSteps = steps.length;
+  // Build expanded steps with "Other" appended to each step
+  const expandedSteps = useMemo(
+    () =>
+      steps.map((step) => ({
+        ...step,
+        options: [
+          ...step.options,
+          {
+            id: CUSTOM_OPTION_ID,
+            label: t("optionList.other"),
+            icon: <PencilLine className="size-4" />,
+          },
+        ],
+      })),
+    [steps, t],
+  );
+
+  const currentStep = expandedSteps[currentStepIndex];
+  const isLastStep = currentStepIndex === expandedSteps.length - 1;
+  const totalSteps = expandedSteps.length;
 
   useEffect(() => {
     if (exitingStepData) {
@@ -667,6 +736,8 @@ function QuestionFlowUpfront({
     return new Set(answer ?? []);
   }, [answers, currentStep.id]);
 
+  const isCurrentCustomSelected = currentSelection.has(CUSTOM_OPTION_ID);
+
   const handleToggle = useCallback(
     (optionId: string) => {
       const mode = currentStep.selectionMode ?? "single";
@@ -677,9 +748,13 @@ function QuestionFlowUpfront({
         if (mode === "single") {
           next = current.includes(optionId) ? [] : [optionId];
         } else {
-          next = current.includes(optionId)
-            ? current.filter((id) => id !== optionId)
-            : [...current, optionId];
+          if (current.includes(optionId)) {
+            next = current.filter((id) => id !== optionId);
+          } else if (optionId === CUSTOM_OPTION_ID) {
+            next = [CUSTOM_OPTION_ID];
+          } else {
+            next = [...current.filter((id) => id !== CUSTOM_OPTION_ID), optionId];
+          }
         }
 
         return { ...prev, [currentStep.id]: next };
@@ -688,66 +763,68 @@ function QuestionFlowUpfront({
     [currentStep.id, currentStep.selectionMode],
   );
 
-  const handleBack = useCallback(() => {
-    if (currentStepIndex > 0) {
-      const currentStepData = steps[currentStepIndex];
-      const stepOptions: QuestionFlowOption[] = currentStepData.options.map(
+  const buildExitingData = useCallback(
+    (stepIdx: number): StepBodyData => {
+      const stepData = expandedSteps[stepIdx];
+      const stepOptions: QuestionFlowOption[] = stepData.options.map(
         (opt) => ({
           ...opt,
           icon: undefined,
         }),
       );
-
-      setExitingStepData({
-        stepKey: currentStepData.id,
-        title: currentStepData.title,
-        description: currentStepData.description,
+      return {
+        stepKey: stepData.id,
+        title: stepData.title,
+        description: stepData.description,
         options: stepOptions,
-        selectionMode: currentStepData.selectionMode ?? "single",
-        selectedIds: new Set(answers[currentStepData.id] ?? []),
-      });
+        selectionMode: stepData.selectionMode ?? "single",
+        selectedIds: new Set(answers[stepData.id] ?? []),
+      };
+    },
+    [expandedSteps, answers],
+  );
+
+  const handleBack = useCallback(() => {
+    if (currentStepIndex > 0) {
+      setExitingStepData(buildExitingData(currentStepIndex));
       setTransitionDirection("backward");
       const prevIndex = currentStepIndex - 1;
       setCurrentStepIndex(prevIndex);
-      onStepChange?.(steps[prevIndex].id);
+      onStepChange?.(expandedSteps[prevIndex].id);
     }
-  }, [answers, currentStepIndex, onStepChange, steps]);
+  }, [answers, buildExitingData, currentStepIndex, expandedSteps, onStepChange]);
 
   const handleNext = useCallback(() => {
     if (currentSelection.size === 0) return;
 
     if (isLastStep) {
-      onComplete?.(answers);
+      // Substitute CUSTOM_OPTION_ID with custom text
+      const resolved: Record<string, string[]> = {};
+      for (const [stepId, ids] of Object.entries(answers)) {
+        resolved[stepId] = ids.map((id) =>
+          id === CUSTOM_OPTION_ID ?
+            (customTexts[stepId]?.trim() || CUSTOM_OPTION_ID)
+          : id,
+        );
+      }
+      onComplete?.(resolved);
     } else {
-      const currentStepData = steps[currentStepIndex];
-      const stepOptions: QuestionFlowOption[] = currentStepData.options.map(
-        (opt) => ({
-          ...opt,
-          icon: undefined,
-        }),
-      );
-
-      setExitingStepData({
-        stepKey: currentStepData.id,
-        title: currentStepData.title,
-        description: currentStepData.description,
-        options: stepOptions,
-        selectionMode: currentStepData.selectionMode ?? "single",
-        selectedIds: new Set(answers[currentStepData.id] ?? []),
-      });
+      setExitingStepData(buildExitingData(currentStepIndex));
       setTransitionDirection("forward");
       const nextIndex = currentStepIndex + 1;
       setCurrentStepIndex(nextIndex);
-      onStepChange?.(steps[nextIndex].id);
+      onStepChange?.(expandedSteps[nextIndex].id);
     }
   }, [
     answers,
+    buildExitingData,
     currentSelection.size,
     currentStepIndex,
+    customTexts,
+    expandedSteps,
     isLastStep,
     onComplete,
     onStepChange,
-    steps,
   ]);
 
   const stepOptions: QuestionFlowOption[] = currentStep.options.map((opt) => ({
@@ -774,6 +851,12 @@ function QuestionFlowUpfront({
       stepKey={currentStep.id}
       exitingStepData={exitingStepData}
       transitionDirection={transitionDirection}
+      isCustomSelected={isCurrentCustomSelected}
+      customText={customTexts[currentStep.id] ?? ""}
+      onCustomTextChange={(text: string) =>
+        setCustomTexts((prev) => ({ ...prev, [currentStep.id]: text }))
+      }
+      customPlaceholder={t("optionList.otherPlaceholder")}
     />
   );
 }

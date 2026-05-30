@@ -21,8 +21,11 @@ import {
 import { ActionButtons } from "../shared/action-buttons";
 import { normalizeActionsConfig } from "../shared/actions-config";
 import type { Action } from "../shared/schema";
-import { cn, Button, Separator } from "./_adapter";
-import { Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import { cn, Button, Separator, Textarea } from "./_adapter";
+import { Check, PencilLine } from "lucide-react";
+
+const CUSTOM_OPTION_ID = "__custom__";
 
 function convertIdSetToSelection(
   selected: Set<string>,
@@ -241,10 +244,32 @@ export function OptionList({
     }
   }
 
+  const { t } = useTranslation("common");
+
   const effectiveMaxSelections = selectionMode === "single" ? 1 : maxSelections;
-  const optionIds = useMemo(
+
+  // Build expanded options with "Other" appended
+  const expandedOptions = useMemo(
+    () => [
+      ...options,
+      {
+        id: CUSTOM_OPTION_ID,
+        label: t("optionList.other"),
+        icon: <PencilLine className="size-4" />,
+        disabled: undefined,
+        description: undefined,
+      },
+    ],
+    [options, t],
+  );
+
+  const originalOptionIds = useMemo(
     () => new Set(options.map((option) => option.id)),
     [options],
+  );
+  const optionIds = useMemo(
+    () => new Set(expandedOptions.map((option) => option.id)),
+    [expandedOptions],
   );
 
   const [uncontrolledSelected, setUncontrolledSelected] = useState<Set<string>>(
@@ -274,25 +299,31 @@ export function OptionList({
   ]);
 
   const selectedCount = selectedIds.size;
+  const isCustomSelected = selectedIds.has(CUSTOM_OPTION_ID);
+  const [customText, setCustomText] = useState("");
 
   const optionStates = useMemo(() => {
-    return options.map((option) => {
+    return expandedOptions.map((option) => {
       const isSelected = selectedIds.has(option.id);
       const isSelectionLocked =
         selectionMode === "multi" &&
         effectiveMaxSelections !== undefined &&
         selectedCount >= effectiveMaxSelections &&
         !isSelected;
-      const isDisabled = option.disabled || isSelectionLocked;
+      const isDisabled =
+        option.disabled ||
+        isSelectionLocked ||
+        (isCustomSelected && option.id !== CUSTOM_OPTION_ID);
 
       return { option, isSelected, isDisabled };
     });
   }, [
-    options,
+    expandedOptions,
     selectedIds,
     selectionMode,
     effectiveMaxSelections,
     selectedCount,
+    isCustomSelected,
   ]);
 
   const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
@@ -364,7 +395,11 @@ export function OptionList({
       } else {
         if (isSelected) {
           next.delete(optionId);
+        } else if (optionId === CUSTOM_OPTION_ID) {
+          next.clear();
+          next.add(optionId);
         } else {
+          next.delete(CUSTOM_OPTION_ID);
           if (effectiveMaxSelections && next.size >= effectiveMaxSelections) {
             return;
           }
@@ -400,11 +435,27 @@ export function OptionList({
 
       if (actionId === "cancel") {
         nextState = handleCancel();
+      } else if (actionId === "confirm" && isCustomSelected) {
+        const text = customText.trim();
+        const next = new Set(selectedIds);
+        next.delete(CUSTOM_OPTION_ID);
+        if (text) {
+          next.add(text);
+        }
+        nextState = convertIdSetToSelection(next, selectionMode);
       }
 
       await onAction?.(actionId, nextState);
     },
-    [handleCancel, onAction, selectedIds, toSelectionState],
+    [
+      handleCancel,
+      onAction,
+      selectedIds,
+      toSelectionState,
+      isCustomSelected,
+      customText,
+      selectionMode,
+    ],
   );
 
   const normalizedFooterActions = useMemo(() => {
@@ -546,16 +597,39 @@ export function OptionList({
   const isReceipt = choice !== undefined && choice !== null;
   const viewKey = isReceipt ? `receipt-${String(choice)}` : "interactive";
 
+  // Receipt: detect free-text values (not matching any original option)
+  let receiptOptions = expandedOptions;
+  let receiptSelectedIds: Set<string>;
+  if (isReceipt) {
+    const choiceIdSet = normalizeSelectionForOptions(
+      parseSelectionToIdSet(choice, selectionMode),
+      optionIds,
+    );
+    const freeTextIds = Array.from(choiceIdSet).filter(
+      (id) => !originalOptionIds.has(id),
+    );
+
+    if (freeTextIds.length > 0) {
+      const mappedIds = new Set(choiceIdSet);
+      freeTextIds.forEach((ft) => mappedIds.delete(ft));
+      mappedIds.add(CUSTOM_OPTION_ID);
+      receiptOptions = [
+        ...options,
+        { id: CUSTOM_OPTION_ID, label: freeTextIds.join(", ") },
+      ];
+      receiptSelectedIds = mappedIds;
+    } else {
+      receiptSelectedIds = choiceIdSet;
+    }
+  }
+
   return (
     <div key={viewKey} className="contents">
       {isReceipt ?
         <OptionListConfirmation
           id={id}
-          options={options}
-          selectedIds={normalizeSelectionForOptions(
-            parseSelectionToIdSet(choice, selectionMode),
-            optionIds,
-          )}
+          options={receiptOptions}
+          selectedIds={receiptSelectedIds!}
           className={className}
         />
       : <div
@@ -604,6 +678,21 @@ export function OptionList({
               );
             })}
           </div>
+
+          {isCustomSelected && (
+            <div
+              className="bg-card w-full max-w-md min-w-80 rounded-2xl border px-4 py-3 shadow-xs"
+              data-slot="option-list-custom-input"
+            >
+              <Textarea
+                value={customText}
+                onChange={(e) => setCustomText(e.target.value)}
+                placeholder={t("optionList.otherPlaceholder")}
+                className="max-h-48 min-h-15 resize-none border-0 bg-transparent p-0 shadow-none focus-visible:ring-0"
+                autoFocus
+              />
+            </div>
+          )}
 
           <div className="@container/actions">
             <ActionButtons
