@@ -29,5 +29,14 @@
   "aiAgents.concurrency.description": "Set the maximum number of agent tasks that can run simultaneously",
   "aiAgents.concurrency.label": "Max parallel agents",
   "aiAgents.concurrency.tooltip": "Controls how many search and extraction tasks run at the same time. Higher concurrency increases the risk of hitting your provider's rate limit. Once the limit is reached, tasks may fail or retry automatically, which can make the overall job much slower than a lower concurrency setting. The optimal value depends on your provider's rate limit policy.",
-  "aiAgents.concurrency.hint": "Depends on your provider's rate limit policy"
+  "aiAgents.concurrency.hint": "Depends on your provider's rate limit policy",
+  "aiAgents.searchEngine.title": "Search Engine",
+  "aiAgents.searchEngine.description": "Choose which search engine agents use for web research",
+  "aiAgents.searchEngine.label": "Default search engine",
+  "aiAgents.searchEngine.hint": "Baidu and Sogou work well in China where Google is blocked",
+  "aiAgents.searchEngine.custom.name": "Engine name",
+  "aiAgents.searchEngine.custom.name.placeholder": "e.g. Naver",
+  "aiAgents.searchEngine.custom.url": "URL template",
+  "aiAgents.searchEngine.custom.url.placeholder": "e.g. https://example.com/search?q=%s",
+  "aiAgents.searchEngine.custom.url.hint": "Use %s where the search query should be inserted"
 }

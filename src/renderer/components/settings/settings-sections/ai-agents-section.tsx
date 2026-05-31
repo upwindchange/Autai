@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Tooltip,
@@ -22,13 +23,27 @@ import {
 import { CircleHelp } from "lucide-react";
 import { useSettings } from "@/components/settings";
 import { useTranslation } from "react-i18next";
-import type { SettingsState } from "@shared";
+import type { SettingsState, SearchEngine } from "@shared";
 
 interface AiAgentsSectionProps {
   settings: SettingsState;
 }
 
 const CONCURRENCY_OPTIONS = [1, 2, 3, 4, 5, 6, 8, 10];
+
+const SEARCH_ENGINE_OPTIONS: {
+  value: SearchEngine;
+  label: string;
+}[] = [
+  { value: "google", label: "Google" },
+  { value: "bing", label: "Bing" },
+  { value: "bingChina", label: "必应 (Bing China)" },
+  { value: "duckduckgo", label: "DuckDuckGo" },
+  { value: "brave", label: "Brave Search" },
+  { value: "baidu", label: "百度 (Baidu)" },
+  { value: "sogou", label: "搜狗 (Sogou)" },
+  { value: "custom", label: "Custom" },
+];
 
 export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
   const { updateSettings } = useSettings();
@@ -39,6 +54,35 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
     await updateSettings({
       ...settings,
       maxParallelAgents: num,
+    });
+  };
+
+  const handleSearchEngineChange = async (value: string) => {
+    await updateSettings({
+      ...settings,
+      searchEngine: value as SearchEngine,
+    });
+  };
+
+  const handleCustomNameChange = async (name: string) => {
+    await updateSettings({
+      ...settings,
+      searchEngine: "custom",
+      customSearchEngine: {
+        name,
+        urlTemplate: settings.customSearchEngine?.urlTemplate ?? "",
+      },
+    });
+  };
+
+  const handleCustomUrlChange = async (urlTemplate: string) => {
+    await updateSettings({
+      ...settings,
+      searchEngine: "custom",
+      customSearchEngine: {
+        name: settings.customSearchEngine?.name ?? "",
+        urlTemplate,
+      },
     });
   };
 
@@ -91,6 +135,78 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
             <p className="text-sm text-muted-foreground">
               {t("aiAgents.concurrency.hint")}
             </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("aiAgents.searchEngine.title")}</CardTitle>
+          <CardDescription>
+            {t("aiAgents.searchEngine.description")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="search-engine">
+                {t("aiAgents.searchEngine.label")}
+              </Label>
+              <Select
+                value={settings.searchEngine}
+                onValueChange={handleSearchEngineChange}
+              >
+                <SelectTrigger id="search-engine" className="w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SEARCH_ENGINE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-sm text-muted-foreground">
+                {t("aiAgents.searchEngine.hint")}
+              </p>
+            </div>
+
+            {settings.searchEngine === "custom" && (
+              <div className="space-y-3 rounded-md border p-4">
+                <div className="space-y-2">
+                  <Label htmlFor="custom-engine-name">
+                    {t("aiAgents.searchEngine.custom.name")}
+                  </Label>
+                  <Input
+                    id="custom-engine-name"
+                    className="w-80"
+                    placeholder={t(
+                      "aiAgents.searchEngine.custom.name.placeholder",
+                    )}
+                    value={settings.customSearchEngine?.name ?? ""}
+                    onChange={(e) => handleCustomNameChange(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="custom-engine-url">
+                    {t("aiAgents.searchEngine.custom.url")}
+                  </Label>
+                  <Input
+                    id="custom-engine-url"
+                    className="w-80"
+                    placeholder={t(
+                      "aiAgents.searchEngine.custom.url.placeholder",
+                    )}
+                    value={settings.customSearchEngine?.urlTemplate ?? ""}
+                    onChange={(e) => handleCustomUrlChange(e.target.value)}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    {t("aiAgents.searchEngine.custom.url.hint")}
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -106,6 +106,11 @@ class SettingsService {
         settingsMap.get("max_parallel_agents") || "2",
         10,
       ),
+      searchEngine:
+        settingsMap.get("search_engine") || defaults.searchEngine,
+      customSearchEngine: settingsMap.get("custom_search_engine")
+        ? JSON.parse(settingsMap.get("custom_search_engine")!)
+        : undefined,
     });
   }
 
@@ -151,6 +156,13 @@ class SettingsService {
         ["system_prompt", settingsState.systemPrompt || ""],
         ["language", settingsState.language || "en"],
         ["max_parallel_agents", String(settingsState.maxParallelAgents)],
+        ["search_engine", settingsState.searchEngine || "google"],
+        [
+          "custom_search_engine",
+          settingsState.customSearchEngine
+            ? JSON.stringify(settingsState.customSearchEngine)
+            : "",
+        ],
       ] as [string, string][]) {
         tx.insert(settings)
           .values({ key, value })

@@ -36,6 +36,26 @@ export const LogLevelSchema = z.enum([
 ]);
 export type LogLevel = z.infer<typeof LogLevelSchema>;
 
+// Search engine type
+export const SearchEngineSchema = z.enum([
+  "google",
+  "bing",
+  "bingChina",
+  "duckduckgo",
+  "baidu",
+  "sogou",
+  "brave",
+  "custom",
+]);
+export type SearchEngine = z.infer<typeof SearchEngineSchema>;
+
+// Custom search engine configuration (used when searchEngine is "custom")
+export const CustomSearchEngineSchema = z.object({
+  name: z.string().min(1),
+  urlTemplate: z.string().min(1),
+});
+export type CustomSearchEngine = z.infer<typeof CustomSearchEngineSchema>;
+
 // Langfuse configuration schema
 export const LangfuseConfigSchema = z
   .object({
@@ -76,6 +96,8 @@ const DEFAULT_SETTINGS = {
   systemPrompt: "",
   language: "system" as const,
   maxParallelAgents: 2,
+  searchEngine: "google" as const,
+  customSearchEngine: undefined,
 };
 
 // Settings State schema
@@ -106,6 +128,8 @@ export const SettingsStateSchema = z
       .min(1)
       .max(10)
       .default(DEFAULT_SETTINGS.maxParallelAgents),
+    searchEngine: SearchEngineSchema.default(DEFAULT_SETTINGS.searchEngine),
+    customSearchEngine: CustomSearchEngineSchema.optional(),
   })
   .default(DEFAULT_SETTINGS);
 

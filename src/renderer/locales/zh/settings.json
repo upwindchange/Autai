@@ -29,5 +29,14 @@
   "aiAgents.concurrency.description": "设置同时运行的最大代理任务数",
   "aiAgents.concurrency.label": "最大并行代理数",
   "aiAgents.concurrency.tooltip": "控制同时运行的搜索和提取任务数量。并发数越高，越容易触发提供商的速率限制。一旦触发限制，任务可能会失败或自动重试，反而比使用较低并发更慢。最佳值取决于您所选提供商的速率限制策略。",
-  "aiAgents.concurrency.hint": "取决于您的提供商速率限制策略"
+  "aiAgents.concurrency.hint": "取决于您的提供商速率限制策略",
+  "aiAgents.searchEngine.title": "搜索引擎",
+  "aiAgents.searchEngine.description": "选择代理进行网络研究时使用的搜索引擎",
+  "aiAgents.searchEngine.label": "默认搜索引擎",
+  "aiAgents.searchEngine.hint": "在中国大陆，百度和搜狗可以正常使用",
+  "aiAgents.searchEngine.custom.name": "引擎名称",
+  "aiAgents.searchEngine.custom.name.placeholder": "例如：Naver",
+  "aiAgents.searchEngine.custom.url": "URL 模板",
+  "aiAgents.searchEngine.custom.url.placeholder": "例如：https://example.com/search?q=%s",
+  "aiAgents.searchEngine.custom.url.hint": "使用 %s 标记搜索关键词的插入位置"
 }

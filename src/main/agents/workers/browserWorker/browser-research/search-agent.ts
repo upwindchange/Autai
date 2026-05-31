@@ -20,6 +20,7 @@ import { settingsService, SessionTabService } from "@/services";
 import { i18n } from "@/i18n";
 import { sendAlert } from "@/utils/messageUtils";
 import type { ResearchPlan } from "./planner";
+import type { SearchEngine, CustomSearchEngine } from "@shared";
 import log from "electron-log/main";
 
 const logger = log.scope("research-search-agent");
@@ -60,10 +61,92 @@ export type SearchResultItem = {
   queryIndex: number;
 };
 
+// ===== Search Engine Configuration =====
+
+interface SearchEngineConfig {
+  buildUrl: (query: string) => string;
+  displayName: string;
+  domHint: string;
+  navElements: string;
+}
+
+const SEARCH_ENGINE_CONFIGS: Record<
+  Exclude<SearchEngine, "custom">,
+  SearchEngineConfig
+> = {
+  google: {
+    buildUrl: (q) =>
+      `https://www.google.com/search?q=${encodeURIComponent(q)}`,
+    displayName: "Google",
+    domHint: "Google search result links are anchor (<a>) elements",
+    navElements:
+      "Google's own navigation (Images, Videos, News tabs, etc.)",
+  },
+  bing: {
+    buildUrl: (q) =>
+      `https://www.bing.com/search?q=${encodeURIComponent(q)}`,
+    displayName: "Bing",
+    domHint: "Bing search result links are anchor (<a>) elements, often inside <li> with class 'b_algo'",
+    navElements: "Bing's own navigation and sidebar elements",
+  },
+  bingChina: {
+    buildUrl: (q) =>
+      `https://www.bing.com/search?q=${encodeURIComponent(q)}&mkt=zh-CN`,
+    displayName: "必应 (Bing China)",
+    domHint: "Bing search result links are anchor (<a>) elements, often inside <li> with class 'b_algo'",
+    navElements: "Bing's own navigation and sidebar elements",
+  },
+  duckduckgo: {
+    buildUrl: (q) => `https://duckduckgo.com/?q=${encodeURIComponent(q)}`,
+    displayName: "DuckDuckGo",
+    domHint: "DuckDuckGo search results are in articles with class 'result'",
+    navElements: "DuckDuckGo's own navigation and ad elements",
+  },
+  baidu: {
+    buildUrl: (q) =>
+      `https://www.baidu.com/s?wd=${encodeURIComponent(q)}`,
+    displayName: "百度",
+    domHint: "Baidu search results are in div elements with class 'result' or 'c-container'",
+    navElements:
+      "Baidu's own navigation, ads (often labeled '广告'), and promoted content",
+  },
+  sogou: {
+    buildUrl: (q) =>
+      `https://www.sogou.com/web?query=${encodeURIComponent(q)}`,
+    displayName: "搜狗",
+    domHint: "Sogou search results are in div elements with class 'vrwrap' or 'rb'",
+    navElements: "Sogou's own navigation, ads, and promoted content",
+  },
+  brave: {
+    buildUrl: (q) =>
+      `https://search.brave.com/search?q=${encodeURIComponent(q)}`,
+    displayName: "Brave Search",
+    domHint: "Brave Search result links are anchor elements inside divs with class 'snippet'",
+    navElements: "Brave's own navigation and ad elements",
+  },
+};
+
+function getEngineConfig(
+  engine: SearchEngine,
+  custom?: CustomSearchEngine,
+): SearchEngineConfig {
+  if (engine === "custom") {
+    const name = custom?.name || "Custom";
+    const template = custom?.urlTemplate || "";
+    return {
+      buildUrl: (q) => template.replace("%s", encodeURIComponent(q)),
+      displayName: name,
+      domHint: "Search result links are anchor (<a>) elements",
+      navElements: "navigation, ads, and promoted content",
+    };
+  }
+  return SEARCH_ENGINE_CONFIGS[engine];
+}
+
 // ===== Tool =====
 
 const showSearchResultsTool = tool({
-  description: "Return the analyzed search results from the Google page",
+  description: "Return the analyzed search results from the search engine page",
   inputSchema: rawSearchResultsSchema,
   execute: async (input) => {
     return input;
@@ -72,7 +155,8 @@ const showSearchResultsTool = tool({
 
 // ===== System Prompt =====
 
-const searchAnalysisPrompt = `You are a web search analyst. You are viewing the flattened DOM of a Google search results page.
+function buildSearchAnalysisPrompt(engineConfig: SearchEngineConfig): string {
+  return `You are a web search analyst. You are viewing the flattened DOM of a ${engineConfig.displayName} search results page.
 
 ## Your Task
 Analyze the search results displayed in the DOM and identify the most relevant links.
@@ -91,15 +175,16 @@ Analyze the search results displayed in the DOM and identify the most relevant l
    - Relevance score (1-10)
 5. Skip ads, sponsored results, and navigation links
 6. Focus on organic search results only
-7. Only include results from the first page of Google results
+7. Only include results from the first page of results
 8. Do NOT try to extract or construct URLs — just provide the backendNodeId
 
 ## Important
 - Each element in the DOM has a backendNodeId — use that to reference the link
-- Google search result links are anchor (<a>) elements
-- Skip Google's own navigation (Images, Videos, News tabs, etc.)
+- ${engineConfig.domHint}
+- Skip ${engineConfig.navElements}
 - Exclude PDF links unless specifically relevant
 - Call showSearchResults with your analysis`;
+}
 
 // ===== Helpers: Direct tool execution with context =====
 
@@ -260,7 +345,12 @@ async function executeSingleSearchQuery(
   sessionTabService: SessionTabService,
   signal?: AbortSignal,
 ): Promise<SearchResultItem[]> {
-  const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+  const engine = settingsService.settings.searchEngine ?? "google";
+  const engineConfig = getEngineConfig(
+    engine,
+    settingsService.settings.customSearchEngine,
+  );
+  const searchUrl = engineConfig.buildUrl(query);
 
   logger.debug("Searching", { query, searchUrl });
 
@@ -290,10 +380,10 @@ async function executeSingleSearchQuery(
       messages: [
         {
           role: "user",
-          content: `Search query: "${query}"\nFocus: "${focus}"\n\nGoogle search results DOM:\n${truncatedDom}`,
+          content: `Search query: "${query}"\nFocus: "${focus}"\n\n${engineConfig.displayName} search results DOM:\n${truncatedDom}`,
         },
       ],
-      system: searchAnalysisPrompt,
+      system: buildSearchAnalysisPrompt(engineConfig),
       tools: {
         showSearchResults: showSearchResultsTool,
       },
