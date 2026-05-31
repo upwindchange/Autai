@@ -115,9 +115,9 @@ That's it. No manual configuration files, no learning curve.
 
 ## Roadmap
 
-- **alpha 1** — Initial proof of concept
-- **alpha 2** — Deep research mode, improved research agent, input focus fixes
-- **alpha 3** — Simple browser use mode, improved browser agent, tool fixes
+- ~~**alpha 1** — Initial proof of concept~~
+- ~~**alpha 2** — Deep research mode, improved research agent, input focus fixes~~
+- ~~**alpha 3** — Simple browser use mode, improved browser agent, tool fixes~~
 - **alpha 4** — Tag color editing, improved research agent UI, attachment improvement
 - **alpha 5** — MCP tools support
 - **alpha 6** — Custom system prompts and profiles for browser use agent
