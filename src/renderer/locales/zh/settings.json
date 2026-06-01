@@ -39,8 +39,19 @@
   "aiAgents.searchEngine.description": "选择代理进行网络研究时使用的搜索引擎",
   "aiAgents.searchEngine.label": "默认搜索引擎",
   "aiAgents.searchEngine.custom.name": "引擎名称",
-  "aiAgents.searchEngine.custom.name.placeholder": "例如：Naver",
+  "aiAgents.searchEngine.custom.name.placeholder": "例如：SearXNG",
   "aiAgents.searchEngine.custom.url": "URL 模板",
   "aiAgents.searchEngine.custom.url.placeholder": "例如：https://example.com/search?q=%s",
-  "aiAgents.searchEngine.custom.url.hint": "使用 %s 标记搜索关键词的插入位置"
+  "aiAgents.searchEngine.custom.url.hint": "使用 %s 标记搜索关键词的插入位置",
+  "aiAgents.timeouts.title": "超时设置",
+  "aiAgents.timeouts.description": "配置不同代理操作的超时限制",
+  "aiAgents.timeouts.unit": "秒",
+  "aiAgents.timeouts.response.label": "响应超时",
+  "aiAgents.timeouts.response.tooltip": "AI 生成回复或规划任务的最大时间。如果使用的模型思考时间较长，可以适当增加此值。",
+  "aiAgents.timeouts.action.label": "浏览器操作超时",
+  "aiAgents.timeouts.action.tooltip": "每个浏览器自动化步骤的时间限制。复杂网页可能需要更高的值。",
+  "aiAgents.timeouts.interactive.label": "交互超时",
+  "aiAgents.timeouts.interactive.tooltip": "在人机交互过程中的最大等待时间，包括等待您的确认或输入。",
+  "aiAgents.timeouts.streaming.label": "流式传输超时",
+  "aiAgents.timeouts.streaming.tooltip": "等待 AI 数据块的最大间隔时间。如果 AI 暂停时间超过此值，连接将超时。"
 }

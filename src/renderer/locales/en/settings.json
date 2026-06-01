@@ -39,8 +39,19 @@
   "aiAgents.searchEngine.description": "Choose which search engine agents use for web research",
   "aiAgents.searchEngine.label": "Default search engine",
   "aiAgents.searchEngine.custom.name": "Engine name",
-  "aiAgents.searchEngine.custom.name.placeholder": "e.g. Naver",
+  "aiAgents.searchEngine.custom.name.placeholder": "e.g. SearxNG",
   "aiAgents.searchEngine.custom.url": "URL template",
   "aiAgents.searchEngine.custom.url.placeholder": "e.g. https://example.com/search?q=%s",
-  "aiAgents.searchEngine.custom.url.hint": "Use %s where the search query should be inserted"
+  "aiAgents.searchEngine.custom.url.hint": "Use %s where the search query should be inserted",
+  "aiAgents.timeouts.title": "Timeouts",
+  "aiAgents.timeouts.description": "Configure timeout limits for different agent operations",
+  "aiAgents.timeouts.unit": "seconds",
+  "aiAgents.timeouts.response.label": "Response timeout",
+  "aiAgents.timeouts.response.tooltip": "Maximum time the AI can spend generating a response or planning a task. Increase this if you use models that take longer to think.",
+  "aiAgents.timeouts.action.label": "Browser action timeout",
+  "aiAgents.timeouts.action.tooltip": "Time limit for each browser automation step. Complex web pages may need higher values.",
+  "aiAgents.timeouts.interactive.label": "Interactive timeout",
+  "aiAgents.timeouts.interactive.tooltip": "Maximum wait time for human interactions. This includes time spent waiting for your approval or input.",
+  "aiAgents.timeouts.streaming.label": "Streaming timeout",
+  "aiAgents.timeouts.streaming.tooltip": "Maximum time to wait between data chunks from the AI. If the AI pauses longer than this, the connection will time out."
 }

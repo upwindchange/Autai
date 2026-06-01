@@ -112,6 +112,9 @@ class SettingsService {
       customSearchEngine: settingsMap.get("custom_search_engine")
         ? JSON.parse(settingsMap.get("custom_search_engine")!)
         : undefined,
+      timeouts: settingsMap.get("timeouts")
+        ? JSON.parse(settingsMap.get("timeouts")!)
+        : defaults.timeouts,
     });
   }
 
@@ -163,6 +166,12 @@ class SettingsService {
           "custom_search_engine",
           settingsState.customSearchEngine
             ? JSON.stringify(settingsState.customSearchEngine)
+            : "",
+        ],
+        [
+          "timeouts",
+          settingsState.timeouts
+            ? JSON.stringify(settingsState.timeouts)
             : "",
         ],
       ] as [string, string][]) {

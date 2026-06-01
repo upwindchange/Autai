@@ -23,15 +23,11 @@ import {
 import { CircleHelp } from "lucide-react";
 import { useSettings } from "@/components/settings";
 import { useTranslation } from "react-i18next";
-import type { SettingsState, SearchEngine } from "@shared";
+import type { SettingsState, SearchEngine, TimeoutsConfig } from "@shared";
 
 interface AiAgentsSectionProps {
   settings: SettingsState;
 }
-
-const CONCURRENCY_OPTIONS = [1, 2, 3, 4, 5, 6, 8, 10];
-
-const RETRY_OPTIONS = [0, 1, 2, 3, 5, 10];
 
 const SEARCH_ENGINE_OPTIONS: {
   value: SearchEngine;
@@ -53,6 +49,7 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
 
   const handleConcurrencyChange = async (value: string) => {
     const num = parseInt(value, 10);
+    if (isNaN(num) || num < 1 || num > 10) return;
     await updateSettings({
       ...settings,
       maxParallelAgents: num,
@@ -61,6 +58,7 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
 
   const handleRetryChange = async (value: string) => {
     const num = parseInt(value, 10);
+    if (isNaN(num) || num < 0 || num > 10) return;
     await updateSettings({
       ...settings,
       maxRetries: num,
@@ -96,6 +94,53 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
     });
   };
 
+  const handleTimeoutChange = async (
+    field: keyof TimeoutsConfig,
+    value: string,
+  ) => {
+    const num = parseInt(value, 10);
+    if (isNaN(num) || num < 30 || num > 3600) return;
+    await updateSettings({
+      ...settings,
+      timeouts: {
+        ...settings.timeouts,
+        [field]: num,
+      },
+    });
+  };
+
+  const TIMEOUT_FIELDS: {
+    field: keyof TimeoutsConfig;
+    labelKey: string;
+    tooltipKey: string;
+    unitKey: string;
+  }[] = [
+    {
+      field: "response",
+      labelKey: "aiAgents.timeouts.response.label",
+      tooltipKey: "aiAgents.timeouts.response.tooltip",
+      unitKey: "aiAgents.timeouts.unit",
+    },
+    {
+      field: "action",
+      labelKey: "aiAgents.timeouts.action.label",
+      tooltipKey: "aiAgents.timeouts.action.tooltip",
+      unitKey: "aiAgents.timeouts.unit",
+    },
+    {
+      field: "interactive",
+      labelKey: "aiAgents.timeouts.interactive.label",
+      tooltipKey: "aiAgents.timeouts.interactive.tooltip",
+      unitKey: "aiAgents.timeouts.unit",
+    },
+    {
+      field: "streaming",
+      labelKey: "aiAgents.timeouts.streaming.label",
+      tooltipKey: "aiAgents.timeouts.streaming.tooltip",
+      unitKey: "aiAgents.timeouts.unit",
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
@@ -127,21 +172,15 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <Select
-              value={String(settings.maxParallelAgents)}
-              onValueChange={handleConcurrencyChange}
-            >
-              <SelectTrigger id="max-parallel-agents" className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {CONCURRENCY_OPTIONS.map((n) => (
-                  <SelectItem key={n} value={String(n)}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              id="max-parallel-agents"
+              type="number"
+              min={1}
+              max={10}
+              className="w-32"
+              value={settings.maxParallelAgents}
+              onChange={(e) => handleConcurrencyChange(e.target.value)}
+            />
             <p className="text-sm text-muted-foreground">
               {t("aiAgents.concurrency.hint")}
             </p>
@@ -173,21 +212,15 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
                 </Tooltip>
               </TooltipProvider>
             </div>
-            <Select
-              value={String(settings.maxRetries)}
-              onValueChange={handleRetryChange}
-            >
-              <SelectTrigger id="max-retries" className="w-48">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {RETRY_OPTIONS.map((n) => (
-                  <SelectItem key={n} value={String(n)}>
-                    {n}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <Input
+              id="max-retries"
+              type="number"
+              min={0}
+              max={10}
+              className="w-32"
+              value={settings.maxRetries}
+              onChange={(e) => handleRetryChange(e.target.value)}
+            />
             <p className="text-sm text-muted-foreground">
               {t("aiAgents.retries.hint")}
             </p>
@@ -260,6 +293,54 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
                 </div>
               </div>
             )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("aiAgents.timeouts.title")}</CardTitle>
+          <CardDescription>
+            {t("aiAgents.timeouts.description")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            {TIMEOUT_FIELDS.map(({ field, labelKey, tooltipKey, unitKey }) => (
+              <div key={field} className="space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Label htmlFor={`timeout-${field}`}>
+                    {t(labelKey)}
+                  </Label>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <CircleHelp className="h-4 w-4 text-muted-foreground" />
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        {t(tooltipKey)}
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Input
+                    id={`timeout-${field}`}
+                    type="number"
+                    min={30}
+                    max={3600}
+                    className="w-32"
+                    value={settings.timeouts?.[field] ?? ""}
+                    onChange={(e) =>
+                      handleTimeoutChange(field, e.target.value)
+                    }
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    {t(unitKey)}
+                  </span>
+                </div>
+              </div>
+            ))}
           </div>
         </CardContent>
       </Card>

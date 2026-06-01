@@ -73,6 +73,19 @@ export const LangfuseConfigSchema = z
 
 export type LangfuseConfig = z.infer<typeof LangfuseConfigSchema>;
 
+// Timeout configuration schema (values in seconds, converted to ms internally)
+export const TimeoutsConfigSchema = z.object({
+  /** stepMs for chat + planning (seconds) */
+  response: z.number().int().min(30).max(3600).default(300),
+  /** stepMs for actionExecution (seconds) */
+  action: z.number().int().min(30).max(3600).default(480),
+  /** stepMs for hitlAgent (seconds) */
+  interactive: z.number().int().min(30).max(3600).default(600),
+  /** chunkMs for all agents (seconds) */
+  streaming: z.number().int().min(30).max(3600).default(120),
+});
+export type TimeoutsConfig = z.infer<typeof TimeoutsConfigSchema>;
+
 // Default model assignments (empty — user configures from catalog)
 const DEFAULT_MODEL_ASSIGNMENT = {
   role: "chat" as const,
@@ -99,6 +112,7 @@ const DEFAULT_SETTINGS = {
   maxRetries: 3,
   searchEngine: "google" as const,
   customSearchEngine: undefined,
+  timeouts: TimeoutsConfigSchema.parse({}),
 };
 
 // Settings State schema
@@ -137,6 +151,7 @@ export const SettingsStateSchema = z
       .default(DEFAULT_SETTINGS.maxRetries),
     searchEngine: SearchEngineSchema.default(DEFAULT_SETTINGS.searchEngine),
     customSearchEngine: CustomSearchEngineSchema.optional(),
+    timeouts: TimeoutsConfigSchema.default(DEFAULT_SETTINGS.timeouts),
   })
   .default(DEFAULT_SETTINGS);
 
