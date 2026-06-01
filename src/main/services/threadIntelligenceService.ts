@@ -1,4 +1,4 @@
-import { generateText, tool } from "ai";
+import { generateText, tool, type UIMessage } from "ai";
 import { z } from "zod";
 import { simpleModel } from "@agents/providers";
 import { settingsService, threadPersistenceService } from "@/services";
@@ -7,6 +7,14 @@ import log from "electron-log/main";
 import { BrowserWindow } from "electron";
 
 const logger = log.scope("ThreadIntelligenceService");
+
+function extractTextFromUIMessage(msg: UIMessage): string {
+  if (!msg.parts) return "";
+  return msg.parts
+    .filter((p): p is Extract<typeof p, { type: "text" }> => p.type === "text")
+    .map((p) => p.text)
+    .join("\n");
+}
 
 const DEFAULT_TAG_KEYS = [
   "tags.coding",
@@ -137,6 +145,75 @@ INSTRUCTIONS:
       });
     } catch (error) {
       logger.error("Failed to enrich thread:", error);
+    }
+  }
+
+  async generateSuggestions(
+    threadId: string,
+    messages: UIMessage[],
+  ): Promise<void> {
+    try {
+      const lastUserMsg = [...messages]
+        .reverse()
+        .find((m) => m.role === "user");
+      const lastAssistantMsg = [...messages]
+        .reverse()
+        .find((m) => m.role === "assistant");
+
+      if (!lastUserMsg || !lastAssistantMsg) return;
+
+      const userText = extractTextFromUIMessage(lastUserMsg);
+      const assistantText = extractTextFromUIMessage(lastAssistantMsg).slice(
+        0,
+        2000,
+      );
+
+      const result = await generateText({
+        model: simpleModel(),
+        system: `You are a follow-up suggestion generator. Given the conversation so far, generate exactly 3 concise follow-up prompts the user might want to ask next. Each prompt should be a short, natural question or request (under 15 words). Make the suggestions diverse — cover different angles of the topic. Always respond by calling the setFollowUpSuggestions tool.`,
+        prompt: `Last user message: "${userText}"\n\nLast assistant response: "${assistantText}"`,
+        toolChoice: "required",
+        tools: {
+          setFollowUpSuggestions: tool({
+            description: "Set follow-up suggestions for the conversation",
+            inputSchema: z.object({
+              suggestions: z
+                .array(
+                  z.object({
+                    prompt: z
+                      .string()
+                      .describe(
+                        "A short follow-up prompt (under 15 words)",
+                      ),
+                  }),
+                )
+                .describe("3 follow-up suggestions"),
+            }),
+          }),
+        },
+      });
+
+      const toolCall = result.toolCalls[0];
+      if (
+        !toolCall ||
+        toolCall.toolName !== "setFollowUpSuggestions"
+      ) {
+        logger.warn("No setFollowUpSuggestions tool call in response");
+        return;
+      }
+
+      const { suggestions } = toolCall.input as {
+        suggestions: { prompt: string }[];
+      };
+
+      BrowserWindow.getAllWindows().forEach((win) => {
+        win.webContents.send("threads:suggestionsUpdated", {
+          threadId,
+          suggestions,
+        });
+      });
+    } catch (error) {
+      logger.error("Failed to generate suggestions:", error);
     }
   }
 }

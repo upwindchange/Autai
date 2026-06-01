@@ -101,6 +101,11 @@ chatRoutes.post("/", async (c) => {
         quickSearch,
         (finalMessages) => {
           threadPersistenceService.saveMessages(sessionId, finalMessages);
+          threadIntelligenceService
+            .generateSuggestions(sessionId, finalMessages)
+            .catch((err) => {
+              logger.warn("Suggestion generation failed:", err);
+            });
         },
         abortController.signal,
       );
@@ -138,6 +143,11 @@ chatRoutes.post("/", async (c) => {
             messageCount: finalMessages.length,
           });
           threadPersistenceService.saveMessages(sessionId, finalMessages);
+          threadIntelligenceService
+            .generateSuggestions(sessionId, finalMessages)
+            .catch((err) => {
+              logger.warn("Suggestion generation failed:", err);
+            });
         },
       });
     }

@@ -57,6 +57,7 @@ import {
   SelectionToolbar,
 } from "@/components/assistant-ui/quote";
 import { Sources } from "@/components/assistant-ui/sources";
+import { ThreadFollowupSuggestions } from "@/components/assistant-ui/follow-up-suggestions";
 import { Image } from "@/components/assistant-ui/image";
 import { File } from "@/components/assistant-ui/file";
 import { useUiStore } from "@/stores/uiStore";
@@ -134,6 +135,8 @@ export const Thread: FC = () => {
               {() => <ThreadMessage />}
             </ThreadPrimitive.Messages>
           </div>
+          {/* --- custom: follow-up suggestions --- */}
+          <ThreadFollowupSuggestions />
         </div>
         {/* --- custom: spacer + gradient overlay + centered composer --- */}
         <div className="h-20 shrink-0" />

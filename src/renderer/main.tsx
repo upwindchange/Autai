@@ -209,6 +209,17 @@ function AppContent() {
  * Manages the sidebar, main content area, and AI chat interface.
  */
 function App() {
+  // Suggestions state — populated via IPC from backend after each AI response
+  const [suggestions, setSuggestions] = React.useState<
+    readonly { prompt: string }[]
+  >([]);
+
+  // Clear suggestions when switching threads
+  const sessionId = useUiStore((s) => s.sessionId);
+  useEffect(() => {
+    setSuggestions([]);
+  }, [sessionId]);
+
   // Create runtime with thread list support (persistence via REST backend)
   const runtime = useRemoteThreadListRuntime({
     runtimeHook: () =>
@@ -234,6 +245,7 @@ function App() {
             new SimpleTextAttachmentAdapter(),
           ]),
         },
+        suggestions,
       }),
     adapter: backendThreadListAdapter,
   });
@@ -251,6 +263,21 @@ function App() {
         .updateThreadTitle(data.threadId, data.title, data.tags);
     };
     window.ipcRenderer.on("threads:metadataUpdated", handler);
+  }, []);
+
+  // Listen for backend suggestion updates
+  useEffect(() => {
+    const handler = (_event: unknown, ...args: unknown[]) => {
+      const data = args[0] as {
+        threadId: string;
+        suggestions: { prompt: string }[];
+      };
+      const currentSessionId = useUiStore.getState().sessionId;
+      if (data.threadId === currentSessionId) {
+        setSuggestions(data.suggestions);
+      }
+    };
+    window.ipcRenderer.on("threads:suggestionsUpdated", handler);
   }, []);
 
   // Configure assistant-ui with tools using the new Tools() API
