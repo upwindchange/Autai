@@ -133,6 +133,56 @@ export function createToolFilteredStream<T>(
 // ── AI SDK Tool Utilities ──────────────────────────────────────────────────
 
 /**
+ * Retry wrapper for streamText calls that require a specific tool to be called.
+ * Some models may ignore `toolChoice: { type: "tool" }` and return text instead.
+ * This utility retries the call up to `maxAttempts` times.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function retryStreamTextForTool<TOutput>(
+  fn: () =>
+    | Promise<{
+        steps: PromiseLike<any[]>;
+        finishReason: PromiseLike<string>;
+      }>
+    | {
+        steps: PromiseLike<any[]>;
+        finishReason: PromiseLike<string>;
+      },
+  toolName: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  extract: (output: any) => TOutput,
+  options: {
+    maxAttempts: number;
+    logger?: { warn: (msg: string, ctx?: Record<string, unknown>) => void };
+  },
+): Promise<TOutput | undefined> {
+  const { maxAttempts, logger } = options;
+
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    const result = await fn();
+    const steps = await result.steps;
+    const toolResult = steps
+      .flatMap((s) => s.toolResults ?? [])
+      .find(
+        (tr: { toolName: string; type: string }) =>
+          tr.toolName === toolName && tr.type === "tool-result",
+      );
+
+    if (toolResult) {
+      return extract(toolResult.output);
+    }
+
+    const reason = await result.finishReason;
+    logger?.warn?.(
+      `Model did not call ${toolName} (attempt ${attempt + 1}/${maxAttempts})`,
+      { finishReason: reason },
+    );
+  }
+
+  return undefined;
+}
+
+/**
  * Stop condition that checks if a tool was successfully executed
  * (has a tool-result, not just a tool-call or tool-error).
  * This allows the streamText step loop to retry when tool input validation fails.

@@ -380,6 +380,7 @@ export async function executeSubtasks(
               hasSuccessfulToolResult("subtaskComplete"),
               stepCountIs(100),
             ],
+            maxRetries: settingsService.settings.maxRetries,
             timeout: TIMEOUTS.actionExecution,
             abortSignal: signal,
             experimental_telemetry: {

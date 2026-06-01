@@ -118,6 +118,7 @@ export async function executeSimpleBrowserTask(
         },
         toolChoice: "auto",
         stopWhen: [stepCountIs(100)],
+        maxRetries: settingsService.settings.maxRetries,
         timeout: TIMEOUTS.actionExecution,
         abortSignal: signal,
         experimental_telemetry: {

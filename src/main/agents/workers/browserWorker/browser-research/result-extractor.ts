@@ -175,6 +175,7 @@ async function executeSingleExtraction(
         hasSuccessfulToolResult("showExtractionResult"),
         stepCountIs(10),
       ],
+      maxRetries: settingsService.settings.maxRetries,
       timeout: TIMEOUTS.actionExecution,
       abortSignal: signal,
       experimental_telemetry: {

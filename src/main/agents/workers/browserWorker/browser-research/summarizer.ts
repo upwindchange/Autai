@@ -80,6 +80,7 @@ ${quotesText}`;
     model: chatModel(),
     messages: summaryMessages,
     system: summarizerSystemPrompt,
+    maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.chat,
     abortSignal: signal,
     experimental_telemetry: {
@@ -129,6 +130,7 @@ Snippet: ${result.snippet}`;
     model: chatModel(),
     messages: summaryMessages,
     system: summarizerSystemPrompt,
+    maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.chat,
     abortSignal: signal,
     experimental_telemetry: {

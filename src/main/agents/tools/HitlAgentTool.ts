@@ -82,6 +82,7 @@ export const askUserTool = tool({
       tools: hitlTools,
       toolChoice: "auto",
       stopWhen: [stepCountIs(10)],
+      maxRetries: settingsService.settings.maxRetries,
       timeout: TIMEOUTS.hitlAgent,
       abortSignal: ctx.abortSignal,
       experimental_context: {

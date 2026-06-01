@@ -18,6 +18,7 @@ import { executeSimpleBrowserTask } from "./simple-executor";
 import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
+  retryStreamTextForTool,
   TIMEOUTS,
   isAbortError,
   isTimeoutError,
@@ -74,22 +75,24 @@ export async function browserUseWorker(
             // Stage 1: Planning
             // ============================================================
             logger.debug("Stage 1: Generating high-level plan");
-            const planResult = await browserUsePlanner(messages, sessionId, signal);
+            const maxRetries = settingsService.settings.maxRetries;
 
-            // Wait for plan to complete (programmatic access only, not streamed)
-            const steps = await planResult.steps;
-            const planToolCallId = steps
-              .flatMap((s) => s.toolCalls ?? [])
-              .find((tc) => tc.toolName === "plan")!.toolCallId;
-            const planToolResult = steps
-              .flatMap((s) => s.toolResults ?? [])
-              .find((tr) => tr.toolName === "plan");
-            const plan = planToolResult?.output as UIPlanType;
+            const planRetryResult = await retryStreamTextForTool(
+              () => browserUsePlanner(messages, sessionId, signal),
+              "plan",
+              (output) => output as UIPlanType,
+              { maxAttempts: maxRetries, logger },
+            );
 
-            if (!plan) {
-              logger.error("Failed to generate plan: tool not called");
-              throw new Error("Failed to generate plan: plan tool not called");
+            if (!planRetryResult) {
+              logger.error("Failed to generate plan after retries");
+              throw new Error(
+                "Failed to generate plan: plan tool not called after retries",
+              );
             }
+
+            const plan = planRetryResult;
+            const planToolCallId = plan.id;
 
             logger.info("Plan generated successfully", {
               taskCount: plan.todos.length,
@@ -178,7 +181,6 @@ export async function browserUseWorker(
             let currentPlan = plan;
             let currentPlanToolCallId = planToolCallId;
             let attemptCount = 0;
-            const maxRetries = 3;
 
             while (attemptCount <= maxRetries) {
               // Abort guard: stop if request was cancelled
@@ -278,29 +280,29 @@ export async function browserUseWorker(
                 });
               }
 
-              const replanResult = await browserUseReplanner(
-                sessionId,
-                currentPlan,
-                replanFromIndex,
-                replanReason,
-                signal,
+              const replanResult = await retryStreamTextForTool(
+                () =>
+                  browserUseReplanner(
+                    sessionId,
+                    currentPlan,
+                    replanFromIndex,
+                    replanReason,
+                    signal,
+                  ),
+                "plan",
+                (output) => output as UIPlanType,
+                { maxAttempts: maxRetries, logger },
               );
-              const replanSteps = await replanResult.steps;
-              const newPlanToolCallId = replanSteps
-                .flatMap((s) => s.toolCalls ?? [])
-                .find((tc) => tc.toolName === "plan")!.toolCallId;
-              const newPlan = replanSteps
-                .flatMap((s) => s.toolResults ?? [])
-                .find((tr) => tr.toolName === "plan")?.output as
-                | UIPlanType
-                | undefined;
 
-              if (!newPlan) {
-                logger.error("Replanning failed: plan tool not called");
+              if (!replanResult) {
+                logger.error("Replanning failed after retries");
                 throw new Error(
-                  "Replanning failed: plan tool not called",
+                  "Replanning failed: plan tool not called after retries",
                 );
               }
+
+              const newPlan = replanResult;
+              const newPlanToolCallId = newPlan.id;
 
               logger.info("Replan generated successfully", {
                 title: newPlan.title,
@@ -328,6 +330,7 @@ export async function browserUseWorker(
               model: chatModel(),
               messages,
               system: systemPrompt,
+              maxRetries,
               timeout: TIMEOUTS.chat,
               abortSignal: signal,
               experimental_telemetry: {

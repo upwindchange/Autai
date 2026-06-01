@@ -1,7 +1,11 @@
 import { streamText, stepCountIs, tool, type ModelMessage } from "ai";
 import { z } from "zod";
 import { complexModel, chatModel } from "@agents/providers";
-import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
+import {
+  hasSuccessfulToolResult,
+  retryStreamTextForTool,
+  TIMEOUTS,
+} from "@agents/utils";
 import {
   executeSearchQueries,
   type SearchResultItem,
@@ -111,42 +115,41 @@ export async function runPreResearch(
     // ============================================================
     // Step 1: Generate broad exploratory queries via tool call
     // ============================================================
-    const queryResult = streamText({
-      model: complexModel(),
-      prompt: userQuestion,
-      system: PRE_RESEARCH_QUERY_PROMPT,
-      tools: {
-        showBroadQueries: showBroadQueriesTool,
-      },
-      toolChoice: {
-        type: "tool",
-        toolName: "showBroadQueries",
-      },
-      stopWhen: [
-        hasSuccessfulToolResult("showBroadQueries"),
-        stepCountIs(10),
-      ],
-      timeout: TIMEOUTS.planning,
-      abortSignal: signal,
-      experimental_telemetry: {
-        isEnabled: settingsService.settings.langfuse.enabled,
-        functionId: "deep-research-pre-research-queries",
-      },
-    });
+    const maxRetries = settingsService.settings.maxRetries;
 
-    const querySteps = await queryResult.steps;
-    const queryToolResult = querySteps
-      .flatMap((s) => s.toolResults ?? [])
-      .find(
-        (tr) =>
-          tr.toolName === "showBroadQueries" && tr.type === "tool-result",
-      );
+    const broadQueries = await retryStreamTextForTool(
+      () =>
+        streamText({
+          model: complexModel(),
+          prompt: userQuestion,
+          system: PRE_RESEARCH_QUERY_PROMPT,
+          tools: {
+            showBroadQueries: showBroadQueriesTool,
+          },
+          toolChoice: {
+            type: "tool",
+            toolName: "showBroadQueries",
+          },
+          stopWhen: [
+            hasSuccessfulToolResult("showBroadQueries"),
+            stepCountIs(10),
+          ],
+          maxRetries,
+          timeout: TIMEOUTS.planning,
+          abortSignal: signal,
+          experimental_telemetry: {
+            isEnabled: settingsService.settings.langfuse.enabled,
+            functionId: "deep-research-pre-research-queries",
+          },
+        }),
+      "showBroadQueries",
+      (output) => output as BroadQueriesOutput,
+      { maxAttempts: maxRetries, logger },
+    );
 
-    if (!queryToolResult) {
+    if (!broadQueries) {
       throw new Error("Pre-research failed: could not generate broad queries");
     }
-
-    const broadQueries = queryToolResult.output as BroadQueriesOutput;
 
     logger.debug("Broad queries generated", {
       queryCount: broadQueries.queries.length,
@@ -209,6 +212,7 @@ export async function runPreResearch(
         },
       ],
       system: INTERNAL_SUMMARY_PROMPT,
+      maxRetries,
       timeout: TIMEOUTS.chat,
       abortSignal: signal,
       experimental_telemetry: {

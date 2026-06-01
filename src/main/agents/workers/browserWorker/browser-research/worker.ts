@@ -4,7 +4,7 @@ import {
   ModelMessage,
   type UIMessage,
 } from "ai";
-import { SessionTabService } from "@/services";
+import { SessionTabService, settingsService } from "@/services";
 import { i18n } from "@/i18n";
 import { sendAlert } from "@/utils/messageUtils";
 import { flushTelemetry } from "@/agents/utils/telemetry";
@@ -17,6 +17,7 @@ import { summarizeFindings, summarizeFindingsFromSnippets } from "./summarizer";
 import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
+  retryStreamTextForTool,
   isAbortError,
   isTimeoutError,
 } from "@agents/utils";
@@ -61,23 +62,19 @@ export async function browserResearchWorker(
             // Stage 1: Research Planning
             // ============================================================
             logger.debug("Stage 1: Generating research plan");
-            const planResult = await researchPlanner(messages, sessionId, signal);
+            const maxRetries = settingsService.settings.maxRetries;
 
-            // Extract plan programmatically (no streaming)
-            const planSteps = await planResult.steps;
-            const planToolResult = planSteps
-              .flatMap((s) => s.toolResults ?? [])
-              .find(
-                (tr) =>
-                  tr.toolName === "showResearchPlan" &&
-                  tr.type === "tool-result",
-              );
-            const plan = planToolResult?.output as ResearchPlan | undefined;
+            const plan = await retryStreamTextForTool(
+              () => researchPlanner(messages, sessionId, signal),
+              "showResearchPlan",
+              (output) => output as ResearchPlan,
+              { maxAttempts: maxRetries, logger },
+            );
 
             if (!plan) {
-              logger.error("Failed to generate research plan");
+              logger.error("Failed to generate research plan after retries");
               throw new Error(
-                "Failed to generate research plan: showResearchPlan tool not called",
+                "Failed to generate research plan: showResearchPlan tool not called after retries",
               );
             }
 

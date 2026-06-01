@@ -107,6 +107,7 @@ export async function researchPlanner(
       toolName: "showResearchPlan",
     },
     stopWhen: [hasSuccessfulToolResult("showResearchPlan"), stepCountIs(20)],
+    maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.planning,
     abortSignal: signal,
     experimental_context: { sessionId },

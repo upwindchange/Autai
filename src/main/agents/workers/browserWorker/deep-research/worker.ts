@@ -13,7 +13,8 @@ import { sendAlert } from "@/utils/messageUtils";
 import { flushTelemetry } from "@/agents/utils/telemetry";
 import log from "electron-log/main";
 import { observe } from "@langfuse/tracing";
-import { deepResearchPlanner, extractDeepPlanFromSteps } from "./planner";
+import { deepResearchPlanner } from "./planner";
+import type { DeepResearchPlan } from "./types";
 import { researchPlanner } from "../browser-research/planner";
 import type { ResearchPlan } from "../browser-research/planner";
 import { executeSearchQueries } from "../browser-research/search-agent";
@@ -24,6 +25,7 @@ import { runPreResearch } from "./pre-research";
 import {
   mergeStreamAndWait,
   writeSimulatedToolCallToStream,
+  retryStreamTextForTool,
   TIMEOUTS,
   isAbortError,
   isTimeoutError,
@@ -143,19 +145,21 @@ Simply respond with "NO_CLARIFICATION_NEEDED" and nothing else. Do not call any 
 
 // ===== Plan Extraction Helper =====
 
-async function extractPlanFromPlanner(
-  planResult: Awaited<ReturnType<typeof researchPlanner>>,
+async function extractPlanFromPlannerWithRetry(
+  messages: ModelMessage[],
+  sessionId: string,
+  signal: AbortSignal | undefined,
+  maxRetries: number,
 ): Promise<ResearchPlan> {
-  const planSteps = await planResult.steps;
-  const planToolResult = planSteps
-    .flatMap((s) => s.toolResults ?? [])
-    .find(
-      (tr) => tr.toolName === "showResearchPlan" && tr.type === "tool-result",
-    );
-  const plan = planToolResult?.output as ResearchPlan | undefined;
+  const plan = await retryStreamTextForTool(
+    () => researchPlanner(messages, sessionId, signal),
+    "showResearchPlan",
+    (output) => output as ResearchPlan,
+    { maxAttempts: maxRetries, logger },
+  );
   if (!plan) {
     throw new Error(
-      "Failed to generate research plan: showResearchPlan tool not called",
+      "Failed to generate research plan: showResearchPlan tool not called after retries",
     );
   }
   return plan;
@@ -182,6 +186,8 @@ export async function browserDeepResearchWorker(
           : undefined,
         execute: async ({ writer }) => {
           try {
+            const maxRetries = settingsService.settings.maxRetries;
+
             // ============================================================
             // Setup: Get active tab seed
             // ============================================================
@@ -261,6 +267,7 @@ export async function browserDeepResearchWorker(
                 },
                 toolChoice: "auto",
                 stopWhen: [stepCountIs(3)],
+                maxRetries,
                 timeout: TIMEOUTS.hitlAgent,
                 abortSignal: signal,
                 experimental_context: {
@@ -337,18 +344,18 @@ export async function browserDeepResearchWorker(
             enrichedMessages.push(...messages);
 
             logger.debug("Stage 1: Generating deep research plan");
-            const deepPlanResult = await deepResearchPlanner(
-              enrichedMessages,
-              sessionId,
-              signal,
+
+            const deepPlan = await retryStreamTextForTool(
+              () => deepResearchPlanner(enrichedMessages, sessionId, signal),
+              "showDeepResearchPlan",
+              (output) => output as DeepResearchPlan,
+              { maxAttempts: maxRetries, logger },
             );
-            const deepPlanSteps = await deepPlanResult.steps;
-            const deepPlan = extractDeepPlanFromSteps(deepPlanSteps);
 
             if (!deepPlan) {
-              logger.error("Failed to generate deep research plan");
+              logger.error("Failed to generate deep research plan after retries");
               throw new Error(
-                "Failed to generate deep research plan: showDeepResearchPlan tool not called",
+                "Failed to generate deep research plan: showDeepResearchPlan tool not called after retries",
               );
             }
 
@@ -427,12 +434,12 @@ export async function browserDeepResearchWorker(
                   } as ModelMessage,
                 ];
 
-                const planResult = await researchPlanner(
+                const plan = await extractPlanFromPlannerWithRetry(
                   subtopicMessages,
                   sessionId,
                   signal,
+                  maxRetries,
                 );
-                const plan = await extractPlanFromPlanner(planResult);
 
                 logger.debug("Subtopic plan generated", {
                   subtopicIndex: subIdx,
@@ -553,6 +560,7 @@ export async function browserDeepResearchWorker(
                 messages,
                 system:
                   "You are a research assistant. Inform the user that no relevant search results were found for their query across multiple research subtopics, and suggest they try rephrasing their question.",
+                maxRetries,
                 timeout: TIMEOUTS.chat,
                 abortSignal: signal,
                 experimental_telemetry: {
@@ -591,6 +599,7 @@ export async function browserDeepResearchWorker(
               model: chatModel(),
               messages: compositionMessages,
               system: compositionSystemPrompt,
+              maxRetries,
               timeout: TIMEOUTS.chat,
               abortSignal: signal,
               experimental_telemetry: {

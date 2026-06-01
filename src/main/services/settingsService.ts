@@ -106,6 +106,7 @@ class SettingsService {
         settingsMap.get("max_parallel_agents") || "2",
         10,
       ),
+      maxRetries: parseInt(settingsMap.get("max_retries") || "3", 10),
       searchEngine:
         settingsMap.get("search_engine") || defaults.searchEngine,
       customSearchEngine: settingsMap.get("custom_search_engine")
@@ -156,6 +157,7 @@ class SettingsService {
         ["system_prompt", settingsState.systemPrompt || ""],
         ["language", settingsState.language || "en"],
         ["max_parallel_agents", String(settingsState.maxParallelAgents)],
+        ["max_retries", String(settingsState.maxRetries)],
         ["search_engine", settingsState.searchEngine || "google"],
         [
           "custom_search_engine",
@@ -234,6 +236,7 @@ class SettingsService {
       const response = await generateText({
         model: languageModel,
         prompt: "reply only one word",
+        maxRetries: this._settings.maxRetries,
         temperature: 0,
       });
 

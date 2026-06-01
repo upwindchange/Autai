@@ -47,6 +47,7 @@ export class ChatWorker {
         messages: await convertToModelMessages(messages),
         system: `${systemPrompt} ${system || ""}`,
         stopWhen: stopConditions,
+        maxRetries: settingsService.settings.maxRetries,
         timeout: TIMEOUTS.chat,
         abortSignal: signal,
         // tools: {

@@ -15,6 +15,7 @@ export {
   mergeStreamAndWait,
   createToolFilteredStream,
   hasSuccessfulToolResult,
+  retryStreamTextForTool,
   repairToolCall,
   executeToolDirectly,
   writeSimulatedToolCallToStream,

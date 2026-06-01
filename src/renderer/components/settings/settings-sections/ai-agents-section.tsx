@@ -31,6 +31,8 @@ interface AiAgentsSectionProps {
 
 const CONCURRENCY_OPTIONS = [1, 2, 3, 4, 5, 6, 8, 10];
 
+const RETRY_OPTIONS = [0, 1, 2, 3, 5, 10];
+
 const SEARCH_ENGINE_OPTIONS: {
   value: SearchEngine;
   label: string;
@@ -54,6 +56,14 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
     await updateSettings({
       ...settings,
       maxParallelAgents: num,
+    });
+  };
+
+  const handleRetryChange = async (value: string) => {
+    const num = parseInt(value, 10);
+    await updateSettings({
+      ...settings,
+      maxRetries: num,
     });
   };
 
@@ -141,6 +151,52 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
 
       <Card>
         <CardHeader>
+          <CardTitle>{t("aiAgents.retries.title")}</CardTitle>
+          <CardDescription>
+            {t("aiAgents.retries.description")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="max-retries">
+                {t("aiAgents.retries.label")}
+              </Label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <CircleHelp className="h-4 w-4 text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    {t("aiAgents.retries.tooltip")}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <Select
+              value={String(settings.maxRetries)}
+              onValueChange={handleRetryChange}
+            >
+              <SelectTrigger id="max-retries" className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {RETRY_OPTIONS.map((n) => (
+                  <SelectItem key={n} value={String(n)}>
+                    {n}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-sm text-muted-foreground">
+              {t("aiAgents.retries.hint")}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>{t("aiAgents.searchEngine.title")}</CardTitle>
           <CardDescription>
             {t("aiAgents.searchEngine.description")}
@@ -167,9 +223,6 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-sm text-muted-foreground">
-                {t("aiAgents.searchEngine.hint")}
-              </p>
             </div>
 
             {settings.searchEngine === "custom" && (

@@ -109,6 +109,7 @@ export async function deepResearchPlanner(
       hasSuccessfulToolResult("showDeepResearchPlan"),
       stepCountIs(20),
     ],
+    maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.planning,
     abortSignal: signal,
     experimental_context: { sessionId },

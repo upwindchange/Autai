@@ -392,6 +392,7 @@ async function executeSingleSearchQuery(
         toolName: "showSearchResults",
       },
       stopWhen: [hasSuccessfulToolResult("showSearchResults"), stepCountIs(10)],
+      maxRetries: settingsService.settings.maxRetries,
       timeout: TIMEOUTS.actionExecution,
       abortSignal: signal,
       experimental_telemetry: {

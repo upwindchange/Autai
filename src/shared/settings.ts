@@ -96,6 +96,7 @@ const DEFAULT_SETTINGS = {
   systemPrompt: "",
   language: "system" as const,
   maxParallelAgents: 2,
+  maxRetries: 3,
   searchEngine: "google" as const,
   customSearchEngine: undefined,
 };
@@ -128,6 +129,12 @@ export const SettingsStateSchema = z
       .min(1)
       .max(10)
       .default(DEFAULT_SETTINGS.maxParallelAgents),
+    maxRetries: z
+      .number()
+      .int()
+      .min(0)
+      .max(10)
+      .default(DEFAULT_SETTINGS.maxRetries),
     searchEngine: SearchEngineSchema.default(DEFAULT_SETTINGS.searchEngine),
     customSearchEngine: CustomSearchEngineSchema.optional(),
   })
