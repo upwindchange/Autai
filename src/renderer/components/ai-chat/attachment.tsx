@@ -24,6 +24,11 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import {
+  FileIconDisplay,
+  FileName,
+  FileSize,
+} from "@/components/assistant-ui/file";
 import { cn } from "@/lib/utils";
 
 const useFileSrc = (file: File | undefined) => {
@@ -124,31 +129,66 @@ const AttachmentThumb: FC = () => {
   );
 };
 
+const DocumentAttachmentCard: FC = () => {
+  const aui = useAui();
+  const isComposer = aui.attachment.source !== "message";
+  const { name, contentType, fileSize } = useAuiState(
+    useShallow((s): { name: string; contentType?: string; fileSize?: number } => {
+      const att = s.attachment;
+      return {
+        name: att.name,
+        contentType: att.contentType,
+        fileSize: att.file?.size,
+      };
+    }),
+  );
+
+  return (
+    <AttachmentPrimitive.Root className="aui-attachment-root relative">
+      <div
+        className={cn(
+          "aui-attachment-file-card inline-flex items-center gap-2 rounded-lg border bg-muted px-2.5 py-1.5 text-xs transition-opacity hover:opacity-75",
+          isComposer && "pr-7",
+        )}
+      >
+        <FileIconDisplay mimeType={contentType} className="size-4" />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <FileName className="text-xs">{name}</FileName>
+          {fileSize != null && (
+            <FileSize bytes={fileSize} className="text-[10px]" />
+          )}
+        </div>
+      </div>
+      {isComposer && <AttachmentRemove />}
+    </AttachmentPrimitive.Root>
+  );
+};
+
 const AttachmentUI: FC = () => {
   const aui = useAui();
   const isComposer = aui.attachment.source !== "message";
 
   const isImage = useAuiState((s) => s.attachment.type === "image");
-  const typeLabel = useAuiState((s) => {
-    const type = s.attachment.type;
-    switch (type) {
-      case "image":
-        return "Image";
-      case "document":
-        return "Document";
-      case "file":
-        return "File";
-      default:
-        return type;
-    }
-  });
+
+  if (!isImage) {
+    return (
+      <Tooltip>
+        <DocumentAttachmentCard />
+        <TooltipContent side="top">
+          <AttachmentPrimitive.Name />
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  const typeLabel = "Image";
 
   return (
     <Tooltip>
       <AttachmentPrimitive.Root
         className={cn(
           "aui-attachment-root relative",
-          isImage && "aui-attachment-root-composer only:*:first:size-24",
+          "aui-attachment-root-composer only:*:first:size-24",
         )}
       >
         <AttachmentPreviewDialog>

@@ -20,7 +20,6 @@ import {
   AssistantRuntimeProvider,
   CompositeAttachmentAdapter,
   SimpleImageAttachmentAdapter,
-  SimpleTextAttachmentAdapter,
   WebSpeechSynthesisAdapter,
   useAui,
   useAuiState,
@@ -42,6 +41,7 @@ import { useTagStore } from "@/stores/tagStore";
 import type { TagRow } from "@shared/tag";
 import { useRemoteThreadListRuntime } from "@assistant-ui/react";
 import { backendThreadListAdapter } from "@/adapters/backendThreadListAdapter";
+import { UniversalFileAttachmentAdapter } from "@/adapters/universalFileAttachmentAdapter";
 import { initApiBase, getApiBase } from "@/lib/api";
 
 import "./index.css";
@@ -242,7 +242,7 @@ function App() {
           speech: new WebSpeechSynthesisAdapter(),
           attachments: new CompositeAttachmentAdapter([
             new SimpleImageAttachmentAdapter(),
-            new SimpleTextAttachmentAdapter(),
+            new UniversalFileAttachmentAdapter(),
           ]),
         },
         suggestions,
