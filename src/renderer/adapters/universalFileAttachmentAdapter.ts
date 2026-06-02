@@ -4,9 +4,6 @@ import type {
   CompleteAttachment,
 } from "@assistant-ui/react";
 
-const TEXT_FILE_MAX_BYTES = 2 * 1024 * 1024; // 2MB
-const BINARY_FILE_MAX_BYTES = 20 * 1024 * 1024; // 20MB
-
 const BINARY_MIME_PREFIXES = [
   "image/",
   "audio/",
@@ -28,8 +25,7 @@ const BINARY_MIME_PREFIXES = [
 
 function isPdfFile(file: File): boolean {
   return (
-    file.type === "application/pdf" ||
-    file.name.toLowerCase().endsWith(".pdf")
+    file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
   );
 }
 
@@ -37,14 +33,6 @@ function isBinaryMimeType(mimeType: string): boolean {
   if (!mimeType) return false;
   return BINARY_MIME_PREFIXES.some((prefix) => mimeType.startsWith(prefix));
 }
-
-const getFileText = (file: File): Promise<string> =>
-  new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = (error) => reject(error);
-    reader.readAsText(file);
-  });
 
 const getFileDataURL = (file: File): Promise<string> =>
   new Promise<string>((resolve, reject) => {
@@ -59,19 +47,6 @@ export class UniversalFileAttachmentAdapter implements AttachmentAdapter {
 
   public async add(state: { file: File }): Promise<PendingAttachment> {
     const { file } = state;
-    const isBinary = isBinaryMimeType(file.type) && !isPdfFile(file);
-    const maxBytes = isBinary ? BINARY_FILE_MAX_BYTES : TEXT_FILE_MAX_BYTES;
-
-    if (file.size > maxBytes) {
-      return {
-        id: file.name,
-        type: "document",
-        name: file.name,
-        contentType: file.type || undefined,
-        file,
-        status: { type: "incomplete", reason: "error" },
-      };
-    }
 
     return {
       id: file.name,
@@ -122,15 +97,20 @@ export class UniversalFileAttachmentAdapter implements AttachmentAdapter {
       };
     }
 
-    // Text-like files: read as text and wrap in attachment tags
-    const text = await getFileText(file);
+    // Text-like files: send as file part so they render as file cards
+    // Replace the data URL MIME type with text/plain to avoid
+    // unsupported media type errors from LLM providers
+    const dataUrl = await getFileDataURL(file);
+    const data = dataUrl.replace(/^data:[^;]+;/, "data:text/plain;");
     return {
       ...attachment,
       status: { type: "complete" },
       content: [
         {
-          type: "text",
-          text: `<attachment name="${attachment.name}">\n${text}\n</attachment>`,
+          type: "file",
+          mimeType: "text/plain",
+          filename: attachment.name,
+          data,
         },
       ],
     };

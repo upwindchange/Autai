@@ -24,11 +24,7 @@ import {
 } from "@/components/ui/dialog";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
-import {
-  FileIconDisplay,
-  FileName,
-  FileSize,
-} from "@/components/assistant-ui/file";
+import { FileIconDisplay, FileName, FileSize } from "@/components/ai-chat/file";
 import { cn } from "@/lib/utils";
 
 const useFileSrc = (file: File | undefined) => {
@@ -133,14 +129,16 @@ const DocumentAttachmentCard: FC = () => {
   const aui = useAui();
   const isComposer = aui.attachment.source !== "message";
   const { name, contentType, fileSize } = useAuiState(
-    useShallow((s): { name: string; contentType?: string; fileSize?: number } => {
-      const att = s.attachment;
-      return {
-        name: att.name,
-        contentType: att.contentType,
-        fileSize: att.file?.size,
-      };
-    }),
+    useShallow(
+      (s): { name: string; contentType?: string; fileSize?: number } => {
+        const att = s.attachment;
+        return {
+          name: att.name,
+          contentType: att.contentType,
+          fileSize: att.file?.size,
+        };
+      },
+    ),
   );
 
   return (
@@ -151,7 +149,11 @@ const DocumentAttachmentCard: FC = () => {
           isComposer && "pr-7",
         )}
       >
-        <FileIconDisplay mimeType={contentType} className="size-4" />
+        <FileIconDisplay
+          mimeType={contentType}
+          name={name}
+          className="size-12"
+        />
         <div className="flex min-w-0 flex-col gap-0.5">
           <FileName className="text-xs">{name}</FileName>
           {fileSize != null && (

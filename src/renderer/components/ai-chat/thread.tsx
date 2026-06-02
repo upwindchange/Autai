@@ -59,7 +59,7 @@ import {
 import { Sources } from "@/components/assistant-ui/sources";
 import { ThreadFollowupSuggestions } from "@/components/assistant-ui/follow-up-suggestions";
 import { Image } from "@/components/assistant-ui/image";
-import { File } from "@/components/assistant-ui/file";
+import { File } from "@/components/ai-chat/file";
 import { useUiStore } from "@/stores/uiStore";
 import {
   Popover,

@@ -126,6 +126,7 @@
     "react": "^19.2.6",
     "react-day-picker": "^9.14.0",
     "react-dom": "^19.2.6",
+    "react-file-icon": "^1.6.0",
     "react-hook-form": "^7.76.1",
     "react-i18next": "^17.0.8",
     "react-resizable-panels": "^4.11.2",
