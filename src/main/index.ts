@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  dialog,
   Menu,
   shell,
   ipcMain,
@@ -9,6 +10,7 @@ import {
 // import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { readFile as fsReadFile } from "node:fs/promises";
 import { is } from "@electron-toolkit/utils";
 import os from "node:os";
 import log from "electron-log/main";
@@ -470,6 +472,69 @@ ipcMain.handle("shell:openInSystemBrowser", async (_event, url) => {
   if (typeof url === "string") {
     await shell.openExternal(url);
   }
+});
+
+/**
+ * Handler for revealing a file in the system's file explorer.
+ */
+ipcMain.handle("shell:showItemInFolder", async (_event, filePath: string) => {
+  if (typeof filePath === "string") {
+    logger.info(filePath);
+    await shell.showItemInFolder(filePath);
+  }
+});
+
+const MIME_MAP: Record<string, string> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  svg: "image/svg+xml",
+  webp: "image/webp",
+  bmp: "image/bmp",
+  ico: "image/x-icon",
+  pdf: "application/pdf",
+  json: "application/json",
+  xml: "application/xml",
+  zip: "application/zip",
+  tar: "application/x-tar",
+  gz: "application/gzip",
+  mp3: "audio/mpeg",
+  wav: "audio/wav",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  txt: "text/plain",
+  csv: "text/csv",
+  html: "text/html",
+  md: "text/markdown",
+  js: "text/javascript",
+  ts: "text/typescript",
+  css: "text/css",
+};
+
+ipcMain.handle("dialog:openFiles", async () => {
+  const win = BrowserWindow.getFocusedWindow();
+  if (!win) return [];
+
+  const result = await dialog.showOpenDialog(win, {
+    properties: ["openFile", "multiSelections"],
+  });
+
+  if (result.canceled || !result.filePaths.length) return [];
+
+  return Promise.all(
+    result.filePaths.map(async (filePath) => {
+      const buffer = await fsReadFile(filePath);
+      const ext = filePath.slice(filePath.lastIndexOf(".") + 1).toLowerCase();
+      const mimeType = MIME_MAP[ext] ?? "application/octet-stream";
+      return {
+        path: filePath,
+        name: path.basename(filePath),
+        data: buffer.toString("base64"),
+        mimeType,
+      };
+    }),
+  );
 });
 
 /**

@@ -27,6 +27,21 @@ import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button
 import { FileIconDisplay, FileName, FileSize } from "@/components/ai-chat/file";
 import { cn } from "@/lib/utils";
 
+/**
+ * Stores filesystem paths for attachments keyed by filename.
+ * Populated when files are selected via the native Electron dialog.
+ */
+const filePathStore = new Map<string, string>();
+
+function base64ToUint8Array(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
 const useFileSrc = (file: File | undefined) => {
   const [src, setSrc] = useState<string | undefined>(undefined);
 
@@ -148,13 +163,28 @@ const DocumentAttachmentCard: FC = () => {
     ),
   );
 
+  const filePath = filePathStore.get(name);
   const extension = getFileExtension(name);
+
+  const handleReveal = () => {
+    if (!filePath) return;
+    window.ipcRenderer.invoke("shell:showItemInFolder", filePath);
+  };
 
   return (
     <AttachmentPrimitive.Root className="aui-attachment-root relative">
       <div
+        role={filePath ? "button" : undefined}
+        tabIndex={filePath ? 0 : undefined}
+        onClick={handleReveal}
+        onKeyDown={filePath ? (e) => {
+          if (e.key === "Enter" || e.key === " ") handleReveal();
+        } : undefined}
         className={cn(
-          "aui-attachment-file-card group inline-flex items-stretch overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-all hover:border-primary/25 hover:shadow-md",
+          "aui-attachment-file-card group inline-flex items-stretch overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-all",
+          filePath
+            ? "cursor-pointer hover:border-primary/25 hover:shadow-md"
+            : "hover:opacity-75",
           isComposer && "pr-8",
         )}
       >
@@ -275,18 +305,32 @@ export const ComposerAttachments: FC = () => {
 
 export const ComposerAddAttachment: FC = () => {
   const { t } = useTranslation("common");
+  const aui = useAui();
+
+  const handleClick = async () => {
+    const results = await window.ipcRenderer.invoke("dialog:openFiles");
+    if (!Array.isArray(results)) return;
+
+    for (const { path: fsPath, name, data, mimeType } of results) {
+      const file = new File([base64ToUint8Array(data) as BlobPart], name, {
+        type: mimeType,
+      });
+      filePathStore.set(name, fsPath);
+      await aui.composer().addAttachment(file);
+    }
+  };
+
   return (
-    <ComposerPrimitive.AddAttachment asChild>
-      <TooltipIconButton
-        tooltip={t("composer.addAttachment")}
-        side="bottom"
-        variant="ghost"
-        size="icon"
-        className="aui-composer-add-attachment size-8 rounded-full p-1 font-semibold text-xs hover:bg-muted-foreground/15 dark:border-muted-foreground/15 dark:hover:bg-muted-foreground/30"
-        aria-label={t("composer.addAttachment")}
-      >
-        <PlusIcon className="aui-attachment-add-icon size-5 stroke-[1.5px]" />
-      </TooltipIconButton>
-    </ComposerPrimitive.AddAttachment>
+    <TooltipIconButton
+      tooltip={t("composer.addAttachment")}
+      side="bottom"
+      variant="ghost"
+      size="icon"
+      className="aui-composer-add-attachment size-8 rounded-full p-1 font-semibold text-xs hover:bg-muted-foreground/15 dark:border-muted-foreground/15 dark:hover:bg-muted-foreground/30"
+      aria-label={t("composer.addAttachment")}
+      onClick={handleClick}
+    >
+      <PlusIcon className="aui-attachment-add-icon size-5 stroke-[1.5px]" />
+    </TooltipIconButton>
   );
 };
