@@ -125,6 +125,13 @@ const AttachmentThumb: FC = () => {
   );
 };
 
+function getFileExtension(filename: string | undefined): string | undefined {
+  if (!filename) return undefined;
+  const lastDot = filename.lastIndexOf(".");
+  if (lastDot < 0 || lastDot === filename.length - 1) return undefined;
+  return filename.slice(lastDot + 1).toUpperCase();
+}
+
 const DocumentAttachmentCard: FC = () => {
   const aui = useAui();
   const isComposer = aui.attachment.source !== "message";
@@ -141,24 +148,42 @@ const DocumentAttachmentCard: FC = () => {
     ),
   );
 
+  const extension = getFileExtension(name);
+
   return (
     <AttachmentPrimitive.Root className="aui-attachment-root relative">
       <div
         className={cn(
-          "aui-attachment-file-card inline-flex items-center gap-2 rounded-lg border bg-muted px-2.5 py-1.5 text-xs transition-opacity hover:opacity-75",
-          isComposer && "pr-7",
+          "aui-attachment-file-card group inline-flex items-stretch overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-all hover:border-primary/25 hover:shadow-md",
+          isComposer && "pr-8",
         )}
       >
-        <FileIconDisplay
-          mimeType={contentType}
-          name={name}
-          className="size-12"
-        />
-        <div className="flex min-w-0 flex-col gap-0.5">
-          <FileName className="text-xs">{name}</FileName>
-          {fileSize != null && (
-            <FileSize bytes={fileSize} className="text-[10px]" />
-          )}
+        {/* Icon area with distinct background */}
+        <div className="flex shrink-0 items-center justify-center bg-blue-100 dark:bg-muted/60 px-2.5 py-2">
+          <FileIconDisplay
+            mimeType={contentType}
+            name={name}
+            className="size-10"
+          />
+        </div>
+        {/* Text info */}
+        <div className="flex min-w-0 flex-col justify-center gap-0.5 px-3 py-2">
+          <FileName className="truncate text-xs font-medium text-foreground">
+            {name}
+          </FileName>
+          <div className="flex items-center gap-1.5">
+            {fileSize != null && (
+              <FileSize
+                bytes={fileSize}
+                className="text-[10px] text-muted-foreground"
+              />
+            )}
+            {extension && (
+              <span className="inline-flex items-center rounded-lg bg-secondary px-1.5 py-px text-[9px] font-semibold uppercase leading-relaxed tracking-wider text-secondary-foreground">
+                {extension}
+              </span>
+            )}
+          </div>
         </div>
       </div>
       {isComposer && <AttachmentRemove />}
