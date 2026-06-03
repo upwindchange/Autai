@@ -13,6 +13,7 @@ import {
 } from "@/components/assistant-ui/reasoning";
 import { ToolFallback } from "@/components/assistant-ui/tool-fallback";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import { ComposerTriggerPopover } from "@/components/assistant-ui/composer-trigger-popover";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
@@ -25,6 +26,8 @@ import {
   MessagePrimitive,
   SuggestionPrimitive,
   ThreadPrimitive,
+  unstable_useSlashCommandAdapter,
+  type Unstable_SlashCommand,
   useAuiEvent,
   useAuiState,
 } from "@assistant-ui/react";
@@ -229,27 +232,89 @@ const ThreadSuggestionItem: FC = () => {
 const Composer: FC = () => {
   // --- custom: i18n ---
   const { t } = useTranslation("common");
+  const {
+    setUseBrowser,
+    setUsePlannedBrowser,
+    setWebSearch,
+    setQuickSearch,
+    setDeepResearch,
+  } = useUiStore();
+
+  const slash = unstable_useSlashCommandAdapter({
+    commands: [
+      {
+        id: "browser",
+        description: t("composer.slashCommand.browser"),
+        icon: "globe",
+        execute: () => setUseBrowser(true),
+      },
+      {
+        id: "browser-planned",
+        description: t("composer.slashCommand.browserPlanned"),
+        icon: "globe",
+        execute: () => {
+          setUseBrowser(true);
+          setUsePlannedBrowser(true);
+        },
+      },
+      {
+        id: "search",
+        description: t("composer.slashCommand.search"),
+        icon: "search",
+        execute: () => setWebSearch(true),
+      },
+      {
+        id: "quick-search",
+        description: t("composer.slashCommand.quickSearch"),
+        icon: "search",
+        execute: () => {
+          setWebSearch(true);
+          setQuickSearch(true);
+        },
+      },
+      {
+        id: "deep-research",
+        description: t("composer.slashCommand.deepResearch"),
+        icon: "search",
+        execute: () => {
+          setWebSearch(true);
+          setDeepResearch(true);
+        },
+      },
+    ] as readonly Unstable_SlashCommand[],
+    removeOnExecute: true,
+  });
+
   return (
-    <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
-      {/* --- custom: quote preview --- */}
-      <ComposerQuotePreview />
-      <ComposerPrimitive.AttachmentDropzone asChild>
-        <div
-          data-slot="aui_composer-shell"
-          className="flex w-full flex-col gap-2 rounded-(--composer-radius) border bg-background p-(--composer-padding) transition-shadow focus-within:border-ring/75 focus-within:ring-2 focus-within:ring-ring/20 data-[dragging=true]:border-ring data-[dragging=true]:border-dashed data-[dragging=true]:bg-accent/50"
-        >
-          <ComposerAttachments />
-          <ComposerPrimitive.Input
-            placeholder={t("composer.placeholder")}
-            className="aui-composer-input max-h-32 min-h-10 w-full resize-none bg-transparent px-1.75 py-1 text-sm outline-none placeholder:text-muted-foreground/80"
-            rows={1}
-            autoFocus
-            aria-label={t("composer.ariaLabel")}
-          />
-          <ComposerAction />
-        </div>
-      </ComposerPrimitive.AttachmentDropzone>
-    </ComposerPrimitive.Root>
+    <ComposerPrimitive.Unstable_TriggerPopoverRoot>
+      <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
+        {/* --- custom: quote preview --- */}
+        <ComposerQuotePreview />
+        <ComposerPrimitive.AttachmentDropzone asChild>
+          <div
+            data-slot="aui_composer-shell"
+            className="flex w-full flex-col gap-2 rounded-(--composer-radius) border bg-background p-(--composer-padding) transition-shadow focus-within:border-ring/75 focus-within:ring-2 focus-within:ring-ring/20 data-[dragging=true]:border-ring data-[dragging=true]:border-dashed data-[dragging=true]:bg-accent/50"
+          >
+            <ComposerAttachments />
+            <ComposerPrimitive.Input
+              placeholder={t("composer.placeholder")}
+              className="aui-composer-input max-h-32 min-h-10 w-full resize-none bg-transparent px-1.75 py-1 text-sm outline-none placeholder:text-muted-foreground/80"
+              rows={1}
+              autoFocus
+              aria-label={t("composer.ariaLabel")}
+            />
+            <ComposerAction />
+          </div>
+        </ComposerPrimitive.AttachmentDropzone>
+        <ComposerTriggerPopover
+          char="/"
+          {...slash}
+          iconMap={{ globe: Globe, search: Search }}
+          emptyCategoriesLabel={t("composer.slashCommand.emptyCategories")}
+          emptyItemsLabel={t("composer.slashCommand.emptyItems")}
+        />
+      </ComposerPrimitive.Root>
+    </ComposerPrimitive.Unstable_TriggerPopoverRoot>
   );
 };
 
