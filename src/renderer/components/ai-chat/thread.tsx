@@ -232,13 +232,7 @@ const ThreadSuggestionItem: FC = () => {
 const Composer: FC = () => {
   // --- custom: i18n ---
   const { t } = useTranslation("common");
-  const {
-    setUseBrowser,
-    setUsePlannedBrowser,
-    setWebSearch,
-    setQuickSearch,
-    setDeepResearch,
-  } = useUiStore();
+  const { setUseBrowser, setWebSearch } = useUiStore();
 
   const slash = unstable_useSlashCommandAdapter({
     commands: [
@@ -249,37 +243,10 @@ const Composer: FC = () => {
         execute: () => setUseBrowser(true),
       },
       {
-        id: "browser-planned",
-        description: t("composer.slashCommand.browserPlanned"),
-        icon: "globe",
-        execute: () => {
-          setUseBrowser(true);
-          setUsePlannedBrowser(true);
-        },
-      },
-      {
         id: "search",
         description: t("composer.slashCommand.search"),
         icon: "search",
         execute: () => setWebSearch(true),
-      },
-      {
-        id: "quick-search",
-        description: t("composer.slashCommand.quickSearch"),
-        icon: "search",
-        execute: () => {
-          setWebSearch(true);
-          setQuickSearch(true);
-        },
-      },
-      {
-        id: "deep-research",
-        description: t("composer.slashCommand.deepResearch"),
-        icon: "search",
-        execute: () => {
-          setWebSearch(true);
-          setDeepResearch(true);
-        },
       },
     ] as readonly Unstable_SlashCommand[],
     removeOnExecute: true,
