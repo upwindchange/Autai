@@ -464,10 +464,35 @@ const ComposerAction: FC = () => {
                     }
                   }}
                 />
-                <div className="flex justify-between text-[10px] text-muted-foreground">
-                  <span>{t("composer.effort.quick")}</span>
-                  <span>{t("composer.effort.standard")}</span>
-                  <span>{t("composer.effort.thorough")}</span>
+                <div className="flex text-[10px] text-muted-foreground">
+                  <button
+                    type="button"
+                    className="flex-1 text-left hover:text-foreground transition-colors"
+                    onClick={() => {
+                      setQuickSearch(true);
+                    }}
+                  >
+                    {t("composer.effort.quick")}
+                  </button>
+                  <button
+                    type="button"
+                    className="flex-1 text-center hover:text-foreground transition-colors"
+                    onClick={() => {
+                      setDeepResearch(false);
+                      setQuickSearch(false);
+                    }}
+                  >
+                    {t("composer.effort.standard")}
+                  </button>
+                  <button
+                    type="button"
+                    className="flex-1 text-right hover:text-foreground transition-colors"
+                    onClick={() => {
+                      setDeepResearch(true);
+                    }}
+                  >
+                    {t("composer.effort.thorough")}
+                  </button>
                 </div>
               </div>
             </PopoverContent>
