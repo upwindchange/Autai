@@ -30,6 +30,7 @@ tagRoutes.post("/", async (c) => {
     }
     const tag = threadPersistenceService.createTag(
       parsed.data.name,
+      parsed.data.color,
       parsed.data.sortOrder,
     );
     return c.json({ tag }, 201);
@@ -51,8 +52,12 @@ tagRoutes.patch("/:id", async (c) => {
         400,
       );
     }
-    threadPersistenceService.renameTag(id, parsed.data.name);
-    return c.json({ success: true });
+    threadPersistenceService.updateTag(id, {
+      name: parsed.data.name,
+      color: parsed.data.color,
+    });
+    const updatedTag = threadPersistenceService.getTag(id);
+    return c.json({ tag: updatedTag });
   } catch (error) {
     logger.error("Error renaming tag:", error);
     return c.json({ error: "Failed to rename tag" }, 500);

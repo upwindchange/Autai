@@ -24,6 +24,26 @@ const DEFAULT_TAG_KEYS = [
   "tags.learning",
 ];
 
+const DEFAULT_TAG_COLORS = [
+  "#4E79A7",
+  "#59A14F",
+  "#B07AA1",
+  "#EDC948",
+  "#76B7B2",
+];
+
+/** All 16 palette colors (shared with renderer's tagColors.ts). */
+const PALETTE = [
+  "#4E79A7", "#F28E2B", "#E15759", "#76B7B2",
+  "#59A14F", "#EDC948", "#B07AA1", "#FF9DA7",
+  "#9C755F", "#BAB0AC", "#1B9E77", "#D95F02",
+  "#7570B3", "#E7298A", "#66A61E", "#E6AB02",
+];
+
+function getRandomPaletteColor(): string {
+  return PALETTE[Math.floor(Math.random() * PALETTE.length)]!;
+}
+
 class ThreadIntelligenceService {
   initialize(): void {
     this.seedDefaultTags();
@@ -34,7 +54,11 @@ class ThreadIntelligenceService {
       const existingTags = threadPersistenceService.listTags();
       if (existingTags.length === 0) {
         for (let i = 0; i < DEFAULT_TAG_KEYS.length; i++) {
-          threadPersistenceService.createTag(i18n.t(DEFAULT_TAG_KEYS[i]!), i);
+          threadPersistenceService.createTag(
+            i18n.t(DEFAULT_TAG_KEYS[i]!),
+            DEFAULT_TAG_COLORS[i]!,
+            i,
+          );
         }
         logger.info("Seeded default tags");
       }
@@ -125,7 +149,7 @@ INSTRUCTIONS:
             tag: matchedTag.name,
           });
         } else if (settings.autoTagCreationEnabled) {
-          const newTag = threadPersistenceService.createTag(args.tag);
+          const newTag = threadPersistenceService.createTag(args.tag, getRandomPaletteColor());
           threadPersistenceService.addTagToThread(threadId, newTag.id);
           logger.info("Created and tagged thread with new tag", {
             threadId,

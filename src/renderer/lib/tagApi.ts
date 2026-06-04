@@ -7,22 +7,30 @@ export async function fetchTags(): Promise<TagRow[]> {
   return data.tags;
 }
 
-export async function createTag(name: string): Promise<TagRow> {
+export async function createTag(
+  name: string,
+  color: string,
+): Promise<TagRow> {
   const res = await fetch(`${getApiBase()}/tags`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify({ name, color }),
   });
   const data = (await res.json()) as { tag: TagRow };
   return data.tag;
 }
 
-export async function renameTag(id: number, name: string): Promise<void> {
-  await fetch(`${getApiBase()}/tags/${id}`, {
+export async function updateTag(
+  id: number,
+  updates: { name?: string; color?: string },
+): Promise<TagRow> {
+  const res = await fetch(`${getApiBase()}/tags/${id}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
+    body: JSON.stringify(updates),
   });
+  const data = (await res.json()) as { tag: TagRow };
+  return data.tag!;
 }
 
 export async function deleteTag(id: number): Promise<void> {

@@ -23,12 +23,16 @@ export const UpdateThreadSchema = z.object({
 // Tag creation schema
 export const CreateTagSchema = z.object({
   name: z.string().min(1).max(50),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
   sortOrder: z.number().int().optional(),
 });
 
 // Tag update schema
 export const UpdateTagSchema = z.object({
-  name: z.string().min(1).max(50),
+  name: z.string().min(1).max(50).optional(),
+  color: z.string().regex(/^#[0-9A-Fa-f]{6}$/).optional(),
+}).refine((data) => data.name !== undefined || data.color !== undefined, {
+  message: "At least one of name or color must be provided",
 });
 
 // Add tag to thread schema

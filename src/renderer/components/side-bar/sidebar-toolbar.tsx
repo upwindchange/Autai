@@ -55,25 +55,10 @@ import {
 } from "@/lib/tagApi";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-
-// ---------------------------------------------------------------------------
-// Tag color utilities (re-exported for use by thread-list.tsx)
-// ---------------------------------------------------------------------------
-
-const TAG_COLORS = [
-  "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200",
-  "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200",
-  "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200",
-  "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200",
-  "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200",
-  "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200",
-  "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200",
-  "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200",
-];
-
-export function getTagColor(tagId: number): string {
-  return TAG_COLORS[tagId % TAG_COLORS.length]!;
-}
+import {
+  getTagChipStyle,
+  getRandomPaletteColor,
+} from "@/lib/tagColors";
 
 // ---------------------------------------------------------------------------
 // Active panel type
@@ -91,7 +76,6 @@ export function SidebarToolbar() {
   const setViewMode = useTagStore((s) => s.setViewMode);
   const viewingArchive = useTagStore((s) => s.viewingArchive);
   const setViewingArchive = useTagStore((s) => s.setViewingArchive);
-  const fetchTags = useTagStore((s) => s.fetchTags);
   const threads = useTagStore((s) => s.threads);
   const selectedTagId = useTagStore((s) => s.selectedTagId);
   const isMultiSelectMode = useTagStore((s) => s.isMultiSelectMode);
@@ -105,8 +89,8 @@ export function SidebarToolbar() {
   >(null);
 
   useEffect(() => {
-    fetchTags();
-  }, [fetchTags]);
+    refreshThreads();
+  }, []);
 
   const allVisibleThreadIds = useMemo(
     () =>
@@ -392,7 +376,7 @@ function TagPanel() {
       <div className="flex flex-wrap gap-1">
         <TagChip
           label={t("sidebar.tagAll")}
-          color="bg-muted text-muted-foreground"
+          color={null}
           selected={selectedTagId === null}
           onClick={() => setSelectedTagId(null)}
         />
@@ -402,7 +386,7 @@ function TagPanel() {
               <div>
                 <TagChip
                   label={tag.name}
-                  color={getTagColor(tag.id)}
+                  color={tag.color}
                   selected={selectedTagId === tag.id}
                   onClick={() =>
                     setSelectedTagId(selectedTagId === tag.id ? null : tag.id)
@@ -434,14 +418,16 @@ function TagChip({
   onClick,
 }: {
   label: string;
-  color: string;
+  color: string | null;
   selected: boolean;
   onClick: () => void;
 }) {
+  const { style, className: colorClass } = getTagChipStyle(color);
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium transition-opacity ${color} ${selected ? "ring-2 ring-primary opacity-100" : "opacity-70 hover:opacity-100"}`}
+      style={style}
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium transition-opacity ${colorClass} ${selected ? "ring-2 ring-primary opacity-100" : "opacity-70 hover:opacity-100"}`}
     >
       {label}
     </button>
@@ -460,7 +446,7 @@ function CreateTagInput() {
   const handleSubmit = async () => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    await useTagStore.getState().createTag(trimmed);
+    await useTagStore.getState().createTag(trimmed, getRandomPaletteColor());
     setName("");
   };
 
@@ -505,7 +491,7 @@ function RenameTagMenuItem({
             if (e.key === "Enter") {
               const trimmed = name.trim();
               if (trimmed && trimmed !== currentName) {
-                await useTagStore.getState().renameTag(tagId, trimmed);
+                await useTagStore.getState().updateTag(tagId, { name: trimmed });
               }
               setIsRenaming(false);
             }

@@ -6,7 +6,7 @@ export interface TagRow {
   id: number;
   name: string;
   emoji: string | null;
-  color: string | null;
+  color: string;
   sortOrder: number;
   createdAt: string;
 }

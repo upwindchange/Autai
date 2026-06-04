@@ -137,11 +137,11 @@ class ThreadPersistenceService {
   // Tag operations
   // ---------------------------------------------------------------------------
 
-  createTag(name: string, sortOrder?: number): TagRow {
+  createTag(name: string, color: string, sortOrder?: number): TagRow {
     const db = getDb();
     const result = db
       .insert(tags)
-      .values({ name, sortOrder: sortOrder ?? 0 })
+      .values({ name, color, sortOrder: sortOrder ?? 0 })
       .returning()
       .get();
     return result;
@@ -161,9 +161,9 @@ class ThreadPersistenceService {
     return db.select().from(tags).where(eq(tags.id, id)).get();
   }
 
-  renameTag(id: number, name: string): void {
+  updateTag(id: number, updates: { name?: string; color?: string }): void {
     const db = getDb();
-    db.update(tags).set({ name }).where(eq(tags.id, id)).run();
+    db.update(tags).set(updates).where(eq(tags.id, id)).run();
   }
 
   deleteTag(id: number): void {

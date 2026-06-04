@@ -5,7 +5,7 @@ import {
   fetchTags,
   createTag as apiCreateTag,
   deleteTag as apiDeleteTag,
-  renameTag as apiRenameTag,
+  updateTag as apiUpdateTag,
   addTagToThread as apiAddTagToThread,
   removeTagFromThread as apiRemoveTagFromThread,
   searchThreads as apiSearchThreads,
@@ -48,9 +48,9 @@ interface TagState {
 
   // Actions
   fetchTags: () => Promise<void>;
-  createTag: (name: string) => Promise<TagRow>;
+  createTag: (name: string, color: string) => Promise<TagRow>;
   deleteTag: (id: number) => Promise<void>;
-  renameTag: (id: number, name: string) => Promise<void>;
+  updateTag: (id: number, updates: { name?: string; color?: string }) => Promise<void>;
   setSelectedTagId: (id: number | null) => void;
   setViewMode: (mode: ViewMode) => void;
   setViewingArchive: (viewing: boolean) => void;
@@ -108,8 +108,8 @@ export const useTagStore = create<TagState>()(
       }
     },
 
-    createTag: async (name: string) => {
-      const tag = await apiCreateTag(name);
+    createTag: async (name: string, color: string) => {
+      const tag = await apiCreateTag(name, color);
       set((state) => ({ tags: [...state.tags, tag] }));
       return tag;
     },
@@ -122,10 +122,23 @@ export const useTagStore = create<TagState>()(
       }));
     },
 
-    renameTag: async (id: number, name: string) => {
-      await apiRenameTag(id, name);
+    updateTag: async (
+      id: number,
+      updates: { name?: string; color?: string },
+    ) => {
+      const updatedTag = await apiUpdateTag(id, updates);
       set((state) => ({
-        tags: state.tags.map((t) => (t.id === id ? { ...t, name } : t)),
+        tags: state.tags.map((t) => (t.id === id ? updatedTag : t)),
+        threadTags: Object.fromEntries(
+          Object.entries(state.threadTags).map(([key, tags]) => [
+            key,
+            tags.map((t) => (t.id === id ? updatedTag : t)),
+          ]),
+        ),
+        threads: state.threads.map((th) => ({
+          ...th,
+          tags: th.tags.map((t) => (t.id === id ? updatedTag : t)),
+        })),
       }));
     },
 

@@ -38,7 +38,7 @@ import {
 } from "lucide-react";
 import { useMemo, useRef, useState, type FC } from "react";
 import { useTagStore, type ThreadInfo } from "@/stores/tagStore";
-import { getTagColor } from "@/components/side-bar/sidebar-toolbar";
+import { getTagChipStyle } from "@/lib/tagColors";
 import { cn } from "@/lib/utils";
 import type { TagRow } from "@shared/tag";
 
@@ -166,7 +166,7 @@ const FlatThreadList: FC = () => {
 
 interface TagGroup {
   tagName: string;
-  tagColor: string;
+  tagColor: string | null;
   threads: ThreadInfo[];
 }
 
@@ -207,7 +207,7 @@ const GroupedThreadList: FC = () => {
         if (!groupMap.has(primaryTag.id)) {
           groupMap.set(primaryTag.id, {
             tagName: primaryTag.name,
-            tagColor: getTagColor(primaryTag.id),
+            tagColor: primaryTag.color,
             threads: [],
           });
         }
@@ -238,7 +238,7 @@ const GroupedThreadList: FC = () => {
         <CollapsibleTagGroup
           group={{
             tagName: t("sidebar.untagged"),
-            tagColor: "bg-muted text-muted-foreground",
+            tagColor: null,
             threads: untagged,
           }}
           activeThreadId={mainThreadId}
@@ -256,6 +256,7 @@ const CollapsibleTagGroup: FC<{
 }> = ({ group, activeThreadId, onSwitch }) => {
   const [open, setOpen] = useState(true);
   const isMultiSelectMode = useTagStore((s) => s.isMultiSelectMode);
+  const groupChipStyle = getTagChipStyle(group.tagColor);
   const selectedThreadIds = useTagStore((s) => s.selectedThreadIds);
   const selectAllThreads = useTagStore((s) => s.selectAllThreads);
 
@@ -286,7 +287,8 @@ const CollapsibleTagGroup: FC<{
           className={`size-3 transition-transform ${open ? "rotate-90" : ""}`}
         />
         <span
-          className={`rounded px-1.5 py-0 text-[10px] font-medium ${group.tagColor}`}
+          style={groupChipStyle.style}
+          className={`rounded px-1.5 py-0 text-[10px] font-medium ${groupChipStyle.className}`}
         >
           {group.tagName}
         </span>
@@ -357,14 +359,18 @@ const GroupedThreadItem: FC<{
     >
       {selectionIndicator}
       <span className="min-w-0 flex-1 truncate">{thread.title}</span>
-      {thread.tags.map((tag) => (
-        <span
-          key={tag.id}
-          className={`inline-flex rounded px-1 py-0 text-[10px] font-medium ${getTagColor(tag.id)}`}
-        >
-          {tag.name}
-        </span>
-      ))}
+      {thread.tags.map((tag) => {
+        const { style: tagStyle, className: tagClass } = getTagChipStyle(tag.color);
+        return (
+          <span
+            key={tag.id}
+            style={tagStyle}
+            className={`inline-flex rounded px-1 py-0 text-[10px] font-medium ${tagClass}`}
+          >
+            {tag.name}
+          </span>
+        );
+      })}
     </button>
   );
 };
@@ -469,6 +475,7 @@ const ThreadTagChip: FC<{
   threadRemoteId: string | undefined;
 }> = ({ tag, threadRemoteId }) => {
   const [hovered, setHovered] = useState(false);
+  const { style: chipStyle, className: chipClass } = getTagChipStyle(tag.color);
 
   const handleRemove = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -480,7 +487,8 @@ const ThreadTagChip: FC<{
     <span
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      className={`inline-flex items-center gap-0.5 rounded px-1 py-0 text-[10px] font-medium leading-tight ${getTagColor(tag.id)}`}
+      style={chipStyle}
+      className={`inline-flex items-center gap-0.5 rounded px-1 py-0 text-[10px] font-medium leading-tight ${chipClass}`}
     >
       {tag.name}
       {hovered && (
@@ -573,18 +581,22 @@ const ThreadListItemMore: FC<{ threadRemoteId: string | undefined }> = ({
               {t("sidebar.addTag")}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              {availableTags.map((tag) => (
-                <DropdownMenuItem
-                  key={tag.id}
-                  onClick={() => handleAddTag(tag.id)}
-                >
-                  <span
-                    className={`inline-flex rounded px-1.5 py-0 text-[10px] font-medium ${getTagColor(tag.id)}`}
+              {availableTags.map((tag) => {
+                const { style: tagStyle, className: tagClass } = getTagChipStyle(tag.color);
+                return (
+                  <DropdownMenuItem
+                    key={tag.id}
+                    onClick={() => handleAddTag(tag.id)}
                   >
-                    {tag.name}
-                  </span>
-                </DropdownMenuItem>
-              ))}
+                    <span
+                      style={tagStyle}
+                      className={`inline-flex rounded px-1.5 py-0 text-[10px] font-medium ${tagClass}`}
+                    >
+                      {tag.name}
+                    </span>
+                  </DropdownMenuItem>
+                );
+              })}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           {viewingArchive ?

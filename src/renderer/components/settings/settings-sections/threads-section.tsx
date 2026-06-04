@@ -18,6 +18,8 @@ import type { SettingsState } from "@shared";
 import type { TagRow } from "@shared/tag";
 import log from "electron-log/renderer";
 import { getApiBase } from "@/lib/api";
+import { ColorPicker } from "@/components/ui/color-picker";
+import { getRandomPaletteColor } from "@/lib/tagColors";
 
 const logger = log.scope("ThreadsSection");
 
@@ -30,8 +32,12 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
   const { t } = useTranslation("threads");
   const [tags, setTags] = useState<TagRow[]>([]);
   const [newTagName, setNewTagName] = useState("");
+  const [newTagColor, setNewTagColor] = useState<string>(
+    getRandomPaletteColor(),
+  );
   const [editingTagId, setEditingTagId] = useState<number | null>(null);
   const [editingTagName, setEditingTagName] = useState("");
+  const [editingTagColor, setEditingTagColor] = useState("");
 
   useEffect(() => {
     loadTags();
@@ -70,28 +76,42 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
       await fetch(`${getApiBase()}/tags`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, color: newTagColor }),
       });
       setNewTagName("");
+      setNewTagColor(getRandomPaletteColor());
       await loadTags();
     } catch (error) {
       logger.error("Failed to create tag:", error);
     }
-  }, [newTagName]);
+  }, [newTagName, newTagColor]);
 
-  const handleRenameTag = async (id: number) => {
+  const handleColorChange = async (id: number, color: string) => {
+    try {
+      await fetch(`${getApiBase()}/tags/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ color }),
+      });
+      await loadTags();
+    } catch (error) {
+      logger.error("Failed to update tag color:", error);
+    }
+  };
+
+  const handleSaveTag = async (id: number) => {
     const name = editingTagName.trim();
     if (!name) return;
     try {
       await fetch(`${getApiBase()}/tags/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, color: editingTagColor }),
       });
       setEditingTagId(null);
       await loadTags();
     } catch (error) {
-      logger.error("Failed to rename tag:", error);
+      logger.error("Failed to update tag:", error);
     }
   };
 
@@ -102,6 +122,16 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
     } catch (error) {
       logger.error("Failed to delete tag:", error);
     }
+  };
+
+  const startEditing = (tag: TagRow) => {
+    setEditingTagId(tag.id);
+    setEditingTagName(tag.name);
+    setEditingTagColor(tag.color);
+  };
+
+  const cancelEditing = () => {
+    setEditingTagId(null);
   };
 
   return (
@@ -164,6 +194,10 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
         <CardContent className="space-y-4">
           {/* Add new tag */}
           <div className="flex items-center gap-2">
+            <ColorPicker
+              color={newTagColor}
+              onChange={setNewTagColor}
+            />
             <Input
               placeholder={t("tagManagement.newTag.placeholder")}
               value={newTagName}
@@ -197,11 +231,15 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
               >
                 {editingTagId === tag.id ?
                   <>
+                    <ColorPicker
+                      color={editingTagColor}
+                      onChange={setEditingTagColor}
+                    />
                     <Input
                       value={editingTagName}
                       onChange={(e) => setEditingTagName(e.target.value)}
                       onKeyDown={(e) =>
-                        e.key === "Enter" && handleRenameTag(tag.id)
+                        e.key === "Enter" && handleSaveTag(tag.id)
                       }
                       className="h-8 max-w-xs"
                       autoFocus
@@ -210,7 +248,7 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => handleRenameTag(tag.id)}
+                      onClick={() => handleSaveTag(tag.id)}
                     >
                       <Check className="h-4 w-4" />
                     </Button>
@@ -218,21 +256,22 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => setEditingTagId(null)}
+                      onClick={cancelEditing}
                     >
                       <X className="h-4 w-4" />
                     </Button>
                   </>
                 : <>
+                    <ColorPicker
+                      color={tag.color}
+                      onChange={(color) => handleColorChange(tag.id, color)}
+                    />
                     <span className="flex-1 text-sm">{tag.name}</span>
                     <Button
                       variant="ghost"
                       size="icon"
                       className="h-8 w-8"
-                      onClick={() => {
-                        setEditingTagId(tag.id);
-                        setEditingTagName(tag.name);
-                      }}
+                      onClick={() => startEditing(tag)}
                     >
                       <Pencil className="h-3 w-3" />
                     </Button>
