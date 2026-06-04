@@ -69,7 +69,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Slider } from "@/components/ui/slider";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
@@ -459,7 +460,7 @@ const ComposerAction: FC = () => {
             <PopoverContent
               side="top"
               align="center"
-              className="w-40 p-3"
+              className="w-auto min-w-28 p-3"
               onMouseEnter={handleSearchMouseEnter}
               onMouseLeave={handleSearchMouseLeave}
               onOpenAutoFocus={(e) => e.preventDefault()}
@@ -480,52 +481,60 @@ const ComposerAction: FC = () => {
                     </Tooltip>
                   </TooltipProvider>
                 </div>
-                <Slider
-                  value={[effort]}
-                  min={0}
-                  max={2}
-                  step={1}
-                  onValueChange={([v]) => {
-                    if (v === 0) {
+                <RadioGroup
+                  value={String(effort)}
+                  onValueChange={(v) => {
+                    if (v === "0") {
                       setQuickSearch(true);
-                    } else if (v === 2) {
+                    } else if (v === "2") {
                       setDeepResearch(true);
                     } else {
                       setDeepResearch(false);
                       setQuickSearch(false);
                     }
                   }}
-                />
-                <div className="flex text-[10px] text-muted-foreground">
-                  <button
-                    type="button"
-                    className="flex-1 text-left hover:text-foreground transition-colors"
-                    onClick={() => {
-                      setQuickSearch(true);
-                    }}
-                  >
-                    {t("composer.effort.quick")}
-                  </button>
-                  <button
-                    type="button"
-                    className="flex-1 text-center hover:text-foreground transition-colors"
-                    onClick={() => {
-                      setDeepResearch(false);
-                      setQuickSearch(false);
-                    }}
-                  >
-                    {t("composer.effort.standard")}
-                  </button>
-                  <button
-                    type="button"
-                    className="flex-1 text-right hover:text-foreground transition-colors"
-                    onClick={() => {
-                      setDeepResearch(true);
-                    }}
-                  >
-                    {t("composer.effort.thorough")}
-                  </button>
-                </div>
+                  className="gap-1.5"
+                >
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem
+                      value="0"
+                      id="effort-quick"
+                      className="size-3.5"
+                    />
+                    <Label
+                      htmlFor="effort-quick"
+                      className="text-xs cursor-pointer"
+                    >
+                      {t("composer.effort.quick")}
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem
+                      value="1"
+                      id="effort-standard"
+                      className="size-3.5"
+                    />
+                    <Label
+                      htmlFor="effort-standard"
+                      className="text-xs cursor-pointer"
+                    >
+                      {t("composer.effort.standard")}
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem
+                      value="2"
+                      id="effort-thorough"
+                      className="size-3.5"
+                    />
+                    <Label
+                      htmlFor="effort-thorough"
+                      className="text-xs cursor-pointer"
+                    >
+                      {t("composer.effort.thorough")}
+                    </Label>
+                  </div>
+                </RadioGroup>
               </div>
             </PopoverContent>
           </Popover>
