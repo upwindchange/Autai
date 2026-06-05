@@ -46,6 +46,7 @@ import {
   RefreshCwIcon,
   CircleHelpIcon,
   Search,
+  Plus,
   SquareIcon,
   StopCircleIcon,
   ToolCase,
@@ -71,9 +72,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Switch } from "@/components/ui/switch";
 import {
   Tooltip,
   TooltipContent,
@@ -301,6 +312,10 @@ const ComposerAction: FC = () => {
     setWebSearch,
     setDeepResearch,
     setQuickSearch,
+    enabledMcpServerIds,
+    toggleMcpServer,
+    setShowSettings,
+    setActiveSettingsSection,
   } = useUiStore();
   const { t } = useTranslation("common");
   const {
@@ -309,25 +324,8 @@ const ComposerAction: FC = () => {
     handleMouseEnter: handleSearchMouseEnter,
     handleMouseLeave: handleSearchMouseLeave,
   } = useHoverPopover();
-  const {
-    open: browserPopoverOpen,
-    setOpen: setBrowserPopoverOpen,
-    handleMouseEnter: handleBrowserMouseEnter,
-    handleMouseLeave: handleBrowserMouseLeave,
-  } = useHoverPopover();
-  const {
-    open: mcpPopoverOpen,
-    setOpen: setMcpPopoverOpen,
-    handleMouseEnter: handleMcpMouseEnter,
-    handleMouseLeave: handleMcpMouseLeave,
-  } = useHoverPopover();
 
-  // --- custom: MCP server toggle ---
-  const {
-    enabledMcpServerIds,
-    setEnabledMcpServerIds,
-    toggleMcpServer,
-  } = useUiStore();
+  // --- custom: MCP servers ---
   const [mcpServers, setMcpServers] = useState<
     { id: string; name: string; enabled: boolean }[]
   >([]);
@@ -345,13 +343,16 @@ const ComposerAction: FC = () => {
       .catch(() => {});
   }, []);
 
-  const hasEnabledMcpServers = mcpServers.length > 0;
   const hasActiveMcpServers = enabledMcpServerIds.length > 0;
 
-  const browserIconColor =
-    usePlannedBrowser ? "text-purple-500"
-    : useBrowser ? "text-blue-500"
-    : "";
+  const toolIconColor =
+    useBrowser
+      ? usePlannedBrowser
+        ? "text-purple-500"
+        : "text-blue-500"
+      : hasActiveMcpServers
+        ? "text-orange-500"
+        : "";
 
   // effort: 0 = quick, 1 = standard, 2 = thorough
   const effort =
@@ -364,107 +365,94 @@ const ComposerAction: FC = () => {
     : webSearch ? "text-blue-500"
     : "";
 
+  const handleAddExtensions = () => {
+    setActiveSettingsSection("mcpServers");
+    setShowSettings(true);
+  };
+
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
       <div className="flex items-center gap-1">
         <ComposerAddAttachment />
-        {/* --- custom: browser toggle with mode popover --- */}
-        {useBrowser ?
-          <Popover
-            open={browserPopoverOpen}
-            onOpenChange={() => {}}
-            modal={false}
-          >
-            <PopoverTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                type="button"
-                className={cn(
-                  "aui-button-icon size-8.5 p-1",
-                  useBrowser && "bg-muted hover:bg-muted",
-                )}
-                onClick={() => {
-                  setUseBrowser(false);
-                  setBrowserPopoverOpen(false);
-                }}
-                onMouseEnter={handleBrowserMouseEnter}
-                onMouseLeave={handleBrowserMouseLeave}
-              >
-                <Globe className={cn("size-5", browserIconColor)} />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent
-              side="top"
-              align="center"
-              className="w-36 p-3"
-              onMouseEnter={handleBrowserMouseEnter}
-              onMouseLeave={handleBrowserMouseLeave}
-              onOpenAutoFocus={(e) => e.preventDefault()}
+        {/* --- custom: unified tools menu (browser use + extensions) --- */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              type="button"
+              className={cn(
+                "aui-button-icon size-8.5 p-1",
+                (useBrowser || hasActiveMcpServers) && "bg-muted hover:bg-muted",
+              )}
             >
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium">
-                    {t("composer.browser.mode.label")}
-                  </span>
-                  <TooltipProvider delayDuration={0}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <CircleHelpIcon className="size-3.5 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-56 text-xs">
-                        {t("composer.browser.mode.description")}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <div className="flex items-center justify-between gap-2">
-                  <span
-                    className={cn(
-                      "text-xs",
-                      !usePlannedBrowser && "text-foreground font-medium",
-                      usePlannedBrowser && "text-muted-foreground",
-                    )}
-                  >
-                    {t("composer.browser.mode.simple")}
-                  </span>
-                  <Switch
-                    size="sm"
-                    checked={usePlannedBrowser}
-                    onCheckedChange={setUsePlannedBrowser}
-                  />
-                  <span
-                    className={cn(
-                      "text-xs",
-                      usePlannedBrowser && "text-foreground font-medium",
-                      !usePlannedBrowser && "text-muted-foreground",
-                    )}
-                  >
-                    {t("composer.browser.mode.planned")}
-                  </span>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-        : <TooltipProvider delayDuration={0}>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  type="button"
-                  className="aui-button-icon size-8.5 p-1"
-                  onClick={() => setUseBrowser(true)}
+              <ToolCase className={cn("size-5", toolIconColor)} />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent side="top" align="start">
+            {/* Browser Use Submenu */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Globe className="size-4" />
+                {t("composer.tools.browserUse")}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                <DropdownMenuCheckboxItem
+                  checked={useBrowser && !usePlannedBrowser}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setUsePlannedBrowser(false);
+                      setUseBrowser(true);
+                    } else {
+                      setUseBrowser(false);
+                    }
+                  }}
                 >
-                  <Globe className="size-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                {t("composer.browser.off")}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        }
+                  {t("composer.browser.mode.simple")}
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={useBrowser && usePlannedBrowser}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setUsePlannedBrowser(true);
+                      setUseBrowser(true);
+                    } else {
+                      setUseBrowser(false);
+                    }
+                  }}
+                >
+                  {t("composer.browser.mode.planned")}
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+
+            <DropdownMenuSeparator />
+
+            {/* Extensions Submenu */}
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <Plus className="size-4" />
+                {t("composer.tools.extensions")}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {mcpServers.map((server) => (
+                  <DropdownMenuCheckboxItem
+                    key={server.id}
+                    checked={enabledMcpServerIds.includes(server.id)}
+                    onCheckedChange={() => toggleMcpServer(server.id)}
+                  >
+                    {server.name}
+                  </DropdownMenuCheckboxItem>
+                ))}
+                {mcpServers.length > 0 && <DropdownMenuSeparator />}
+                <DropdownMenuItem onClick={handleAddExtensions}>
+                  <Plus className="size-4" />
+                  {t("composer.tools.addExtensions")}
+                </DropdownMenuItem>
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          </DropdownMenuContent>
+        </DropdownMenu>
         {/* --- custom: web search toggle with effort slider popover --- */}
         {webSearch ?
           <Popover
@@ -594,85 +582,6 @@ const ComposerAction: FC = () => {
             </Tooltip>
           </TooltipProvider>
         }
-        {/* --- custom: MCP server toggle --- */}
-        {hasEnabledMcpServers && (
-          hasActiveMcpServers ?
-            <Popover
-              open={mcpPopoverOpen}
-              onOpenChange={() => {}}
-              modal={false}
-            >
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  type="button"
-                  className={cn(
-                    "aui-button-icon size-8.5 p-1",
-                    hasActiveMcpServers && "bg-muted hover:bg-muted",
-                  )}
-                  onClick={() => {
-                    setEnabledMcpServerIds([]);
-                    setMcpPopoverOpen(false);
-                  }}
-                  onMouseEnter={handleMcpMouseEnter}
-                  onMouseLeave={handleMcpMouseLeave}
-                >
-                  <ToolCase className={cn("size-5", "text-orange-500")} />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                side="top"
-                align="center"
-                className="w-64 p-3"
-                onMouseEnter={handleMcpMouseEnter}
-                onMouseLeave={handleMcpMouseLeave}
-                onOpenAutoFocus={(e) => e.preventDefault()}
-              >
-                <div className="space-y-2">
-                  <span className="text-xs font-medium">
-                    {t("composer.mcp.label")}
-                  </span>
-                  {mcpServers.map((server) => (
-                    <div
-                      key={server.id}
-                      className="flex items-center justify-between"
-                    >
-                      <span className="text-xs truncate mr-2">
-                        {server.name}
-                      </span>
-                      <Switch
-                        size="sm"
-                        checked={enabledMcpServerIds.includes(server.id)}
-                        onCheckedChange={() => toggleMcpServer(server.id)}
-                      />
-                    </div>
-                  ))}
-                </div>
-              </PopoverContent>
-            </Popover>
-          : <TooltipProvider delayDuration={0}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    type="button"
-                    className="aui-button-icon size-8.5 p-1"
-                    onClick={() => {
-                      setEnabledMcpServerIds(mcpServers.map((s) => s.id));
-                      setMcpPopoverOpen(true);
-                    }}
-                  >
-                    <ToolCase className="size-5" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="top">
-                  {t("composer.mcp.off")}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-        )}
       </div>
 
       <AuiIf condition={(s) => !s.thread.isRunning}>
