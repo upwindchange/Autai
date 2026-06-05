@@ -1,19 +1,27 @@
 import {
   convertToModelMessages,
   stepCountIs,
-  StreamTextResult,
-  ToolSet,
+  type ToolSet,
   type UIMessage,
   streamText,
+  type StreamTextResult,
+  type Tool,
 } from "ai";
 import { chatModel } from "@agents/providers";
 import { repairToolCall, TIMEOUTS } from "@agents/utils";
-// import { calculateTool } from "@agents/tools";
 import { settingsService } from "@/services";
+import { mcpService } from "@/services/mcpService";
+import type { MCPClient } from "@ai-sdk/mcp";
 import log from "electron-log/main";
+
 const systemPrompt = `When your response can benefit from a visual diagram, output a mermaid code block using one of these chart types: Flowchart, Sequence Diagram, Class Diagram, State Diagram, Entity Relationship Diagram, User Journey, Gantt, Pie Chart, Quadrant Chart, Requirement Diagram, GitGraph, C4 Diagram, Mindmap, Timeline, ZenUML, Sankey, XY Chart, Block Diagram, Packet, Kanban, Architecture, Radar, Event Modeling, Treemap, Venn, Ishikawa, Wardley, TreeView
 
 For inline math expressions, use double dollar signs like $$E = mc^2$$. Never use single dollar signs for math.`;
+
+export interface ChatWorkerResult {
+  result: StreamTextResult<any, any>;
+  mcpClients: MCPClient[];
+}
 
 export class ChatWorker {
   private logger = log.scope("ChatWorker");
@@ -22,18 +30,40 @@ export class ChatWorker {
     messages: UIMessage[],
     sessionId: string,
     system?: string,
-    tools?: ToolSet[],
+    tools?: ToolSet,
     signal?: AbortSignal,
-  ): Promise<StreamTextResult<any, any>> {
+    mcpServerIds?: string[],
+  ): Promise<ChatWorkerResult> {
     this.logger.debug("request received", {
       messagesCount: messages?.length,
       hasSystem: !!system,
       sessionId: sessionId,
       hasTools: !!tools,
-      toolCount: tools ? Object.keys(tools).length : 0,
+      toolCount: tools ? Object.keys(tools as Record<string, unknown>).length : 0,
+      mcpServerIds: mcpServerIds?.length ?? 0,
     });
 
+    let mcpClients: MCPClient[] = [];
+
     try {
+      // Build merged tool set
+      let mergedTools: Record<string, Tool> = {};
+
+      // Load MCP tools if server IDs provided
+      if (mcpServerIds && mcpServerIds.length > 0) {
+        const mcpResult = await mcpService.connectAndDiscoverTools(mcpServerIds);
+        mergedTools = { ...mergedTools, ...mcpResult.tools };
+        mcpClients = mcpResult.clients;
+        this.logger.info("Loaded MCP tools", {
+          mcpToolCount: Object.keys(mcpResult.tools).length,
+        });
+      }
+
+      // Merge with any passed-in tools
+      if (tools) {
+        mergedTools = { ...mergedTools, ...tools };
+      }
+
       this.logger.debug("creating stream with chat model");
 
       // Configure stop conditions based on available tools
@@ -50,9 +80,7 @@ export class ChatWorker {
         maxRetries: settingsService.settings.maxRetries,
         timeout: TIMEOUTS.chat,
         abortSignal: signal,
-        // tools: {
-        //   calculate: calculateTool,
-        // },
+        ...(Object.keys(mergedTools).length > 0 && { tools: mergedTools }),
         experimental_repairToolCall: repairToolCall,
         experimental_telemetry: {
           isEnabled: settingsService.settings.langfuse.enabled,
@@ -61,9 +89,12 @@ export class ChatWorker {
       });
 
       this.logger.debug("returning stream text result");
-      // Convert StreamTextResult to ReadableStream for consistency
-      return result;
+      return { result, mcpClients };
     } catch (error) {
+      // Close MCP clients on error
+      for (const client of mcpClients) {
+        await client.close().catch(() => {});
+      }
       this.logger.error("failed to create stream", {
         error,
         stack: error instanceof Error ? error.stack : undefined,

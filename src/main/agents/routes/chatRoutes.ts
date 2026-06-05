@@ -36,6 +36,12 @@ chatRoutes.post("/", async (c) => {
     const deepResearch = c.req.header("x-deep-research") === "true";
     const quickSearch = c.req.header("x-quick-search") === "true";
 
+    // Read MCP server IDs from header
+    const mcpServerIdsHeader = c.req.header("x-mcp-servers");
+    const mcpServerIds = mcpServerIdsHeader
+      ? mcpServerIdsHeader.split(",").filter(Boolean)
+      : [];
+
     const sessionTabService = SessionTabService.getInstance();
     const sessionId =
       c.req.header("x-session-id") ?? sessionTabService.activeSessionId;
@@ -46,6 +52,7 @@ chatRoutes.post("/", async (c) => {
       hasTools: !!tools,
       useBrowser,
       webSearch,
+      mcpServerIds: mcpServerIds.length,
       sessionId,
     });
 
@@ -127,17 +134,18 @@ chatRoutes.post("/", async (c) => {
         { once: true },
       );
 
-      const result = await chatWorker.handleChat(
+      const { result, mcpClients } = await chatWorker.handleChat(
         messages,
         sessionId,
         system,
-        tools as ToolSet[] | undefined,
+        tools as ToolSet | undefined,
         abortController.signal,
+        mcpServerIds,
       );
       return result.toUIMessageStreamResponse({
         originalMessages: messages,
         generateMessageId: () => crypto.randomUUID(),
-        onFinish: ({ messages: finalMessages }) => {
+        onFinish: async ({ messages: finalMessages }) => {
           logger.info("Chat onFinish fired", {
             sessionId,
             messageCount: finalMessages.length,
@@ -148,6 +156,12 @@ chatRoutes.post("/", async (c) => {
             .catch((err) => {
               logger.warn("Suggestion generation failed:", err);
             });
+          // Close MCP clients
+          for (const client of mcpClients) {
+            await client.close().catch((e) =>
+              logger.warn("MCP client close error:", e),
+            );
+          }
         },
       });
     }

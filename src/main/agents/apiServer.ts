@@ -6,6 +6,7 @@ import { threadRoutes } from "./routes/threadRoutes";
 import { tagRoutes } from "./routes/tagRoutes";
 import { settingsRoutes } from "./routes/settingsRoutes";
 import { providerRoutes } from "./routes/providerRoutes";
+import { mcpRoutes } from "./routes/mcpRoutes";
 import log from "electron-log/main";
 
 export class ApiServer {
@@ -35,6 +36,7 @@ export class ApiServer {
     this.app.route("/tags", tagRoutes);
     this.app.route("/settings", settingsRoutes);
     this.app.route("/providers", providerRoutes);
+    this.app.route("/mcp", mcpRoutes);
 
     // Health check endpoint
     this.app.get("/health", (c) => {

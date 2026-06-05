@@ -7,6 +7,7 @@ import { DevelopmentSection } from "@/components/settings/settings-sections";
 import { GeneralSection } from "@/components/settings/settings-sections";
 import { AboutSection } from "@/components/settings/settings-sections";
 import { ThreadsSection } from "@/components/settings/settings-sections";
+import { McpServersSection } from "@/components/settings/settings-sections";
 import { useTranslation } from "react-i18next";
 
 export function SettingsView() {
@@ -23,6 +24,8 @@ export function SettingsView() {
         return <ProvidersModelsSection settings={settings} />;
       case "aiAgents":
         return <AiAgentsSection settings={settings} />;
+      case "mcpServers":
+        return <McpServersSection />;
       case "threads":
         return <ThreadsSection settings={settings} />;
       case "development":

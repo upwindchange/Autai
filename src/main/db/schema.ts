@@ -70,6 +70,21 @@ export const tags = sqliteTable("tags", {
     .default(sql`(datetime('now'))`),
 });
 
+export const mcpServers = sqliteTable("mcp_servers", {
+  id: text().primaryKey(),
+  name: text().notNull(),
+  description: text(),
+  transportType: text("transport_type").notNull(), // 'http' | 'sse'
+  connectionConfig: text("connection_config").notNull(), // JSON string
+  enabled: text().notNull().default("true"),
+  createdAt: text("created_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+  updatedAt: text("updated_at")
+    .notNull()
+    .default(sql`(datetime('now'))`),
+});
+
 export const threadTags = sqliteTable(
   "thread_tags",
   {

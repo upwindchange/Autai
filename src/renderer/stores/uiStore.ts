@@ -6,6 +6,7 @@ export type SettingsSection =
   | "general"
   | "providers"
   | "aiAgents"
+  | "mcpServers"
   | "threads"
   | "development"
   | "about";
@@ -46,6 +47,11 @@ interface UiState {
   // Session state (thread-based)
   sessionId: string | null;
   setSessionId: (sessionId: string | null) => void;
+
+  // MCP per-conversation toggle state
+  enabledMcpServerIds: string[];
+  setEnabledMcpServerIds: (ids: string[]) => void;
+  toggleMcpServer: (serverId: string) => void;
 }
 
 export const useUiStore = create<UiState>()(
@@ -117,5 +123,15 @@ export const useUiStore = create<UiState>()(
     // Session state (thread-based)
     sessionId: null,
     setSessionId: (sessionId) => set({ sessionId }),
+
+    // MCP per-conversation toggle state
+    enabledMcpServerIds: [],
+    setEnabledMcpServerIds: (ids) => set({ enabledMcpServerIds: ids }),
+    toggleMcpServer: (serverId) =>
+      set((state) => ({
+        enabledMcpServerIds: state.enabledMcpServerIds.includes(serverId)
+          ? state.enabledMcpServerIds.filter((id) => id !== serverId)
+          : [...state.enabledMcpServerIds, serverId],
+      })),
   })),
 );

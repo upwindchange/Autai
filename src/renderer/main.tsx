@@ -227,7 +227,7 @@ function App() {
         transport: new AssistantChatTransport({
           api: `${getApiBase()}/chat`,
           headers: async () => {
-            const { useBrowser, usePlannedBrowser, webSearch, deepResearch, quickSearch, sessionId } = useUiStore.getState();
+            const { useBrowser, usePlannedBrowser, webSearch, deepResearch, quickSearch, sessionId, enabledMcpServerIds } = useUiStore.getState();
             return {
               "X-Use-Browser": String(useBrowser),
               "X-Use-Planned-Browser": String(usePlannedBrowser),
@@ -235,6 +235,7 @@ function App() {
               "X-Deep-Research": String(deepResearch),
               "X-Quick-Search": String(quickSearch),
               "X-Session-Id": sessionId || "",
+              "X-Mcp-Servers": enabledMcpServerIds.join(","),
             };
           },
         }),

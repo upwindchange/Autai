@@ -25,3 +25,6 @@ export * from "./tag";
 
 // Provider types
 export * from "./providers";
+
+// MCP types
+export * from "./mcp";

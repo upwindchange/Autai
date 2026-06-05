@@ -48,8 +48,9 @@ import {
   Search,
   SquareIcon,
   StopCircleIcon,
+  ToolCase,
 } from "lucide-react";
-import { type FC, useMemo, useState, useRef, useCallback } from "react";
+import { type FC, useMemo, useState, useRef, useCallback, useEffect } from "react";
 
 // --- custom imports ---
 import { useTranslation } from "react-i18next";
@@ -64,6 +65,7 @@ import { ThreadFollowupSuggestions } from "@/components/assistant-ui/follow-up-s
 import { Image } from "@/components/assistant-ui/image";
 import { File } from "@/components/ai-chat/file";
 import { useUiStore } from "@/stores/uiStore";
+import { getApiBase } from "@/lib/api";
 import {
   Popover,
   PopoverContent,
@@ -313,6 +315,38 @@ const ComposerAction: FC = () => {
     handleMouseEnter: handleBrowserMouseEnter,
     handleMouseLeave: handleBrowserMouseLeave,
   } = useHoverPopover();
+  const {
+    open: mcpPopoverOpen,
+    setOpen: setMcpPopoverOpen,
+    handleMouseEnter: handleMcpMouseEnter,
+    handleMouseLeave: handleMcpMouseLeave,
+  } = useHoverPopover();
+
+  // --- custom: MCP server toggle ---
+  const {
+    enabledMcpServerIds,
+    setEnabledMcpServerIds,
+    toggleMcpServer,
+  } = useUiStore();
+  const [mcpServers, setMcpServers] = useState<
+    { id: string; name: string; enabled: boolean }[]
+  >([]);
+
+  useEffect(() => {
+    fetch(`${getApiBase()}/mcp/servers`)
+      .then((res) => res.json())
+      .then((data: { id: string; name: string; enabled: string }[]) =>
+        setMcpServers(
+          data
+            .filter((s) => s.enabled === "true")
+            .map((s) => ({ id: s.id, name: s.name, enabled: true })),
+        ),
+      )
+      .catch(() => {});
+  }, []);
+
+  const hasEnabledMcpServers = mcpServers.length > 0;
+  const hasActiveMcpServers = enabledMcpServerIds.length > 0;
 
   const browserIconColor =
     usePlannedBrowser ? "text-purple-500"
@@ -560,6 +594,85 @@ const ComposerAction: FC = () => {
             </Tooltip>
           </TooltipProvider>
         }
+        {/* --- custom: MCP server toggle --- */}
+        {hasEnabledMcpServers && (
+          hasActiveMcpServers ?
+            <Popover
+              open={mcpPopoverOpen}
+              onOpenChange={() => {}}
+              modal={false}
+            >
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  type="button"
+                  className={cn(
+                    "aui-button-icon size-8.5 p-1",
+                    hasActiveMcpServers && "bg-muted hover:bg-muted",
+                  )}
+                  onClick={() => {
+                    setEnabledMcpServerIds([]);
+                    setMcpPopoverOpen(false);
+                  }}
+                  onMouseEnter={handleMcpMouseEnter}
+                  onMouseLeave={handleMcpMouseLeave}
+                >
+                  <ToolCase className={cn("size-5", "text-orange-500")} />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="top"
+                align="center"
+                className="w-64 p-3"
+                onMouseEnter={handleMcpMouseEnter}
+                onMouseLeave={handleMcpMouseLeave}
+                onOpenAutoFocus={(e) => e.preventDefault()}
+              >
+                <div className="space-y-2">
+                  <span className="text-xs font-medium">
+                    {t("composer.mcp.label")}
+                  </span>
+                  {mcpServers.map((server) => (
+                    <div
+                      key={server.id}
+                      className="flex items-center justify-between"
+                    >
+                      <span className="text-xs truncate mr-2">
+                        {server.name}
+                      </span>
+                      <Switch
+                        size="sm"
+                        checked={enabledMcpServerIds.includes(server.id)}
+                        onCheckedChange={() => toggleMcpServer(server.id)}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          : <TooltipProvider delayDuration={0}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    type="button"
+                    className="aui-button-icon size-8.5 p-1"
+                    onClick={() => {
+                      setEnabledMcpServerIds(mcpServers.map((s) => s.id));
+                      setMcpPopoverOpen(true);
+                    }}
+                  >
+                    <ToolCase className="size-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top">
+                  {t("composer.mcp.off")}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+        )}
       </div>
 
       <AuiIf condition={(s) => !s.thread.isRunning}>

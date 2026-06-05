@@ -57,6 +57,8 @@
   "composer.browser.mode.planned": "Planned",
   "composer.webSearch.on": "AI reads and collects info from the web",
   "composer.webSearch.off": "Let AI read and collect info from the web",
+  "composer.mcp.label": "MCP Servers",
+  "composer.mcp.off": "Connect MCP tool servers",
   "composer.effort.label": "Effort",
   "composer.effort.description": "Use higher efforts for detailed results, or stay quick.",
   "composer.effort.quick": "Quick",

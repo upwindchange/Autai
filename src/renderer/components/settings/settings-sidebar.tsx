@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Settings,
   Bot,
+  ToolCase,
 } from "lucide-react";
 import {
   Sidebar,
@@ -45,6 +46,11 @@ const navigationItems: (NavigationItem | "separator")[] = [
     id: "aiAgents",
     labelKey: "sidebar.aiAgents",
     icon: Bot,
+  },
+  {
+    id: "mcpServers",
+    labelKey: "sidebar.mcpServers",
+    icon: ToolCase,
   },
   "separator",
   {
