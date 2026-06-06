@@ -231,7 +231,7 @@ export function OptionList({
   onBeforeAction,
   className,
 }: OptionListProps) {
-  if (process.env["NODE_ENV"] !== "production") {
+  if (import.meta.env.DEV) {
     if (value !== undefined && defaultValue !== undefined) {
       console.warn(
         "[OptionList] Both `value` (controlled) and `defaultValue` (uncontrolled) were provided. `defaultValue` is ignored when `value` is set.",

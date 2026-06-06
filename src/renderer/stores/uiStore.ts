@@ -94,6 +94,7 @@ export const useUiStore = create<UiState>()(
         webSearch: useBrowser ? false : state.webSearch,
         deepResearch: useBrowser ? false : state.deepResearch,
         quickSearch: useBrowser ? false : state.quickSearch,
+        enabledMcpServerIds: useBrowser ? [] : state.enabledMcpServerIds,
       })),
     setUsePlannedBrowser: (usePlannedBrowser) => set({ usePlannedBrowser }),
     setWebSearch: (webSearch) =>
@@ -102,6 +103,7 @@ export const useUiStore = create<UiState>()(
         useBrowser: webSearch ? false : state.useBrowser,
         deepResearch: webSearch ? state.deepResearch : false,
         quickSearch: webSearch ? state.quickSearch : false,
+        enabledMcpServerIds: webSearch ? [] : state.enabledMcpServerIds,
       })),
     setDeepResearch: (deepResearch) =>
       set((state) => ({
@@ -128,10 +130,23 @@ export const useUiStore = create<UiState>()(
     enabledMcpServerIds: [],
     setEnabledMcpServerIds: (ids) => set({ enabledMcpServerIds: ids }),
     toggleMcpServer: (serverId) =>
-      set((state) => ({
-        enabledMcpServerIds: state.enabledMcpServerIds.includes(serverId)
-          ? state.enabledMcpServerIds.filter((id) => id !== serverId)
-          : [...state.enabledMcpServerIds, serverId],
-      })),
+      set((state) => {
+        const willEnable = !state.enabledMcpServerIds.includes(serverId);
+        const newIds = willEnable
+          ? [...state.enabledMcpServerIds, serverId]
+          : state.enabledMcpServerIds.filter((id) => id !== serverId);
+        return {
+          enabledMcpServerIds: newIds,
+          ...(willEnable ?
+            {
+              useBrowser: false,
+              usePlannedBrowser: false,
+              webSearch: false,
+              deepResearch: false,
+              quickSearch: false,
+            }
+          : {}),
+        };
+      }),
   })),
 );

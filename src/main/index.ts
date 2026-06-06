@@ -11,7 +11,6 @@ import {
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { readFile as fsReadFile } from "node:fs/promises";
-import { is } from "@electron-toolkit/utils";
 import os from "node:os";
 import log from "electron-log/main";
 import type { LogLevel } from "@shared";
@@ -70,13 +69,13 @@ let hitlBridge: HitlBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
 const resourcesBase =
-  is.dev ?
+  import.meta.env.DEV ?
     path.join(process.env.APP_ROOT!, "resources")
   : path.join(process.resourcesPath, "resources");
 const splashHtml = path.join(resourcesBase, "splash.html");
 
 const appIcon =
-  is.dev ?
+  import.meta.env.DEV ?
     path.join(
       process.env.APP_ROOT!,
       "build",
@@ -190,7 +189,7 @@ async function createWindow(splash?: BrowserWindow) {
   });
 
   // Load renderer AFTER services and handlers are fully initialized
-  if (is.dev) {
+  if (import.meta.env.DEV) {
     win.loadURL(ELECTRON_RENDERER_URL!);
   } else {
     win.loadFile(indexHtml);
