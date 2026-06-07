@@ -240,11 +240,10 @@ export class SessionTabService extends EventEmitter {
       setupDOMBuilding();
     } else {
       // Load localized welcome page as default content
-      const welcomePath = path.join(
-        process.env.APP_ROOT!,
-        "resources",
-        "welcome.html",
-      );
+      const resourcesBase = import.meta.env.DEV
+        ? path.join(process.env.APP_ROOT!, "resources")
+        : path.join(process.resourcesPath, "resources");
+      const welcomePath = path.join(resourcesBase, "welcome.html");
       let html = fs.readFileSync(welcomePath, "utf-8");
       html = html.replace(/\{\{([^}]+)\}\}/g, (_, key) => i18n.t(`welcome.${key}`));
       const dataUrl = `data:text/html,${encodeURIComponent(html)}`;
