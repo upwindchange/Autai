@@ -102,7 +102,21 @@ export const useTagStore = create<TagState>()(
       set({ loading: true });
       try {
         const tags = await fetchTags();
-        set({ tags, loading: false });
+        const tagMap = new Map(tags.map((t) => [t.id, t]));
+        set((state) => ({
+          tags,
+          loading: false,
+          threadTags: Object.fromEntries(
+            Object.entries(state.threadTags).map(([key, threadTagList]) => [
+              key,
+              threadTagList.map((t) => tagMap.get(t.id) ?? t),
+            ]),
+          ),
+          threads: state.threads.map((th) => ({
+            ...th,
+            tags: th.tags.map((t) => tagMap.get(t.id) ?? t),
+          })),
+        }));
       } catch {
         set({ loading: false });
       }

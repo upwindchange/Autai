@@ -104,6 +104,9 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
     }
     useTagStore.getState().setThreadTags(threadTags, threads);
 
+    // Fetch tag definitions alongside thread data (ensures tags are loaded on startup)
+    await useTagStore.getState().fetchTags();
+
     return {
       threads: data.threads.map((t) => ({
         remoteId: t.remoteId,

@@ -81,6 +81,7 @@ export function SidebarToolbar() {
   const isMultiSelectMode = useTagStore((s) => s.isMultiSelectMode);
   const setMultiSelectMode = useTagStore((s) => s.setMultiSelectMode);
   const clearSearch = useTagStore((s) => s.clearSearch);
+  const fetchTags = useTagStore((s) => s.fetchTags);
   const refreshThreads = useThreadListRefresh();
 
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
@@ -89,7 +90,7 @@ export function SidebarToolbar() {
   >(null);
 
   useEffect(() => {
-    refreshThreads();
+    fetchTags();
   }, []);
 
   const allVisibleThreadIds = useMemo(
