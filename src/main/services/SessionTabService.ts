@@ -29,6 +29,7 @@ export class SessionTabService extends EventEmitter {
   private domServices = new Map<TabId, DOMService>();
   private interactionServices = new Map<TabId, ElementInteractionService>();
   private tabBounds: Rectangle = { x: 0, y: 0, width: 1920, height: 1080 };
+  private hasReceivedRealBounds: boolean = false;
   private sessionStates = new Map<SessionId, sessionTabState>();
   private activeTab: WebContentsView | null = null;
   private frontendVisibility: boolean = false;
@@ -415,6 +416,16 @@ export class SessionTabService extends EventEmitter {
       // Hide all other tabs first
       await this.hideAllTabsExcept(tabId);
 
+      if (!this.hasReceivedRealBounds) {
+        // Don't show tab yet — renderer hasn't sent real container bounds
+        tab.setBounds(this.tabBounds);
+        tab.setVisible(false);
+        this.logger.debug(
+          `tab ${tabId} deferred visibility (real bounds not yet received)`,
+        );
+        return;
+      }
+
       // Show this tab
       tab.setBounds(this.tabBounds);
       tab.setVisible(true);
@@ -428,12 +439,21 @@ export class SessionTabService extends EventEmitter {
   async setBounds(bounds: Rectangle): Promise<void> {
     this.logger.debug(`Setting bounds to:`, bounds);
     this.tabBounds = bounds;
-    // Update bounds for the active tab if it exists
+    this.hasReceivedRealBounds = true;
+
+    // Update bounds on active tab immediately
     if (this.activeTab) {
       this.activeTab.setBounds(bounds);
-      this.logger.debug(`Bounds updated for active tab`);
-    } else {
-      this.logger.debug(`No active tab to update bounds`);
+    }
+
+    // If the active tab was deferred (not yet visible), run full visibility
+    // update now that we have real bounds. Uses updateTabVisibility so the
+    // same hideAllTabsExcept + visibility-check logic applies.
+    if (this.activeSessionId) {
+      const activeTabId = this.getActiveTabForSession(this.activeSessionId);
+      if (activeTabId && this.frontendVisibility) {
+        await this.updateTabVisibility(activeTabId);
+      }
     }
   }
 
