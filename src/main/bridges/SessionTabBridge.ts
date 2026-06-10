@@ -28,19 +28,11 @@ export class SessionTabBridge extends BaseBridge {
       },
     );
 
-    // View visibility (one-way, no response needed)
-    this.on<{ isVisible: boolean }>(
-      "sessiontab:setVisibility",
-      async (_, { isVisible }) => {
-        await this.sessionTabService.setFrontendVisibility(isVisible);
-      },
-    );
-
-    // View bounds (one-way, no response needed)
-    this.on<{ bounds: Rectangle }>(
-      "sessiontab:setBounds",
-      async (_, { bounds }) => {
-        await this.sessionTabService.setBounds(bounds);
+    // Container rect — unified visibility + bounds (one-way, no response needed)
+    this.on<{ rect: Rectangle | null }>(
+      "sessiontab:setContainerRect",
+      async (_, { rect }) => {
+        await this.sessionTabService.setContainerRect(rect);
       },
     );
   }

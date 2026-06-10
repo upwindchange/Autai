@@ -29,9 +29,10 @@ export class SessionTabService extends EventEmitter {
   private domServices = new Map<TabId, DOMService>();
   private interactionServices = new Map<TabId, ElementInteractionService>();
   private tabBounds: Rectangle = { x: 0, y: 0, width: 1920, height: 1080 };
-  private hasReceivedRealBounds: boolean = false;
   private sessionStates = new Map<SessionId, sessionTabState>();
   private activeTab: WebContentsView | null = null;
+  // True when the renderer has sent a real container rect (split view open with valid bounds).
+  // Replaces the old separate frontendVisibility + hasReceivedRealBounds flags.
   private frontendVisibility: boolean = false;
   private win: BrowserWindow;
   private logger = log.scope("SessionTabService");
@@ -357,20 +358,6 @@ export class SessionTabService extends EventEmitter {
   // VISIBILITY MANAGEMENT
   // ===================
 
-  async setFrontendVisibility(isVisible: boolean): Promise<void> {
-    this.frontendVisibility = isVisible;
-
-    // Update visibility for the active session's active tab
-    if (this.activeSessionId) {
-      const tabId = this.sessionStates.get(this.activeSessionId)?.activeTabId;
-      if (tabId) {
-        await this.updateTabVisibility(tabId);
-      } else {
-        this.logger.debug("Frontend visibility updated but no active tab yet");
-      }
-    }
-  }
-
   async setBackendVisibility(tabId: TabId, isVisible: boolean): Promise<void> {
     const metadata = this.tabMetadata.get(tabId);
     if (!metadata) return;
@@ -416,17 +403,7 @@ export class SessionTabService extends EventEmitter {
       // Hide all other tabs first
       await this.hideAllTabsExcept(tabId);
 
-      if (!this.hasReceivedRealBounds) {
-        // Don't show tab yet — renderer hasn't sent real container bounds
-        tab.setBounds(this.tabBounds);
-        tab.setVisible(false);
-        this.logger.debug(
-          `tab ${tabId} deferred visibility (real bounds not yet received)`,
-        );
-        return;
-      }
-
-      // Show this tab
+      // Show this tab with current bounds
       tab.setBounds(this.tabBounds);
       tab.setVisible(true);
       this.logger.debug(`tab ${tabId} is set to be visible`);
@@ -436,23 +413,44 @@ export class SessionTabService extends EventEmitter {
     }
   }
 
-  async setBounds(bounds: Rectangle): Promise<void> {
-    this.logger.debug(`Setting bounds to:`, bounds);
-    this.tabBounds = bounds;
-    this.hasReceivedRealBounds = true;
+  /**
+   * Unified handler for the renderer's container rect.
+   * - Non-null rect: split view is open with valid bounds → store bounds,
+   *   set frontendVisibility=true, and show the active tab.
+   * - Null rect: split view closed → set frontendVisibility=false and hide tabs.
+   */
+  async setContainerRect(rect: Rectangle | null): Promise<void> {
+    if (rect) {
+      this.logger.debug(`Setting container rect:`, rect);
+      this.tabBounds = rect;
+      this.frontendVisibility = true;
 
-    // Update bounds on active tab immediately
-    if (this.activeTab) {
-      this.activeTab.setBounds(bounds);
-    }
+      // Update bounds on active tab immediately
+      if (this.activeTab) {
+        this.activeTab.setBounds(rect);
+      }
 
-    // If the active tab was deferred (not yet visible), run full visibility
-    // update now that we have real bounds. Uses updateTabVisibility so the
-    // same hideAllTabsExcept + visibility-check logic applies.
-    if (this.activeSessionId) {
-      const activeTabId = this.getActiveTabForSession(this.activeSessionId);
-      if (activeTabId && this.frontendVisibility) {
-        await this.updateTabVisibility(activeTabId);
+      // Show the active tab now that we have real bounds
+      if (this.activeSessionId) {
+        const activeTabId = this.getActiveTabForSession(
+          this.activeSessionId,
+        );
+        if (activeTabId) {
+          await this.updateTabVisibility(activeTabId);
+        }
+      }
+    } else {
+      this.logger.debug(`Container rect cleared (split view closed)`);
+      this.frontendVisibility = false;
+
+      // Hide the active tab
+      if (this.activeSessionId) {
+        const activeTabId = this.getActiveTabForSession(
+          this.activeSessionId,
+        );
+        if (activeTabId) {
+          await this.updateTabVisibility(activeTabId);
+        }
       }
     }
   }

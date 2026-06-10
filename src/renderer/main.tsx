@@ -31,7 +31,7 @@ import {
 } from "@assistant-ui/react-ai-sdk";
 import { AppHeader } from "@/components/app-header";
 import { useRef, useEffect } from "react";
-import { useSessionLifecycle, useTabVisibility } from "@/hooks";
+import { useSessionLifecycle } from "@/hooks";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -114,7 +114,6 @@ function AppContent() {
     showSettings,
     showSplitView,
     setContainerRef,
-    setContainerBounds,
   } = useUiStore();
   const currentRemoteId = useAuiState((s) => s.threadListItem.remoteId);
   const threadTitle = useTagStore((s) =>
@@ -126,9 +125,6 @@ function AppContent() {
   // Initialize thread lifecycle management
   useSessionLifecycle();
 
-  // Sync tab visibility with container state (moved from Thread)
-  useTabVisibility();
-
   const workspaceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -139,7 +135,9 @@ function AppContent() {
         if (workspaceRef.current) {
           const { width, height, x, y } =
             workspaceRef.current.getBoundingClientRect();
-          setContainerBounds({ width, height, x, y });
+          window.ipcRenderer.send("sessiontab:setContainerRect", {
+            rect: { x, y, width, height },
+          });
         }
       });
       resizeObserver.observe(workspaceRef.current);
@@ -147,14 +145,15 @@ function AppContent() {
       return () => {
         resizeObserver.disconnect();
         setContainerRef(null);
-        setContainerBounds(null);
+        window.ipcRenderer.send("sessiontab:setContainerRect", {
+          rect: null,
+        });
       };
     } else {
       setContainerRef(null);
-      setContainerBounds(null);
       return undefined;
     }
-  }, [showSplitView, setContainerRef, setContainerBounds]);
+  }, [showSplitView, setContainerRef]);
 
   const headerTitle =
     showSettings ?
