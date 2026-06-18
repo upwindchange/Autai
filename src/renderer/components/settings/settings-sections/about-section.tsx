@@ -11,6 +11,7 @@ import { Separator } from "@/components/ui/separator";
 import { ExternalLink, FileText, Heart } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { GitHubIcon } from "@/components/icons/github";
+import { httpClient } from "@/lib/httpClient";
 
 export function AboutSection() {
   const { t } = useTranslation("about");
@@ -25,37 +26,30 @@ export function AboutSection() {
 
   useEffect(() => {
     // Get app version from main process
-    window.ipcRenderer
-      .invoke("app:getVersion")
-      .then((version: unknown) => {
-        setAppVersion(String(version));
+    httpClient
+      .postJSON<{ version: string }>("/app/version")
+      .then(({ version }) => {
+        setAppVersion(version);
       })
       .catch(() => {
         setAppVersion(t("common:value.unknown"));
       });
 
     // Get system info from main process
-    window.ipcRenderer
-      .invoke("app:getSystemInfo")
-      .then((info: unknown) => {
-        if (info && typeof info === "object") {
-          const systemInfo = info as {
-            platform: string;
-            electronVersion: string;
-            nodeVersion: string;
-            chromeVersion?: string;
-            v8Version?: string;
-          };
-          setPlatform(systemInfo.platform || t("common:value.unknown"));
-          setElectronVersion(
-            systemInfo.electronVersion || t("common:value.unknown"),
-          );
-          setNodeVersion(systemInfo.nodeVersion || t("common:value.unknown"));
-        } else {
-          setPlatform(t("common:value.unknown"));
-          setElectronVersion(t("common:value.unknown"));
-          setNodeVersion(t("common:value.unknown"));
-        }
+    httpClient
+      .postJSON<{
+        platform: string;
+        electronVersion: string;
+        nodeVersion: string;
+        chromeVersion?: string;
+        v8Version?: string;
+      }>("/app/system-info")
+      .then((systemInfo) => {
+        setPlatform(systemInfo.platform || t("common:value.unknown"));
+        setElectronVersion(
+          systemInfo.electronVersion || t("common:value.unknown"),
+        );
+        setNodeVersion(systemInfo.nodeVersion || t("common:value.unknown"));
       })
       .catch(() => {
         setPlatform(t("common:value.unknown"));
@@ -65,7 +59,7 @@ export function AboutSection() {
   }, [t]);
 
   const openExternal = (url: string) => {
-    window.ipcRenderer.invoke("shell:openExternal", url);
+    void httpClient.postCommand("/shell/open-external", { url });
   };
 
   return (

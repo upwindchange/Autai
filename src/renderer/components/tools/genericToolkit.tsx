@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { httpClient } from "@/lib/httpClient";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -90,7 +91,7 @@ export const genericToolkit: Toolkit = {
               onAction={(actionId) => {
                 const decision =
                   actionId === "approve" ? "approved" : "rejected";
-                window.ipcRenderer.invoke("hitl:respond", {
+                void httpClient.postCommand("/hitl/respond", {
                   id: parsed.id,
                   response: decision,
                 });
@@ -137,7 +138,9 @@ function SourcesWithContextMenu({
           <ContextMenuContent>
             <ContextMenuItem
               onClick={() => {
-                window.ipcRenderer.invoke("shell:openExternal", s.url);
+                void httpClient.postCommand("/shell/open-external", {
+                  url: s.url,
+                });
               }}
             >
               <GlobeIcon />
@@ -145,7 +148,9 @@ function SourcesWithContextMenu({
             </ContextMenuItem>
             <ContextMenuItem
               onClick={() => {
-                window.ipcRenderer.invoke("shell:openInSystemBrowser", s.url);
+                void httpClient.postCommand("/shell/open-system-browser", {
+                  url: s.url,
+                });
               }}
             >
               <ExternalLinkIcon />

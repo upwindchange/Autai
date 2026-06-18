@@ -7,6 +7,12 @@ import { tagRoutes } from "./routes/tagRoutes";
 import { settingsRoutes } from "./routes/settingsRoutes";
 import { providerRoutes } from "./routes/providerRoutes";
 import { mcpRoutes } from "./routes/mcpRoutes";
+import { eventsRoutes } from "./routes/eventsRoutes";
+import { appRoutes } from "./routes/appRoutes";
+import { shellRoutes } from "./routes/shellRoutes";
+import { dialogRoutes } from "./routes/dialogRoutes";
+import { sessionRoutes } from "./routes/sessionRoutes";
+import { hitlRoutes } from "./routes/hitlRoutes";
 import log from "electron-log/main";
 
 export class ApiServer {
@@ -37,6 +43,12 @@ export class ApiServer {
     this.app.route("/settings", settingsRoutes);
     this.app.route("/providers", providerRoutes);
     this.app.route("/mcp", mcpRoutes);
+    this.app.route("/events", eventsRoutes);
+    this.app.route("/app", appRoutes);
+    this.app.route("/shell", shellRoutes);
+    this.app.route("/dialog", dialogRoutes);
+    this.app.route("/sessions", sessionRoutes);
+    this.app.route("/hitl", hitlRoutes);
 
     // Health check endpoint
     this.app.get("/health", (c) => {

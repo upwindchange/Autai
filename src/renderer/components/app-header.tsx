@@ -15,6 +15,7 @@ import {
 import { useTheme } from "next-themes";
 import { useTranslation } from "react-i18next";
 import { useUiStore } from "@/stores/uiStore";
+import { httpClient } from "@/lib/httpClient";
 import { useEffect } from "react";
 import type { FC } from "react";
 
@@ -32,7 +33,7 @@ export const AppHeader: FC<AppHeaderProps> = ({
   const { open, toggleSidebar } = useSidebar();
 
   useEffect(() => {
-    window.ipcRenderer.send("theme:change", theme);
+    void httpClient.postCommand("/app/theme", { theme });
   }, [theme]);
 
   const showBackButton = showSettings && !open;

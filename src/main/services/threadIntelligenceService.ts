@@ -4,7 +4,7 @@ import { simpleModel } from "@agents/providers";
 import { settingsService, threadPersistenceService } from "@/services";
 import { i18n } from "@/i18n";
 import log from "electron-log/main";
-import { BrowserWindow } from "electron";
+import { eventBus } from "@/utils/eventBus";
 
 const logger = log.scope("ThreadIntelligenceService");
 
@@ -160,12 +160,10 @@ INSTRUCTIONS:
 
       // Notify renderer to refresh thread metadata
       const updatedTags = threadPersistenceService.getTagsForThread(threadId);
-      BrowserWindow.getAllWindows().forEach((win) => {
-        win.webContents.send("threads:metadataUpdated", {
-          threadId,
-          title: args.title,
-          tags: updatedTags,
-        });
+      eventBus.emitEvent("threads:metadataUpdated", {
+        threadId,
+        title: args.title,
+        tags: updatedTags,
       });
     } catch (error) {
       logger.error("Failed to enrich thread:", error);
@@ -230,11 +228,9 @@ INSTRUCTIONS:
         suggestions: { prompt: string }[];
       };
 
-      BrowserWindow.getAllWindows().forEach((win) => {
-        win.webContents.send("threads:suggestionsUpdated", {
-          threadId,
-          suggestions,
-        });
+      eventBus.emitEvent("threads:suggestionsUpdated", {
+        threadId,
+        suggestions,
       });
     } catch (error) {
       logger.error("Failed to generate suggestions:", error);

@@ -1,16 +1,7 @@
-import {
-  app,
-  BrowserWindow,
-  dialog,
-  Menu,
-  shell,
-  ipcMain,
-  nativeTheme,
-} from "electron";
+import { app, BrowserWindow, Menu, shell, ipcMain } from "electron";
 // import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { readFile as fsReadFile } from "node:fs/promises";
 import os from "node:os";
 import log from "electron-log/main";
 import type { LogLevel } from "@shared";
@@ -27,8 +18,7 @@ import { PQueueManager } from "@agents/utils";
 import { apiServer } from "@agents";
 import { initializeTelemetry, shutdownTelemetry } from "@agents/utils";
 import * as registry from "@agents/providers/registry";
-import { SessionTabBridge } from "@/bridges/SessionTabBridge";
-import { HitlBridge } from "@/bridges/HitlBridge";
+import { eventBus } from "@/utils/eventBus";
 import { searchService } from "@/services/searchService";
 import { initializeDatabase, closeDatabase } from "@/db";
 import { initI18n, i18n } from "@/i18n";
@@ -64,8 +54,6 @@ if (!app.requestSingleInstanceLock()) {
 
 let win: BrowserWindow | null = null;
 let sessionTabService: SessionTabService | null = null;
-let sessionTabBridge: SessionTabBridge | null = null;
-let hitlBridge: HitlBridge | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
 const resourcesBase =
@@ -131,13 +119,6 @@ async function createWindow(splash?: BrowserWindow) {
     autoStart: true,
   });
 
-  // Initialize bridges
-  sessionTabBridge = new SessionTabBridge(sessionTabService);
-  sessionTabBridge.setupHandlers();
-
-  hitlBridge = new HitlBridge(HitlService.getInstance());
-  hitlBridge.setupHandlers();
-
   /**
    * Route link clicks to internal browser tab instead of external browser
    */
@@ -150,7 +131,7 @@ async function createWindow(splash?: BrowserWindow) {
         .navigateActiveTabToUrl(url)
         .then((tabId) => {
           if (tabId && win && !win.isDestroyed()) {
-            win.webContents.send("splitview:activate");
+            eventBus.emitEvent("splitview:activate", null);
           }
         })
         .catch((err) =>
@@ -169,7 +150,7 @@ async function createWindow(splash?: BrowserWindow) {
         .navigateActiveTabToUrl(url)
         .then((tabId) => {
           if (tabId && win && !win.isDestroyed()) {
-            win.webContents.send("splitview:activate");
+            eventBus.emitEvent("splitview:activate", null);
           }
         })
         .catch((err) =>
@@ -333,7 +314,7 @@ app.on("before-quit", async (event) => {
   logger.info("Starting app cleanup...");
 
   try {
-    // Clean up all services and bridges
+    // Clean up all services
     if (sessionTabService) {
       logger.debug("Destroying sessionTabService...");
       await sessionTabService.destroy();
@@ -341,21 +322,8 @@ app.on("before-quit", async (event) => {
       logger.debug("sessionTabService destroyed");
     }
 
-    if (sessionTabBridge) {
-      logger.debug("Destroying threadViewBridge...");
-      sessionTabBridge.destroy();
-      sessionTabBridge = null;
-      logger.debug("threadViewBridge destroyed");
-    }
-
-    // Reject any pending HITL requests and destroy bridge
+    // Reject any pending HITL requests
     HitlService.getInstance().rejectAll("Application shutting down");
-    if (hitlBridge) {
-      logger.debug("Destroying hitlBridge...");
-      hitlBridge.destroy();
-      hitlBridge = null;
-      logger.debug("hitlBridge destroyed");
-    }
 
     // Clean up ViewControlService singleton
     TabControlService.destroyInstance();
@@ -403,142 +371,4 @@ app.on("before-quit", async (event) => {
       app.exit(0); // Use app.exit instead of app.quit to bypass Electron's quit handling
     }, 50);
   }
-});
-
-/**
- * Handler for opening new child windows
- */
-ipcMain.handle("open-win", (_, arg) => {
-  const childWindow = new BrowserWindow({
-    webPreferences: {
-      preload,
-      nodeIntegration: true,
-      contextIsolation: false,
-    },
-  });
-
-  if (ELECTRON_RENDERER_URL) {
-    childWindow.loadURL(`${ELECTRON_RENDERER_URL}#${arg}`);
-  } else {
-    childWindow.loadFile(indexHtml, { hash: arg });
-  }
-});
-
-/**
- * Handler for getting app version
- */
-ipcMain.handle("app:getVersion", () => {
-  return app.getVersion();
-});
-
-/**
- * Handler for getting system info
- */
-ipcMain.handle("app:getSystemInfo", () => {
-  return {
-    platform: process.platform,
-    electronVersion: process.versions.electron,
-    nodeVersion: process.versions.node,
-    chromeVersion: process.versions.chrome,
-    v8Version: process.versions.v8,
-  };
-});
-
-/**
- * Handler for opening URLs.
- * Routes http/https URLs to internal browser tab, others to external browser.
- */
-ipcMain.handle("shell:openExternal", async (event, url) => {
-  if (
-    typeof url === "string" &&
-    (url.startsWith("http://") || url.startsWith("https://"))
-  ) {
-    const tabId = await sessionTabService!.navigateActiveTabToUrl(url);
-    if (tabId && !event.sender.isDestroyed()) {
-      event.sender.send("splitview:activate");
-    }
-    return { success: true };
-  }
-  await shell.openExternal(url);
-  return { success: true };
-});
-
-/**
- * Handler for opening URLs in the system's default browser.
- * Unlike shell:openExternal, this bypasses internal tab routing.
- */
-ipcMain.handle("shell:openInSystemBrowser", async (_event, url) => {
-  if (typeof url === "string") {
-    await shell.openExternal(url);
-  }
-});
-
-/**
- * Handler for revealing a file in the system's file explorer.
- */
-ipcMain.handle("shell:showItemInFolder", async (_event, filePath: string) => {
-  if (typeof filePath === "string") {
-    logger.info(filePath);
-    await shell.showItemInFolder(filePath);
-  }
-});
-
-const MIME_MAP: Record<string, string> = {
-  png: "image/png",
-  jpg: "image/jpeg",
-  jpeg: "image/jpeg",
-  gif: "image/gif",
-  svg: "image/svg+xml",
-  webp: "image/webp",
-  bmp: "image/bmp",
-  ico: "image/x-icon",
-  pdf: "application/pdf",
-  json: "application/json",
-  xml: "application/xml",
-  zip: "application/zip",
-  tar: "application/x-tar",
-  gz: "application/gzip",
-  mp3: "audio/mpeg",
-  wav: "audio/wav",
-  mp4: "video/mp4",
-  webm: "video/webm",
-  txt: "text/plain",
-  csv: "text/csv",
-  html: "text/html",
-  md: "text/markdown",
-  js: "text/javascript",
-  ts: "text/typescript",
-  css: "text/css",
-};
-
-ipcMain.handle("dialog:openFiles", async () => {
-  const win = BrowserWindow.getFocusedWindow();
-  if (!win) return [];
-
-  const result = await dialog.showOpenDialog(win, {
-    properties: ["openFile", "multiSelections"],
-  });
-
-  if (result.canceled || !result.filePaths.length) return [];
-
-  return Promise.all(
-    result.filePaths.map(async (filePath) => {
-      const buffer = await fsReadFile(filePath);
-      const ext = filePath.slice(filePath.lastIndexOf(".") + 1).toLowerCase();
-      const mimeType = MIME_MAP[ext] ?? "application/octet-stream";
-      return {
-        path: filePath,
-        name: path.basename(filePath),
-        data: buffer.toString("base64"),
-        mimeType,
-      };
-    }),
-  );
-});
-
-/**
- * Handler for syncing native theme with renderer theme
- */
-ipcMain.on("theme:change", (_, theme: "system" | "light" | "dark") => {
-  nativeTheme.themeSource = theme;
 });

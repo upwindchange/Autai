@@ -12,6 +12,7 @@ import {
 import type { LinkSafetyModalProps } from "streamdown";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
+import { httpClient } from "@/lib/httpClient";
 
 export function LinkSafetyModal({
   url,
@@ -30,12 +31,12 @@ export function LinkSafetyModal({
   }, [url]);
 
   const openInBrowser = useCallback(() => {
-    window.ipcRenderer.invoke("shell:openInSystemBrowser", url);
+    void httpClient.postCommand("/shell/open-system-browser", { url });
     onClose();
   }, [url, onClose]);
 
   const openInAutai = useCallback(() => {
-    window.ipcRenderer.invoke("shell:openExternal", url);
+    void httpClient.postCommand("/shell/open-external", { url });
     onClose();
   }, [url, onClose]);
 

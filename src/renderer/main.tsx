@@ -38,11 +38,12 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable";
 import { useTagStore } from "@/stores/tagStore";
-import type { TagRow } from "@shared/tag";
 import { useRemoteThreadListRuntime } from "@assistant-ui/react";
 import { backendThreadListAdapter } from "@/adapters/backendThreadListAdapter";
 import { UniversalFileAttachmentAdapter } from "@/adapters/universalFileAttachmentAdapter";
 import { initApiBase, getApiBase } from "@/lib/api";
+import { httpClient } from "@/lib/httpClient";
+import { serverEvents } from "@/lib/serverEvents";
 
 import "./index.css";
 import "./demos/ipc";
@@ -50,7 +51,7 @@ import "./demos/ipc";
 const logger = log.scope("Main");
 
 // Main process message handler
-const handleAppMessage = (_event: unknown, message: AppMessage) => {
+const handleAppMessage = (message: AppMessage) => {
   logger.debug("app message received", {
     type: message.type,
     title: message.title,
@@ -131,21 +132,28 @@ function AppContent() {
     if (showSplitView && workspaceRef.current) {
       setContainerRef(workspaceRef.current);
 
+      // Coalesce resize ticks with rAF and POST the latest bounds once per
+      // frame — avoids flooding the server with one POST per resize event.
+      let rafId = 0;
       const resizeObserver = new ResizeObserver(() => {
-        if (workspaceRef.current) {
+        if (!workspaceRef.current) return;
+        cancelAnimationFrame(rafId);
+        rafId = requestAnimationFrame(() => {
+          if (!workspaceRef.current) return;
           const { width, height, x, y } =
             workspaceRef.current.getBoundingClientRect();
-          window.ipcRenderer.send("sessiontab:setContainerRect", {
+          void httpClient.postCommand("/sessions/container-rect", {
             rect: { x, y, width, height },
           });
-        }
+        });
       });
       resizeObserver.observe(workspaceRef.current);
 
       return () => {
+        cancelAnimationFrame(rafId);
         resizeObserver.disconnect();
         setContainerRef(null);
-        window.ipcRenderer.send("sessiontab:setContainerRect", {
+        void httpClient.postCommand("/sessions/container-rect", {
           rect: null,
         });
       };
@@ -252,32 +260,21 @@ function App() {
 
   // Listen for backend thread metadata updates and update tagStore directly
   useEffect(() => {
-    const handler = (_event: unknown, ...args: unknown[]) => {
-      const data = args[0] as {
-        threadId: string;
-        title: string;
-        tags?: TagRow[];
-      };
+    return serverEvents.on("threads:metadataUpdated", (data) => {
       useTagStore
         .getState()
         .updateThreadTitle(data.threadId, data.title, data.tags);
-    };
-    window.ipcRenderer.on("threads:metadataUpdated", handler);
+    });
   }, []);
 
   // Listen for backend suggestion updates
   useEffect(() => {
-    const handler = (_event: unknown, ...args: unknown[]) => {
-      const data = args[0] as {
-        threadId: string;
-        suggestions: { prompt: string }[];
-      };
+    return serverEvents.on("threads:suggestionsUpdated", (data) => {
       const currentSessionId = useUiStore.getState().sessionId;
       if (data.threadId === currentSessionId) {
         setSuggestions(data.suggestions);
       }
-    };
-    window.ipcRenderer.on("threads:suggestionsUpdated", handler);
+    });
   }, []);
 
   // Configure assistant-ui with tools using the new Tools() API
@@ -294,14 +291,21 @@ function App() {
 }
 
 // Register the message listener once at application startup
-window.ipcRenderer.on("app:message", handleAppMessage);
+serverEvents.on("app:message", handleAppMessage);
 
 // Listen for split view activation from main process (internal link navigation)
-window.ipcRenderer.on("splitview:activate", () => {
+serverEvents.on("splitview:activate", () => {
   useUiStore.getState().setShowSplitView(true);
 });
 
 initApiBase().then(() => {
+  // Open the SSE push stream now that the API base URL is known. On reconnect
+  // (e.g. after dev hot-reload), refetch tags so any missed push events are
+  // reconciled against current server state.
+  serverEvents.onReconnect(() => {
+    void useTagStore.getState().fetchTags();
+  });
+  serverEvents.connect();
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
     <React.StrictMode>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>

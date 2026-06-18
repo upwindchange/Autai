@@ -1,6 +1,7 @@
 import { type Toolkit } from "@assistant-ui/react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
+import { httpClient } from "@/lib/httpClient";
 import { ApprovalCard } from "@/components/tool-ui/approval-card";
 import { InputCard } from "@/components/tool-ui/input-card";
 import { OptionList } from "@/components/tool-ui/option-list";
@@ -38,13 +39,13 @@ export const hitlToolkit: Toolkit = {
         <InputCard
           {...cardProps}
           onSubmit={(answer) => {
-            window.ipcRenderer.invoke("hitl:respond", {
+            void httpClient.postCommand("/hitl/respond", {
               id: toolCallId,
               response: { answer },
             });
           }}
           onCancel={() => {
-            window.ipcRenderer.invoke("hitl:respond", {
+            void httpClient.postCommand("/hitl/respond", {
               id: toolCallId,
               response: { answer: "" },
             });
@@ -79,7 +80,7 @@ export const hitlToolkit: Toolkit = {
         <ApprovalCard
           {...cardProps}
           onConfirm={() => {
-            window.ipcRenderer.invoke("hitl:respond", {
+            void httpClient.postCommand("/hitl/respond", {
               id: toolCallId,
               response: {
                 completed: true,
@@ -88,7 +89,7 @@ export const hitlToolkit: Toolkit = {
             });
           }}
           onCancel={() => {
-            window.ipcRenderer.invoke("hitl:respond", {
+            void httpClient.postCommand("/hitl/respond", {
               id: toolCallId,
               response: {
                 completed: false,
@@ -135,7 +136,7 @@ export const hitlToolkit: Toolkit = {
           maxSelections={args.maxSelections}
           defaultValue={args.defaultValue ?? undefined}
           onAction={(actionId: string, selection: OptionListSelection) => {
-            window.ipcRenderer.invoke("hitl:respond", {
+            void httpClient.postCommand("/hitl/respond", {
               id: toolCallId,
               response: {
                 selection,
@@ -209,7 +210,7 @@ export const hitlToolkit: Toolkit = {
             id={id}
             steps={args.steps}
             onComplete={(answers) => {
-              window.ipcRenderer.invoke("hitl:respond", {
+              void httpClient.postCommand("/hitl/respond", {
                 id: toolCallId,
                 response: { answers, cancelled: false },
               });
@@ -220,7 +221,7 @@ export const hitlToolkit: Toolkit = {
               variant="ghost"
               size="default"
               onClick={() =>
-                window.ipcRenderer.invoke("hitl:respond", {
+                void httpClient.postCommand("/hitl/respond", {
                   id: toolCallId,
                   response: { answers: {}, cancelled: true },
                 })

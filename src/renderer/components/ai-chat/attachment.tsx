@@ -11,6 +11,7 @@ import {
   useAui,
 } from "@assistant-ui/react";
 import { useShallow } from "zustand/shallow";
+import { httpClient } from "@/lib/httpClient";
 import {
   Tooltip,
   TooltipContent,
@@ -168,7 +169,7 @@ const DocumentAttachmentCard: FC = () => {
 
   const handleReveal = () => {
     if (!filePath) return;
-    window.ipcRenderer.invoke("shell:showItemInFolder", filePath);
+    void httpClient.postCommand("/shell/show-in-folder", { filePath });
   };
 
   return (
@@ -308,7 +309,14 @@ export const ComposerAddAttachment: FC = () => {
   const aui = useAui();
 
   const handleClick = async () => {
-    const results = await window.ipcRenderer.invoke("dialog:openFiles");
+    const results = await httpClient.postJSON<
+      Array<{
+        path: string;
+        name: string;
+        data: string;
+        mimeType: string;
+      }>
+    >("/dialog/open-files");
     if (!Array.isArray(results)) return;
 
     for (const { path: fsPath, name, data, mimeType } of results) {

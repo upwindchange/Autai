@@ -1,25 +1,13 @@
-import { BrowserWindow } from "electron";
 import type { AppMessage } from "@shared";
-import log from "electron-log/main";
-
-const logger = log.scope("MessageUtils");
+import { eventBus } from "@/utils/eventBus";
 
 /**
- * Sends an app message to the renderer process
- * This utility can be used anywhere in the main process
+ * Sends an app message to renderer clients via the event bus (forwarded over
+ * the GET /events SSE stream). This utility can be used anywhere in the main
+ * process.
  */
 export function sendAppMessage(message: AppMessage): void {
-  try {
-    const mainWindow = BrowserWindow.getAllWindows()[0];
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      mainWindow.webContents.send("app:message", message);
-    }
-  } catch (error) {
-    logger.error("failed to send app message", {
-      error,
-      messageType: message.type,
-    });
-  }
+  eventBus.emitEvent("app:message", message);
 }
 
 /**
