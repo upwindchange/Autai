@@ -6,6 +6,7 @@ import os from "node:os";
 import log from "electron-log/main";
 import type { LogLevel } from "@shared";
 import { update } from "./update";
+import { buildApplicationMenu } from "./menu";
 import {
   HitlService,
   settingsService,
@@ -80,7 +81,7 @@ const appIcon =
 async function createWindow(splash?: BrowserWindow) {
   win = new BrowserWindow({
     title: i18n.t("common.mainWindowTitle"),
-    autoHideMenuBar: true,
+    autoHideMenuBar: false,
     show: false,
     icon: appIcon,
     webPreferences: {
@@ -91,18 +92,19 @@ async function createWindow(splash?: BrowserWindow) {
     },
   });
 
-  // Remove default menu entirely (disables all built-in shortcuts including zoom)
-  Menu.setApplicationMenu(null);
+  // Native application menu: default menus (File/Edit/View/Window/Help) plus a
+  // custom "Option" menu. See src/main/menu.ts.
+  Menu.setApplicationMenu(buildApplicationMenu(win));
 
   // Disable default keyboard shortcuts for zoom
-  win.webContents.on("before-input-event", (event, input) => {
-    if (input.control && ["+", "-", "="].includes(input.key)) {
-      event.preventDefault();
-    }
-    if (input.control && input.key === "0") {
-      event.preventDefault();
-    }
-  });
+  // win.webContents.on("before-input-event", (event, input) => {
+  //   if (input.control && ["+", "-", "="].includes(input.key)) {
+  //     event.preventDefault();
+  //   }
+  //   if (input.control && input.key === "0") {
+  //     event.preventDefault();
+  //   }
+  // });
 
   /**
    * Initialize core services BEFORE loading renderer to avoid IPC race conditions
@@ -183,6 +185,14 @@ async function createWindow(splash?: BrowserWindow) {
   win.webContents.on("did-finish-load", () => {
     splash?.close();
     win?.show();
+    // Role-based menu items (zoom, reload, devtools, …) act on the focused
+    // webContents and are disabled while none has focus. At startup the main
+    // window's page isn't focused, so they stay disabled until the user clicks
+    // into the renderer. win.focus() activates the native window but doesn't
+    // reliably focus the webContents page on Windows — webContents.focus() is
+    // what makes the page the focused webContents, so the roles work at startup.
+    win?.focus();
+    win?.webContents?.focus();
   });
 
   update();
@@ -271,8 +281,8 @@ app.whenReady().then(async () => {
   updateSplashStatus("Starting API server...");
   const connCfg = settingsService.settings;
   const isRemote = connCfg.serverMode === "remote";
-  const host = isRemote ? (connCfg.serverHost.trim() || "0.0.0.0") : "127.0.0.1";
-  const port = isRemote ? (connCfg.serverPort || 8787) : 0;
+  const host = isRemote ? connCfg.serverHost.trim() || "0.0.0.0" : "127.0.0.1";
+  const port = isRemote ? connCfg.serverPort || 8787 : 0;
   currentApiPort = await apiServer.start({
     host,
     port,
