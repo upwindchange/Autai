@@ -3,6 +3,7 @@ import { subscribeWithSelector } from "zustand/middleware";
 
 export type SettingsSection =
   | "general"
+  | "connection"
   | "providers"
   | "aiAgents"
   | "mcpServers"

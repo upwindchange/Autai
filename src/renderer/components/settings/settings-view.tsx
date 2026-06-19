@@ -3,6 +3,7 @@ import { useSettings } from "@/components/settings";
 import { useUiStore } from "@/stores/uiStore";
 import { ProvidersModelsSection } from "@/components/settings/settings-sections";
 import { AiAgentsSection } from "@/components/settings/settings-sections";
+import { ConnectionSection } from "@/components/settings/settings-sections";
 import { DevelopmentSection } from "@/components/settings/settings-sections";
 import { GeneralSection } from "@/components/settings/settings-sections";
 import { AboutSection } from "@/components/settings/settings-sections";
@@ -20,6 +21,8 @@ export function SettingsView() {
     switch (activeSettingsSection) {
       case "general":
         return <GeneralSection />;
+      case "connection":
+        return <ConnectionSection settings={settings} />;
       case "providers":
         return <ProvidersModelsSection settings={settings} />;
       case "aiAgents":

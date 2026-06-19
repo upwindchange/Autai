@@ -13,8 +13,8 @@ type AnyHandler = (payload: unknown) => void;
 /**
  * App-wide manager for the server-initiated push stream (GET /events).
  *
- * Holds a single EventSource and dispatches named events to all subscribers,
- * replacing the previous `window.ipcRenderer.on(...)` push listeners.
+ * Holds a single EventSource and dispatches named events to all subscribers
+ * (the backend pushes via SSE).
  *
  * Register handlers with `on()` at any time (before or after connect). Open
  * the connection with `connect()` once the API base URL is known (after

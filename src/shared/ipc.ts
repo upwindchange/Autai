@@ -1,16 +1,6 @@
 /**
- * IPC-related type definitions
+ * Toast notification message types used by the SSE "app:message" push event.
  */
-
-/**
- * Minimal IpcRendererEvent interface to avoid importing Electron types in renderer
- */
-export interface IpcRendererEvent {
-  sender: {
-    send: (channel: string, ...args: unknown[]) => void;
-  };
-  senderId: number;
-}
 
 /**
  * Message types for toast notifications

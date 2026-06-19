@@ -1,8 +1,8 @@
 import { getApiBase } from "@/lib/api";
 
 /**
- * Minimal HTTP client for the local API server. Replaces `window.ipcRenderer`
- * for all command channels except the deferred `get-api-port` bootstrap.
+ * Minimal HTTP client for the local backend (REST over the API base URL
+ * resolved in lib/api — absolute in Electron, relative when served remotely).
  *
  * Transport model (MCP "Streamable HTTP" style):
  * - simple RPC       -> postJSON (response is JSON)

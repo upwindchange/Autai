@@ -2,6 +2,7 @@ import {
   Cloud,
   Code,
   Info,
+  Network,
   Tags,
   ArrowLeft,
   Settings,
@@ -35,6 +36,11 @@ const navigationItems: (NavigationItem | "separator")[] = [
     id: "general",
     labelKey: "sidebar.general",
     icon: Settings,
+  },
+  {
+    id: "connection",
+    labelKey: "sidebar.connection",
+    icon: Network,
   },
   "separator",
   {

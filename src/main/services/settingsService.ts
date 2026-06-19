@@ -115,6 +115,12 @@ class SettingsService {
       timeouts: settingsMap.get("timeouts")
         ? JSON.parse(settingsMap.get("timeouts")!)
         : defaults.timeouts,
+      serverMode:
+        settingsMap.get("server_mode") === "remote" ? "remote" : "standalone",
+      serverHost: settingsMap.get("server_host") || defaults.serverHost,
+      serverPort:
+        parseInt(settingsMap.get("server_port") || String(defaults.serverPort), 10) ||
+        defaults.serverPort,
     });
   }
 
@@ -174,6 +180,9 @@ class SettingsService {
             ? JSON.stringify(settingsState.timeouts)
             : "",
         ],
+        ["server_mode", settingsState.serverMode],
+        ["server_host", settingsState.serverHost || ""],
+        ["server_port", String(settingsState.serverPort)],
       ] as [string, string][]) {
         tx.insert(settings)
           .values({ key, value })

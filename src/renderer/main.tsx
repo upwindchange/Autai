@@ -46,7 +46,6 @@ import { httpClient } from "@/lib/httpClient";
 import { serverEvents } from "@/lib/serverEvents";
 
 import "./index.css";
-import "./demos/ipc";
 
 const logger = log.scope("Main");
 
@@ -298,20 +297,20 @@ serverEvents.on("splitview:activate", () => {
   useUiStore.getState().setShowSplitView(true);
 });
 
-initApiBase().then(() => {
-  // Open the SSE push stream now that the API base URL is known. On reconnect
-  // (e.g. after dev hot-reload), refetch tags so any missed push events are
-  // reconciled against current server state.
-  serverEvents.onReconnect(() => {
-    void useTagStore.getState().fetchTags();
-  });
-  serverEvents.connect();
-  ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-    <React.StrictMode>
-      <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <App />
-        <Toaster />
-      </ThemeProvider>
-    </React.StrictMode>,
-  );
+// Resolve the API base synchronously (read from the ?apiPort= search param, or
+// fall back to same-origin relative URLs when served by the backend). Then open
+// the SSE push stream; on reconnect (e.g. after dev hot-reload) refetch tags so
+// any missed push events are reconciled against current server state.
+initApiBase();
+serverEvents.onReconnect(() => {
+  void useTagStore.getState().fetchTags();
 });
+serverEvents.connect();
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+  <React.StrictMode>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+      <App />
+      <Toaster />
+    </ThemeProvider>
+  </React.StrictMode>,
+);

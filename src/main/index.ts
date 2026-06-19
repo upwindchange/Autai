@@ -1,4 +1,4 @@
-import { app, BrowserWindow, Menu, shell, ipcMain } from "electron";
+import { app, BrowserWindow, Menu, shell } from "electron";
 // import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -53,6 +53,7 @@ if (!app.requestSingleInstanceLock()) {
 }
 
 let win: BrowserWindow | null = null;
+let currentApiPort = 0;
 let sessionTabService: SessionTabService | null = null;
 const preload = path.join(__dirname, "../preload/index.mjs");
 const indexHtml = path.join(RENDERER_DIST, "index.html");
@@ -85,7 +86,7 @@ async function createWindow(splash?: BrowserWindow) {
     webPreferences: {
       preload,
       contextIsolation: true,
-      sandbox: false, // Required for @electron-toolkit/preload
+      sandbox: false, // preload is now a no-op; enabling sandbox:true is a tracked follow-up
       webviewTag: false,
     },
   });
@@ -169,11 +170,14 @@ async function createWindow(splash?: BrowserWindow) {
     return { action: "deny" };
   });
 
-  // Load renderer AFTER services and handlers are fully initialized
+  // Load renderer AFTER services and handlers are fully initialized. The API
+  // port is passed via the URL query string (no IPC): the renderer reads
+  // ?apiPort= to build its base URL. A remote browser (served by the backend)
+  // gets no param and uses same-origin relative URLs instead.
   if (import.meta.env.DEV) {
-    win.loadURL(ELECTRON_RENDERER_URL!);
+    win.loadURL(`${ELECTRON_RENDERER_URL!}?apiPort=${currentApiPort}`);
   } else {
-    win.loadFile(indexHtml);
+    win.loadFile(indexHtml, { query: { apiPort: String(currentApiPort) } });
   }
 
   win.webContents.on("did-finish-load", () => {
@@ -261,11 +265,22 @@ app.whenReady().then(async () => {
   // Initialize telemetry (must be done after settings are loaded)
   initializeTelemetry();
 
-  // Start API server
+  // Start API server — host/port come from the connection settings. Standalone
+  // always binds 127.0.0.1 on a random port; Remote Access binds the configured
+  // host/port (default 0.0.0.0) so browsers on the network can reach it.
   updateSplashStatus("Starting API server...");
-  const apiPort = await apiServer.start();
-  ipcMain.handle("get-api-port", () => apiPort);
-  logger.info(`API server started on port ${apiPort}`);
+  const connCfg = settingsService.settings;
+  const isRemote = connCfg.serverMode === "remote";
+  const host = isRemote ? (connCfg.serverHost.trim() || "0.0.0.0") : "127.0.0.1";
+  const port = isRemote ? (connCfg.serverPort || 8787) : 0;
+  currentApiPort = await apiServer.start({
+    host,
+    port,
+    staticRoot: RENDERER_DIST,
+  });
+  logger.info(
+    `API server running on http://${host}:${currentApiPort} (${connCfg.serverMode})`,
+  );
 
   // Start window
   updateSplashStatus("Loading interface...");

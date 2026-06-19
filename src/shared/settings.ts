@@ -49,6 +49,11 @@ export const SearchEngineSchema = z.enum([
 ]);
 export type SearchEngine = z.infer<typeof SearchEngineSchema>;
 
+// Server connection mode: standalone (127.0.0.1 + random port) vs remote
+// (user-configured host/port, served to browsers on the network)
+export const ServerModeSchema = z.enum(["standalone", "remote"]);
+export type ServerMode = z.infer<typeof ServerModeSchema>;
+
 // Custom search engine configuration (used when searchEngine is "custom")
 export const CustomSearchEngineSchema = z.object({
   name: z.string().min(1),
@@ -113,6 +118,10 @@ const DEFAULT_SETTINGS = {
   searchEngine: "google" as const,
   customSearchEngine: undefined,
   timeouts: TimeoutsConfigSchema.parse({}),
+  // Connection: standalone = 127.0.0.1 + random port; remote = host/port below
+  serverMode: "standalone" as const,
+  serverHost: "",
+  serverPort: 8787,
 };
 
 // Settings State schema
@@ -152,6 +161,9 @@ export const SettingsStateSchema = z
     searchEngine: SearchEngineSchema.default(DEFAULT_SETTINGS.searchEngine),
     customSearchEngine: CustomSearchEngineSchema.optional(),
     timeouts: TimeoutsConfigSchema.default(DEFAULT_SETTINGS.timeouts),
+    serverMode: ServerModeSchema.default(DEFAULT_SETTINGS.serverMode),
+    serverHost: z.string().default(DEFAULT_SETTINGS.serverHost),
+    serverPort: z.number().int().min(1).max(65535).default(DEFAULT_SETTINGS.serverPort),
   })
   .default(DEFAULT_SETTINGS);
 

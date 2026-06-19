@@ -1,0 +1,198 @@
+import { useEffect, useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { CircleHelp } from "lucide-react";
+import { useSettings } from "@/components/settings";
+import { useTranslation } from "react-i18next";
+import { getApiBase } from "@/lib/api";
+import type { SettingsState, ServerMode } from "@shared";
+
+interface ConnectionSectionProps {
+  settings: SettingsState;
+}
+
+function HelpIcon({ label }: { label: string }) {
+  return (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <CircleHelp className="h-4 w-4 text-muted-foreground" />
+        </TooltipTrigger>
+        <TooltipContent className="max-w-xs">{label}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+const MODE_OPTIONS: {
+  value: ServerMode;
+  labelKey: string;
+  descKey: string;
+  tooltipKey: string;
+}[] = [
+  {
+    value: "standalone",
+    labelKey: "connection.mode.standalone.label",
+    descKey: "connection.mode.standalone.description",
+    tooltipKey: "connection.mode.standalone.tooltip",
+  },
+  {
+    value: "remote",
+    labelKey: "connection.mode.remote.label",
+    descKey: "connection.mode.remote.description",
+    tooltipKey: "connection.mode.remote.tooltip",
+  },
+];
+
+export function ConnectionSection({ settings }: ConnectionSectionProps) {
+  const { updateSettings } = useSettings();
+  const { t } = useTranslation("settings");
+  const isStandalone = settings.serverMode === "standalone";
+
+  // In Local Mode the port is chosen at random by the OS; fetch the running
+  // value from /health so the (read-only) field shows what is actually in use.
+  const [runtimePort, setRuntimePort] = useState<number | null>(null);
+  useEffect(() => {
+    if (!isStandalone) {
+      setRuntimePort(null);
+      return;
+    }
+    let cancelled = false;
+    fetch(`${getApiBase()}/health`)
+      .then((r) => r.json())
+      .then((d: { port?: number }) => {
+        if (!cancelled && typeof d.port === "number") setRuntimePort(d.port);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isStandalone]);
+
+  const handleModeChange = async (mode: string) => {
+    if (mode !== "standalone" && mode !== "remote") return;
+    await updateSettings({ ...settings, serverMode: mode as ServerMode });
+  };
+
+  const handleHostChange = async (host: string) => {
+    await updateSettings({ ...settings, serverHost: host });
+  };
+
+  const handlePortChange = async (value: string) => {
+    const num = parseInt(value, 10);
+    if (isNaN(num) || num < 1 || num > 65535) return;
+    await updateSettings({ ...settings, serverPort: num });
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-2xl font-bold">{t("connection.title")}</h2>
+        <p className="text-muted-foreground mt-1">{t("connection.subtitle")}</p>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("connection.mode.title")}</CardTitle>
+          <CardDescription>{t("connection.mode.description")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <RadioGroup
+            value={settings.serverMode}
+            onValueChange={handleModeChange}
+            className="gap-2"
+          >
+            {MODE_OPTIONS.map((opt) => (
+              <div
+                key={opt.value}
+                className="flex items-start gap-3 rounded-md border p-3"
+              >
+                <RadioGroupItem
+                  value={opt.value}
+                  id={`mode-${opt.value}`}
+                  className="mt-0.5"
+                />
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5">
+                    <Label htmlFor={`mode-${opt.value}`}>{t(opt.labelKey)}</Label>
+                    <HelpIcon label={t(opt.tooltipKey)} />
+                  </div>
+                  <p className="text-sm text-muted-foreground">{t(opt.descKey)}</p>
+                </div>
+              </div>
+            ))}
+          </RadioGroup>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("connection.host.title")}</CardTitle>
+          <CardDescription>{t("connection.host.description")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="server-host">{t("connection.host.label")}</Label>
+              <HelpIcon label={t("connection.host.tooltip")} />
+            </div>
+            <Input
+              id="server-host"
+              className="w-64"
+              placeholder="0.0.0.0"
+              value={isStandalone ? "127.0.0.1" : settings.serverHost}
+              disabled={isStandalone}
+              onChange={(e) => handleHostChange(e.target.value)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("connection.port.title")}</CardTitle>
+          <CardDescription>{t("connection.port.description")}</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            <div className="flex items-center gap-1.5">
+              <Label htmlFor="server-port">{t("connection.port.label")}</Label>
+              <HelpIcon label={t("connection.port.tooltip")} />
+            </div>
+            <Input
+              id="server-port"
+              type="number"
+              min={1}
+              max={65535}
+              className="w-40"
+              value={isStandalone ? (runtimePort ?? "") : settings.serverPort}
+              placeholder={
+                isStandalone ? t("connection.port.automatic") : "8787"
+              }
+              disabled={isStandalone}
+              onChange={(e) => handlePortChange(e.target.value)}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <p className="text-sm text-muted-foreground">
+        {t("connection.restartHint")}
+      </p>
+    </div>
+  );
+}

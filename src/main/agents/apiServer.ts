@@ -1,6 +1,9 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { serve, type ServerType } from "@hono/node-server";
+import { serveStatic } from "@hono/node-server/serve-static";
+import fs from "node:fs";
+import path from "node:path";
 import { chatRoutes } from "./routes/chatRoutes";
 import { threadRoutes } from "./routes/threadRoutes";
 import { tagRoutes } from "./routes/tagRoutes";
@@ -56,12 +59,26 @@ export class ApiServer {
     });
   }
 
-  async start(): Promise<number> {
+  async start(opts: {
+    host?: string;
+    port?: number;
+    staticRoot?: string;
+  } = {}): Promise<number> {
+    const host = opts.host ?? "127.0.0.1";
+    const port = opts.port ?? 0;
+
+    // Serve the built renderer SPA so remote browsers can use the app.
+    // Registered after all API routes so /chat, /threads, /events, /health, etc.
+    // take precedence; unmatched GETs fall back to index.html (client routing).
+    if (opts.staticRoot) {
+      this.serveSpa(opts.staticRoot);
+    }
+
     return new Promise((resolve, reject) => {
       this.server = serve({
         fetch: this.app.fetch,
-        port: 0,
-        hostname: "127.0.0.1",
+        port,
+        hostname: host,
       });
 
       this.server.on("listening", () => {
@@ -69,12 +86,22 @@ export class ApiServer {
         if (addr && typeof addr === "object") {
           this.port = addr.port;
         }
-        this.logger.info(`API server running on http://127.0.0.1:${this.port}`);
+        this.logger.info(`API server running on http://${host}:${this.port}`);
         resolve(this.port);
       });
 
       this.server.on("error", reject);
     });
+  }
+
+  private serveSpa(root: string): void {
+    if (!fs.existsSync(root)) {
+      this.logger.debug(`Static root not found, skipping SPA serving: ${root}`);
+      return;
+    }
+    const indexPath = path.join(root, "index.html");
+    this.app.use("/*", serveStatic({ root }));
+    this.app.get("*", (c) => c.html(fs.readFileSync(indexPath, "utf-8")));
   }
 
   stop(): void {
