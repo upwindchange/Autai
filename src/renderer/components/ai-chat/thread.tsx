@@ -63,6 +63,7 @@ import { ThreadFollowupSuggestions } from "@/components/assistant-ui/follow-up-s
 import { Image } from "@/components/assistant-ui/image";
 import { File } from "@/components/ai-chat/file";
 import { useUiStore } from "@/stores/uiStore";
+import { isNativeRenderer } from "@/lib/env";
 import { ComposerAction } from "@/components/ai-chat/composer-action";
 
 // --- custom: session tracking ---
@@ -205,12 +206,14 @@ const Composer: FC = () => {
 
   const slash = unstable_useSlashCommandAdapter({
     commands: [
-      {
-        id: "browser",
-        description: t("composer.slashCommand.browser"),
-        icon: "globe",
-        execute: () => setUseBrowser(true),
-      },
+      ...(isNativeRenderer() ?
+        [{
+          id: "browser",
+          description: t("composer.slashCommand.browser"),
+          icon: "globe",
+          execute: () => setUseBrowser(true),
+        }]
+      : []),
       {
         id: "search",
         description: t("composer.slashCommand.search"),
