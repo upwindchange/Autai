@@ -24,7 +24,7 @@ type AnyHandler = (payload: unknown) => void;
 class ServerEventManager {
   private es: EventSource | null = null;
   private listeners = new Map<ServerEventName, Set<AnyHandler>>();
-  private reconnectHandlers = new Set<AnyHandler>();
+  private reconnectHandlers = new Set<() => void>();
   private opened = false;
 
   /** Register a handler for a server event. Returns a disposer. */
@@ -46,10 +46,9 @@ class ServerEventManager {
 
   /** Register a handler fired after an automatic SSE reconnect (refetch state). */
   onReconnect(handler: () => void): () => void {
-    const wrapped = handler as AnyHandler;
-    this.reconnectHandlers.add(wrapped);
+    this.reconnectHandlers.add(handler);
     return () => {
-      this.reconnectHandlers.delete(wrapped);
+      this.reconnectHandlers.delete(handler);
     };
   }
 
