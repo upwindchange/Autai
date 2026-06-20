@@ -122,6 +122,11 @@ const DEFAULT_SETTINGS = {
   serverMode: "standalone" as const,
   serverHost: "",
   serverPort: 8787,
+  // Remote-auth session lifetime. sessionExpires toggles expiry off entirely
+  // (sessions never expire); sessionTtlDays applies only when enabled, with no
+  // enforced maximum — the user decides.
+  sessionExpires: true,
+  sessionTtlDays: 30,
 };
 
 // Settings State schema
@@ -164,6 +169,8 @@ export const SettingsStateSchema = z
     serverMode: ServerModeSchema.default(DEFAULT_SETTINGS.serverMode),
     serverHost: z.string().default(DEFAULT_SETTINGS.serverHost),
     serverPort: z.number().int().min(1).max(65535).default(DEFAULT_SETTINGS.serverPort),
+    sessionExpires: z.boolean().default(DEFAULT_SETTINGS.sessionExpires),
+    sessionTtlDays: z.number().int().min(1).default(DEFAULT_SETTINGS.sessionTtlDays),
   })
   .default(DEFAULT_SETTINGS);
 

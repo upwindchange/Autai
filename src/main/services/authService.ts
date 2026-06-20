@@ -16,13 +16,17 @@ import { eq, lt } from "drizzle-orm";
 import log from "electron-log/main";
 import { getDb } from "@/db";
 import { settings, authSessions } from "@/db/schema";
+import { settingsService } from "./settingsService";
 import type { AuthChallenge } from "@shared";
 
 const logger = log.scope("AuthService");
 
 export const SESSION_COOKIE = "session";
-const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days, sliding
-const SESSION_TTL_SEC = SESSION_TTL_MS / 1000;
+const DAY_MS = 24 * 60 * 60 * 1000;
+// Sentinel for non-expiring sessions (auth_sessions.expiresAt is NOT NULL text).
+// 100y is effectively "forever"; the browser cookie maxAge is Int32-capped below.
+const FOREVER_MS = 100 * 365 * DAY_MS;
+const FOREVER_COOKIE_SEC = 10 * 365 * 24 * 60 * 60;
 const CHALLENGE_TTL_MS = 60 * 1000; // 60s to use a nonce
 
 // Online brute-force bound: per-IP attempt bucket over a rolling minute.
@@ -147,14 +151,25 @@ class AuthService {
         .run();
       return false;
     }
-    // Sliding refresh, throttled: only rewrite once past half-life.
-    if (new Date(row.expiresAt).getTime() - Date.now() < SESSION_TTL_MS / 2) {
+    // Sliding refresh, throttled: only rewrite once past half-life — and only
+    // when expiry is enabled (non-expiring sessions never need refreshing).
+    const ttl = this.getTtlMs();
+    if (ttl > 0 && new Date(row.expiresAt).getTime() - Date.now() < ttl / 2) {
       db.update(authSessions)
-        .set({ expiresAt: new Date(Date.now() + SESSION_TTL_MS).toISOString() })
+        .set({ expiresAt: new Date(Date.now() + ttl).toISOString() })
         .where(eq(authSessions.tokenHash, tokenHash))
         .run();
     }
     return true;
+  }
+
+  /**
+   * Configured session lifetime in ms. Reads live settings: when expiry is
+   * disabled (sessionExpires=false) returns 0, which callers treat as "never".
+   */
+  private getTtlMs(): number {
+    const { sessionExpires, sessionTtlDays } = settingsService.settings;
+    return sessionExpires ? sessionTtlDays * DAY_MS : 0;
   }
 
   destroySession(token: string | null | undefined): void {
@@ -175,7 +190,8 @@ class AuthService {
   }
 
   get sessionMaxAge(): number {
-    return SESSION_TTL_SEC;
+    const ttl = this.getTtlMs();
+    return ttl > 0 ? Math.round(ttl / 1000) : FOREVER_COOKIE_SEC;
   }
 
   private loadPassword(): void {
@@ -204,12 +220,14 @@ class AuthService {
   private createSession(): string {
     const token = crypto.randomBytes(32).toString("base64url");
     const now = Date.now();
+    const ttl = this.getTtlMs();
+    const expiresAfter = ttl > 0 ? ttl : FOREVER_MS;
     const db = getDb();
     db.insert(authSessions)
       .values({
         tokenHash: this.hashToken(token)!,
         createdAt: new Date(now).toISOString(),
-        expiresAt: new Date(now + SESSION_TTL_MS).toISOString(),
+        expiresAt: new Date(now + expiresAfter).toISOString(),
       })
       .run();
     return token;

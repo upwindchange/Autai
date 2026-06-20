@@ -10,6 +10,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
   TooltipContent,
@@ -71,8 +73,15 @@ const MODE_OPTIONS: {
  */
 function AuthSection() {
   const { t } = useTranslation("settings");
+  const { settings, updateSettings } = useSettings();
   const [hasPassword, setHasPassword] = useState<boolean | null>(null);
   const [pw, setPw] = useState("");
+  // Local string state so the days field can be typed/cleared freely; committed
+  // to settings only when it parses to a valid (>=1) number.
+  const [daysInput, setDaysInput] = useState(String(settings.sessionTtlDays));
+  useEffect(() => {
+    setDaysInput(String(settings.sessionTtlDays));
+  }, [settings.sessionTtlDays]);
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -190,6 +199,50 @@ function AuthSection() {
             </Button>
           )}
         </div>
+
+        <Separator />
+
+        <div className="flex items-center justify-between">
+          <div className="space-y-0.5">
+            <Label htmlFor="session-expires">
+              {t("connection.auth.expiration.label")}
+            </Label>
+            <p className="text-sm text-muted-foreground">
+              {settings.sessionExpires ?
+                t("connection.auth.expiration.hintOn")
+              : t("connection.auth.expiration.hintOff")}
+            </p>
+          </div>
+          <Switch
+            id="session-expires"
+            checked={settings.sessionExpires}
+            onCheckedChange={(checked) =>
+              updateSettings({ ...settings, sessionExpires: checked })
+            }
+          />
+        </div>
+
+        {settings.sessionExpires && (
+          <div className="flex items-center gap-2">
+            <Input
+              id="session-ttl"
+              type="number"
+              min={1}
+              className="w-24"
+              value={daysInput}
+              onChange={(e) => {
+                setDaysInput(e.target.value);
+                const n = parseInt(e.target.value, 10);
+                if (!isNaN(n) && n >= 1) {
+                  updateSettings({ ...settings, sessionTtlDays: n });
+                }
+              }}
+            />
+            <span className="text-sm text-muted-foreground">
+              {t("connection.auth.expiration.days")}
+            </span>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

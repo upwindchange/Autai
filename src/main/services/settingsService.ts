@@ -121,6 +121,12 @@ class SettingsService {
       serverPort:
         parseInt(settingsMap.get("server_port") || String(defaults.serverPort), 10) ||
         defaults.serverPort,
+      sessionExpires: settingsMap.get("session_expires") !== "false",
+      sessionTtlDays:
+        parseInt(
+          settingsMap.get("session_ttl_days") || String(defaults.sessionTtlDays),
+          10,
+        ),
     });
   }
 
@@ -183,6 +189,8 @@ class SettingsService {
         ["server_mode", settingsState.serverMode],
         ["server_host", settingsState.serverHost || ""],
         ["server_port", String(settingsState.serverPort)],
+        ["session_expires", String(settingsState.sessionExpires)],
+        ["session_ttl_days", String(settingsState.sessionTtlDays)],
       ] as [string, string][]) {
         tx.insert(settings)
           .values({ key, value })
