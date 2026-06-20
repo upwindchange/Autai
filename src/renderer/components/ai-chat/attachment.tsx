@@ -12,6 +12,7 @@ import {
 } from "@assistant-ui/react";
 import { useShallow } from "zustand/shallow";
 import { httpClient } from "@/lib/httpClient";
+import { pickFiles } from "@/lib/filePicker";
 import {
   Tooltip,
   TooltipContent,
@@ -33,15 +34,6 @@ import { cn } from "@/lib/utils";
  * Populated when files are selected via the native Electron dialog.
  */
 const filePathStore = new Map<string, string>();
-
-function base64ToUint8Array(base64: string): Uint8Array {
-  const binaryString = atob(base64);
-  const bytes = new Uint8Array(binaryString.length);
-  for (let i = 0; i < binaryString.length; i++) {
-    bytes[i] = binaryString.charCodeAt(i);
-  }
-  return bytes;
-}
 
 const useFileSrc = (file: File | undefined) => {
   const [src, setSrc] = useState<string | undefined>(undefined);
@@ -309,21 +301,8 @@ export const ComposerAddAttachment: FC = () => {
   const aui = useAui();
 
   const handleClick = async () => {
-    const results = await httpClient.postJSON<
-      Array<{
-        path: string;
-        name: string;
-        data: string;
-        mimeType: string;
-      }>
-    >("/dialog/open-files");
-    if (!Array.isArray(results)) return;
-
-    for (const { path: fsPath, name, data, mimeType } of results) {
-      const file = new File([base64ToUint8Array(data) as BlobPart], name, {
-        type: mimeType,
-      });
-      filePathStore.set(name, fsPath);
+    for (const { file, fsPath, name } of await pickFiles()) {
+      if (fsPath) filePathStore.set(name, fsPath);
       await aui.composer().addAttachment(file);
     }
   };

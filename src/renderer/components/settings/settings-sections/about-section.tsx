@@ -58,8 +58,11 @@ export function AboutSection() {
       });
   }, [t]);
 
+  // window.open is intercepted by the native shell's setWindowOpenHandler
+  // (→ SplitView) in native mode and opens a plain new tab in a browser, so the
+  // same call works in both environments without a shell round-trip.
   const openExternal = (url: string) => {
-    void httpClient.postCommand("/shell/open-external", { url });
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   return (

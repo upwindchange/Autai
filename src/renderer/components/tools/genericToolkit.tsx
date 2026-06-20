@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { type Toolkit } from "@assistant-ui/react";
 import {
   CalculatorIcon,
@@ -8,6 +9,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { httpClient } from "@/lib/httpClient";
+import { isNativeRenderer } from "@/lib/env";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -122,51 +124,60 @@ function SourcesWithContextMenu({
   sources: Array<{ url: string; title?: string }>;
 }) {
   const { t } = useTranslation("common");
+  const showMenu = isNativeRenderer();
   return (
     <div className="flex flex-wrap gap-1.5 my-1">
-      {sources.map((s, i) => (
-        <ContextMenu key={i}>
-          <ContextMenuTrigger asChild>
-            <Source href={s.url}>
-              <span className="text-muted-foreground text-xs font-medium tabular-nums">
-                [{i + 1}]
-              </span>
-              <SourceIcon url={s.url} />
-              <SourceTitle>{s.title || extractDomain(s.url)}</SourceTitle>
-            </Source>
-          </ContextMenuTrigger>
-          <ContextMenuContent>
-            <ContextMenuItem
-              onClick={() => {
-                void httpClient.postCommand("/shell/open-external", {
-                  url: s.url,
-                });
-              }}
-            >
-              <GlobeIcon />
-              {t("source.openInAutai")}
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => {
-                void httpClient.postCommand("/shell/open-system-browser", {
-                  url: s.url,
-                });
-              }}
-            >
-              <ExternalLinkIcon />
-              {t("source.openInExternalBrowser")}
-            </ContextMenuItem>
-            <ContextMenuItem
-              onClick={() => {
-                navigator.clipboard.writeText(s.url);
-              }}
-            >
-              <CopyIcon />
-              {t("source.copyLink")}
-            </ContextMenuItem>
-          </ContextMenuContent>
-        </ContextMenu>
-      ))}
+      {sources.map((s, i) => {
+        const source = (
+          <Source href={s.url}>
+            <span className="text-muted-foreground text-xs font-medium tabular-nums">
+              [{i + 1}]
+            </span>
+            <SourceIcon url={s.url} />
+            <SourceTitle>{s.title || extractDomain(s.url)}</SourceTitle>
+          </Source>
+        );
+        // Browser mode: the badge's own <a target="_blank"> opens a new tab on
+        // click and right-click falls through to the browser's native menu. The
+        // custom menu's items (SplitView / host-side shell.openExternal) only
+        // make sense in the native shell.
+        if (!showMenu) return <Fragment key={i}>{source}</Fragment>;
+        return (
+          <ContextMenu key={i}>
+            <ContextMenuTrigger asChild>{source}</ContextMenuTrigger>
+            <ContextMenuContent>
+              <ContextMenuItem
+                onClick={() => {
+                  void httpClient.postCommand("/shell/open-external", {
+                    url: s.url,
+                  });
+                }}
+              >
+                <GlobeIcon />
+                {t("source.openInAutai")}
+              </ContextMenuItem>
+              <ContextMenuItem
+                onClick={() => {
+                  void httpClient.postCommand("/shell/open-system-browser", {
+                    url: s.url,
+                  });
+                }}
+              >
+                <ExternalLinkIcon />
+                {t("source.openInExternalBrowser")}
+              </ContextMenuItem>
+              <ContextMenuItem
+                onClick={() => {
+                  navigator.clipboard.writeText(s.url);
+                }}
+              >
+                <CopyIcon />
+                {t("source.copyLink")}
+              </ContextMenuItem>
+            </ContextMenuContent>
+          </ContextMenu>
+        );
+      })}
     </div>
   );
 }

@@ -11,6 +11,7 @@ import { cjk } from "@streamdown/cjk";
 import { useTheme } from "next-themes";
 import { useAuiState } from "@assistant-ui/react";
 import { LinkSafetyModal } from "./link-safety-modal";
+import { isNativeRenderer } from "@/lib/env";
 
 export const MarkdownText = () => {
   const { resolvedTheme } = useTheme();
@@ -49,7 +50,7 @@ export const MarkdownText = () => {
         table: true,
       }}
       linkSafety={{
-        enabled: true,
+        enabled: isNativeRenderer(),
         renderModal: (props) => <LinkSafetyModal {...props} />,
       }}
     />

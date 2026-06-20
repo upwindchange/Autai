@@ -16,6 +16,7 @@ import { useTheme } from "next-themes";
 import { useTranslation } from "react-i18next";
 import { useUiStore } from "@/stores/uiStore";
 import { httpClient } from "@/lib/httpClient";
+import { isNativeRenderer } from "@/lib/env";
 import { useEffect } from "react";
 import type { FC } from "react";
 
@@ -90,23 +91,25 @@ export const AppHeader: FC<AppHeaderProps> = ({
             <Moon className="size-4" />
           : <Sun className="size-4" />}
         </TooltipIconButton>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <Toggle
-              variant="outline"
-              size="sm"
-              pressed={showSplitView}
-              onPressedChange={toggleSplitView}
-              className="gap-1.5 rounded-lg px-2 text-xs data-[state=on]:bg-blue-500/10 data-[state=on]:text-blue-500 data-[state=on]:border-blue-500/40"
-            >
-              <PanelRightIcon className="size-4" />
-              {t("splitView.label")}
-            </Toggle>
-          </TooltipTrigger>
-          <TooltipContent side="left">
-            {t("splitView.tooltip")}
-          </TooltipContent>
-        </Tooltip>
+        {isNativeRenderer() && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Toggle
+                variant="outline"
+                size="sm"
+                pressed={showSplitView}
+                onPressedChange={toggleSplitView}
+                className="gap-1.5 rounded-lg px-2 text-xs data-[state=on]:bg-blue-500/10 data-[state=on]:text-blue-500 data-[state=on]:border-blue-500/40"
+              >
+                <PanelRightIcon className="size-4" />
+                {t("splitView.label")}
+              </Toggle>
+            </TooltipTrigger>
+            <TooltipContent side="left">
+              {t("splitView.tooltip")}
+            </TooltipContent>
+          </Tooltip>
+        )}
       </div>
     </header>
   );

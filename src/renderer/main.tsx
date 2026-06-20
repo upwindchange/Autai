@@ -43,6 +43,7 @@ import { backendThreadListAdapter } from "@/adapters/backendThreadListAdapter";
 import { UniversalFileAttachmentAdapter } from "@/adapters/universalFileAttachmentAdapter";
 import { initApiBase, getApiBase } from "@/lib/api";
 import { httpClient } from "@/lib/httpClient";
+import { isNativeRenderer } from "@/lib/env";
 import { serverEvents } from "@/lib/serverEvents";
 
 import "./index.css";
@@ -294,6 +295,8 @@ serverEvents.on("app:message", handleAppMessage);
 
 // Listen for split view activation from main process (internal link navigation)
 serverEvents.on("splitview:activate", () => {
+  // SplitView is an Electron-native view that can't exist in a browser page.
+  if (!isNativeRenderer()) return;
   useUiStore.getState().setShowSplitView(true);
 });
 
