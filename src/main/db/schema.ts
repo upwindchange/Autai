@@ -97,3 +97,12 @@ export const threadTags = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.threadId, table.tagId] })],
 );
+
+// Remote-access sessions. One row per logged-in client (each browser/device gets
+// its own). tokenHash = sha256(token) so a DB read does not expose live tokens.
+// Timestamps are JS ISO strings, kept consistent for lexicographic comparisons.
+export const authSessions = sqliteTable("auth_sessions", {
+  tokenHash: text("token_hash").primaryKey(),
+  createdAt: text("created_at").notNull(),
+  expiresAt: text("expires_at").notNull(),
+});

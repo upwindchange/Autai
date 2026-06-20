@@ -1,4 +1,5 @@
 import { getApiBase } from "@/lib/api";
+import { AUTH_UNAUTHORIZED_EVENT } from "@/lib/authClient";
 
 /**
  * Minimal HTTP client for the local backend (REST over the API base URL
@@ -12,18 +13,29 @@ import { getApiBase } from "@/lib/api";
  *
  * Server-initiated push is handled separately by {@link ../serverEvents},
  * which manages a single EventSource on GET /events.
+ *
+ * Same-origin requests carry the session cookie automatically; a 401 (expired
+ * session) is broadcast so the AuthGate can drop back to the login screen.
  */
 class HttpClient {
   private jsonHeaders = { "Content-Type": "application/json" };
 
+  private async send(path: string, init?: RequestInit): Promise<Response> {
+    const res = await fetch(`${getApiBase()}${path}`, init);
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent(AUTH_UNAUTHORIZED_EVENT));
+    }
+    return res;
+  }
+
   async getJSON<T>(path: string): Promise<T> {
-    const res = await fetch(`${getApiBase()}${path}`);
+    const res = await this.send(path);
     if (!res.ok) throw new Error(`GET ${path} failed: ${res.status}`);
     return (await res.json()) as T;
   }
 
   async postJSON<T>(path: string, body?: unknown): Promise<T> {
-    const res = await fetch(`${getApiBase()}${path}`, {
+    const res = await this.send(path, {
       method: "POST",
       headers: this.jsonHeaders,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -34,7 +46,7 @@ class HttpClient {
 
   /** Fire-and-forget command; expects 2xx, body ignored. */
   async postCommand(path: string, body?: unknown): Promise<void> {
-    const res = await fetch(`${getApiBase()}${path}`, {
+    const res = await this.send(path, {
       method: "POST",
       headers: this.jsonHeaders,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -43,7 +55,7 @@ class HttpClient {
   }
 
   async delete(path: string, body?: unknown): Promise<void> {
-    const res = await fetch(`${getApiBase()}${path}`, {
+    const res = await this.send(path, {
       method: "DELETE",
       headers: this.jsonHeaders,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -56,7 +68,7 @@ class HttpClient {
     path: string,
     body?: unknown,
   ): Promise<ReadableStream<Uint8Array>> {
-    const res = await fetch(`${getApiBase()}${path}`, {
+    const res = await this.send(path, {
       method: "POST",
       headers: this.jsonHeaders,
       body: body === undefined ? undefined : JSON.stringify(body),

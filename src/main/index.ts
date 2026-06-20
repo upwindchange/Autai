@@ -10,6 +10,7 @@ import { buildApplicationMenu } from "./menu";
 import {
   HitlService,
   settingsService,
+  authService,
   SessionTabService,
   TabControlService,
   threadPersistenceService,
@@ -251,6 +252,9 @@ app.whenReady().then(async () => {
 
   // Load settings from database
   settingsService.initialize();
+
+  // Load remote-access auth state (owner password + purge expired sessions)
+  authService.initialize();
 
   // Initialize i18n with saved language
   initI18n(settingsService.settings.language || "en");

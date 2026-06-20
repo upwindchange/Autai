@@ -16,6 +16,13 @@ import { shellRoutes } from "./routes/shellRoutes";
 import { dialogRoutes } from "./routes/dialogRoutes";
 import { sessionRoutes } from "./routes/sessionRoutes";
 import { hitlRoutes } from "./routes/hitlRoutes";
+import { authRoutes } from "./routes/authRoutes";
+import { authService, settingsService } from "@/services";
+import {
+  isLocalOwner,
+  isPublicPath,
+  getSessionToken,
+} from "./utils/requestAuth";
 import log from "electron-log/main";
 
 export class ApiServer {
@@ -37,6 +44,30 @@ export class ApiServer {
       this.logger.debug(`${c.req.method} ${c.req.url}`);
       await next();
     });
+
+    // Remote-access auth gate. Active only when in remote mode AND a password
+    // is configured. Public paths (SPA shell/assets, health, the login
+    // handshake) always pass; the loopback owner (desktop) is exempt; otherwise
+    // a valid session cookie or bearer token is required. Registered before the
+    // API routes and the SPA catch-all so it gates both.
+    this.app.use("*", async (c, next) => {
+      const authActive =
+        settingsService.settings.serverMode === "remote" &&
+        authService.hasPassword();
+      if (
+        !authActive ||
+        isPublicPath(c.req.method, c.req.path) ||
+        isLocalOwner(c)
+      ) {
+        return next();
+      }
+      const token = getSessionToken(c);
+      if (token && authService.validateSession(token)) {
+        return next();
+      }
+      this.logger.debug(`401 unauthorized: ${c.req.method} ${c.req.path}`);
+      return c.json({ error: "Unauthorized" }, 401);
+    });
   }
 
   private setupRoutes(): void {
@@ -52,6 +83,7 @@ export class ApiServer {
     this.app.route("/dialog", dialogRoutes);
     this.app.route("/sessions", sessionRoutes);
     this.app.route("/hitl", hitlRoutes);
+    this.app.route("/auth", authRoutes);
 
     // Health check endpoint
     this.app.get("/health", (c) => {

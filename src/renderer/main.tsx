@@ -30,7 +30,7 @@ import {
   AssistantChatTransport,
 } from "@assistant-ui/react-ai-sdk";
 import { AppHeader } from "@/components/app-header";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { useSessionLifecycle } from "@/hooks";
 import {
   ResizablePanelGroup,
@@ -45,6 +45,11 @@ import { initApiBase, getApiBase } from "@/lib/api";
 import { httpClient } from "@/lib/httpClient";
 import { isNativeRenderer } from "@/lib/env";
 import { serverEvents } from "@/lib/serverEvents";
+import {
+  getAuthStatus,
+  AUTH_UNAUTHORIZED_EVENT,
+} from "@/lib/authClient";
+import { LoginScreen } from "@/components/auth/LoginScreen";
 
 import "./index.css";
 
@@ -290,6 +295,53 @@ function App() {
   );
 }
 
+/**
+ * Gate that shows the login screen (remote mode, unauthenticated) before the
+ * app. In standalone mode, or for the loopback desktop owner, /auth/status
+ * reports authenticated and the app renders immediately. The SSE push stream is
+ * only opened once authenticated, so an unauthenticated browser doesn't hammer
+ * /events with 401s.
+ */
+function AuthGate() {
+  const [phase, setPhase] = useState<"checking" | "login" | "app">("checking");
+  const sseStarted = useRef(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getAuthStatus()
+      .then((s) => {
+        if (cancelled) return;
+        logger.debug("auth status", s);
+        setPhase(s.authRequired && !s.authenticated ? "login" : "app");
+      })
+      .catch((err) => {
+        // Backend unreachable or not remote — let the app render normally.
+        logger.warn("auth status check failed", err);
+        if (!cancelled) setPhase("app");
+      });
+
+    const onUnauthorized = () => setPhase("login");
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    return () => {
+      cancelled = true;
+      window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, onUnauthorized);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (phase === "app" && !sseStarted.current) {
+      sseStarted.current = true;
+      serverEvents.connect();
+    }
+  }, [phase]);
+
+  if (phase === "checking") return null;
+  if (phase === "login") {
+    return <LoginScreen onSuccess={() => setPhase("app")} />;
+  }
+  return <App />;
+}
+
 // Register the message listener once at application startup
 serverEvents.on("app:message", handleAppMessage);
 
@@ -308,11 +360,10 @@ initApiBase();
 serverEvents.onReconnect(() => {
   void useTagStore.getState().fetchTags();
 });
-serverEvents.connect();
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-      <App />
+      <AuthGate />
       <Toaster />
     </ThemeProvider>
   </React.StrictMode>,

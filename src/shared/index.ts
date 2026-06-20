@@ -28,3 +28,6 @@ export * from "./providers";
 
 // MCP types
 export * from "./mcp";
+
+// Auth types
+export * from "./auth";

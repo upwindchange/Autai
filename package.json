@@ -71,6 +71,7 @@
     "@jerome-benoit/sap-ai-provider-v2": "^4.7.0",
     "@langfuse/otel": "^5.4.0",
     "@langfuse/tracing": "^5.4.0",
+    "@noble/hashes": "^2.2.0",
     "@openrouter/ai-sdk-provider": "^2.9.0",
     "@opentelemetry/sdk-node": "^0.218.0",
     "@playwright/test": "^1.60.0",

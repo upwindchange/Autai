@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -9,16 +9,22 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { CircleHelp } from "lucide-react";
+import { CircleHelp, ShieldAlert } from "lucide-react";
 import { useSettings } from "@/components/settings";
 import { useTranslation } from "react-i18next";
 import { getApiBase } from "@/lib/api";
+import {
+  getAuthStatus,
+  setPassword,
+  clearPassword,
+} from "@/lib/authClient";
 import type { SettingsState, ServerMode } from "@shared";
 
 interface ConnectionSectionProps {
@@ -57,6 +63,137 @@ const MODE_OPTIONS: {
     tooltipKey: "connection.mode.remote.tooltip",
   },
 ];
+
+/**
+ * Owner password configuration for Remote Access. The password is derived
+ * client-side and sent only over loopback (the desktop owner), so the raw
+ * password never leaves this machine. Shown only in Remote Access mode.
+ */
+function AuthSection() {
+  const { t } = useTranslation("settings");
+  const [hasPassword, setHasPassword] = useState<boolean | null>(null);
+  const [pw, setPw] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    try {
+      setHasPassword((await getAuthStatus()).passwordSet);
+    } catch {
+      setHasPassword(null);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const handleSave = async () => {
+    if (busy) return;
+    if (pw.length < 8) {
+      setError(t("connection.auth.tooShort"));
+      return;
+    }
+    if (pw !== confirm) {
+      setError(t("connection.auth.mismatch"));
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    const ok = await setPassword(pw);
+    setBusy(false);
+    if (ok) {
+      setPw("");
+      setConfirm("");
+      await refresh();
+    } else {
+      setError(t("connection.auth.error"));
+    }
+  };
+
+  const handleRemove = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const ok = await clearPassword();
+    setBusy(false);
+    if (ok) {
+      setPw("");
+      setConfirm("");
+      await refresh();
+    } else {
+      setError(t("connection.auth.error"));
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{t("connection.auth.title")}</CardTitle>
+        <CardDescription>{t("connection.auth.description")}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          {hasPassword ?
+            t("connection.auth.status.set")
+          : t("connection.auth.status.notSet")}
+        </p>
+
+        {!hasPassword && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{t("connection.auth.unprotectedWarning")}</span>
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <Label htmlFor="auth-password">{t("connection.auth.password.label")}</Label>
+          <Input
+            id="auth-password"
+            type="password"
+            autoComplete="new-password"
+            placeholder={t("connection.auth.password.placeholder")}
+            value={pw}
+            onChange={(e) => setPw(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="auth-confirm">
+            {t("connection.auth.confirm.label")}
+          </Label>
+          <Input
+            id="auth-confirm"
+            type="password"
+            autoComplete="new-password"
+            placeholder={t("connection.auth.confirm.placeholder")}
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+          />
+        </div>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        <div className="flex gap-2">
+          <Button onClick={handleSave} disabled={busy || !pw}>
+            {hasPassword ?
+              t("connection.auth.change")
+            : t("connection.auth.set")}
+          </Button>
+          {hasPassword && (
+            <Button
+              variant="outline"
+              onClick={handleRemove}
+              disabled={busy}
+            >
+              {t("connection.auth.remove")}
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export function ConnectionSection({ settings }: ConnectionSectionProps) {
   const { updateSettings } = useSettings();
@@ -189,6 +326,8 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
           </div>
         </CardContent>
       </Card>
+
+      {!isStandalone && <AuthSection />}
 
       <p className="text-sm text-muted-foreground">
         {t("connection.restartHint")}
