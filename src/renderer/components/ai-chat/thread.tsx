@@ -45,10 +45,7 @@ import {
   Search,
   StopCircleIcon,
 } from "lucide-react";
-import {
-  type FC,
-  useMemo,
-} from "react";
+import { type FC, useMemo } from "react";
 
 // --- custom imports ---
 import { useTranslation } from "react-i18next";
@@ -93,7 +90,7 @@ export const Thread: FC = () => {
         turnAnchor="top"
         autoScroll
         data-slot="aui_thread-viewport"
-        className="relative flex flex-1 flex-col overflow-x-auto overflow-y-scroll scroll-smooth"
+        className="relative flex flex-1 flex-col overflow-x-auto overflow-y-auto scroll-smooth"
       >
         <div className="mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4">
           <AuiIf condition={(s) => s.thread.isEmpty}>
@@ -207,12 +204,14 @@ const Composer: FC = () => {
   const slash = unstable_useSlashCommandAdapter({
     commands: [
       ...(isNativeRenderer() ?
-        [{
-          id: "browser",
-          description: t("composer.slashCommand.browser"),
-          icon: "globe",
-          execute: () => setUseBrowser(true),
-        }]
+        [
+          {
+            id: "browser",
+            description: t("composer.slashCommand.browser"),
+            icon: "globe",
+            execute: () => setUseBrowser(true),
+          },
+        ]
       : []),
       {
         id: "search",
