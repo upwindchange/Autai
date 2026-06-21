@@ -3,6 +3,7 @@ import {
   UserMessageAttachments,
 } from "@/components/ai-chat/attachment";
 import { MarkdownText } from "@/components/ai-chat/streamdown";
+import { RunningIndicator } from "@/components/ai-chat/running-indicator";
 import {
   Reasoning,
   ReasoningContent,
@@ -283,7 +284,7 @@ const AssistantMessage: FC = () => {
       <div
         data-slot="aui_assistant-message-content"
         data-status={status !== "running" ? status : undefined}
-        className="wrap-break-word px-2 text-foreground leading-relaxed"
+        className="wrap-break-word px-2 text-foreground leading-relaxed flex flex-col gap-3"
       >
         <MessagePrimitive.GroupedParts
           groupBy={(part) => {
@@ -317,6 +318,8 @@ const AssistantMessage: FC = () => {
                 return <Image {...part} />;
               case "file":
                 return <File {...part} />;
+              case "indicator":
+                return <RunningIndicator />;
               default:
                 return null;
             }
