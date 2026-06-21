@@ -1,4 +1,5 @@
 import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from "electron";
+import { i18n } from "@/i18n";
 import { settingsService } from "@/services";
 
 /**
@@ -29,12 +30,12 @@ export function resetToLocalMode(): void {
 function buildOptionMenu(): MenuItemConstructorOptions {
   const optionItems: MenuItemConstructorOptions[] = [
     {
-      label: "Reset to Local Mode",
+      label: i18n.t("menu.resetToLocalMode"),
       click: () => resetToLocalMode(),
     },
   ];
 
-  return { label: "Option", submenu: optionItems };
+  return { label: i18n.t("menu.option"), submenu: optionItems };
 }
 
 /**
@@ -51,42 +52,42 @@ function buildOptionMenu(): MenuItemConstructorOptions {
 function buildViewMenu(win: BrowserWindow): MenuItemConstructorOptions {
   const wc = win.webContents;
   return {
-    label: "View",
+    label: i18n.t("menu.view"),
     submenu: [
       {
-        label: "Reload",
+        label: i18n.t("menu.reload"),
         accelerator: "CmdOrCtrl+R",
         click: () => wc.reload(),
       },
       {
-        label: "Force Reload",
+        label: i18n.t("menu.forceReload"),
         accelerator: "CmdOrCtrl+Shift+R",
         click: () => wc.reloadIgnoringCache(),
       },
       {
-        label: "Toggle Developer Tools",
+        label: i18n.t("menu.toggleDevTools"),
         accelerator: "CmdOrCtrl+Shift+I",
         click: () => wc.toggleDevTools(),
       },
       { type: "separator" },
       {
-        label: "Actual Size",
+        label: i18n.t("menu.actualSize"),
         accelerator: "CmdOrCtrl+0",
         click: () => wc.setZoomFactor(1),
       },
       {
-        label: "Zoom In",
+        label: i18n.t("menu.zoomIn"),
         accelerator: "CmdOrCtrl+=",
         click: () => wc.setZoomFactor(Math.min(5, wc.getZoomFactor() + 0.1)),
       },
       {
-        label: "Zoom Out",
+        label: i18n.t("menu.zoomOut"),
         accelerator: "CmdOrCtrl+-",
         click: () => wc.setZoomFactor(Math.max(0.25, wc.getZoomFactor() - 0.1)),
       },
       { type: "separator" },
       {
-        label: "Toggle Full Screen",
+        label: i18n.t("menu.toggleFullScreen"),
         accelerator: "F11",
         click: () => win.setFullScreen(!win.isFullScreen()),
       },
@@ -95,16 +96,19 @@ function buildViewMenu(win: BrowserWindow): MenuItemConstructorOptions {
 }
 
 /**
- * Application menu: default Electron menus (File/Edit/Window via roles) plus a
- * custom View menu and our "Option" menu.
+ * Application menu: only our custom View and Option menus. The default Electron
+ * role menus (File/Edit/Window) are intentionally omitted so the menu bar is
+ * fully under i18n control.
+ *
+ * Note (macOS): dropping the Edit menu roles can disable the standard edit
+ * shortcuts (copy/paste/cut/select-all/undo/redo) in text fields, since macOS
+ * binds them to those roles. If that matters on Mac, re-add a minimal Edit
+ * submenu carrying the clipboard/undo roles.
  */
 export function buildApplicationMenu(win: BrowserWindow): Menu {
   const template: MenuItemConstructorOptions[] = [
-    { role: "fileMenu" },
-    { role: "editMenu" },
     buildViewMenu(win),
     buildOptionMenu(),
-    { role: "windowMenu" },
   ];
   return Menu.buildFromTemplate(template);
 }

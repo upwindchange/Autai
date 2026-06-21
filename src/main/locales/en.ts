@@ -16,6 +16,18 @@ const en = {
   common: {
     mainWindowTitle: "Autai",
   },
+  menu: {
+    option: "Option",
+    resetToLocalMode: "Reset to Local Mode",
+    view: "View",
+    reload: "Reload",
+    forceReload: "Force Reload",
+    toggleDevTools: "Toggle Developer Tools",
+    actualSize: "Actual Size",
+    zoomIn: "Zoom In",
+    zoomOut: "Zoom Out",
+    toggleFullScreen: "Toggle Full Screen",
+  },
   update: {
     availableTitle: "Update Available",
     availableBody: "Downloading v{{version}} in the background...",

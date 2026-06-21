@@ -16,6 +16,18 @@ const zh = {
   common: {
     mainWindowTitle: "Autai",
   },
+  menu: {
+    option: "选项",
+    resetToLocalMode: "重置为本地模式",
+    view: "视图",
+    reload: "重新加载",
+    forceReload: "强制重新加载",
+    toggleDevTools: "切换开发者工具",
+    actualSize: "实际大小",
+    zoomIn: "放大",
+    zoomOut: "缩小",
+    toggleFullScreen: "切换全屏",
+  },
   update: {
     availableTitle: "发现新版本",
     availableBody: "正在后台下载 v{{version}}...",
