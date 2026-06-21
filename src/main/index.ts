@@ -82,7 +82,7 @@ const appIcon =
 async function createWindow(splash?: BrowserWindow) {
   win = new BrowserWindow({
     title: i18n.t("common.mainWindowTitle"),
-    autoHideMenuBar: false,
+    autoHideMenuBar: true,
     show: false,
     icon: appIcon,
     webPreferences: {
