@@ -8,7 +8,6 @@
  * them.
  */
 
-import type { AppMessage } from "./ipc";
 import type { TagRow } from "./tag";
 
 export interface ThreadMetadataPayload {
@@ -20,6 +19,16 @@ export interface ThreadMetadataPayload {
 export interface ThreadSuggestionsPayload {
   threadId: string;
   suggestions: { prompt: string }[];
+}
+
+/**
+ * Payload for the `app:message` server-push event: a toast notification shown
+ * to the user (info / alert / success).
+ */
+export interface AppMessage {
+  type: "info" | "alert" | "success";
+  title: string;
+  description: string;
 }
 
 /**

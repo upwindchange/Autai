@@ -11,8 +11,8 @@ export * from "./dom";
 // session types
 export * from "./session";
 
-// IPC types
-export * from "./ipc";
+// Server push event types (EventBus / SSE)
+export * from "./events";
 
 // Tools types
 export * from "./tools";
