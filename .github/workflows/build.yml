@@ -1,18 +1,14 @@
 name: Build
 
 on:
+  pull_request:
+    branches: [master]
   push:
-    branches: [main]
-    paths-ignore:
-      - "**.md"
-      - "**.spec.js"
-      - ".idea"
-      - ".vscode"
-      - ".dockerignore"
-      - "Dockerfile"
-      - ".gitignore"
-      - ".github/**"
-      - "!.github/workflows/build.yml"
+    tags:
+      - '*'
+
+permissions:
+  contents: write # GITHUB_TOKEN needs this to create even a draft GitHub Release on tag
 
 jobs:
   build:
@@ -23,25 +19,32 @@ jobs:
         os: [macos-latest, ubuntu-latest, windows-latest]
 
     steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
+      - name: Check out Git repository
+        uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 20
 
-      - name: Install Dependencies
-        run: npm install
-
-      - name: Build Release Files
-        run: npm run build
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload Artifact
-        uses: actions/upload-artifact@v3
+      - name: Build and release Electron app
+        uses: samuelmeuli/action-electron-builder@v1
         with:
-          name: release_on_${{ matrix. os }}
+          # Auto-provided; no need to define it in repo settings.
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          # Build only the JS bundle (electron-vite). The action runs electron-builder
+          # itself, so this script must NOT include electron-builder (avoids double packaging).
+          build_script_name: build:vite
+          # On a tag push, electron-builder creates a DRAFT GitHub Release. Publishing the
+          # draft stays manual (you click "Publish release" in the GitHub UI after reviewing) -
+          # that manual publish is the gate against a catastrophic release.
+          # On PR builds the action only builds locally; artifacts are uploaded below.
+          release: ${{ startsWith(github.ref, 'refs/tags/') }}
+
+      - name: Upload build artifacts
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: release_${{ matrix.os }}
           path: release/
           retention-days: 5

@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "electron-vite build && electron-vite dev",
     "build": "electron-vite build && electron-builder",
+    "build:vite": "electron-vite build",
     "build:win": "electron-vite build && electron-builder --win",
     "build:linux": "electron-vite build && electron-builder --linux",
     "build:mac": "electron-vite build && electron-builder --mac",
