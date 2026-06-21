@@ -14,10 +14,17 @@ export const CreateThreadSchema = z.object({
   id: z.string().min(1),
 });
 
+// Per-thread chat model override (null providerId/modelId = use the global default)
+export const ThreadChatOverrideSchema = z.object({
+  providerId: z.string().min(1).nullable(),
+  modelId: z.string().min(1).nullable(),
+});
+
 // Thread update schema
 export const UpdateThreadSchema = z.object({
   title: z.string().min(1).optional(),
   status: z.enum(["archived", "regular"]).optional(),
+  chatOverride: ThreadChatOverrideSchema.optional(),
 });
 
 // Tag creation schema

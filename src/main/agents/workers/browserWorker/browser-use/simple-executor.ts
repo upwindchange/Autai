@@ -1,4 +1,4 @@
-import { stepCountIs, streamText, createUIMessageStream } from "ai";
+import { stepCountIs, streamText, createUIMessageStream, type LanguageModel } from "ai";
 import { complexModel } from "@agents/providers";
 import { settingsService, SessionTabService } from "@/services";
 import { sendAlert } from "@/utils/messageUtils";
@@ -90,6 +90,7 @@ Always try to complete as much as possible before asking (e.g., navigate to the 
 export async function executeSimpleBrowserTask(
   messages: ModelMessage[],
   sessionId: string,
+  chatLanguageModel: LanguageModel,
   signal?: AbortSignal,
 ): Promise<ReturnType<typeof createUIMessageStream>> {
   logger.debug("Starting simple browser task", { sessionId });
@@ -129,6 +130,7 @@ export async function executeSimpleBrowserTask(
         experimental_context: {
           sessionId,
           activeTabId,
+          chatModel: chatLanguageModel,
           writer,
           abortSignal: signal,
         },

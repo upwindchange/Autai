@@ -3,6 +3,7 @@
   "app.subtitle": "AI Assistant",
   "header.settings": "Settings",
   "header.aiAssistant": "AI Assistant",
+  "header.modelSelector.useDefault": "Use default",
   "btn.cancel": "Cancel",
   "btn.save": "Save",
   "btn.loading": "Loading...",

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { createUIMessageStreamResponse, type ToolSet } from "ai";
+import { chatModel } from "@agents/providers";
 import { ChatWorker } from "@agents/workers";
 import { BrowserWorker } from "@agents/workers/browserWorker/worker";
 import {
@@ -45,6 +46,16 @@ chatRoutes.post("/", async (c) => {
     const sessionTabService = SessionTabService.getInstance();
     const sessionId =
       c.req.header("x-session-id") ?? sessionTabService.activeSessionId;
+
+    // Per-thread chat model selection, threaded live from the UI. Absent ⇒
+    // the global "chat" assignment is used (chatModel falls back internally).
+    const chatProviderId = c.req.header("x-chat-provider-id");
+    const chatModelId = c.req.header("x-chat-model-id");
+    const chatSelection =
+      chatProviderId && chatModelId
+        ? { providerId: chatProviderId, modelId: chatModelId }
+        : undefined;
+    const chatLanguageModel = chatModel(chatSelection);
 
     logger.info("Chat request received", {
       messagesCount: messages?.length,
@@ -106,8 +117,13 @@ chatRoutes.post("/", async (c) => {
         webSearch,
         deepResearch,
         quickSearch,
+        chatLanguageModel,
         (finalMessages) => {
-          threadPersistenceService.saveMessages(sessionId, finalMessages);
+          threadPersistenceService.saveMessages(
+            sessionId,
+            finalMessages,
+            chatSelection,
+          );
           threadIntelligenceService
             .generateSuggestions(sessionId, finalMessages)
             .catch((err) => {
@@ -137,6 +153,7 @@ chatRoutes.post("/", async (c) => {
       const { result, mcpClients } = await chatWorker.handleChat(
         messages,
         sessionId,
+        chatLanguageModel,
         system,
         tools as ToolSet | undefined,
         abortController.signal,
@@ -150,7 +167,11 @@ chatRoutes.post("/", async (c) => {
             sessionId,
             messageCount: finalMessages.length,
           });
-          threadPersistenceService.saveMessages(sessionId, finalMessages);
+          threadPersistenceService.saveMessages(
+            sessionId,
+            finalMessages,
+            chatSelection,
+          );
           threadIntelligenceService
             .generateSuggestions(sessionId, finalMessages)
             .catch((err) => {

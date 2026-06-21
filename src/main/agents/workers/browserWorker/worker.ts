@@ -1,5 +1,6 @@
 import {
   convertToModelMessages,
+  type LanguageModel,
   type UIMessage,
   type UIMessageChunk,
 } from "ai";
@@ -17,6 +18,7 @@ export async function BrowserWorker(
   webSearch: boolean,
   deepResearch: boolean,
   quickSearch: boolean,
+  chatLanguageModel: LanguageModel,
   onFinish?: (messages: UIMessage[]) => void,
   signal?: AbortSignal,
 ): Promise<ReadableStream<UIMessageChunk>> {
@@ -31,15 +33,32 @@ export async function BrowserWorker(
       modelMessages,
       sessionId,
       messages,
+      chatLanguageModel,
       onFinish,
       signal,
     );
   } else if (useBrowser) {
     logger.info("routing to browser use node", { planned: usePlannedBrowser });
-    return browserUseWorker(modelMessages, sessionId, messages, onFinish, { planned: usePlannedBrowser }, signal);
+    return browserUseWorker(
+      modelMessages,
+      sessionId,
+      messages,
+      chatLanguageModel,
+      onFinish,
+      { planned: usePlannedBrowser },
+      signal,
+    );
   } else if (webSearch || quickSearch) {
     logger.info("routing to research node", { quickSearch });
-    return browserResearchWorker(modelMessages, sessionId, messages, onFinish, { skipExtraction: quickSearch }, signal);
+    return browserResearchWorker(
+      modelMessages,
+      sessionId,
+      messages,
+      chatLanguageModel,
+      onFinish,
+      { skipExtraction: quickSearch },
+      signal,
+    );
   } else {
     throw new Error("Either useBrowser, webSearch, deepResearch, or quickSearch must be true");
   }

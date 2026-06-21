@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { LanguageModel } from "ai";
 
 /**
  * Context passed to tools via experimental_context
@@ -7,6 +8,8 @@ import { z } from "zod";
 export interface ToolExecutionContext {
   sessionId: string;
   activeTabId?: string;
+  /** Per-thread chat model for sub-agents (e.g. askUser). Falls back to global. */
+  chatModel?: LanguageModel;
   writer?: { write: (chunk: unknown) => void };
   abortSignal?: AbortSignal;
 }

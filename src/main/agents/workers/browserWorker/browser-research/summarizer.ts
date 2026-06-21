@@ -1,5 +1,4 @@
-import { streamText, type ModelMessage } from "ai";
-import { chatModel } from "@agents/providers";
+import { streamText, type LanguageModel, type ModelMessage } from "ai";
 import { TIMEOUTS } from "@agents/utils";
 import { settingsService } from "@/services";
 import type { ExtractionResult } from "./result-extractor";
@@ -39,6 +38,7 @@ export async function summarizeFindings(
   messages: ModelMessage[],
   extractionResults: ExtractionResult[],
   sessionId: string,
+  chatLanguageModel: LanguageModel,
   signal?: AbortSignal,
 ) {
   logger.debug("Starting summarizer", {
@@ -77,7 +77,7 @@ ${quotesText}`;
   ];
 
   const result = streamText({
-    model: chatModel(),
+    model: chatLanguageModel,
     messages: summaryMessages,
     system: summarizerSystemPrompt,
     maxRetries: settingsService.settings.maxRetries,
@@ -102,6 +102,7 @@ export async function summarizeFindingsFromSnippets(
   messages: ModelMessage[],
   searchResults: SearchResultItem[],
   sessionId: string,
+  chatLanguageModel: LanguageModel,
   signal?: AbortSignal,
 ) {
   logger.debug("Starting quick summarizer", {
@@ -127,7 +128,7 @@ Snippet: ${result.snippet}`;
   ];
 
   const result = streamText({
-    model: chatModel(),
+    model: chatLanguageModel,
     messages: summaryMessages,
     system: summarizerSystemPrompt,
     maxRetries: settingsService.settings.maxRetries,

@@ -3,6 +3,7 @@
   "app.subtitle": "人工智能助理",
   "header.settings": "设置",
   "header.aiAssistant": "AI助手",
+  "header.modelSelector.useDefault": "使用默认",
   "btn.cancel": "取消",
   "btn.save": "保存",
   "btn.loading": "加载中...",

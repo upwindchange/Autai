@@ -3,9 +3,9 @@ import {
   createUIMessageStream,
   UIMessageChunk,
   ModelMessage,
+  type LanguageModel,
   type UIMessage,
 } from "ai";
-import { chatModel } from "@agents/providers";
 import { settingsService, HitlService } from "@/services";
 import { i18n } from "@/i18n";
 import { sendAlert } from "@/utils/messageUtils";
@@ -34,6 +34,7 @@ export async function browserUseWorker(
   messages: ModelMessage[],
   sessionId: string,
   originalMessages: UIMessage[],
+  chatLanguageModel: LanguageModel,
   onFinish?: (messages: UIMessage[]) => void,
   options?: { planned?: boolean },
   signal?: AbortSignal,
@@ -42,7 +43,7 @@ export async function browserUseWorker(
 
   // Simple mode: direct execution, no planner
   if (!options?.planned) {
-    const simpleStream = await executeSimpleBrowserTask(messages, sessionId, signal);
+    const simpleStream = await executeSimpleBrowserTask(messages, sessionId, chatLanguageModel, signal);
     return createUIMessageStream({
       originalMessages,
       onFinish:
@@ -201,6 +202,7 @@ export async function browserUseWorker(
                 currentPlanToolCallId,
                 outcome,
                 userRequest,
+                chatLanguageModel,
                 signal,
               );
               await mergeStreamAndWait(actionExecutorStream, writer);
@@ -327,7 +329,7 @@ export async function browserUseWorker(
             // ============================================================
             logger.debug("Stage 4: Generating final summary");
             const summaryResult = streamText({
-              model: chatModel(),
+              model: chatLanguageModel,
               messages,
               system: systemPrompt,
               maxRetries,

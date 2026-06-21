@@ -1,6 +1,6 @@
-import { streamText, stepCountIs, tool, type ModelMessage } from "ai";
+import { streamText, stepCountIs, tool, type LanguageModel, type ModelMessage } from "ai";
 import { z } from "zod";
-import { complexModel, chatModel } from "@agents/providers";
+import { complexModel } from "@agents/providers";
 import {
   hasSuccessfulToolResult,
   retryStreamTextForTool,
@@ -105,6 +105,7 @@ export async function runPreResearch(
   tabId: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   writer: { write: (chunk: any) => void },
+  chatLanguageModel: LanguageModel,
   signal?: AbortSignal,
 ): Promise<PreResearchResult> {
   logger.debug("Starting pre-research scan");
@@ -204,7 +205,7 @@ export async function runPreResearch(
       .join("\n\n---\n\n");
 
     const summaryResult = streamText({
-      model: chatModel(),
+      model: chatLanguageModel,
       messages: [
         {
           role: "user",

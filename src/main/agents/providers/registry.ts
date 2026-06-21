@@ -37,6 +37,10 @@ interface ProviderToml {
 
 interface ModelToml {
   name: string;
+  // `[extends] from = "<providerDir>/<modelFile>"` — inherit fields from a
+  // base model in another provider (e.g. a coding-plan tier re-exposing a base
+  // model with different cost). Resolved in scanModels.
+  extends?: { from: string; omit?: string[] };
   family?: string;
   attachment?: boolean;
   reasoning?: boolean;
@@ -117,6 +121,72 @@ function loadProvider(dir: string): ProviderDefinition | undefined {
 // Model scanning (recursive for nested dirs like deepinfra/models/meta-llama/)
 // ──────────────────────────────────────────────
 
+/** Drop keys whose value is `undefined` so they don't clobber a base on merge. */
+function stripUndefined<T extends object>(obj: T): Partial<T> {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value !== undefined) out[key] = value;
+  }
+  return out as Partial<T>;
+}
+
+/** Map a parsed model TOML to a ModelDefinition with the given file id. */
+function toModelDefinition(toml: ModelToml, file: string): ModelDefinition {
+  return {
+    name: toml.name,
+    file,
+    family: toml.family,
+    attachment: toml.attachment,
+    reasoning: toml.reasoning,
+    temperature: toml.temperature,
+    toolCall: toml.tool_call,
+    structuredOutput: toml.structured_output,
+    knowledge: toml.knowledge,
+    openWeights: toml.open_weights,
+    cost:
+      toml.cost ?
+        {
+          input: toml.cost.input,
+          output: toml.cost.output,
+          cacheRead: toml.cost.cache_read,
+          cacheWrite: toml.cost.cache_write,
+          cachedInput: toml.cost.cached_input,
+        }
+      : undefined,
+    limit: toml.limit,
+    modalities: toml.modalities,
+    interleaved: toml.interleaved,
+  };
+}
+
+/**
+ * Load the base model TOML referenced by `[extends] from`.
+ * `from` is `"<providerDir>/<modelFile>"` (modelFile may itself be a nested path).
+ */
+function loadBaseModel(from: string): ModelToml | null {
+  if (!basePath) return null;
+  const slashIdx = from.indexOf("/");
+  if (slashIdx < 0) return null;
+  const providerDir = from.slice(0, slashIdx);
+  const modelRel = from.slice(slashIdx + 1);
+  const baseFile = path.join(basePath, providerDir, "models", `${modelRel}.toml`);
+  if (!fs.existsSync(baseFile)) return null;
+
+  try {
+    let raw = fs.readFileSync(baseFile, "utf-8");
+    // Windows symlink-as-text guard (mirrors scanModels).
+    const trimmed = raw.trim();
+    if (trimmed.startsWith("../") || trimmed.startsWith("./")) {
+      const resolved = path.resolve(path.dirname(baseFile), trimmed);
+      if (fs.existsSync(resolved)) raw = fs.readFileSync(resolved, "utf-8");
+    }
+    return TOML.parse(raw) as unknown as ModelToml;
+  } catch (err) {
+    logger.error(`Failed to parse base model ${from}:`, err);
+    return null;
+  }
+}
+
 function scanModels(baseDir: string, currentDir: string): ModelDefinition[] {
   const result: ModelDefinition[] = [];
   const entries = fs.readdirSync(currentDir, { withFileTypes: true });
@@ -152,31 +222,21 @@ function scanModels(baseDir: string, currentDir: string): ModelDefinition[] {
       const relPath = path.relative(baseDir, fullPath);
       const file = relPath.replace(/\.toml$/, "").replace(/\+/g, ":");
 
-      result.push({
-        name: toml.name,
-        file,
-        family: toml.family,
-        attachment: toml.attachment,
-        reasoning: toml.reasoning,
-        temperature: toml.temperature,
-        toolCall: toml.tool_call,
-        structuredOutput: toml.structured_output,
-        knowledge: toml.knowledge,
-        openWeights: toml.open_weights,
-        cost:
-          toml.cost ?
-            {
-              input: toml.cost.input,
-              output: toml.cost.output,
-              cacheRead: toml.cost.cache_read,
-              cacheWrite: toml.cost.cache_write,
-              cachedInput: toml.cost.cached_input,
-            }
-          : undefined,
-        limit: toml.limit,
-        modalities: toml.modalities,
-        interleaved: toml.interleaved,
-      });
+      // Resolve `[extends]`: inherit the base model's fields (name, family, …),
+      // then let this model override anything it explicitly defines (e.g. cost).
+      // The child keeps its own `file` (its own model id / API endpoint).
+      if (toml.extends?.from) {
+        const base = loadBaseModel(toml.extends.from);
+        if (base) {
+          result.push({
+            ...toModelDefinition(base, file),
+            ...stripUndefined(toModelDefinition(toml, file)),
+          });
+          continue;
+        }
+      }
+
+      result.push(toModelDefinition(toml, file));
     } catch (err) {
       logger.error(`Failed to parse model ${fullPath}:`, err);
     }
@@ -245,5 +305,44 @@ export function getModels(dir: string): ModelDefinition[] {
   }
 
   models.set(dir, []);
+  return [];
+}
+
+/**
+ * Resolve the available models for a *configured* provider.
+ *
+ * Static TOML providers return their scanned catalog. The virtual
+ * "openai-compatible" provider has no TOML models, so its list is fetched
+ * dynamically from the user's saved API endpoint (defaults to local Ollama).
+ */
+export async function getModelsForConfig(providerConfig: {
+  providerDir: string;
+  apiKey: string;
+  apiUrlOverride?: string;
+}): Promise<ModelDefinition[]> {
+  const dir = providerConfig.providerDir;
+
+  const tomlModels = getModels(dir);
+  if (tomlModels.length > 0) return tomlModels;
+
+  if (dir === "openai-compatible") {
+    const definition = getProvider(dir);
+    const apiUrl =
+      providerConfig.apiUrlOverride ||
+      definition?.api ||
+      "http://localhost:11434/v1";
+    try {
+      const headers: Record<string, string> = {};
+      if (providerConfig.apiKey) {
+        headers["Authorization"] = `Bearer ${providerConfig.apiKey}`;
+      }
+      const res = await fetch(`${apiUrl}/models`, { headers });
+      const data = (await res.json()) as { data: { id: string }[] };
+      return (data.data ?? []).map((m) => ({ name: m.id, file: m.id }));
+    } catch {
+      return [];
+    }
+  }
+
   return [];
 }

@@ -55,6 +55,8 @@ const zh = {
     modelNotConfiguredBody: "还没设置{{role}}模型，请先去设置里配置。",
     providerNotFoundTitle: "找不到提供商",
     providerNotFoundBody: "找不到{{providerId}}，请检查设置。",
+    modelUnavailableTitle: "保存的模型已不可用",
+    modelUnavailableBody: "该会话保存的聊天模型已不再配置，将回退到默认模型。",
     searchErrorTitle: "搜索错误",
     searchErrorBody:
       '查询"{{query}}"因服务商错误（如频率限制）被跳过：{{error}}',

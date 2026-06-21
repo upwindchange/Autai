@@ -68,6 +68,21 @@ export async function renameThread(
   });
 }
 
+/**
+ * Set or clear a thread's per-thread chat model override.
+ * Pass null providerId/modelId to revert to the global default.
+ */
+export async function setThreadChatOverride(
+  threadId: string,
+  override: { providerId: string | null; modelId: string | null },
+): Promise<void> {
+  await fetch(`${getApiBase()}/threads/${threadId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chatOverride: override }),
+  });
+}
+
 export async function deleteAllThreads(
   status?: "regular" | "archived",
 ): Promise<void> {

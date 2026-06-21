@@ -1,6 +1,12 @@
 import { Hono } from "hono";
+import { eq } from "drizzle-orm";
 import { threadPersistenceService, searchService } from "@/services";
 import { eventBus } from "@/utils/eventBus";
+import { userProviders } from "@/db/schema";
+import { getDb } from "@/db";
+import * as registry from "@agents/providers/registry";
+import { sendInfo } from "@/utils/messageUtils";
+import { i18n } from "@/i18n";
 import {
   CreateThreadSchema,
   UpdateThreadSchema,
@@ -181,7 +187,19 @@ threadRoutes.patch("/:id", async (c) => {
     if (parsed.data.status === "regular") {
       threadPersistenceService.unarchiveThread(id);
     }
-    eventBus.emitEvent("threads:listChanged", null);
+    if (parsed.data.chatOverride !== undefined) {
+      threadPersistenceService.setThreadChatOverride(id, parsed.data.chatOverride);
+    }
+    // Refresh the thread list unless this was a chatOverride-only change. The
+    // per-thread model override isn't shown in the list and the header picker
+    // already updates instantly via its RAM store, so it needs no reload.
+    if (
+      parsed.data.chatOverride === undefined ||
+      parsed.data.title !== undefined ||
+      parsed.data.status !== undefined
+    ) {
+      eventBus.emitEvent("threads:listChanged", null);
+    }
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error updating thread:", error);
@@ -209,6 +227,51 @@ threadRoutes.get("/:id/messages", (c) => {
   } catch (error) {
     logger.error("Error loading messages:", error);
     return c.json({ error: "Failed to load messages" }, 500);
+  }
+});
+
+// GET /threads/:id/model — read-once-on-load: returns the per-thread chat
+// override, validated. If the saved provider/model no longer exists, purges
+// the override (writes null/null), notifies the user, and returns default.
+threadRoutes.get("/:id/model", (c) => {
+  try {
+    const id = c.req.param("id");
+    const thread = threadPersistenceService.getThread(id);
+    if (!thread || !thread.chatProviderId || !thread.chatModelId) {
+      return c.json({ providerId: null, modelId: null });
+    }
+
+    const db = getDb();
+    const providerRow = db
+      .select()
+      .from(userProviders)
+      .where(eq(userProviders.id, thread.chatProviderId))
+      .get();
+    const valid =
+      !!providerRow &&
+      registry
+        .getModels(providerRow.providerDir)
+        .some((m) => m.file === thread.chatModelId);
+
+    if (!valid) {
+      sendInfo(
+        i18n.t("agents.modelUnavailableTitle"),
+        i18n.t("agents.modelUnavailableBody"),
+      );
+      threadPersistenceService.setThreadChatOverride(id, {
+        providerId: null,
+        modelId: null,
+      });
+      return c.json({ providerId: null, modelId: null });
+    }
+
+    return c.json({
+      providerId: thread.chatProviderId,
+      modelId: thread.chatModelId,
+    });
+  } catch (error) {
+    logger.error("Error loading thread model:", error);
+    return c.json({ providerId: null, modelId: null });
   }
 });
 

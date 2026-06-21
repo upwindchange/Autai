@@ -2,6 +2,7 @@ import {
   createUIMessageStream,
   UIMessageChunk,
   ModelMessage,
+  type LanguageModel,
   type UIMessage,
 } from "ai";
 import { SessionTabService, settingsService } from "@/services";
@@ -28,6 +29,7 @@ export async function browserResearchWorker(
   messages: ModelMessage[],
   sessionId: string,
   originalMessages: UIMessage[],
+  chatLanguageModel: LanguageModel,
   onFinish?: (messages: UIMessage[]) => void,
   options?: { skipExtraction?: boolean },
   signal?: AbortSignal,
@@ -147,6 +149,7 @@ export async function browserResearchWorker(
                 messages,
                 searchResults,
                 sessionId,
+                chatLanguageModel,
                 signal,
               );
               await mergeStreamAndWait(
@@ -182,6 +185,7 @@ export async function browserResearchWorker(
                 messages,
                 extractionResults,
                 sessionId,
+                chatLanguageModel,
                 signal,
               );
               await mergeStreamAndWait(

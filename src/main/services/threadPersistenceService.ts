@@ -78,6 +78,21 @@ class ThreadPersistenceService {
       .run();
   }
 
+  setThreadChatOverride(
+    id: string,
+    override: { providerId: string | null; modelId: string | null },
+  ): void {
+    const db = getDb();
+    db.update(threads)
+      .set({
+        chatProviderId: override.providerId,
+        chatModelId: override.modelId,
+        updatedAt: sql`(datetime('now'))`,
+      })
+      .where(eq(threads.id, id))
+      .run();
+  }
+
   archiveThread(id: string): void {
     const db = getDb();
     db.update(threads)
@@ -99,11 +114,24 @@ class ThreadPersistenceService {
     db.delete(threads).where(eq(threads.id, id)).run();
   }
 
-  saveMessages(threadId: string, msgs: UIMessage[]): void {
+  saveMessages(
+    threadId: string,
+    msgs: UIMessage[],
+    selection?: { providerId: string; modelId: string },
+  ): void {
     const db = getDb();
     db.transaction((tx) => {
       tx.update(threads)
-        .set({ updatedAt: sql`(datetime('now'))` })
+        .set({
+          updatedAt: sql`(datetime('now'))`,
+          // Persist the per-thread chat model on every save (covers a new
+          // conversation's first save + reaffirms existing threads). Only
+          // written when the request carried an explicit selection.
+          ...(selection && {
+            chatProviderId: selection.providerId,
+            chatModelId: selection.modelId,
+          }),
+        })
         .where(eq(threads.id, threadId))
         .run();
 

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/toggle";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import { HeaderModelSelector } from "@/components/header-model-selector";
 import {
   Moon,
   PanelLeftIcon,
@@ -40,8 +41,9 @@ export const AppHeader: FC<AppHeaderProps> = ({
   const showBackButton = showSettings && !open;
 
   return (
-    <header className="bg-background sticky top-0 flex h-14 shrink-0 items-center gap-2">
-      <div className="flex flex-1 items-center gap-2 px-3">
+    <header className="bg-background sticky top-0 flex h-14 shrink-0 items-center">
+      {/* LEFT zone: sidebar toggle, separator, back button, per-thread model selector */}
+      <div className="flex items-center gap-2 px-3">
         <TooltipIconButton
           variant="ghost"
           size="icon"
@@ -66,7 +68,18 @@ export const AppHeader: FC<AppHeaderProps> = ({
             {tSettings("view.backToChat")}
           </Button>
         )}
-        <div className="flex-1">{title}</div>
+        {!showSettings && <HeaderModelSelector />}
+      </div>
+
+      {/* CENTER zone: title, absolutely centered so it stays clear of side controls */}
+      <div className="pointer-events-none absolute inset-x-0 flex items-center justify-center">
+        <span className="max-w-[50%] truncate text-sm font-medium">
+          {title}
+        </span>
+      </div>
+
+      {/* RIGHT zone: theme + split view toggles */}
+      <div className="ml-auto flex items-center gap-2 px-3">
         <TooltipIconButton
           variant="ghost"
           size="icon"

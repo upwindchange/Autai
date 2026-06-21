@@ -2,11 +2,11 @@ import {
   streamText,
   createUIMessageStream,
   stepCountIs,
+  type LanguageModel,
   type UIMessageChunk,
   type ModelMessage,
   type UIMessage,
 } from "ai";
-import { chatModel } from "@agents/providers";
 import { settingsService, SessionTabService } from "@/services";
 import { i18n } from "@/i18n";
 import { sendAlert } from "@/utils/messageUtils";
@@ -171,6 +171,7 @@ export async function browserDeepResearchWorker(
   messages: ModelMessage[],
   sessionId: string,
   originalMessages: UIMessage[],
+  chatLanguageModel: LanguageModel,
   onFinish?: (messages: UIMessage[]) => void,
   signal?: AbortSignal,
 ): Promise<ReadableStream<UIMessageChunk>> {
@@ -209,6 +210,7 @@ export async function browserDeepResearchWorker(
               sessionId,
               tabId,
               writer,
+              chatLanguageModel,
               signal,
             );
 
@@ -259,7 +261,7 @@ export async function browserDeepResearchWorker(
               ];
 
               const hitlResult = streamText({
-                model: chatModel(),
+                model: chatLanguageModel,
                 messages: hitlDecisionMessages,
                 system: hitlDecisionSystemPrompt,
                 tools: {
@@ -273,6 +275,7 @@ export async function browserDeepResearchWorker(
                 experimental_context: {
                   sessionId,
                   writer,
+                  chatModel: chatLanguageModel,
                   abortSignal: signal,
                 },
                 experimental_telemetry: {
@@ -501,6 +504,7 @@ export async function browserDeepResearchWorker(
                   subtopicMessages,
                   extractionResults,
                   sessionId,
+                  chatLanguageModel,
                   signal,
                 );
                 const summaryText = await summaryResult.text;
@@ -556,7 +560,7 @@ export async function browserDeepResearchWorker(
             if (globalCitations.length === 0) {
               // No results found across any subtopic
               const noResultStream = streamText({
-                model: chatModel(),
+                model: chatLanguageModel,
                 messages,
                 system:
                   "You are a research assistant. Inform the user that no relevant search results were found for their query across multiple research subtopics, and suggest they try rephrasing their question.",
@@ -596,7 +600,7 @@ export async function browserDeepResearchWorker(
             ];
 
             const compositionResult = streamText({
-              model: chatModel(),
+              model: chatLanguageModel,
               messages: compositionMessages,
               system: compositionSystemPrompt,
               maxRetries,

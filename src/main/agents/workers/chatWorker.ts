@@ -1,13 +1,13 @@
 import {
   convertToModelMessages,
   stepCountIs,
+  type LanguageModel,
   type ToolSet,
   type UIMessage,
   streamText,
   type StreamTextResult,
   type Tool,
 } from "ai";
-import { chatModel } from "@agents/providers";
 import { repairToolCall, TIMEOUTS } from "@agents/utils";
 import { settingsService } from "@/services";
 import { mcpService } from "@/services/mcpService";
@@ -29,6 +29,7 @@ export class ChatWorker {
   async handleChat(
     messages: UIMessage[],
     sessionId: string,
+    chatLanguageModel: LanguageModel,
     system?: string,
     tools?: ToolSet,
     signal?: AbortSignal,
@@ -73,7 +74,7 @@ export class ChatWorker {
       ];
 
       const result = streamText({
-        model: chatModel(),
+        model: chatLanguageModel,
         messages: await convertToModelMessages(messages),
         system: `${systemPrompt} ${system || ""}`,
         stopWhen: stopConditions,

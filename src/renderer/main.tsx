@@ -38,6 +38,7 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable";
 import { useTagStore } from "@/stores/tagStore";
+import { useThreadModelStore } from "@/stores/threadModelStore";
 import { useRemoteThreadListRuntime } from "@assistant-ui/react";
 import { backendThreadListAdapter } from "@/adapters/backendThreadListAdapter";
 import { UniversalFileAttachmentAdapter } from "@/adapters/universalFileAttachmentAdapter";
@@ -121,12 +122,20 @@ function AppContent() {
     showSplitView,
     setContainerRef,
   } = useUiStore();
-  const currentRemoteId = useAuiState((s) => s.threadListItem.remoteId);
+  const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
   const threadTitle = useTagStore((s) =>
-    currentRemoteId ?
-      (s.threads.find((th) => th.remoteId === currentRemoteId)?.title ?? null)
+    mainThreadId ?
+      (s.threads.find((th) => th.remoteId === mainThreadId)?.title ?? null)
     : null,
   );
+
+  // Load this thread's saved chat model from the DB once (cached in RAM).
+  // Keyed by mainThreadId — the active thread id. (threadListItem.remoteId is
+  // undefined here: AppContent is a sibling of the per-thread runtime.)
+  useEffect(() => {
+    if (!mainThreadId) return;
+    void useThreadModelStore.getState().loadFromDb(mainThreadId);
+  }, [mainThreadId]);
 
   // Initialize thread lifecycle management
   useSessionLifecycle();
@@ -252,6 +261,7 @@ function App() {
           api: `${getApiBase()}/chat`,
           headers: async () => {
             const { useBrowser, usePlannedBrowser, webSearch, deepResearch, quickSearch, sessionId, enabledMcpServerIds } = useUiStore.getState();
+            const chatSelection = useThreadModelStore.getState().get(sessionId);
             return {
               "X-Use-Browser": String(useBrowser),
               "X-Use-Planned-Browser": String(usePlannedBrowser),
@@ -260,6 +270,12 @@ function App() {
               "X-Quick-Search": String(quickSearch),
               "X-Session-Id": sessionId || "",
               "X-Mcp-Servers": enabledMcpServerIds.join(","),
+              ...(chatSelection?.providerId
+                ? { "X-Chat-Provider-Id": chatSelection.providerId }
+                : {}),
+              ...(chatSelection?.modelId
+                ? { "X-Chat-Model-Id": chatSelection.modelId }
+                : {}),
             };
           },
         }),

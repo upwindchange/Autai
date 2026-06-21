@@ -58,6 +58,9 @@ const en = {
     providerNotFoundTitle: "Provider Not Found",
     providerNotFoundBody:
       'Provider "{{providerId}}" not found. Please check your settings.',
+    modelUnavailableTitle: "Saved Model No Longer Available",
+    modelUnavailableBody:
+      "The chat model saved for this thread is no longer configured. Falling back to your default model.",
     searchErrorTitle: "Search Error",
     searchErrorBody:
       'Query "{{query}}" was skipped due to a service error (e.g. rate limit): {{error}}',

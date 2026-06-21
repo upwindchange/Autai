@@ -1,4 +1,4 @@
-import { stepCountIs, streamText, tool, createUIMessageStream } from "ai";
+import { stepCountIs, streamText, tool, createUIMessageStream, type LanguageModel } from "ai";
 import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
@@ -213,6 +213,7 @@ export async function executeSubtasks(
   planToolCallId: string,
   outcome: ExecutionOutcome,
   userRequest: string,
+  chatLanguageModel: LanguageModel,
   signal?: AbortSignal,
 ): Promise<ReturnType<typeof createUIMessageStream>> {
   logger.debug("Starting subtask execution stream", {
@@ -396,6 +397,7 @@ export async function executeSubtasks(
             experimental_context: {
               sessionId,
               activeTabId,
+              chatModel: chatLanguageModel,
               writer,
               abortSignal: signal,
             },
