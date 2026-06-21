@@ -28,6 +28,7 @@ export interface ThreadSuggestionsPayload {
  */
 export interface ServerEvents {
   "splitview:activate": null;
+  "threads:listChanged": null;
   "threads:metadataUpdated": ThreadMetadataPayload;
   "threads:suggestionsUpdated": ThreadSuggestionsPayload;
   "app:message": AppMessage;
@@ -42,6 +43,7 @@ export type ServerEventName = keyof ServerEvents;
  */
 export const SERVER_EVENT_NAMES: readonly ServerEventName[] = [
   "splitview:activate",
+  "threads:listChanged",
   "threads:metadataUpdated",
   "threads:suggestionsUpdated",
   "app:message",

@@ -31,7 +31,7 @@ import {
 } from "@assistant-ui/react-ai-sdk";
 import { AppHeader } from "@/components/app-header";
 import { useRef, useEffect, useState } from "react";
-import { useSessionLifecycle } from "@/hooks";
+import { useSessionLifecycle, useThreadListRefresh } from "@/hooks";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -130,6 +130,18 @@ function AppContent() {
 
   // Initialize thread lifecycle management
   useSessionLifecycle();
+
+  // Reload the thread list when the set of threads changes on the backend
+  // (create/delete/archive/bulk from any client). The flat thread list reads
+  // from assistant-ui's internal cache, which — unlike the grouped list's
+  // tagStore (kept live by the metadataUpdated handler in App) — is not
+  // otherwise notified, so it needs this reload to see threads created elsewhere.
+  const refreshThreads = useThreadListRefresh();
+  useEffect(() => {
+    return serverEvents.on("threads:listChanged", () => {
+      void refreshThreads();
+    });
+  }, [refreshThreads]);
 
   const workspaceRef = useRef<HTMLDivElement>(null);
 

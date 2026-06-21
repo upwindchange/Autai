@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { threadPersistenceService, searchService } from "@/services";
+import { eventBus } from "@/utils/eventBus";
 import {
   CreateThreadSchema,
   UpdateThreadSchema,
@@ -37,6 +38,7 @@ threadRoutes.post("/", async (c) => {
       return c.json({ error: "Thread id is required" }, 400);
     }
     const thread = threadPersistenceService.createThread(parsed.data.id);
+    eventBus.emitEvent("threads:listChanged", null);
     return c.json({ remoteId: thread.id, externalId: undefined }, 201);
   } catch (error) {
     logger.error("Error creating thread:", error);
@@ -48,6 +50,7 @@ threadRoutes.post("/", async (c) => {
 threadRoutes.post("/archive-all", (c) => {
   try {
     threadPersistenceService.archiveAllThreads();
+    eventBus.emitEvent("threads:listChanged", null);
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error archiving all threads:", error);
@@ -61,6 +64,7 @@ threadRoutes.delete("/bulk", async (c) => {
     const body = await c.req.json();
     const status = body?.status as "regular" | "archived" | undefined;
     threadPersistenceService.deleteAllThreads(status);
+    eventBus.emitEvent("threads:listChanged", null);
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error deleting threads:", error);
@@ -86,6 +90,7 @@ threadRoutes.patch("/bulk-status", async (c) => {
         threadPersistenceService.unarchiveThread(id);
       }
     }
+    eventBus.emitEvent("threads:listChanged", null);
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error bulk updating thread status:", error);
@@ -104,6 +109,7 @@ threadRoutes.post("/bulk-delete", async (c) => {
     for (const id of threadIds) {
       threadPersistenceService.deleteThread(id);
     }
+    eventBus.emitEvent("threads:listChanged", null);
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error bulk deleting threads:", error);
@@ -175,6 +181,7 @@ threadRoutes.patch("/:id", async (c) => {
     if (parsed.data.status === "regular") {
       threadPersistenceService.unarchiveThread(id);
     }
+    eventBus.emitEvent("threads:listChanged", null);
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error updating thread:", error);
@@ -186,6 +193,7 @@ threadRoutes.patch("/:id", async (c) => {
 threadRoutes.delete("/:id", (c) => {
   try {
     threadPersistenceService.deleteThread(c.req.param("id"));
+    eventBus.emitEvent("threads:listChanged", null);
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error deleting thread:", error);

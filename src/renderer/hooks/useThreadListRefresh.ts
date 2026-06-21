@@ -5,10 +5,10 @@ import { useTagStore } from "@/stores/tagStore";
  * React hook for use inside AssistantRuntimeProvider.
  * Returns a stable `refresh` callback that refreshes thread list data.
  *
- * Invalidates the assistant-ui runtime thread list cache (triggers adapter.list()
- * which calls setThreadTags() to update threads/threadTags in tagStore), then
- * refreshes tag definitions independently. If the active thread was deleted,
- * switches to a new thread.
+ * Reloads the assistant-ui thread list cache via its public `reload()` (triggers
+ * adapter.list() which calls setThreadTags() to update threads/threadTags in
+ * tagStore), then refreshes tag definitions independently. If the active thread
+ * was deleted, switches to a new thread.
  */
 export function useThreadListRefresh(): () => Promise<void> {
   const aui = useAui();
@@ -20,16 +20,13 @@ export function useThreadListRefresh(): () => Promise<void> {
       | undefined;
     if (!runtime) return;
 
-    const state = runtime.threads.getState();
-    const previousMainThreadId = state.mainThreadId;
+    const previousMainThreadId = runtime.threads.getState().mainThreadId;
 
-    // Invalidate runtime cache (triggers adapter.list() which also updates tagStore)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const core = (runtime as any)._core;
-    if (core?.threads) {
-      core.threads._loadThreadsPromise = undefined;
-      await core.threads.getLoadThreadsPromise();
-    }
+    // Reload the thread list cache via the public API. `reload()` is
+    // generation-guarded, so a burst of refreshes (e.g. several SSE
+    // listChanged events) won't let a stale response overwrite a fresh one.
+    // Triggers adapter.list(), which also updates tagStore via setThreadTags().
+    await runtime.threads.reload();
 
     // Refresh tags independently (metadata update may have added/renamed tags)
     await useTagStore.getState().fetchTags();
