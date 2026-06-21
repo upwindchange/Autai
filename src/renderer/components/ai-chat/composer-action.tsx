@@ -7,10 +7,7 @@ import {
 } from "@/components/ui/field";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import {
-  AuiIf,
-  ComposerPrimitive,
-} from "@assistant-ui/react";
+import { AuiIf, ComposerPrimitive } from "@assistant-ui/react";
 import {
   ArrowUpIcon,
   Blocks,
@@ -71,6 +68,12 @@ export const ComposerAction: FC = () => {
     { id: string; name: string; enabled: boolean }[]
   >([]);
 
+  // controlled open state for the mode submenus, so enabling a mode via the
+  // trigger click opens its submenu immediately (Radix otherwise waits for a
+  // pointer-move because the click handler calls preventDefault).
+  const [browserSubOpen, setBrowserSubOpen] = useState(false);
+  const [webSearchSubOpen, setWebSearchSubOpen] = useState(false);
+
   useEffect(() => {
     fetch(`${getApiBase()}/mcp/servers`)
       .then((res) => res.json())
@@ -113,7 +116,14 @@ export const ComposerAction: FC = () => {
       <div className="flex items-center gap-1">
         <ComposerAddAttachment />
         {/* --- custom: unified tools menu (browser use + extensions + web search) --- */}
-        <DropdownMenu>
+        <DropdownMenu
+          onOpenChange={(open) => {
+            if (!open) {
+              setBrowserSubOpen(false);
+              setWebSearchSubOpen(false);
+            }
+          }}
+        >
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
@@ -133,7 +143,10 @@ export const ComposerAction: FC = () => {
               <>
                 <DropdownMenuGroup>
                   {/* Browser Use Submenu */}
-                  <DropdownMenuSub open={useBrowser ? undefined : false}>
+                  <DropdownMenuSub
+                    open={useBrowser ? browserSubOpen : false}
+                    onOpenChange={setBrowserSubOpen}
+                  >
                     <DropdownMenuSubTrigger
                       className={cn(
                         useBrowser &&
@@ -143,7 +156,9 @@ export const ComposerAction: FC = () => {
                       )}
                       onClick={(e) => {
                         e.preventDefault();
-                        setUseBrowser(!useBrowser);
+                        const next = !useBrowser;
+                        setUseBrowser(next);
+                        setBrowserSubOpen(next);
                       }}
                     >
                       <Field>
@@ -157,7 +172,15 @@ export const ComposerAction: FC = () => {
                               : "text-muted-foreground",
                             )}
                           />
-                          <span className="relative">
+                          <span
+                            className={cn(
+                              "relative",
+                              useBrowser ?
+                                usePlannedBrowser ? "text-purple-500"
+                                : "text-blue-500"
+                              : undefined,
+                            )}
+                          >
                             {t("composer.tools.browserUse")}
                             <svg
                               xmlns="http://www.w3.org/2000/svg"
@@ -187,7 +210,7 @@ export const ComposerAction: FC = () => {
                         </FieldDescription>
                       </Field>
                     </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent alignOffset={-100} className="max-w-64">
+                    <DropdownMenuSubContent className="max-w-64">
                       <RadioGroup
                         value={usePlannedBrowser ? "planned" : "simple"}
                         onValueChange={(value) => {
@@ -196,7 +219,10 @@ export const ComposerAction: FC = () => {
                         className="p-2 gap-1"
                       >
                         <Field orientation="horizontal">
-                          <RadioGroupItem value="simple" id="browser-mode-simple" />
+                          <RadioGroupItem
+                            value="simple"
+                            id="browser-mode-simple"
+                          />
                           <FieldContent>
                             <FieldLabel htmlFor="browser-mode-simple">
                               {t("composer.browser.mode.simple")}
@@ -238,16 +264,16 @@ export const ComposerAction: FC = () => {
                       <Blocks
                         className={cn(
                           "size-4",
-                          hasActiveMcpServers ?
-                            "text-orange-500"
-                          : "text-muted-foreground",
+                          hasActiveMcpServers ? "text-orange-500" : (
+                            "text-muted-foreground"
+                          ),
                         )}
                       />
                       <span
                         className={cn(
-                          hasActiveMcpServers ?
-                            "text-orange-500"
-                          : "text-muted-foreground",
+                          hasActiveMcpServers ? "text-orange-500" : (
+                            "text-muted-foreground"
+                          ),
                         )}
                       >
                         {t("composer.tools.extensions")}
@@ -290,7 +316,10 @@ export const ComposerAction: FC = () => {
 
             {/* Web Search Submenu */}
             <DropdownMenuGroup>
-              <DropdownMenuSub open={webSearch ? undefined : false}>
+              <DropdownMenuSub
+                open={webSearch ? webSearchSubOpen : false}
+                onOpenChange={setWebSearchSubOpen}
+              >
                 <DropdownMenuSubTrigger
                   className={cn(
                     webSearch &&
@@ -302,7 +331,9 @@ export const ComposerAction: FC = () => {
                   )}
                   onClick={(e) => {
                     e.preventDefault();
-                    setWebSearch(!webSearch);
+                    const next = !webSearch;
+                    setWebSearch(next);
+                    setWebSearchSubOpen(next);
                   }}
                 >
                   <Field>
@@ -317,7 +348,17 @@ export const ComposerAction: FC = () => {
                           : "text-muted-foreground",
                         )}
                       />
-                      {t("composer.tools.webSearch")}
+                      <span
+                        className={cn(
+                          webSearch ?
+                            quickSearch ? "text-green-500"
+                            : deepResearch ? "text-purple-500"
+                            : "text-blue-500"
+                          : undefined,
+                        )}
+                      >
+                        {t("composer.tools.webSearch")}
+                      </span>
                     </FieldLabel>
                     <FieldDescription>
                       {webSearch ?
@@ -326,7 +367,7 @@ export const ComposerAction: FC = () => {
                     </FieldDescription>
                   </Field>
                 </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent alignOffset={-100} className="max-w-64">
+                <DropdownMenuSubContent className="max-w-64">
                   <div className="space-y-2 p-2">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-medium">
@@ -337,7 +378,10 @@ export const ComposerAction: FC = () => {
                           <TooltipTrigger asChild>
                             <CircleHelpIcon className="size-3.5 text-muted-foreground" />
                           </TooltipTrigger>
-                          <TooltipContent side="top" className="max-w-56 text-xs">
+                          <TooltipContent
+                            side="top"
+                            className="max-w-56 text-xs"
+                          >
                             {t("composer.effort.description")}
                           </TooltipContent>
                         </Tooltip>
