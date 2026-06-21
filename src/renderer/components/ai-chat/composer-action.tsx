@@ -89,17 +89,6 @@ export const ComposerAction: FC = () => {
 
   const hasActiveMcpServers = enabledMcpServerIds.length > 0;
 
-  const toolIconColor =
-    useBrowser ?
-      usePlannedBrowser ? "text-purple-500"
-      : "text-blue-500"
-    : hasActiveMcpServers ? "text-orange-500"
-    : webSearch ?
-      quickSearch ? "text-green-500"
-      : deepResearch ? "text-purple-500"
-      : "text-blue-500"
-    : "";
-
   // effort: 0 = quick, 1 = standard, 2 = thorough
   const effort =
     quickSearch ? 0
@@ -135,7 +124,7 @@ export const ComposerAction: FC = () => {
                   "bg-muted hover:bg-muted",
               )}
             >
-              <ToolCase className={cn("size-5", toolIconColor)} />
+              <ToolCase className="size-5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start">
@@ -148,12 +137,7 @@ export const ComposerAction: FC = () => {
                     onOpenChange={setBrowserSubOpen}
                   >
                     <DropdownMenuSubTrigger
-                      className={cn(
-                        useBrowser &&
-                          (usePlannedBrowser ?
-                            "text-purple-500 data-[state=open]:text-purple-500"
-                          : "text-blue-500 data-[state=open]:text-blue-500"),
-                      )}
+                      className={cn(useBrowser && "bg-muted")}
                       onClick={(e) => {
                         e.preventDefault();
                         const next = !useBrowser;
@@ -163,45 +147,8 @@ export const ComposerAction: FC = () => {
                     >
                       <Field>
                         <FieldLabel>
-                          <Globe
-                            className={cn(
-                              "size-4",
-                              useBrowser ?
-                                usePlannedBrowser ? "text-purple-500"
-                                : "text-blue-500"
-                              : "text-muted-foreground",
-                            )}
-                          />
-                          <span
-                            className={cn(
-                              "relative",
-                              useBrowser ?
-                                usePlannedBrowser ? "text-purple-500"
-                                : "text-blue-500"
-                              : undefined,
-                            )}
-                          >
-                            {t("composer.tools.browserUse")}
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              width="1em"
-                              height="1em"
-                              viewBox="0 0 24 24"
-                              className={cn(
-                                "absolute -top-2 -right-3.5 size-4",
-                                useBrowser ?
-                                  usePlannedBrowser ? "text-purple-500"
-                                  : "text-blue-500"
-                                : "text-muted-foreground",
-                              )}
-                            >
-                              <path d="M0 0h24v24H0z" fill="none" />
-                              <path
-                                fill="currentColor"
-                                d="M18.08 17.8c-.46.13-.87.2-1.23.2c-1.2 0-2.01-.88-2.42-2.65h-.05c-.99 1.91-2.38 2.86-4.13 2.86c-1.31 0-2.36-.49-3.15-1.48S5.92 14.5 5.92 13c0-1.75.45-3.15 1.34-4.24s2.1-1.64 3.63-1.64c.82 0 1.56.23 2.2.68c.64.46 1.13 1.1 1.47 1.93h.04l.71-2.4h2.56l-2.14 5.32c.24 1.24.49 2.09.77 2.54c.24.45.58.68 1 .68c.24 0 .43-.04.6-.11zm-4.26-5.24c-.21-1.13-.55-2.01-1.01-2.61c-.45-.61-1-.91-1.63-.91c-.82 0-1.48.37-1.97 1.1c-.49.74-.71 1.65-.71 2.72c0 .98.19 1.79.62 2.45c.42.66.99.98 1.7.98c.6 0 1.15-.29 1.64-.84c.5-.57.91-1.4 1.24-2.49z"
-                              />
-                            </svg>
-                          </span>
+                          <Globe className="size-4" />
+                          {t("composer.tools.browserUse")}
                         </FieldLabel>
                         <FieldDescription>
                           {useBrowser ?
@@ -321,14 +268,7 @@ export const ComposerAction: FC = () => {
                 onOpenChange={setWebSearchSubOpen}
               >
                 <DropdownMenuSubTrigger
-                  className={cn(
-                    webSearch &&
-                      (quickSearch ?
-                        "text-green-500 data-[state=open]:text-green-500"
-                      : deepResearch ?
-                        "text-purple-500 data-[state=open]:text-purple-500"
-                      : "text-blue-500 data-[state=open]:text-blue-500"),
-                  )}
+                  className={cn(webSearch && "bg-muted")}
                   onClick={(e) => {
                     e.preventDefault();
                     const next = !webSearch;
@@ -338,27 +278,8 @@ export const ComposerAction: FC = () => {
                 >
                   <Field>
                     <FieldLabel>
-                      <Search
-                        className={cn(
-                          "size-4",
-                          webSearch ?
-                            quickSearch ? "text-green-500"
-                            : deepResearch ? "text-purple-500"
-                            : "text-blue-500"
-                          : "text-muted-foreground",
-                        )}
-                      />
-                      <span
-                        className={cn(
-                          webSearch ?
-                            quickSearch ? "text-green-500"
-                            : deepResearch ? "text-purple-500"
-                            : "text-blue-500"
-                          : undefined,
-                        )}
-                      >
-                        {t("composer.tools.webSearch")}
-                      </span>
+                      <Search className="size-4" />
+                      {t("composer.tools.webSearch")}
                     </FieldLabel>
                     <FieldDescription>
                       {webSearch ?
