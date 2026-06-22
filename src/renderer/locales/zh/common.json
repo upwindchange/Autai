@@ -113,5 +113,12 @@
   "optionList.otherPlaceholder": "输入你自己的回答...",
   "optionList.skip": "跳过",
   "optionList.cancelled": "已取消",
-  "optionList.submit": "提交"
+  "optionList.submit": "提交",
+  "entertainment.start.title": "开始阅读",
+  "entertainment.start.subtitle": "提供作品信息与来源，即可开始。",
+  "entertainment.start.novelInfo.label": "作品",
+  "entertainment.start.novelInfo.placeholder": "书名、作者等",
+  "entertainment.start.source.label": "来源",
+  "entertainment.start.source.placeholder": "粘贴链接，或描述从哪里获取",
+  "entertainment.start.submit": "开始"
 }

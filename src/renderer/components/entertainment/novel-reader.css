@@ -1,0 +1,51 @@
+/* Novel-reading typography, scoped to the entertainment reader only.
+ * Targets streamdown's inner elements (emitted by the markdown pipeline,
+ * unreachable by Tailwind utilities) via the `.ent-novel-reader` container
+ * class set on NovelText's StreamdownTextPrimitive. */
+
+.ent-novel-reader {
+  max-width: var(--reading-max-width, 42rem);
+  margin-inline: auto;
+  font-size: 1.0625rem; /* 17px — slightly larger than chat body */
+  line-height: 1.9; /* generous for CJK reading */
+  color: var(--foreground);
+  text-wrap: pretty;
+}
+
+/* Paragraph spacing + classic 2-em first-line indent (Chinese convention). */
+.ent-novel-reader > p {
+  margin-block: 0.85em;
+  text-indent: 2em;
+}
+/* No indent on the first paragraph following a heading. */
+.ent-novel-reader > h1 + p,
+.ent-novel-reader > h2 + p,
+.ent-novel-reader > h3 + p {
+  text-indent: 0;
+}
+
+/* Chapter-ish headings. */
+.ent-novel-reader > h1,
+.ent-novel-reader > h2,
+.ent-novel-reader > h3 {
+  margin-block: 1.6em 0.8em;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.ent-novel-reader > h1 {
+  font-size: 1.5rem;
+}
+.ent-novel-reader > h2 {
+  font-size: 1.25rem;
+}
+.ent-novel-reader > h3 {
+  font-size: 1.125rem;
+}
+
+/* Blockquotes (if the stub emits them). */
+.ent-novel-reader > blockquote {
+  margin-block: 1em;
+  padding-inline-start: 1em;
+  border-inline-start: 3px solid var(--border);
+  color: var(--muted-foreground);
+}
