@@ -1,0 +1,1 @@
+ALTER TABLE `threads` ADD `mode` text DEFAULT 'chat' NOT NULL;

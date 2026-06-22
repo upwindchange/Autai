@@ -17,14 +17,17 @@ import log from "electron-log/main";
 const logger = log.scope("ApiServer:Threads");
 export const threadRoutes = new Hono();
 
-// GET /threads - list all threads (regular + archived)
+// GET /threads - list threads for a mode (?mode=chat|entertainment, default chat).
+// Returns regular + archived of that mode; the client filters by status.
 threadRoutes.get("/", (c) => {
   try {
-    const threads = threadPersistenceService.listAllThreads();
+    const mode = (c.req.query("mode") as "chat" | "entertainment" | undefined) ?? "chat";
+    const threads = threadPersistenceService.listThreadsByMode(mode);
     return c.json({
       threads: threads.map((t) => ({
         remoteId: t.id,
         status: t.status,
+        mode: t.mode,
         title: t.title,
         tags: t.tags,
       })),
@@ -43,7 +46,10 @@ threadRoutes.post("/", async (c) => {
     if (!parsed.success) {
       return c.json({ error: "Thread id is required" }, 400);
     }
-    const thread = threadPersistenceService.createThread(parsed.data.id);
+    const thread = threadPersistenceService.createThread(
+      parsed.data.id,
+      parsed.data.mode ?? "chat",
+    );
     eventBus.emitEvent("threads:listChanged", null);
     return c.json({ remoteId: thread.id, externalId: undefined }, 201);
   } catch (error) {
@@ -123,21 +129,24 @@ threadRoutes.post("/bulk-delete", async (c) => {
   }
 });
 
-// GET /threads/search?q=... - search threads by title
+// GET /threads/search?q=... - search threads by title (scoped to ?mode= when given)
 threadRoutes.get("/search", (c) => {
   try {
     const query = c.req.query("q") ?? "";
     if (!query.trim()) {
       return c.json({ threads: [] });
     }
+    const mode = c.req.query("mode") as "chat" | "entertainment" | undefined;
     const threads = searchService.searchThreads(
       query,
       threadPersistenceService.getTagsForThread.bind(threadPersistenceService),
+      mode,
     );
     return c.json({
       threads: threads.map((t) => ({
         remoteId: t.id,
         status: t.status,
+        mode: t.mode,
         title: t.title,
         tags: t.tags,
       })),

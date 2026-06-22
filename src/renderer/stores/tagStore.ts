@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import type { TagRow } from "@shared/tag";
+import type { TagRow, ThreadMode } from "@shared/tag";
+import { useUiStore } from "@/stores/uiStore";
 import {
   fetchTags,
   createTag as apiCreateTag,
@@ -19,6 +20,7 @@ export interface ThreadInfo {
   title: string;
   tags: TagRow[];
   status: "regular" | "archived";
+  mode: ThreadMode;
 }
 
 interface TagState {
@@ -241,6 +243,9 @@ export const useTagStore = create<TagState>()(
               title,
               tags: tags ?? [],
               status: "regular" as const,
+              // Fallback synthetic insert for a metadata update on a thread not
+              // currently in the (mode-filtered) list. Default to the active mode.
+              mode: useUiStore.getState().appMode,
             },
           ],
           ...(tags !== undefined ?
@@ -310,7 +315,7 @@ export const useTagStore = create<TagState>()(
       }
       set({ isSearching: true });
       try {
-        const result = await apiSearchThreads(trimmed);
+        const result = await apiSearchThreads(trimmed, useUiStore.getState().appMode);
         const ids = new Set(result.threads.map((t) => t.remoteId));
         set({ searchResultIds: ids, isSearching: false });
       } catch {

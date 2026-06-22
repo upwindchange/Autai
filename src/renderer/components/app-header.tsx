@@ -31,7 +31,7 @@ export const AppHeader: FC<AppHeaderProps> = ({
   const { theme, resolvedTheme, setTheme } = useTheme();
   const { t } = useTranslation("common");
   const { t: tSettings } = useTranslation("settings");
-  const { showSettings, setShowSettings, showSplitView, toggleSplitView } = useUiStore();
+  const { showSettings, setShowSettings, showSplitView, toggleSplitView, appMode } = useUiStore();
   const { open, toggleSidebar } = useSidebar();
 
   useEffect(() => {
@@ -68,7 +68,7 @@ export const AppHeader: FC<AppHeaderProps> = ({
             {tSettings("view.backToChat")}
           </Button>
         )}
-        {!showSettings && <HeaderModelSelector />}
+        {!showSettings && appMode === "chat" && <HeaderModelSelector />}
       </div>
 
       {/* CENTER zone: title, absolutely centered so it stays clear of side controls */}

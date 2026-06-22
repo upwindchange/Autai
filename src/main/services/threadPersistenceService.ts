@@ -4,6 +4,7 @@ import { eq, desc, asc, sql, and } from "drizzle-orm";
 import type { UIMessage } from "ai";
 import log from "electron-log/main";
 import type { ThreadRow, TagRow, ThreadWithTags } from "@/db/types";
+import type { ThreadMode } from "@shared/tag";
 
 const logger = log.scope("ThreadPersistenceService");
 
@@ -13,9 +14,9 @@ class ThreadPersistenceService {
     logger.info("ThreadPersistenceService ready");
   }
 
-  createThread(id: string): ThreadRow {
+  createThread(id: string, mode: ThreadMode = "chat"): ThreadRow {
     const db = getDb();
-    db.insert(threads).values({ id }).run();
+    db.insert(threads).values({ id, mode }).run();
     return this.getThread(id)!;
   }
 
@@ -39,6 +40,24 @@ class ThreadPersistenceService {
     const rows = db
       .select()
       .from(threads)
+      .orderBy(desc(threads.updatedAt))
+      .all();
+
+    return rows.map((thread) => ({
+      ...thread,
+      tags: this.getTagsForThread(thread.id),
+    }));
+  }
+
+  // Threads scoped to a top-level UI mode. Returns both `regular` and
+  // `archived` of that mode so the sidebar's archive toggle still works; the
+  // client filters by status on top. Used by GET /threads?mode=.
+  listThreadsByMode(mode: ThreadMode): ThreadWithTags[] {
+    const db = getDb();
+    const rows = db
+      .select()
+      .from(threads)
+      .where(eq(threads.mode, mode))
       .orderBy(desc(threads.updatedAt))
       .all();
 

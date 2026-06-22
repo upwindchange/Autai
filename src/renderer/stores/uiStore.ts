@@ -46,6 +46,19 @@ interface UiState {
   sessionId: string | null;
   setSessionId: (sessionId: string | null) => void;
 
+  // App mode (top-level UI): chat vs entertainment. Drives which thread set
+  // the adapter fetches and which thread view fills the content slot.
+  appMode: "chat" | "entertainment";
+  setAppMode: (mode: "chat" | "entertainment") => void;
+
+  // Last-active thread id per mode, so switching modes restores the thread the
+  // user was on instead of landing on a fresh one.
+  lastActiveByMode: Record<"chat" | "entertainment", string | null>;
+  setLastActiveByMode: (
+    mode: "chat" | "entertainment",
+    threadId: string | null,
+  ) => void;
+
   // MCP per-conversation toggle state
   enabledMcpServerIds: string[];
   setEnabledMcpServerIds: (ids: string[]) => void;
@@ -113,6 +126,15 @@ export const useUiStore = create<UiState>()(
     // Session state (thread-based)
     sessionId: null,
     setSessionId: (sessionId) => set({ sessionId }),
+
+    // App mode
+    appMode: "chat",
+    setAppMode: (appMode) => set({ appMode }),
+    lastActiveByMode: { chat: null, entertainment: null },
+    setLastActiveByMode: (mode, threadId) =>
+      set((state) => ({
+        lastActiveByMode: { ...state.lastActiveByMode, [mode]: threadId },
+      })),
 
     // MCP per-conversation toggle state
     enabledMcpServerIds: [],

@@ -12,6 +12,7 @@ export const ChatRequestSchema = z.object({
 // Thread creation schema
 export const CreateThreadSchema = z.object({
   id: z.string().min(1),
+  mode: z.enum(["chat", "entertainment"]).optional(),
 });
 
 // Per-thread chat model override (null providerId/modelId = use the global default)

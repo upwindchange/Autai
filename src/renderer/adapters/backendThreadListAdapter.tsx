@@ -14,6 +14,7 @@ import { createAssistantStream } from "assistant-stream";
 import type { UIMessage } from "ai";
 import type { TagRow } from "@shared/tag";
 import { useTagStore, type ThreadInfo } from "@/stores/tagStore";
+import { useUiStore } from "@/stores/uiStore";
 import { getApiBase } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
@@ -80,12 +81,18 @@ class BackendThreadHistoryAdapter implements ThreadHistoryAdapter {
 
 export const backendThreadListAdapter: RemoteThreadListAdapter = {
   async list() {
-    const res = await fetch(`${getApiBase()}/threads`);
+    // Scope the list to the active app mode so each UI only ever sees its own
+    // threads. `mode` is carried onto ThreadInfo as app-local metadata; the
+    // value returned to the runtime keeps status strictly regular|archived
+    // (assistant-ui enforces that domain — a third value would throw).
+    const mode = useUiStore.getState().appMode;
+    const res = await fetch(`${getApiBase()}/threads?mode=${mode}`);
     const data = (await res.json()) as {
       threads: {
         remoteId: string;
         title: string;
         status: "regular" | "archived";
+        mode: "chat" | "entertainment";
         tags: TagRow[];
       }[];
     };
@@ -100,6 +107,7 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
         title: t.title,
         tags: t.tags,
         status: t.status,
+        mode: t.mode,
       });
     }
     useTagStore.getState().setThreadTags(threadTags, threads);
@@ -118,10 +126,13 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
   },
 
   async initialize(threadId: string) {
+    // The runtime calls initialize(threadId) with only an id, so the mode must
+    // be read from the global store — new conversations inherit the active mode.
+    const mode = useUiStore.getState().appMode;
     const res = await fetch(`${getApiBase()}/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: threadId }),
+      body: JSON.stringify({ id: threadId, mode }),
     });
     return res.json();
   },

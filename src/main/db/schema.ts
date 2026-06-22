@@ -33,6 +33,10 @@ export const threads = sqliteTable("threads", {
   id: text().primaryKey(),
   title: text().notNull().default("New Chat"),
   status: text().notNull().default("regular"),
+  // Top-level UI mode. Orthogonal to `status` (which assistant-ui owns as
+  // regular|archived). `mode` lives entirely outside the runtime as app-local
+  // metadata and partitions threads between the chat UI and the entertainment UI.
+  mode: text("mode").notNull().default("chat"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),

@@ -8,12 +8,15 @@ import { useTagStore } from "@/stores/tagStore";
  * Reloads the assistant-ui thread list cache via its public `reload()` (triggers
  * adapter.list() which calls setThreadTags() to update threads/threadTags in
  * tagStore), then refreshes tag definitions independently. If the active thread
- * was deleted, switches to a new thread.
+ * is no longer in the list (deleted, or a mode switch replaced the set), it
+ * restores `restoreTarget` when present, otherwise switches to a new thread.
  */
-export function useThreadListRefresh(): () => Promise<void> {
+export function useThreadListRefresh(): (opts?: {
+  restoreTarget?: string | null;
+}) => Promise<void> {
   const aui = useAui();
 
-  return async () => {
+  return async (opts) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const runtime = (aui.threads() as any).__internal_getAssistantRuntime?.() as
       | AssistantRuntime
@@ -31,11 +34,17 @@ export function useThreadListRefresh(): () => Promise<void> {
     // Refresh tags independently (metadata update may have added/renamed tags)
     await useTagStore.getState().fetchTags();
 
-    // If the active thread was deleted, switch to new thread
+    // If the active thread is no longer in the list, restore the target thread
+    // (e.g. a mode switch's last-active thread) when it exists, else new thread.
     const newState = runtime.threads.getState();
     const allThreadIds = [...newState.threadIds, ...newState.archivedThreadIds];
     if (previousMainThreadId && !allThreadIds.includes(previousMainThreadId)) {
-      await runtime.threads.switchToNewThread();
+      const target = opts?.restoreTarget ?? null;
+      if (target && allThreadIds.includes(target)) {
+        await runtime.threads.switchToThread(target);
+      } else {
+        await runtime.threads.switchToNewThread();
+      }
     }
   };
 }

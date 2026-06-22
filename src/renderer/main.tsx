@@ -12,6 +12,7 @@ import log from "electron-log/renderer";
 import { SidebarLeft } from "@/components/side-bar/sidebar-left";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Thread } from "@/components/ai-chat";
+import { EntertainmentThread } from "@/components/entertainment";
 import { SettingsProvider, SettingsView } from "@/components/settings";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useUiStore } from "@/stores/uiStore";
@@ -122,7 +123,12 @@ function AppContent() {
     showSplitView,
     setContainerRef,
   } = useUiStore();
+  const appMode = useUiStore((s) => s.appMode);
   const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
+  // Latest mainThreadId readable inside the appMode subscription callback
+  // (which fires outside the render cycle).
+  const mainThreadIdRef = useRef(mainThreadId);
+  mainThreadIdRef.current = mainThreadId;
   const threadTitle = useTagStore((s) =>
     mainThreadId ?
       (s.threads.find((th) => th.remoteId === mainThreadId)?.title ?? null)
@@ -150,6 +156,25 @@ function AppContent() {
     return serverEvents.on("threads:listChanged", () => {
       void refreshThreads();
     });
+  }, [refreshThreads]);
+
+  // Reload the thread list when the top-level app mode changes (chat <->
+  // entertainment). The single adapter is mode-aware, so reload() re-fetches
+  // the other mode's threads via the public runtime API. We remember the thread
+  // we're leaving and restore the target mode's last-active thread afterwards.
+  useEffect(() => {
+    return useUiStore.subscribe(
+      (s) => s.appMode,
+      (newMode, oldMode) => {
+        if (!oldMode || newMode === oldMode) return;
+        const currentId = mainThreadIdRef.current;
+        if (currentId && !currentId.startsWith("__LOCALID")) {
+          useUiStore.getState().setLastActiveByMode(oldMode, currentId);
+        }
+        const target = useUiStore.getState().lastActiveByMode[newMode];
+        void refreshThreads({ restoreTarget: target });
+      },
+    );
   }, [refreshThreads]);
 
   const workspaceRef = useRef<HTMLDivElement>(null);
@@ -210,6 +235,8 @@ function AppContent() {
                     <div className="relative flex flex-1 flex-col overflow-hidden min-h-0">
                       {showSettings ?
                         <SettingsView />
+                      : appMode === "entertainment" ?
+                        <EntertainmentThread />
                       : <Thread />}
                       <div id="chat-panel-portal" />
                     </div>
@@ -225,6 +252,8 @@ function AppContent() {
                 <div className="relative flex flex-1 flex-col overflow-hidden h-full">
                   {showSettings ?
                     <SettingsView />
+                  : appMode === "entertainment" ?
+                    <EntertainmentThread />
                   : <Thread />}
                   <div id="chat-panel-portal" />
                 </div>

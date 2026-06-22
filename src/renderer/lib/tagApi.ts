@@ -1,4 +1,4 @@
-import type { TagRow } from "@shared/tag";
+import type { TagRow, ThreadMode } from "@shared/tag";
 import { getApiBase } from "@/lib/api";
 
 export async function fetchTags(): Promise<TagRow[]> {
@@ -118,22 +118,27 @@ export async function bulkDeleteThreadsByIds(
   });
 }
 
-export async function searchThreads(query: string): Promise<{
+export async function searchThreads(
+  query: string,
+  mode?: ThreadMode,
+): Promise<{
   threads: {
     remoteId: string;
     title: string;
     status: "regular" | "archived";
+    mode: ThreadMode;
     tags: TagRow[];
   }[];
 }> {
-  const res = await fetch(
-    `${getApiBase()}/threads/search?q=${encodeURIComponent(query)}`,
-  );
+  const params = new URLSearchParams({ q: query });
+  if (mode) params.set("mode", mode);
+  const res = await fetch(`${getApiBase()}/threads/search?${params.toString()}`);
   return (await res.json()) as {
     threads: {
       remoteId: string;
       title: string;
       status: "regular" | "archived";
+      mode: ThreadMode;
       tags: TagRow[];
     }[];
   };

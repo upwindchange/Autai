@@ -1,6 +1,7 @@
 import { getSqlite } from "@/db";
 import log from "electron-log/main";
 import type { TagRow, ThreadRow, ThreadWithTags } from "@/db/types";
+import type { ThreadMode } from "@shared/tag";
 
 const logger = log.scope("SearchService");
 
@@ -14,6 +15,7 @@ class SearchService {
   searchThreads(
     query: string,
     getTagsForThread: (threadId: string) => TagRow[],
+    mode?: ThreadMode,
   ): ThreadWithTags[] {
     const sqlite = getSqlite();
     const trimmed = query.trim();
@@ -35,15 +37,16 @@ class SearchService {
         WHERE t.id IN (
           SELECT thread_id FROM threads_fts WHERE threads_fts MATCH ?
         )
+        ${mode ? "AND t.mode = ?" : ""}
         ORDER BY t.updated_at DESC
       `);
-      rows = stmt.all(trimmed) as ThreadRow[];
+      rows = (mode ? stmt.all(trimmed, mode) : stmt.all(trimmed)) as ThreadRow[];
     } else {
       // LIKE fallback for short Latin queries (1-2 chars)
       const stmt = sqlite.prepare(
-        "SELECT * FROM threads WHERE title LIKE ? ORDER BY updated_at DESC",
+        `SELECT * FROM threads WHERE title LIKE ? ${mode ? "AND mode = ?" : ""} ORDER BY updated_at DESC`,
       );
-      rows = stmt.all(`%${trimmed}%`) as ThreadRow[];
+      rows = (mode ? stmt.all(`%${trimmed}%`, mode) : stmt.all(`%${trimmed}%`)) as ThreadRow[];
     }
 
     return rows.map((thread) => ({
