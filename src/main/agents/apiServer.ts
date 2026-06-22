@@ -5,6 +5,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import fs from "node:fs";
 import path from "node:path";
 import { chatRoutes } from "./routes/chatRoutes";
+import { entertainmentRoutes } from "./routes/entertainmentRoutes";
 import { threadRoutes } from "./routes/threadRoutes";
 import { tagRoutes } from "./routes/tagRoutes";
 import { settingsRoutes } from "./routes/settingsRoutes";
@@ -72,6 +73,7 @@ export class ApiServer {
 
   private setupRoutes(): void {
     this.app.route("/chat", chatRoutes);
+    this.app.route("/entertainment", entertainmentRoutes);
     this.app.route("/threads", threadRoutes);
     this.app.route("/tags", tagRoutes);
     this.app.route("/settings", settingsRoutes);
