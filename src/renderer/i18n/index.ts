@@ -8,6 +8,7 @@ import developmentEn from "@/locales/en/development.json";
 import providersEn from "@/locales/en/providers.json";
 import threadsEn from "@/locales/en/threads.json";
 import mcpServersEn from "@/locales/en/mcp-servers.json";
+import readerEn from "@/locales/en/reader.json";
 
 import commonZh from "@/locales/zh/common.json";
 import settingsZh from "@/locales/zh/settings.json";
@@ -16,6 +17,7 @@ import developmentZh from "@/locales/zh/development.json";
 import providersZh from "@/locales/zh/providers.json";
 import threadsZh from "@/locales/zh/threads.json";
 import mcpServersZh from "@/locales/zh/mcp-servers.json";
+import readerZh from "@/locales/zh/reader.json";
 
 const resources = {
   en: {
@@ -26,6 +28,7 @@ const resources = {
     providers: providersEn,
     threads: threadsEn,
     "mcp-servers": mcpServersEn,
+    reader: readerEn,
   },
   zh: {
     common: commonZh,
@@ -35,6 +38,7 @@ const resources = {
     providers: providersZh,
     threads: threadsZh,
     "mcp-servers": mcpServersZh,
+    reader: readerZh,
   },
 };
 
@@ -61,6 +65,7 @@ i18n.use(initReactI18next).init({
     "providers",
     "threads",
     "mcp-servers",
+    "reader",
   ],
   interpolation: {
     escapeValue: false, // React already escapes

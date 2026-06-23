@@ -1,21 +1,30 @@
 /* Novel-reading typography, scoped to the entertainment reader only.
  * Targets streamdown's inner elements (emitted by the markdown pipeline,
  * unreachable by Tailwind utilities) via the `.ent-novel-reader` container
- * class set on NovelText's StreamdownTextPrimitive. */
+ * class set on NovelText's StreamdownTextPrimitive.
+ *
+ * Values are driven by reader CSS variables — set on ThreadPrimitive.Root from
+ * readerSettingsStore via buildReaderCssVars() — which cascade into this
+ * container and Streamdown's rendered DOM. Each var has a fallback so the
+ * reader still renders before the store hydrates. */
 
 .ent-novel-reader {
   max-width: var(--reading-max-width, 42rem);
   margin-inline: auto;
-  font-size: 1.0625rem; /* 17px — slightly larger than chat body */
-  line-height: 1.9; /* generous for CJK reading */
-  color: var(--foreground);
+  font-family: var(--reader-font-family, inherit); /* hook for deferred font picker */
+  font-size: var(--reader-font-size, 1.0625rem); /* 17px default */
+  line-height: var(--reader-line-height, 1.9); /* generous for CJK reading */
+  letter-spacing: var(--reader-letter-spacing, 0);
+  font-weight: var(--reader-font-weight, 400);
+  text-align: var(--reader-text-align, left);
+  color: var(--reader-text-color, var(--foreground));
   text-wrap: pretty;
 }
 
 /* Paragraph spacing + classic 2-em first-line indent (Chinese convention). */
 .ent-novel-reader > p {
-  margin-block: 0.85em;
-  text-indent: 2em;
+  margin-block: var(--reader-paragraph-spacing, 0.85em);
+  text-indent: var(--reader-indent, 2em);
 }
 /* No indent on the first paragraph following a heading. */
 .ent-novel-reader > h1 + p,

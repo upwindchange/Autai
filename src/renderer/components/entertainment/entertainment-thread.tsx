@@ -9,6 +9,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { FileText } from "lucide-react";
 import { useUiStore } from "@/stores/uiStore";
+import { useReaderSettings } from "@/stores/readerSettingsStore";
 import {
   EntertainmentConfigSchema,
   type DehydrateBasic,
@@ -17,6 +18,8 @@ import {
 } from "@shared";
 import { NovelText } from "./NovelText";
 import { EntertainmentWizard } from "./EntertainmentWizard";
+import { buildReaderCssVars } from "./reader-settings/reader-theme";
+import { ReaderSettingsButton } from "./reader-settings/ReaderSettingsButton";
 
 /**
  * Entertainment thread — a guided novel-reading surface.
@@ -48,12 +51,19 @@ function ThreadIdTracker() {
 }
 
 export const EntertainmentThread: FC = () => {
+  const settings = useReaderSettings();
+  const hasContent = useAuiState((s) => !s.thread.isEmpty);
+
   return (
     <ThreadPrimitive.Root
-      className="aui-root aui-thread-root @container flex h-full flex-col bg-background"
+      // `relative` anchors the floating reader-settings button.
+      className="aui-root aui-thread-root @container relative flex h-full flex-col bg-background"
       style={{
         ["--thread-max-width" as string]: "88rem",
-        ["--reading-max-width" as string]: "42rem",
+        // Reader CSS vars drive the reading surface; --reader-background
+        // overrides the bg-background utility above (defaults to --background).
+        ...buildReaderCssVars(settings),
+        backgroundColor: "var(--reader-background)",
       }}
     >
       <ThreadIdTracker />
@@ -78,6 +88,7 @@ export const EntertainmentThread: FC = () => {
           </div>
         </div>
       </ThreadPrimitive.Viewport>
+      {hasContent && <ReaderSettingsButton />}
     </ThreadPrimitive.Root>
   );
 };
