@@ -9,6 +9,10 @@ import {
 } from "@/services";
 import { sendAlert } from "@/utils";
 import { ChatRequestSchema } from "../schemas/apiSchemas";
+import {
+  EntertainmentConfigSchema,
+  type EntertainmentConfig,
+} from "@shared";
 import log from "electron-log/main";
 
 const logger = log.scope("ApiServer:Entertainment");
@@ -17,9 +21,10 @@ export const entertainmentRoutes = new Hono();
 
 /**
  * Entertainment endpoint — mirrors chatRoutes but always routes through the
- * EntertainmentWorker (no plain-chat fallback). The worker picks the
- * placeholder sub-agent (dehydrate | interactive) based on the
- * x-entertainment-mode header.
+ * EntertainmentWorker (no plain-chat fallback). The wizard serializes the full
+ * configuration (mode + novel + options) as a JSON text part in the last user
+ * message; we parse + Zod-validate it here and forward the typed config to the
+ * worker, which routes on `mode` (dehydrate | interactive).
  */
 entertainmentRoutes.post("/", async (c) => {
   try {
@@ -34,12 +39,41 @@ entertainmentRoutes.post("/", async (c) => {
 
     const { messages, system, tools } = parsed.data;
 
-    // Entertainment sub-mode: 网文脱水 (dehydrate) | 网文交互 (interactive).
-    // Frontend toggle wiring is deferred, so default to "dehydrate".
-    const mode: "dehydrate" | "interactive" =
-      c.req.header("x-entertainment-mode") === "interactive"
-        ? "interactive"
-        : "dehydrate";
+    // The wizard serializes the full EntertainmentConfig as a JSON text part in
+    // the LAST user message. Parse + Zod-validate it here; the worker router
+    // consumes the typed object downstream.
+    const lastUser = [...(messages ?? [])]
+      .reverse()
+      .find((m) => m.role === "user");
+    const configText = lastUser?.parts?.find((p) => p.type === "text")?.text;
+    let parsedConfig: EntertainmentConfig | null = null;
+    if (typeof configText === "string") {
+      try {
+        const result = EntertainmentConfigSchema.safeParse(
+          JSON.parse(configText),
+        );
+        if (result.success) parsedConfig = result.data;
+      } catch {
+        // leave null — handled below
+      }
+    }
+    if (!parsedConfig) {
+      logger.warn("Invalid entertainment config in last user message", {
+        configTextPreview:
+          typeof configText === "string" ? configText.slice(0, 160) : undefined,
+      });
+      return c.json(
+        {
+          error:
+            "Invalid entertainment config (expected JSON in the last user message text part)",
+        },
+        400,
+      );
+    }
+
+    // Log the FULL parsed config so the wizard → route → worker path is
+    // verifiable from the main-process logs.
+    logger.info("parsed entertainment config", { config: parsedConfig });
 
     const sessionTabService = SessionTabService.getInstance();
     const sessionId =
@@ -59,7 +93,7 @@ entertainmentRoutes.post("/", async (c) => {
       messagesCount: messages?.length,
       hasSystem: !!system,
       hasTools: !!tools,
-      mode,
+      mode: parsedConfig.mode,
       sessionId,
     });
 
@@ -72,12 +106,17 @@ entertainmentRoutes.post("/", async (c) => {
       return c.json({ error: "No session ID" }, 400);
     }
 
-    // Detect first message and trigger thread enrichment immediately (fire-and-forget)
+    // Detect first message and trigger thread enrichment immediately (fire-and-forget).
+    // Feed a human-readable summary (NOT the raw JSON config blob) so the title
+    // generator produces something sensible instead of stringified JSON.
     if (messages?.length === 1 && messages[0].role === "user") {
-      const rawMessage = JSON.stringify(messages[0]);
-      logger.info("Triggering thread enrichment", { sessionId, rawMessage });
+      const novel = parsedConfig.novel;
+      const novelLabel =
+        novel.type === "internet" ? `《${novel.title}》` : novel.filename;
+      const enrichText = `${novelLabel} — ${parsedConfig.mode}`;
+      logger.info("Triggering thread enrichment", { sessionId, enrichText });
       threadIntelligenceService
-        .enrichThread(sessionId, rawMessage)
+        .enrichThread(sessionId, enrichText)
         .catch((err) => {
           logger.warn("Thread enrichment failed:", err);
         });
@@ -100,7 +139,7 @@ entertainmentRoutes.post("/", async (c) => {
     const stream = await EntertainmentWorker(
       messages,
       sessionId,
-      mode,
+      parsedConfig,
       chatLanguageModel,
       (finalMessages) => {
         threadPersistenceService.saveMessages(

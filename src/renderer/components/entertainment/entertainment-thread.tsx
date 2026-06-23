@@ -6,24 +6,32 @@ import {
   ThreadPrimitive,
   useAuiState,
 } from "@assistant-ui/react";
+import { useTranslation } from "react-i18next";
+import { FileText } from "lucide-react";
 import { useUiStore } from "@/stores/uiStore";
+import {
+  EntertainmentConfigSchema,
+  type DehydrateBasic,
+  type EntertainmentConfig,
+  type EntertainmentMode,
+} from "@shared";
 import { NovelText } from "./NovelText";
-import { EntertainmentStartForm } from "./EntertainmentStartForm";
+import { EntertainmentWizard } from "./EntertainmentWizard";
 
 /**
  * Entertainment thread — a guided novel-reading surface.
  *
  * Unlike the chat thread, there is NO always-on free-text composer. The only
- * send entry point is the start form (shown on an empty thread); later turns
- * are driven by LLM HITL tool calls (separate ticket). Assistant text renders
- * in a clean CJK-only reading column with no action chrome.
+ * send entry point is the wizard (shown on an empty thread); later turns are
+ * driven by LLM HITL tool calls (separate ticket). Assistant text renders in a
+ * clean CJK-only reading column with no action chrome.
  */
 
 // --- custom: session tracking ---
 // Replaces the chat thread's composer.send-based tracker. aui.thread().append()
-// (used by the start form and suggestion triggers) does NOT fire composer.send,
-// and the old tracker never handled thread switching either. Sync sessionId
-// from the active thread id whenever it changes.
+// (used by the wizard and suggestion triggers) does NOT fire composer.send, and
+// the old tracker never handled thread switching either. Sync sessionId from
+// the active thread id whenever it changes.
 //
 // A brand-new empty thread carries a __LOCALID placeholder id, but that
 // placeholder is a valid session id here (useSessionLifecycle activates it and
@@ -57,7 +65,7 @@ export const EntertainmentThread: FC = () => {
       >
         <div className="mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4">
           <AuiIf condition={(s) => s.thread.isEmpty}>
-            <EntertainmentStartForm />
+            <EntertainmentWizard />
           </AuiIf>
 
           <div
@@ -115,17 +123,89 @@ const AssistantMessage: FC = () => {
   );
 };
 
+const MODE_LABEL_KEY: Record<EntertainmentMode, string> = {
+  dehydrate: "entertainment.wizard.mode.dehydrate.label",
+  interactive: "entertainment.wizard.mode.interactive.label",
+};
+
+const BASIC_LABEL_KEY: Record<keyof DehydrateBasic, string> = {
+  grammarFix: "entertainment.wizard.options.dehydrate.basic.grammarFix.label",
+  webSlangFilter:
+    "entertainment.wizard.options.dehydrate.basic.webSlangFilter.label",
+  preachRemoval:
+    "entertainment.wizard.options.dehydrate.basic.preachRemoval.label",
+};
+
+/** Compact summary of a submitted wizard config (rendered in the user bubble). */
+const MetaCard: FC<{ config: EntertainmentConfig }> = ({ config }) => {
+  const { t } = useTranslation("common");
+  const enabledBasic = (
+    Object.keys(config.options.basic) as (keyof DehydrateBasic)[]
+  ).filter((k) => config.options.basic[k]);
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="w-fit rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
+        {t(MODE_LABEL_KEY[config.mode])}
+      </span>
+      {config.novel.type === "file" ? (
+        <div className="flex items-center gap-1.5">
+          <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+          <span className="truncate text-foreground">
+            {config.novel.filename}
+          </span>
+        </div>
+      ) : (
+        <div className="flex flex-col">
+          <span className="font-medium text-foreground">
+            {config.novel.title}
+            {config.novel.author ? ` · ${config.novel.author}` : ""}
+          </span>
+          <span className="text-xs">{config.novel.source}</span>
+        </div>
+      )}
+      <div className="text-xs text-muted-foreground">
+        {config.mode === "interactive" ?
+          `${t("entertainment.wizard.options.interactive.frequency.label")}: ${config.options.interactionFrequency}`
+        : enabledBasic.length > 0 ?
+          enabledBasic.map((k) => t(BASIC_LABEL_KEY[k])).join("、")
+        : t("entertainment.wizard.options.dehydrate.basic.title")}
+      </div>
+    </div>
+  );
+};
+
 const UserMessage: FC = () => {
-  // The start-form input (novel info + source) renders as a compact meta card,
-  // not a chat bubble. No edit action, attachments, or quote-reply in this mode.
+  // The wizard serializes its config as a JSON text part. Parse it back and
+  // render a compact meta card; fall back to raw text if it isn't our JSON
+  // (e.g. a legacy thread with the old 《info》/来源 text).
+  const parts = useAuiState((s) => s.message.parts);
+  const textPart = parts.find((p) => p.type === "text");
+  let config: EntertainmentConfig | null = null;
+  if (textPart && textPart.type === "text") {
+    try {
+      const result = EntertainmentConfigSchema.safeParse(
+        JSON.parse(textPart.text),
+      );
+      if (result.success) config = result.data;
+    } catch {
+      // not JSON — fall through to raw render
+    }
+  }
+
   return (
     <MessagePrimitive.Root
       data-slot="aui_entertainment-meta-card"
       data-role="user"
       className="fade-in slide-in-from-bottom-1 animate-in duration-150 mx-auto w-full max-w-(--reading-max-width) px-1"
     >
-      <div className="wrap-break-word whitespace-pre-line rounded-xl border bg-muted/40 px-4 py-3 text-muted-foreground text-sm">
-        <MessagePrimitive.Parts />
+      <div className="rounded-xl border bg-muted/40 px-4 py-3 text-sm">
+        {config ?
+          <MetaCard config={config} />
+        : <div className="whitespace-pre-line text-muted-foreground">
+            <MessagePrimitive.Parts />
+          </div>
+        }
       </div>
     </MessagePrimitive.Root>
   );

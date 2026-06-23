@@ -5,6 +5,7 @@ import {
   type UIMessage,
   type UIMessageChunk,
 } from "ai";
+import type { DehydrateConfig } from "@shared";
 import log from "electron-log/main";
 import { SAMPLE_NOVEL_PARAGRAPHS } from "../sample-novel";
 
@@ -25,6 +26,7 @@ export async function dehydrateWorker(
   messages: ModelMessage[],
   sessionId: string,
   originalMessages: UIMessage[],
+  config: DehydrateConfig,
   chatLanguageModel: LanguageModel,
   onFinish?: (messages: UIMessage[]) => void,
   signal?: AbortSignal,
@@ -36,9 +38,12 @@ export async function dehydrateWorker(
     .join(" ")
     .slice(0, 160);
 
+  // config is logged (not yet acted on) so the wizard → route → worker path is
+  // verifiable from the main-process logs. Real dehydrate logic lands later.
   logger.info("dehydrate placeholder invoked", {
     sessionId,
     userInputPreview,
+    config,
   });
 
   return createUIMessageStream({

@@ -5,6 +5,7 @@ import {
   type UIMessage,
   type UIMessageChunk,
 } from "ai";
+import type { InteractiveConfig } from "@shared";
 import log from "electron-log/main";
 import { SAMPLE_NOVEL_PARAGRAPHS } from "../sample-novel";
 
@@ -26,6 +27,7 @@ export async function interactiveWorker(
   messages: ModelMessage[],
   sessionId: string,
   originalMessages: UIMessage[],
+  config: InteractiveConfig,
   chatLanguageModel: LanguageModel,
   onFinish?: (messages: UIMessage[]) => void,
   signal?: AbortSignal,
@@ -37,9 +39,12 @@ export async function interactiveWorker(
     .join(" ")
     .slice(0, 160);
 
+  // config is logged (not yet acted on) so the wizard → route → worker path is
+  // verifiable from the main-process logs. Real interactive logic lands later.
   logger.info("interactive placeholder invoked", {
     sessionId,
     userInputPreview,
+    config,
   });
 
   return createUIMessageStream({
