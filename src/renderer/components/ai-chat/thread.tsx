@@ -274,6 +274,16 @@ const AssistantMessage: FC = () => {
   const ACTION_BAR_PT = "pt-1.5";
   const ACTION_BAR_HEIGHT = `-mb-7.5 min-h-7.5 ${ACTION_BAR_PT}`;
   const status = useAuiState((s) => s.message.status?.type);
+  // Show the running indicator while the message is running and the last
+  // content part is not text/reasoning (tool-call-only, between tool calls,
+  // or empty pre-text). Disappears once text starts streaming (caret takes over).
+  const showIndicator = useAuiState((s) => {
+    if ((s.message.status?.type ?? "complete") !== "running") return false;
+    const parts = s.message.parts;
+    if (parts.length === 0) return true;
+    const last = parts[parts.length - 1];
+    return last.type !== "text" && last.type !== "reasoning";
+  });
 
   return (
     <MessagePrimitive.Root
@@ -318,13 +328,12 @@ const AssistantMessage: FC = () => {
                 return <Image {...part} />;
               case "file":
                 return <File {...part} />;
-              case "indicator":
-                return <RunningIndicator />;
               default:
                 return null;
             }
           }}
         </MessagePrimitive.GroupedParts>
+        {showIndicator && <RunningIndicator />}
         <MessageError />
       </div>
 

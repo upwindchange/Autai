@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils";
 /**
  * RunningIndicator — shown while the assistant message is running AND the last
  * content part is not text/reasoning (tool-call-only, between tool calls, or
- * empty pre-text). Wired via MessagePrimitive.GroupedParts `indicator="no-text"`
- * → `case "indicator"` in thread.tsx.
+ * empty pre-text). Rendered by AssistantMessage in thread.tsx, gated on the
+ * message running status and the last part's type (not text/reasoning).
  *
  * It NEVER coexists with the streaming caret (caret.css): once text streams, the
  * last part becomes `text` and this indicator is no longer emitted.
