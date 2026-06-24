@@ -28,5 +28,10 @@
   "reader.textAlign.justify": "两端对齐",
   "reader.indent.label": "首行缩进",
   "reader.indentAmount.label": "缩进量",
-  "reader.reset": "恢复默认"
+  "reader.reset": "恢复默认",
+  "reader.chapter.next": "下一章",
+  "reader.chapter.previous": "上一章",
+  "reader.toc.title": "目录",
+  "reader.toc.empty": "暂无目录",
+  "reader.controls.label": "阅读工具"
 }

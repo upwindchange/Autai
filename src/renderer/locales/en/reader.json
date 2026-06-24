@@ -28,5 +28,10 @@
   "reader.textAlign.justify": "Justify",
   "reader.indent.label": "First-line indent",
   "reader.indentAmount.label": "Indent size",
-  "reader.reset": "Reset to defaults"
+  "reader.reset": "Reset to defaults",
+  "reader.chapter.next": "Next chapter",
+  "reader.chapter.previous": "Previous chapter",
+  "reader.toc.title": "Contents",
+  "reader.toc.empty": "No chapters yet",
+  "reader.controls.label": "Reader tools"
 }

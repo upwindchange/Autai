@@ -1,11 +1,13 @@
-import { useEffect, type FC } from "react";
+import { useEffect, useRef, useState, type FC } from "react";
 import {
   AuiIf,
   ErrorPrimitive,
   MessagePrimitive,
   ThreadPrimitive,
+  useAui,
   useAuiState,
 } from "@assistant-ui/react";
+import type { ThreadUserMessagePart } from "@assistant-ui/react";
 import { useTranslation } from "react-i18next";
 import { FileText } from "lucide-react";
 import { useUiStore } from "@/stores/uiStore";
@@ -19,20 +21,26 @@ import {
 import { NovelText } from "./NovelText";
 import { EntertainmentWizard } from "./EntertainmentWizard";
 import { buildReaderCssVars } from "./reader-settings/reader-theme";
-import { ReaderSettingsButton } from "./reader-settings/ReaderSettingsButton";
+import { ReaderControlsButton } from "./reader-settings/ReaderControlsButton";
+import { ChapterNav } from "./chapter-nav/ChapterNav";
 
 /**
  * Entertainment thread — a guided novel-reading surface.
  *
  * Unlike the chat thread, there is NO always-on free-text composer. The only
  * send entry point is the wizard (shown on an empty thread); later turns are
- * driven by LLM HITL tool calls (separate ticket). Assistant text renders in a
- * clean CJK-only reading column with no action chrome.
+ * driven by chapter navigation (next/prev) which appends follow-up turns the
+ * stub worker answers. Assistant text renders in a clean CJK-only reading
+ * column with no action chrome.
+ *
+ * The reader is PAGINATED: only one assistant message (chapter) is shown at a
+ * time. Chapters still stack in the underlying thread (so they persist), but
+ * the message loop returns null for every non-current message.
  */
 
 // --- custom: session tracking ---
 // Replaces the chat thread's composer.send-based tracker. aui.thread().append()
-// (used by the wizard and suggestion triggers) does NOT fire composer.send, and
+// (used by the wizard and chapter navigation) does NOT fire composer.send, and
 // the old tracker never handled thread switching either. Sync sessionId from
 // the active thread id whenever it changes.
 //
@@ -50,13 +58,108 @@ function ThreadIdTracker() {
   return null;
 }
 
+/**
+ * Extract the original wizard config from the thread's first config-bearing
+ * user message. Used to build a "next chapter" follow-up turn: we re-send the
+ * same config (with an `_action` marker) so the stub worker can answer it. The
+ * `_action` key is stripped by Zod on the backend (unknown key), so the worker
+ * still receives a valid EntertainmentConfig.
+ */
+function getOriginalConfig(
+  messages: ReadonlyArray<{
+    role: string;
+    parts: ReadonlyArray<{ type: string; text?: string }>;
+  }>,
+): EntertainmentConfig | null {
+  for (const m of messages) {
+    if (m.role !== "user") continue;
+    const text = m.parts.find((p) => p.type === "text")?.text;
+    if (typeof text !== "string") continue;
+    try {
+      const result = EntertainmentConfigSchema.safeParse(JSON.parse(text));
+      if (result.success) return result.data;
+    } catch {
+      // not JSON — skip
+    }
+  }
+  return null;
+}
+
 export const EntertainmentThread: FC = () => {
   const settings = useReaderSettings();
   const hasContent = useAuiState((s) => !s.thread.isEmpty);
+  const aui = useAui();
+  const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
+  const messages = useAuiState((s) => s.thread.messages);
+  const isRunning = useAuiState((s) => s.thread.isRunning);
+
+  // Paginated reader state. currentChapterId === null ⇒ "follow the latest
+  // chapter" (default, and while a freshly-fetched chapter streams in). Pinning
+  // to an older id (via Previous) stops following the latest until the user
+  // moves forward again.
+  const [currentChapterId, setCurrentChapterId] = useState<string | null>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
+
+  const assistantMessages = messages.filter((m) => m.role === "assistant");
+  const latestAssistantId = assistantMessages[assistantMessages.length - 1]?.id;
+  const effectiveId = currentChapterId ?? latestAssistantId;
+  const effectiveIndex = effectiveId
+    ? assistantMessages.findIndex((m) => m.id === effectiveId)
+    : -1;
+  const canGoPrev = effectiveIndex > 0;
+
+  // Reset to "follow latest" whenever the active thread changes.
+  useEffect(() => {
+    setCurrentChapterId(null);
+  }, [mainThreadId]);
+
+  // Start each displayed chapter at the top (prev/next/fetch all change it).
+  useEffect(() => {
+    viewportRef.current?.scrollTo({ top: 0 });
+  }, [effectiveId]);
+
+  const handlePrev = () => {
+    if (effectiveIndex <= 0) return;
+    // Pin to the previous chapter (stops following the latest).
+    setCurrentChapterId(assistantMessages[effectiveIndex - 1].id);
+  };
+
+  const handleNext = async () => {
+    if (isRunning) return;
+    // Viewing an older chapter with a loaded one after it → move forward
+    // without re-fetching.
+    if (
+      currentChapterId !== null &&
+      effectiveIndex >= 0 &&
+      effectiveIndex < assistantMessages.length - 1
+    ) {
+      const nextMsg = assistantMessages[effectiveIndex + 1];
+      setCurrentChapterId(
+        nextMsg.id === latestAssistantId ? null : nextMsg.id,
+      );
+      return;
+    }
+    // Otherwise (at the latest, or pinned at the end) fetch the next chapter.
+    const config = getOriginalConfig(messages);
+    if (!config) return;
+    setCurrentChapterId(null); // follow the new chapter as it streams in
+    if (mainThreadId) {
+      // append() does NOT fire composer.send, so sync sessionId ourselves
+      // before the transport's headers() reads it (mirrors the wizard).
+      useUiStore.getState().setSessionId(mainThreadId);
+    }
+    const content: ThreadUserMessagePart[] = [
+      {
+        type: "text",
+        text: JSON.stringify({ _action: "next-chapter", ...config }),
+      },
+    ];
+    await aui.thread().append({ content });
+  };
 
   return (
     <ThreadPrimitive.Root
-      // `relative` anchors the floating reader-settings button.
+      // `relative` anchors the floating reader-controls button + chapter nav.
       className="aui-root aui-thread-root @container relative flex h-full flex-col bg-background"
       style={{
         ["--thread-max-width" as string]: "88rem",
@@ -68,8 +171,15 @@ export const EntertainmentThread: FC = () => {
     >
       <ThreadIdTracker />
       <ThreadPrimitive.Viewport
+        ref={viewportRef}
         turnAnchor="top"
-        autoScroll
+        autoScroll={false}
+        // Pagination owns scroll position: every chapter starts at the top (see
+        // the effectiveId effect). Disable the viewport's auto-to-bottom
+        // behaviors so they don't fight it during a fetch or thread switch.
+        scrollToBottomOnRunStart={false}
+        scrollToBottomOnInitialize={false}
+        scrollToBottomOnThreadSwitch={false}
         data-slot="aui_thread-viewport"
         className="relative flex flex-1 flex-col overflow-x-auto overflow-y-auto scroll-smooth"
       >
@@ -83,12 +193,26 @@ export const EntertainmentThread: FC = () => {
             className="mb-10 flex flex-col gap-y-10 empty:hidden"
           >
             <ThreadPrimitive.Messages>
-              {() => <ThreadMessage />}
+              {({ message }) =>
+                message.role === "assistant" && message.id === effectiveId ?
+                  <ThreadMessage />
+                : null
+              }
             </ThreadPrimitive.Messages>
           </div>
         </div>
       </ThreadPrimitive.Viewport>
-      {hasContent && <ReaderSettingsButton />}
+      {hasContent && (
+        <>
+          <ChapterNav
+            canGoPrev={canGoPrev}
+            fetching={isRunning}
+            onPrev={handlePrev}
+            onNext={handleNext}
+          />
+          <ReaderControlsButton />
+        </>
+      )}
     </ThreadPrimitive.Root>
   );
 };
@@ -188,6 +312,10 @@ const UserMessage: FC = () => {
   // The wizard serializes its config as a JSON text part. Parse it back and
   // render a compact meta card; fall back to raw text if it isn't our JSON
   // (e.g. a legacy thread with the old 《info》/来源 text).
+  //
+  // NOTE: in the paginated reading view user messages are hidden (the message
+  // loop only renders the focused assistant chapter), so this is only reached
+  // if the message loop is changed to show user bubbles again.
   const parts = useAuiState((s) => s.message.parts);
   const textPart = parts.find((p) => p.type === "text");
   let config: EntertainmentConfig | null = null;

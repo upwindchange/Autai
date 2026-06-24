@@ -35,8 +35,6 @@ export const ReaderSettingsPanel = () => {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="text-sm font-medium">{t("reader.title")}</div>
-
       {/* Theme swatches */}
       <Field label={t("reader.theme.label")}>
         <div className="flex items-center gap-2">
@@ -50,9 +48,9 @@ export const ReaderSettingsPanel = () => {
               aria-pressed={settings.theme === th.value}
               className={cn(
                 "size-7 shrink-0 rounded-full border-2 transition",
-                settings.theme === th.value
-                  ? "border-primary ring-2 ring-primary/30"
-                  : "border-border hover:border-foreground/40",
+                settings.theme === th.value ?
+                  "border-primary ring-2 ring-primary/30"
+                : "border-border hover:border-foreground/40",
               )}
               style={{ backgroundColor: th.swatch }}
             />
@@ -90,7 +88,6 @@ export const ReaderSettingsPanel = () => {
         min={14}
         max={28}
         step={1}
-        unit="px"
         onChange={(v) => setSetting("fontSize", v)}
       />
       <SliderRow
@@ -99,7 +96,7 @@ export const ReaderSettingsPanel = () => {
         min={1.2}
         max={2.4}
         step={0.05}
-        format={(v) => v.toFixed(2)}
+        format={(v) => `${v.toFixed(2)}`}
         onChange={(v) => setSetting("lineHeight", v)}
       />
       <SliderRow
@@ -108,8 +105,7 @@ export const ReaderSettingsPanel = () => {
         min={-0.05}
         max={0.15}
         step={0.01}
-        unit="em"
-        format={(v) => `${v.toFixed(2)}em`}
+        format={(v) => v.toFixed(2)}
         onChange={(v) => setSetting("letterSpacing", v)}
       />
       <SliderRow
@@ -118,7 +114,7 @@ export const ReaderSettingsPanel = () => {
         min={0}
         max={2.5}
         step={0.05}
-        format={(v) => `${v.toFixed(2)}em`}
+        format={(v) => v.toFixed(2)}
         onChange={(v) => setSetting("paragraphSpacing", v)}
       />
 
@@ -152,7 +148,6 @@ export const ReaderSettingsPanel = () => {
         min={30}
         max={60}
         step={1}
-        unit="rem"
         onChange={(v) => setSetting("maxWidth", v)}
       />
       <Field label={t("reader.textAlign.label")}>
@@ -163,7 +158,9 @@ export const ReaderSettingsPanel = () => {
               type="button"
               variant={settings.textAlign === a ? "default" : "outline"}
               size="xs"
-              onClick={() => setSetting("textAlign", a satisfies ReaderTextAlign)}
+              onClick={() =>
+                setSetting("textAlign", a satisfies ReaderTextAlign)
+              }
             >
               {t(`reader.textAlign.${a}`)}
             </Button>
@@ -185,9 +182,8 @@ export const ReaderSettingsPanel = () => {
         min={0}
         max={4}
         step={0.5}
-        unit="em"
         disabled={!settings.indent}
-        format={(v) => `${v.toFixed(1)}em`}
+        format={(v) => v.toFixed(1)}
         onChange={(v) => setSetting("indentAmount", v)}
       />
 
@@ -200,8 +196,7 @@ export const ReaderSettingsPanel = () => {
         className="w-full"
         onClick={reset}
         disabled={
-          JSON.stringify(settings) ===
-          JSON.stringify(DEFAULT_READER_SETTINGS)
+          JSON.stringify(settings) === JSON.stringify(DEFAULT_READER_SETTINGS)
         }
       >
         <RotateCcw />
@@ -213,13 +208,7 @@ export const ReaderSettingsPanel = () => {
 
 // --- small layout helpers ---------------------------------------------------
 
-function Field({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex flex-col gap-1.5">
       <Label className="text-xs text-muted-foreground">{label}</Label>
@@ -262,7 +251,12 @@ function SliderRow({
   onChange: (v: number) => void;
 }) {
   return (
-    <div className={cn("flex flex-col gap-1.5", disabled && "pointer-events-none opacity-50")}>
+    <div
+      className={cn(
+        "flex flex-col gap-1.5",
+        disabled && "pointer-events-none opacity-50",
+      )}
+    >
       <div className="flex items-center justify-between">
         <Label className="text-xs text-muted-foreground">{label}</Label>
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
@@ -298,7 +292,7 @@ function ColorField({
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
         <Label className="text-xs text-muted-foreground">{label}</Label>
-        {value ? (
+        {value ?
           <button
             type="button"
             onClick={onClear}
@@ -306,7 +300,7 @@ function ColorField({
           >
             {clearLabel}
           </button>
-        ) : null}
+        : null}
       </div>
       <input
         type="color"
