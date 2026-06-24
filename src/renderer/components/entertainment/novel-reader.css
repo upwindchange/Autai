@@ -3,6 +3,13 @@
  * unreachable by Tailwind utilities) via the `.ent-novel-reader` container
  * class set on NovelText's StreamdownTextPrimitive.
  *
+ * Block rules use DESCENDANT selectors (`.ent-novel-reader p`), not direct
+ * children: Streamdown wraps every rendered block in its own inner
+ * <div class="space-y-4">, so the <p>/<h1>/<blockquote> elements sit one level
+ * below the container and a `>` combinator never matches them. That wrapper's
+ * space-y-4 gap is emitted via :where() (zero specificity), so these rules
+ * override it without needing !important.
+ *
  * Values are driven by reader CSS variables — set on ThreadPrimitive.Root from
  * readerSettingsStore via buildReaderCssVars() — which cascade into this
  * container and Streamdown's rendered DOM. Each var has a fallback so the
@@ -21,38 +28,39 @@
   text-wrap: pretty;
 }
 
-/* Paragraph spacing + classic 2-em first-line indent (Chinese convention). */
-.ent-novel-reader > p {
+/* Paragraph spacing + classic 2-em first-line indent (Chinese convention).
+ * Descendant selector so this reaches the <p> inside Streamdown's wrapper. */
+.ent-novel-reader p {
   margin-block: var(--reader-paragraph-spacing, 0.85em);
   text-indent: var(--reader-indent, 2em);
 }
 /* No indent on the first paragraph following a heading. */
-.ent-novel-reader > h1 + p,
-.ent-novel-reader > h2 + p,
-.ent-novel-reader > h3 + p {
+.ent-novel-reader h1 + p,
+.ent-novel-reader h2 + p,
+.ent-novel-reader h3 + p {
   text-indent: 0;
 }
 
 /* Chapter-ish headings. */
-.ent-novel-reader > h1,
-.ent-novel-reader > h2,
-.ent-novel-reader > h3 {
+.ent-novel-reader h1,
+.ent-novel-reader h2,
+.ent-novel-reader h3 {
   margin-block: 1.6em 0.8em;
   font-weight: 600;
   line-height: 1.4;
 }
-.ent-novel-reader > h1 {
+.ent-novel-reader h1 {
   font-size: 1.5rem;
 }
-.ent-novel-reader > h2 {
+.ent-novel-reader h2 {
   font-size: 1.25rem;
 }
-.ent-novel-reader > h3 {
+.ent-novel-reader h3 {
   font-size: 1.125rem;
 }
 
 /* Blockquotes (if the stub emits them). */
-.ent-novel-reader > blockquote {
+.ent-novel-reader blockquote {
   margin-block: 1em;
   padding-inline-start: 1em;
   border-inline-start: 3px solid var(--border);
