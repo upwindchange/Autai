@@ -14,18 +14,18 @@ const MODES: { value: EntertainmentMode; labelKey: string; descKey: string }[] =
   [
     {
       value: "dehydrate",
-      labelKey: "entertainment.wizard.mode.dehydrate.label",
-      descKey: "entertainment.wizard.mode.dehydrate.description",
+      labelKey: "mode.dehydrate.label",
+      descKey: "mode.dehydrate.description",
     },
     {
       value: "interactive",
-      labelKey: "entertainment.wizard.mode.interactive.label",
-      descKey: "entertainment.wizard.mode.interactive.description",
+      labelKey: "mode.interactive.label",
+      descKey: "mode.interactive.description",
     },
   ];
 
 export const StepMode: FC<StepModeProps> = ({ config, setConfig }) => {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation("entertainment");
   return (
     <RadioGroup
       value={config.mode}

@@ -5,6 +5,7 @@ import {
   primaryKey,
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
+import type { ThreadMode } from "@shared/tag";
 
 export const settings = sqliteTable("settings", {
   key: text().primaryKey(),
@@ -69,6 +70,10 @@ export const tags = sqliteTable("tags", {
   emoji: text(),
   color: text(),
   sortOrder: integer("sort_order").notNull().default(0),
+  // Top-level UI mode this tag belongs to, mirroring `threads.mode`. Keeps chat
+  // tags (coding/research/…) and entertainment tags (重写/互动) in separate sets
+  // so each sidebar only ever shows its own tags.
+  mode: text("mode").notNull().default("chat").$type<ThreadMode>(),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),

@@ -24,11 +24,11 @@ const logger = log.scope("EntertainmentWorker:Interactive");
  * signature is ready when the real interactive logic lands.
  */
 export async function interactiveWorker(
-  messages: ModelMessage[],
+  _messages: ModelMessage[],
   sessionId: string,
   originalMessages: UIMessage[],
   config: InteractiveConfig,
-  chatLanguageModel: LanguageModel,
+  _chatLanguageModel: LanguageModel,
   onFinish?: (messages: UIMessage[]) => void,
   signal?: AbortSignal,
 ): Promise<ReadableStream<UIMessageChunk>> {

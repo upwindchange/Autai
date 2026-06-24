@@ -54,6 +54,12 @@ const en = {
     planning: "Planning",
     learning: "Learning",
   },
+  entertainment: {
+    // Short mode labels — double as the deterministic thread-title suffix and
+    // the seeded entertainment tag names (Rewrite / Interactive).
+    dehydrate: "Rewrite",
+    interactive: "Interactive",
+  },
   agents: {
     searchingTitle: "Looking up multiple topics at once: {{title}}",
     searchLabel: 'Looking up: "{{query}}"',

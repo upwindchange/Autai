@@ -61,18 +61,24 @@ export function swapMode(
   // Both modes share basic + depth, so they survive the swap unchanged.
   const basic = config.options.basic;
   const depth = config.options.depth;
-  if (mode === "interactive") {
-    return {
-      mode: "interactive",
-      novel: { type: "file", filename: "" },
-      options: { interactionFrequency: 2, basic, depth },
-    };
+  switch (mode) {
+    case "interactive":
+      return {
+        mode: "interactive",
+        novel: { type: "file", filename: "" },
+        options: { interactionFrequency: 2, basic, depth },
+      };
+    case "dehydrate":
+      return {
+        mode: "dehydrate",
+        novel: { type: "internet", title: "", source: "" },
+        options: { basic, depth },
+      };
+    // Future modes fall through unchanged rather than producing an invalid
+    // config; the caller can add a dedicated case when a new mode lands.
+    default:
+      return config;
   }
-  return {
-    mode: "dehydrate",
-    novel: { type: "internet", title: "", source: "" },
-    options: { basic, depth },
-  };
 }
 
 /**

@@ -6,10 +6,15 @@ import log from "electron-log/main";
 const logger = log.scope("ApiServer:Tags");
 export const tagRoutes = new Hono();
 
-// GET /tags - list all tags
+// GET /tags - list tags. Optional ?mode=chat|entertainment scopes to one set so
+// each sidebar only sees its own tags; omitted returns all.
 tagRoutes.get("/", (c) => {
   try {
-    const tags = threadPersistenceService.listTags();
+    const mode = c.req.query("mode") as "chat" | "entertainment" | undefined;
+    const tags =
+      mode === "chat" || mode === "entertainment" ?
+        threadPersistenceService.listTagsByMode(mode)
+      : threadPersistenceService.listTags();
     return c.json({ tags });
   } catch (error) {
     logger.error("Error listing tags:", error);
@@ -32,6 +37,7 @@ tagRoutes.post("/", async (c) => {
       parsed.data.name,
       parsed.data.color,
       parsed.data.sortOrder,
+      parsed.data.mode ?? "chat",
     );
     return c.json({ tag }, 201);
   } catch (error) {

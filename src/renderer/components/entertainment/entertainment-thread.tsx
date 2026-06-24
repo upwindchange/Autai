@@ -135,21 +135,19 @@ const AssistantMessage: FC = () => {
 };
 
 const MODE_LABEL_KEY: Record<EntertainmentMode, string> = {
-  dehydrate: "entertainment.wizard.mode.dehydrate.label",
-  interactive: "entertainment.wizard.mode.interactive.label",
+  dehydrate: "mode.dehydrate.label",
+  interactive: "mode.interactive.label",
 };
 
 const BASIC_LABEL_KEY: Record<keyof DehydrateBasic, string> = {
-  grammarFix: "entertainment.wizard.options.dehydrate.basic.grammarFix.label",
-  webSlangFilter:
-    "entertainment.wizard.options.dehydrate.basic.webSlangFilter.label",
-  preachRemoval:
-    "entertainment.wizard.options.dehydrate.basic.preachRemoval.label",
+  grammarFix: "options.dehydrate.basic.grammarFix.label",
+  webSlangFilter: "options.dehydrate.basic.webSlangFilter.label",
+  preachRemoval: "options.dehydrate.basic.preachRemoval.label",
 };
 
 /** Compact summary of a submitted wizard config (rendered in the user bubble). */
 const MetaCard: FC<{ config: EntertainmentConfig }> = ({ config }) => {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation("entertainment");
   const enabledBasic = (
     Object.keys(config.options.basic) as (keyof DehydrateBasic)[]
   ).filter((k) => config.options.basic[k]);
@@ -177,10 +175,10 @@ const MetaCard: FC<{ config: EntertainmentConfig }> = ({ config }) => {
       )}
       <div className="text-xs text-muted-foreground">
         {config.mode === "interactive" ?
-          `${t("entertainment.wizard.options.interactive.frequency.label")}: ${config.options.interactionFrequency}`
+          `${t("options.interactive.frequency.label")}: ${config.options.interactionFrequency}`
         : enabledBasic.length > 0 ?
           enabledBasic.map((k) => t(BASIC_LABEL_KEY[k])).join("、")
-        : t("entertainment.wizard.options.dehydrate.basic.title")}
+        : t("options.basic.none")}
       </div>
     </div>
   );

@@ -7,7 +7,9 @@ import {
   threadPersistenceService,
   threadIntelligenceService,
 } from "@/services";
+import { i18n } from "@/i18n";
 import { sendAlert } from "@/utils";
+import { eventBus } from "@/utils/eventBus";
 import { ChatRequestSchema } from "../schemas/apiSchemas";
 import {
   EntertainmentConfigSchema,
@@ -106,20 +108,47 @@ entertainmentRoutes.post("/", async (c) => {
       return c.json({ error: "No session ID" }, 400);
     }
 
-    // Detect first message and trigger thread enrichment immediately (fire-and-forget).
-    // Feed a human-readable summary (NOT the raw JSON config blob) so the title
-    // generator produces something sensible instead of stringified JSON.
+    // First message: set a deterministic title + tag straight from the wizard
+    // config. Entertainment threads never go through the LLM enricher — the
+    // title and tag are fully known here (《story》 — 重写|互动), so set them
+    // directly and notify the renderer to refresh its metadata.
     if (messages?.length === 1 && messages[0].role === "user") {
       const novel = parsedConfig.novel;
+      const modeLabel = i18n.t(`entertainment.${parsedConfig.mode}`);
       const novelLabel =
-        novel.type === "internet" ? `《${novel.title}》` : novel.filename;
-      const enrichText = `${novelLabel} — ${parsedConfig.mode}`;
-      logger.info("Triggering thread enrichment", { sessionId, enrichText });
-      threadIntelligenceService
-        .enrichThread(sessionId, enrichText)
-        .catch((err) => {
-          logger.warn("Thread enrichment failed:", err);
-        });
+        novel.type === "internet" ? novel.title : novel.filename;
+      const isZh = (i18n.language ?? "en").startsWith("zh");
+      const title = isZh ?
+        `《${novelLabel}》 — ${modeLabel}`
+      : `${novelLabel} — ${modeLabel}`;
+      threadPersistenceService.renameThread(sessionId, title);
+
+      // Attach the matching entertainment tag. Seeded at startup; the
+      // create-if-missing covers a language switch where the seeded tag name
+      // uses a different locale than the current one.
+      let tag = threadPersistenceService
+        .listTagsByMode("entertainment")
+        .find((t) => t.name === modeLabel);
+      if (!tag) {
+        tag = threadPersistenceService.createTag(
+          modeLabel,
+          parsedConfig.mode === "dehydrate" ? "#F28E2B" : "#E15759",
+          0,
+          "entertainment",
+        );
+      }
+      threadPersistenceService.addTagToThread(sessionId, tag.id);
+
+      logger.info("Set deterministic entertainment title + tag", {
+        sessionId,
+        title,
+        tag: tag.name,
+      });
+      eventBus.emitEvent("threads:metadataUpdated", {
+        threadId: sessionId,
+        title,
+        tags: [{ ...tag, color: tag.color ?? "" }],
+      });
     }
 
     // Create derived AbortController from the HTTP request signal

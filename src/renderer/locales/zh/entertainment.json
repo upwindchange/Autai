@@ -1,0 +1,49 @@
+{
+  "title": "开始阅读",
+  "subtitle": "选个玩法，再把想看的故事丢给我就行。",
+  "nav.back": "上一步",
+  "nav.next": "下一步",
+  "nav.start": "开始",
+  "step.0.title": "玩法",
+  "step.1.title": "故事",
+  "step.2.title": "选项",
+
+  "mode.dehydrate.label": "重写润色",
+  "mode.dehydrate.description": "把注水、啰嗦的地方拧干，顺手修修文笔，读起来更顺、更带感。",
+  "mode.interactive.label": "互动阅读",
+  "mode.interactive.description": "边读边玩——走到关键情节，由你来拍板接下来怎么走。",
+
+  "novel.file.label": "上传文本文件",
+  "novel.file.pick": "选择文件",
+  "novel.file.clear": "移除文件",
+  "novel.internet.label": "从网上找",
+  "novel.internet.title.label": "故事名",
+  "novel.internet.title.placeholder": "故事名",
+  "novel.internet.author.label": "作者（可选）",
+  "novel.internet.author.placeholder": "作者名",
+  "novel.internet.source.label": "来源",
+  "novel.internet.source.placeholder": "贴个链接，或者说一下从哪能读到",
+  "novel.internet.source.tooltip": "告诉我从哪能读到这个故事：贴个链接、给点搜索线索都行。注意得是网页上能直接看的，PDF、TXT 这类要下载的不行。",
+  "novel.internet.source.hint": "得是网页上能直接看的，PDF、TXT 这类下载文件不行。",
+
+  "options.reset": "恢复默认",
+  "options.basic.none": "未启用基础选项",
+
+  "options.dehydrate.basic.grammarFix.label": "错别字、病句和标点",
+  "options.dehydrate.basic.grammarFix.tooltip": "像较真的编辑一样，把错别字、病句、不通顺的地方都改顺，标点也理整齐（补引号、统一中英标点），读着不卡壳。",
+  "options.dehydrate.basic.webSlangFilter.label": "过滤烂梗和毒词",
+  "options.dehydrate.basic.webSlangFilter.tooltip": "把那些看吐了的网文套话和烂梗替换掉——比如「倒吸一口凉气」「嘴角勾起一抹冷笑」「恐怖如斯」之类的，让文字不那么油腻。",
+  "options.dehydrate.basic.preachRemoval.label": "删掉说教和设定解释",
+  "options.dehydrate.basic.preachRemoval.tooltip": "把作者突然跳出来的说教和大段「设定解释」删掉——尤其是套着主角心理活动外衣的设定背诵，把硬塞的设定变成能感受到的画面。",
+
+  "options.dehydrate.depth.levelHint": "1 = 轻 · 3 = 中 · 5 = 重",
+  "options.dehydrate.depth.dialoguePacing.label": "对话节奏",
+  "options.dehydrate.depth.dehydrate.label": "脱水提速",
+  "options.dehydrate.depth.sceneEnhance.label": "场景氛围",
+  "options.dehydrate.depth.combatEnhance.label": "战斗与爽感",
+  "options.dehydrate.depth.emotionEnhance.label": "情绪张力",
+  "options.dehydrate.depth.literaryEnhance.label": "文采",
+
+  "options.interactive.frequency.label": "互动频率",
+  "options.interactive.frequency.levelHint": "1 = 偶尔 · 2 = 适中 · 3 = 经常"
+}

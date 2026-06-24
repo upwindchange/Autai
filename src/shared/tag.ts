@@ -8,6 +8,7 @@ export interface TagRow {
   emoji: string | null;
   color: string;
   sortOrder: number;
+  mode: ThreadMode;
   createdAt: string;
 }
 

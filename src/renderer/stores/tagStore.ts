@@ -103,7 +103,7 @@ export const useTagStore = create<TagState>()(
     fetchTags: async () => {
       set({ loading: true });
       try {
-        const tags = await fetchTags();
+        const tags = await fetchTags(useUiStore.getState().appMode);
         const tagMap = new Map(tags.map((t) => [t.id, t]));
         set((state) => ({
           tags,
@@ -125,7 +125,7 @@ export const useTagStore = create<TagState>()(
     },
 
     createTag: async (name: string, color: string) => {
-      const tag = await apiCreateTag(name, color);
+      const tag = await apiCreateTag(name, color, useUiStore.getState().appMode);
       set((state) => ({ tags: [...state.tags, tag] }));
       return tag;
     },

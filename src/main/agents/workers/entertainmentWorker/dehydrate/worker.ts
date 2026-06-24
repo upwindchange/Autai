@@ -23,11 +23,11 @@ const logger = log.scope("EntertainmentWorker:Dehydrate");
  * signature is ready when the real dehydrate logic lands.
  */
 export async function dehydrateWorker(
-  messages: ModelMessage[],
+  _messages: ModelMessage[],
   sessionId: string,
   originalMessages: UIMessage[],
   config: DehydrateConfig,
-  chatLanguageModel: LanguageModel,
+  _chatLanguageModel: LanguageModel,
   onFinish?: (messages: UIMessage[]) => void,
   signal?: AbortSignal,
 ): Promise<ReadableStream<UIMessageChunk>> {

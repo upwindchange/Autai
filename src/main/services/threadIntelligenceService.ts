@@ -32,6 +32,16 @@ const DEFAULT_TAG_COLORS = [
   "#76B7B2",
 ];
 
+// Fixed entertainment tags (重写 / 互动). Seeded mode-scoped so the chat
+// sidebar never sees them. Translated at seed time — same locale-at-creation
+// behavior as the chat tags above.
+const ENTERTAINMENT_TAG_KEYS = [
+  "entertainment.dehydrate",
+  "entertainment.interactive",
+];
+
+const ENTERTAINMENT_TAG_COLORS = ["#F28E2B", "#E15759"];
+
 /** All 16 palette colors (shared with renderer's tagColors.ts). */
 const PALETTE = [
   "#4E79A7", "#F28E2B", "#E15759", "#76B7B2",
@@ -47,6 +57,7 @@ function getRandomPaletteColor(): string {
 class ThreadIntelligenceService {
   initialize(): void {
     this.seedDefaultTags();
+    this.seedEntertainmentTags();
   }
 
   private seedDefaultTags(): void {
@@ -67,6 +78,28 @@ class ThreadIntelligenceService {
     }
   }
 
+  // Entertainment tags (重写 / 互动) are fixed, so this is idempotent and runs
+  // every launch — unlike seedDefaultTags (which only fires on an empty table),
+  // this also backfills existing DBs that already have the chat tags.
+  private seedEntertainmentTags(): void {
+    try {
+      const existing = threadPersistenceService.listTagsByMode("entertainment");
+      for (let i = 0; i < ENTERTAINMENT_TAG_KEYS.length; i++) {
+        const name = i18n.t(ENTERTAINMENT_TAG_KEYS[i]!);
+        if (!existing.some((t) => t.name === name)) {
+          threadPersistenceService.createTag(
+            name,
+            ENTERTAINMENT_TAG_COLORS[i]!,
+            i,
+            "entertainment",
+          );
+        }
+      }
+    } catch (error) {
+      logger.error("Failed to seed entertainment tags:", error);
+    }
+  }
+
   async enrichThread(
     threadId: string,
     firstUserMessage: string,
@@ -78,7 +111,9 @@ class ThreadIntelligenceService {
       });
 
       const settings = settingsService.settings;
-      const existingTags = threadPersistenceService.listTags();
+      // Chat threads only ever see chat-scoped tags — entertainment tags
+      // (重写/互动) are invisible to the LLM tagger.
+      const existingTags = threadPersistenceService.listTagsByMode("chat");
       const tagNames = existingTags.map((t) => t.name);
 
       const tagInstruction =

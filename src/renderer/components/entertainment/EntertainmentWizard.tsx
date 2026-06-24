@@ -26,7 +26,7 @@ const STEPS = 3;
  * → POST /entertainment.
  */
 export const EntertainmentWizard: FC = () => {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation("entertainment");
   const aui = useAui();
   const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
 
@@ -100,19 +100,19 @@ export const EntertainmentWizard: FC = () => {
     <div className="my-auto mx-auto flex w-full max-w-(--reading-max-width) flex-col gap-6 px-4 pb-10">
       <div className="flex flex-col gap-1">
         <h1 className="fade-in slide-in-from-bottom-1 animate-in fill-mode-both font-semibold text-2xl duration-200">
-          {t("entertainment.wizard.title")}
+          {t("title")}
         </h1>
         <p className="fade-in slide-in-from-bottom-1 animate-in fill-mode-both text-muted-foreground text-sm delay-75 duration-200">
-          {t("entertainment.wizard.subtitle")}
+          {t("subtitle")}
         </p>
       </div>
 
       <ProgressBar
         step={step}
         labels={[
-          t("entertainment.wizard.step.0.title"),
-          t("entertainment.wizard.step.1.title"),
-          t("entertainment.wizard.step.2.title"),
+          t("step.0.title"),
+          t("step.1.title"),
+          t("step.2.title"),
         ]}
       />
 
@@ -140,7 +140,7 @@ export const EntertainmentWizard: FC = () => {
             disabled={submitted}
           >
             <ChevronLeft className="size-4" />
-            {t("entertainment.wizard.nav.back")}
+            {t("nav.back")}
           </Button>
         )}
         <Button
@@ -150,8 +150,8 @@ export const EntertainmentWizard: FC = () => {
           className="self-start"
         >
           {isLast ?
-            t("entertainment.wizard.nav.start")
-          : t("entertainment.wizard.nav.next")}
+            t("nav.start")
+          : t("nav.next")}
           {!isLast && <ArrowRight className="size-4" />}
         </Button>
       </div>

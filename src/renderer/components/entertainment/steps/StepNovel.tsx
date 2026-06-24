@@ -23,7 +23,7 @@ export const StepNovel: FC<StepNovelProps> = ({
   pendingFile,
   setPendingFile,
 }) => {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation("entertainment");
   const isInteractive = config.mode === "interactive";
 
   // File acquisition — same path for both modes; unified native/browser pick.
@@ -91,13 +91,13 @@ export const StepNovel: FC<StepNovelProps> = ({
           <div className="flex items-center gap-2">
             <RadioGroupItem value="file" id="ent-novel-file" />
             <Label htmlFor="ent-novel-file">
-              {t("entertainment.wizard.novel.file.label")}
+              {t("novel.file.label")}
             </Label>
           </div>
           <div className="flex items-center gap-2">
             <RadioGroupItem value="internet" id="ent-novel-internet" />
             <Label htmlFor="ent-novel-internet">
-              {t("entertainment.wizard.novel.internet.label")}
+              {t("novel.internet.label")}
             </Label>
           </div>
         </RadioGroup>
@@ -112,7 +112,7 @@ export const StepNovel: FC<StepNovelProps> = ({
             className="self-start"
           >
             <Upload className="size-4" />
-            {t("entertainment.wizard.novel.file.pick")}
+            {t("novel.file.pick")}
           </Button>
           {pendingFile && (
             <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
@@ -121,7 +121,7 @@ export const StepNovel: FC<StepNovelProps> = ({
               <button
                 type="button"
                 onClick={clearFile}
-                aria-label={t("entertainment.wizard.novel.file.clear")}
+                aria-label={t("novel.file.clear")}
                 className="ml-auto inline-flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground hover:bg-muted hover:text-foreground"
               >
                 <X className="size-3.5" />
@@ -133,33 +133,33 @@ export const StepNovel: FC<StepNovelProps> = ({
         <>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ent-novel-title">
-              {t("entertainment.wizard.novel.internet.title.label")}
+              {t("novel.internet.title.label")}
             </Label>
             <Input
               id="ent-novel-title"
               value={config.novel.title}
               onChange={(e) => setInternetField("title", e.target.value)}
-              placeholder={t("entertainment.wizard.novel.internet.title.placeholder")}
+              placeholder={t("novel.internet.title.placeholder")}
             />
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ent-novel-author">
-              {t("entertainment.wizard.novel.internet.author.label")}
+              {t("novel.internet.author.label")}
             </Label>
             <Input
               id="ent-novel-author"
               value={config.novel.author ?? ""}
               onChange={(e) => setInternetField("author", e.target.value)}
-              placeholder={t("entertainment.wizard.novel.internet.author.placeholder")}
+              placeholder={t("novel.internet.author.placeholder")}
             />
           </div>
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center gap-1.5">
               <Label htmlFor="ent-novel-source">
-                {t("entertainment.wizard.novel.internet.source.label")}
+                {t("novel.internet.source.label")}
               </Label>
               <HelpIcon
-                label={t("entertainment.wizard.novel.internet.source.tooltip")}
+                label={t("novel.internet.source.tooltip")}
               />
             </div>
             <Textarea
@@ -167,12 +167,12 @@ export const StepNovel: FC<StepNovelProps> = ({
               value={config.novel.source}
               onChange={(e) => setInternetField("source", e.target.value)}
               placeholder={t(
-                "entertainment.wizard.novel.internet.source.placeholder",
+                "novel.internet.source.placeholder",
               )}
               rows={3}
             />
             <p className="text-xs text-muted-foreground">
-              {t("entertainment.wizard.novel.internet.source.hint")}
+              {t("novel.internet.source.hint")}
             </p>
           </div>
         </>

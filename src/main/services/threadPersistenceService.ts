@@ -184,11 +184,16 @@ class ThreadPersistenceService {
   // Tag operations
   // ---------------------------------------------------------------------------
 
-  createTag(name: string, color: string, sortOrder?: number): TagRow {
+  createTag(
+    name: string,
+    color: string,
+    sortOrder?: number,
+    mode: ThreadMode = "chat",
+  ): TagRow {
     const db = getDb();
     const result = db
       .insert(tags)
-      .values({ name, color, sortOrder: sortOrder ?? 0 })
+      .values({ name, color, sortOrder: sortOrder ?? 0, mode })
       .returning()
       .get();
     return result;
@@ -199,6 +204,16 @@ class ThreadPersistenceService {
     return db
       .select()
       .from(tags)
+      .orderBy(asc(tags.sortOrder), asc(tags.name))
+      .all();
+  }
+
+  listTagsByMode(mode: ThreadMode): TagRow[] {
+    const db = getDb();
+    return db
+      .select()
+      .from(tags)
+      .where(eq(tags.mode, mode))
       .orderBy(asc(tags.sortOrder), asc(tags.name))
       .all();
   }
@@ -244,6 +259,7 @@ class ThreadPersistenceService {
         emoji: tags.emoji,
         color: tags.color,
         sortOrder: tags.sortOrder,
+        mode: tags.mode,
         createdAt: tags.createdAt,
       })
       .from(threadTags)

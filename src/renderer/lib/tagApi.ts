@@ -1,8 +1,9 @@
 import type { TagRow, ThreadMode } from "@shared/tag";
 import { getApiBase } from "@/lib/api";
 
-export async function fetchTags(): Promise<TagRow[]> {
-  const res = await fetch(`${getApiBase()}/tags`);
+export async function fetchTags(mode?: ThreadMode): Promise<TagRow[]> {
+  const params = mode ? `?mode=${mode}` : "";
+  const res = await fetch(`${getApiBase()}/tags${params}`);
   const data = (await res.json()) as { tags: TagRow[] };
   return data.tags;
 }
@@ -10,11 +11,12 @@ export async function fetchTags(): Promise<TagRow[]> {
 export async function createTag(
   name: string,
   color: string,
+  mode?: ThreadMode,
 ): Promise<TagRow> {
   const res = await fetch(`${getApiBase()}/tags`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name, color }),
+    body: JSON.stringify({ name, color, ...(mode ? { mode } : {}) }),
   });
   const data = (await res.json()) as { tag: TagRow };
   return data.tag;

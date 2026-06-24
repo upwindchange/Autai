@@ -54,6 +54,12 @@ const zh = {
     planning: "规划",
     learning: "学习",
   },
+  entertainment: {
+    // Short mode labels — double as the deterministic thread-title suffix and
+    // the seeded entertainment tag names (重写 / 互动).
+    dehydrate: "重写",
+    interactive: "互动",
+  },
   agents: {
     searchingTitle: "同步查找多个话题：{{title}}",
     searchLabel: '查找："{{query}}"',

@@ -1,0 +1,49 @@
+{
+  "title": "Start reading",
+  "subtitle": "Pick how you want to read, then point me at the story.",
+  "nav.back": "Back",
+  "nav.next": "Next",
+  "nav.start": "Start",
+  "step.0.title": "Style",
+  "step.1.title": "Story",
+  "step.2.title": "Options",
+
+  "mode.dehydrate.label": "Rewrite & polish",
+  "mode.dehydrate.description": "Trim the filler, tighten the prose, and make it read smoother — without losing what makes it fun.",
+  "mode.interactive.label": "Interactive reading",
+  "mode.interactive.description": "Read along, and at key moments you call the shots on what happens next.",
+
+  "novel.file.label": "Upload a text file",
+  "novel.file.pick": "Choose file",
+  "novel.file.clear": "Remove file",
+  "novel.internet.label": "Find it online",
+  "novel.internet.title.label": "Story title",
+  "novel.internet.title.placeholder": "Story title",
+  "novel.internet.author.label": "Author (optional)",
+  "novel.internet.author.placeholder": "Author name",
+  "novel.internet.source.label": "Source",
+  "novel.internet.source.placeholder": "Paste a link, or just describe where I can read it",
+  "novel.internet.source.tooltip": "Tell me where I can read it — a link, a search hint, anything. It has to be a page I can open and read in the browser, not a PDF or TXT file I'd have to download.",
+  "novel.internet.source.hint": "Has to be a readable web page — no PDFs or TXT downloads.",
+
+  "options.reset": "Reset to defaults",
+  "options.basic.none": "No basic options enabled",
+
+  "options.dehydrate.basic.grammarFix.label": "Fix typos, grammar & punctuation",
+  "options.dehydrate.basic.grammarFix.tooltip": "Like a picky copyeditor: fix typos, grammar, and clunky phrasing, and clean up the punctuation (matching quotes, consistent marks) so it reads smooth.",
+  "options.dehydrate.basic.webSlangFilter.label": "Filter cringe slang & clichés",
+  "options.dehydrate.basic.webSlangFilter.tooltip": "Swap out the overused web-fiction clichés and tired memes — the 'he gasped, pupils constricting', 'a cold glint flashed in his eyes', 'without batting an eye' kind of lines — so it stops feeling generic.",
+  "options.dehydrate.basic.preachRemoval.label": "Cut the lectures & info-dumps",
+  "options.dehydrate.basic.preachRemoval.tooltip": "Cut the parts where the author butts in to lecture or dump lore — especially worldbuilding disguised as the character's inner monologue — and turn it into something you experience instead.",
+
+  "options.dehydrate.depth.levelHint": "1 = light · 3 = medium · 5 = heavy",
+  "options.dehydrate.depth.dialoguePacing.label": "Dialogue pacing",
+  "options.dehydrate.depth.dehydrate.label": "Trim & speed up",
+  "options.dehydrate.depth.sceneEnhance.label": "Scene & atmosphere",
+  "options.dehydrate.depth.combatEnhance.label": "Combat & thrill",
+  "options.dehydrate.depth.emotionEnhance.label": "Emotional tension",
+  "options.dehydrate.depth.literaryEnhance.label": "Literary polish",
+
+  "options.interactive.frequency.label": "Interaction frequency",
+  "options.interactive.frequency.levelHint": "1 = now and then · 2 = balanced · 3 = often"
+}

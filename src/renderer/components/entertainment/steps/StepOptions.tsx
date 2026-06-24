@@ -12,7 +12,7 @@ import type {
   DehydrateDepth,
   EntertainmentConfig,
 } from "@shared";
-import { patchSharedOptions } from "../wizardSteps";
+import { DEFAULT_DEPTH, patchSharedOptions } from "../wizardSteps";
 import { HelpIcon } from "./HelpIcon";
 
 interface StepOptionsProps {
@@ -27,59 +27,60 @@ const BASIC_ITEMS: {
 }[] = [
   {
     key: "grammarFix",
-    labelKey: "entertainment.wizard.options.dehydrate.basic.grammarFix.label",
-    tooltipKey:
-      "entertainment.wizard.options.dehydrate.basic.grammarFix.tooltip",
+    labelKey: "options.dehydrate.basic.grammarFix.label",
+    tooltipKey: "options.dehydrate.basic.grammarFix.tooltip",
   },
   {
     key: "webSlangFilter",
-    labelKey:
-      "entertainment.wizard.options.dehydrate.basic.webSlangFilter.label",
-    tooltipKey:
-      "entertainment.wizard.options.dehydrate.basic.webSlangFilter.tooltip",
+    labelKey: "options.dehydrate.basic.webSlangFilter.label",
+    tooltipKey: "options.dehydrate.basic.webSlangFilter.tooltip",
   },
   {
     key: "preachRemoval",
-    labelKey: "entertainment.wizard.options.dehydrate.basic.preachRemoval.label",
-    tooltipKey:
-      "entertainment.wizard.options.dehydrate.basic.preachRemoval.tooltip",
+    labelKey: "options.dehydrate.basic.preachRemoval.label",
+    tooltipKey: "options.dehydrate.basic.preachRemoval.tooltip",
   },
 ];
 
 const DEPTH_ITEMS: { key: keyof DehydrateDepth; labelKey: string }[] = [
   {
     key: "dialoguePacing",
-    labelKey:
-      "entertainment.wizard.options.dehydrate.depth.dialoguePacing.label",
+    labelKey: "options.dehydrate.depth.dialoguePacing.label",
   },
   {
     key: "dehydrate",
-    labelKey: "entertainment.wizard.options.dehydrate.depth.dehydrate.label",
+    labelKey: "options.dehydrate.depth.dehydrate.label",
   },
   {
     key: "sceneEnhance",
-    labelKey:
-      "entertainment.wizard.options.dehydrate.depth.sceneEnhance.label",
+    labelKey: "options.dehydrate.depth.sceneEnhance.label",
   },
   {
     key: "combatEnhance",
-    labelKey:
-      "entertainment.wizard.options.dehydrate.depth.combatEnhance.label",
+    labelKey: "options.dehydrate.depth.combatEnhance.label",
   },
   {
     key: "emotionEnhance",
-    labelKey:
-      "entertainment.wizard.options.dehydrate.depth.emotionEnhance.label",
+    labelKey: "options.dehydrate.depth.emotionEnhance.label",
   },
   {
     key: "literaryEnhance",
-    labelKey:
-      "entertainment.wizard.options.dehydrate.depth.literaryEnhance.label",
+    labelKey: "options.dehydrate.depth.literaryEnhance.label",
   },
 ];
 
+// ParameterSlider's built-in default renders a Reset + Apply pair. Here every
+// change already updates the wizard state live, so Apply is meaningless — we
+// pass a single custom "reset" action (with a distinct id so ParameterSlider's
+// internal reset no-op isn't triggered) wired to restore defaults.
+const RESET_ACTION = (label: string, id: string) => ({
+  id,
+  label,
+  variant: "ghost" as const,
+});
+
 export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation("entertainment");
 
   const setBasic = (key: keyof DehydrateBasic, value: boolean) =>
     setConfig((prev) => patchSharedOptions(prev, { basic: { [key]: value } }));
@@ -106,6 +107,23 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
     }
   };
 
+  // Distinct ids ("reset-depth" / "reset-freq") keep ParameterSlider's internal
+  // handleReset (which only fires for id === "reset") out of the path — our
+  // onAction is the single source of truth for the reset behavior.
+  const onDepthReset = (actionId: string) => {
+    if (actionId !== "reset-depth") return;
+    setConfig((prev) => patchSharedOptions(prev, { depth: { ...DEFAULT_DEPTH } }));
+  };
+
+  const onFrequencyReset = (actionId: string) => {
+    if (actionId !== "reset-freq") return;
+    setConfig((prev) =>
+      prev.mode === "interactive" ?
+        { ...prev, options: { ...prev.options, interactionFrequency: 2 } }
+      : prev,
+    );
+  };
+
   const depthSliders: SliderConfig[] = DEPTH_ITEMS.map((item) => ({
     id: item.key,
     label: t(item.labelKey),
@@ -125,7 +143,7 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
       [
         {
           id: "interactionFrequency",
-          label: t("entertainment.wizard.options.interactive.frequency.label"),
+          label: t("options.interactive.frequency.label"),
           min: 1,
           max: 3,
           step: 1,
@@ -143,25 +161,23 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
       {config.mode === "interactive" && (
         <section className="flex flex-col gap-2">
           <Label className="text-sm font-medium">
-            {t("entertainment.wizard.options.interactive.frequency.label")}
+            {t("options.interactive.frequency.label")}
           </Label>
           <ParameterSlider
             id="ent-frequency"
-            actions={[]}
+            actions={[RESET_ACTION(t("options.reset"), "reset-freq")]}
             sliders={freqSliders}
             values={freqValues}
             onChange={onFrequencyChange}
+            onAction={onFrequencyReset}
           />
           <p className="text-xs text-muted-foreground">
-            {t("entertainment.wizard.options.interactive.frequency.levelHint")}
+            {t("options.interactive.frequency.levelHint")}
           </p>
         </section>
       )}
 
       <section className="flex flex-col gap-2">
-        <Label className="text-sm font-medium">
-          {t("entertainment.wizard.options.dehydrate.basic.title")}
-        </Label>
         <div className="rounded-lg border bg-card px-4 py-3">
           <div className="flex flex-row flex-wrap items-center gap-x-5 gap-y-2">
             {BASIC_ITEMS.map((item) => (
@@ -185,18 +201,16 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
       </section>
 
       <section className="flex flex-col gap-2">
-        <Label className="text-sm font-medium">
-          {t("entertainment.wizard.options.dehydrate.depth.title")}
-        </Label>
         <p className="text-xs text-muted-foreground">
-          {t("entertainment.wizard.options.dehydrate.depth.levelHint")}
+          {t("options.dehydrate.depth.levelHint")}
         </p>
         <ParameterSlider
           id="ent-depth"
-          actions={[]}
+          actions={[RESET_ACTION(t("options.reset"), "reset-depth")]}
           sliders={depthSliders}
           values={depthValues}
           onChange={onDepthChange}
+          onAction={onDepthReset}
         />
       </section>
     </div>

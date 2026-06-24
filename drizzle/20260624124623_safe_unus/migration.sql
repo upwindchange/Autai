@@ -1,0 +1,1 @@
+ALTER TABLE `tags` ADD `mode` text DEFAULT 'chat' NOT NULL;
