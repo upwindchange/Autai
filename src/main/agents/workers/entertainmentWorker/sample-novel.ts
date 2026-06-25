@@ -45,3 +45,43 @@ export const SAMPLE_NOVEL_PARAGRAPHS: readonly string[] = [
   "「师父，」他在心中默念，「弟子终于踏进了这片江湖。无论前路如何，弟子都会记得您的话——剑，是用来守护的。」",
   "钟声再度响起，演武场上，第一场比试，即将开始。",
 ];
+
+/**
+ * The sample novel split into chapters by the `# 第N章 …` headings, for the
+ * dehydrate REST path (one generated chapter = one entry here). `number` is
+ * 1-based; the title is the heading text with the leading `# ` stripped.
+ *
+ * `getSampleChapter(n)` cycles so a thread can request more chapters than the
+ * sample defines (stub content only).
+ */
+export interface SampleChapter {
+  number: number;
+  title: string;
+  paragraphs: string[];
+}
+
+export const SAMPLE_NOVEL_CHAPTERS: readonly SampleChapter[] = (() => {
+  const chapters: SampleChapter[] = [];
+  let current: SampleChapter | null = null;
+  for (const paragraph of SAMPLE_NOVEL_PARAGRAPHS) {
+    const isHeading = /^#\s+第/.test(paragraph);
+    if (isHeading) {
+      current = {
+        number: chapters.length + 1,
+        title: paragraph.replace(/^#\s+/, ""),
+        paragraphs: [],
+      };
+      chapters.push(current);
+    } else if (paragraph !== "" && current) {
+      current.paragraphs.push(paragraph);
+    }
+  }
+  return chapters;
+})();
+
+/** Stub chapter for a given 1-based number (cycles through the sample). */
+export function getSampleChapter(chapterNumber: number): SampleChapter {
+  const len = SAMPLE_NOVEL_CHAPTERS.length;
+  const base = SAMPLE_NOVEL_CHAPTERS[(chapterNumber - 1) % len]!;
+  return { ...base, number: chapterNumber };
+}

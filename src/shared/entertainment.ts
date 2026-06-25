@@ -109,6 +109,22 @@ export type DehydrateDepth = z.infer<typeof DehydrateDepthSchema>;
 export type ChapterStatus = "streaming" | "complete" | "error";
 
 /**
+ * Light chapter shape returned by the list endpoint (no `content` — chapters
+ * can be long, so content is fetched on demand via the single-chapter endpoint).
+ */
+export interface ChapterSummary {
+  id: string;
+  chapterNumber: number;
+  title: string | null;
+  status: ChapterStatus;
+}
+
+/** Full chapter (single-chapter endpoint), adds the prose `content`. */
+export interface ChapterFull extends ChapterSummary {
+  content: string | null;
+}
+
+/**
  * Discriminator for the open, extensible `chapter_meta` table. Seeded with the
  * per-chapter metadata kinds from the entertainment-mode requirements:
  *   - `setting`             — per-chapter setting overrides

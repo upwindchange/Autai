@@ -32,6 +32,17 @@ export interface AppMessage {
 }
 
 /**
+ * Payload for `entertainment:chapterReady`: fired when the stub worker has
+ * finished writing a chapter to the DB. The frontend reads the chapter from
+ * disk on receipt. There is NO streaming — this single event is the only
+ * generation signal.
+ */
+export interface ChapterReadyPayload {
+  threadId: string;
+  chapterId: string;
+}
+
+/**
  * Map of event name -> payload. Every event carries exactly one payload
  * (use `null` for events with no data, e.g. `splitview:activate`).
  */
@@ -41,6 +52,7 @@ export interface ServerEvents {
   "threads:metadataUpdated": ThreadMetadataPayload;
   "threads:suggestionsUpdated": ThreadSuggestionsPayload;
   "app:message": AppMessage;
+  "entertainment:chapterReady": ChapterReadyPayload;
 }
 
 export type ServerEventName = keyof ServerEvents;
@@ -56,4 +68,5 @@ export const SERVER_EVENT_NAMES: readonly ServerEventName[] = [
   "threads:metadataUpdated",
   "threads:suggestionsUpdated",
   "app:message",
+  "entertainment:chapterReady",
 ];

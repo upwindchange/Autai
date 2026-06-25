@@ -15,6 +15,7 @@ import {
   DrawerTrigger,
 } from "@/components/ui/drawer";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useChaptersStore } from "@/stores/chaptersStore";
 import { ReaderSettingsPanel } from "./ReaderSettingsPanel";
 import { TableOfContents } from "../table-of-contents/TableOfContents";
 
@@ -36,6 +37,12 @@ export const ReaderControlsButton: FC = () => {
   const { t } = useTranslation("reader");
   const isMobile = useIsMobile();
   const [expanded, setExpanded] = useState(false);
+
+  // TOC data comes straight from the chapters store (this button lives inside
+  // the entertainment tree, so the active thread is already loaded there).
+  const chapters = useChaptersStore((s) => s.chapters);
+  const currentChapterId = useChaptersStore((s) => s.currentChapterId);
+  const setCurrentChapter = useChaptersStore((s) => s.setCurrentChapter);
 
   const roundTrigger = (label: string, children: ReactNode) => (
     <Button
@@ -68,7 +75,11 @@ export const ReaderControlsButton: FC = () => {
       title={t("reader.toc.title")}
       trigger={roundTrigger(t("reader.toc.title"), <List className="size-5" />)}
     >
-      <TableOfContents />
+      <TableOfContents
+        chapters={chapters}
+        currentChapterId={currentChapterId}
+        onSelect={setCurrentChapter}
+      />
     </ResponsivePanel>
   );
 

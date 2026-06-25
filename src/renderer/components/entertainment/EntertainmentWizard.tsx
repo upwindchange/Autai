@@ -1,12 +1,11 @@
 import { type FC, useEffect, useRef, useState } from "react";
-import { useAui, useAuiState } from "@assistant-ui/react";
-import type { ThreadUserMessagePart } from "@assistant-ui/react";
+import { useAuiState } from "@assistant-ui/react";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUiStore } from "@/stores/uiStore";
+import { useChaptersStore } from "@/stores/chaptersStore";
 import type { EntertainmentConfig } from "@shared";
-import { convertFileToFilePart } from "@/lib/entertainmentFile";
 import { INITIAL_DEHYDRATE, isStepValid } from "./wizardSteps";
 import { ProgressBar } from "./ProgressBar";
 import { StepMode } from "./steps/StepMode";
@@ -19,15 +18,14 @@ const STEPS = 3;
  * Entertainment wizard — the only "composer" surface in this mode, shown on an
  * empty thread. Three steps (mode → novel → options), advanced by the Next
  * button or Enter (in text inputs / the source textarea). On the final step the
- * action becomes Start, which serializes the full `EntertainmentConfig` as a
- * JSON text part (plus an optional file part for an attached novel) and appends
- * it to the runtime — the same `aui.thread().append` path the suggestion
- * triggers use, flowing through AssistantChatTransport → prepareSendMessagesRequest
- * → POST /entertainment.
+ * action becomes Start, which POSTs the full `EntertainmentConfig` to the
+ * dehydrate chapter endpoint (POST /entertainment/threads/:id/chapters) via the
+ * chapters store. The stub worker then writes chapter 1 to the DB and fires
+ * `entertainment:chapterReady`; the store picks it up and the reader renders it
+ * from disk.
  */
 export const EntertainmentWizard: FC = () => {
   const { t } = useTranslation("entertainment");
-  const aui = useAui();
   const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
 
   const [config, setConfig] = useState<EntertainmentConfig>(INITIAL_DEHYDRATE);
@@ -38,21 +36,13 @@ export const EntertainmentWizard: FC = () => {
   const isLast = step === STEPS - 1;
 
   const submit = async () => {
-    if (submitted) return;
-    // append() does NOT fire composer.send, so sync sessionId ourselves before
-    // the transport's headers() reads it (mirrors the old start form).
-    if (mainThreadId) {
-      useUiStore.getState().setSessionId(mainThreadId);
-    }
-
-    const content: ThreadUserMessagePart[] = [
-      { type: "text", text: JSON.stringify(config) },
-    ];
-    if (config.novel.type === "file" && pendingFile) {
-      content.push(await convertFileToFilePart(pendingFile));
-    }
-    await aui.thread().append({ content });
-    // Guard the render-window between append() and thread.isEmpty flipping.
+    if (submitted || !mainThreadId) return;
+    // Keep sessionId aligned with the active thread (mirrors the old start form).
+    useUiStore.getState().setSessionId(mainThreadId);
+    // The stub ignores file bytes; config.novel carries the filename. Start the
+    // first chapter — the store re-reads the in-progress row from disk so the
+    // waiting state shows immediately.
+    await useChaptersStore.getState().startDehydrate(mainThreadId, config);
     setSubmitted(true);
   };
 

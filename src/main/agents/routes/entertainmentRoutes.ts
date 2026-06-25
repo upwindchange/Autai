@@ -15,11 +15,18 @@ import {
   EntertainmentConfigSchema,
   type EntertainmentConfig,
 } from "@shared";
+import { entertainmentChapterRoutes } from "./entertainmentChapterRoutes";
 import log from "electron-log/main";
 
 const logger = log.scope("ApiServer:Entertainment");
 
 export const entertainmentRoutes = new Hono();
+
+// Dehydrate now flows through the DB-backed chapter routes below (REST + the
+// entertainment:chapterReady event); this POST "/" UIMessage path remains for
+// the interactive placeholder / future use. Nested here so both share the
+// /entertainment prefix (/entertainment/threads/:tid/chapters).
+entertainmentRoutes.route("/", entertainmentChapterRoutes);
 
 /**
  * Entertainment endpoint — mirrors chatRoutes but always routes through the
@@ -112,6 +119,9 @@ entertainmentRoutes.post("/", async (c) => {
     // config. Entertainment threads never go through the LLM enricher — the
     // title and tag are fully known here (《story》 — 重写|互动), so set them
     // directly and notify the renderer to refresh its metadata.
+    // (Dehydrate no longer reaches this route — it POSTs to the chapter endpoint
+    // and its title/tag side-effects run in entertainmentService. This block now
+    // only fires for the interactive path, but stays union-aware for safety.)
     if (messages?.length === 1 && messages[0].role === "user") {
       const novel = parsedConfig.novel;
       const modeLabel = i18n.t(`entertainment.${parsedConfig.mode}`);
