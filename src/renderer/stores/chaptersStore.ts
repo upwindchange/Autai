@@ -48,10 +48,6 @@ interface ChaptersState {
   setCurrentChapter: (id: string | null) => void;
 }
 
-// Brand-new assistant-ui threads carry a __LOCALID placeholder until they are
-// materialized; never REST-GET against it.
-const isLocalId = (id: string): boolean => id.startsWith("__LOCALID");
-
 let initialized = false;
 
 export const useChaptersStore = create<ChaptersState>()(
@@ -73,15 +69,11 @@ export const useChaptersStore = create<ChaptersState>()(
       });
       serverEvents.onReconnect(() => {
         const t = get().currentThreadId;
-        if (t && !isLocalId(t)) void get().loadChapters(t);
+        if (t) void get().loadChapters(t);
       });
     },
 
     loadChapters: async (threadId: string) => {
-      if (isLocalId(threadId)) {
-        set({ currentThreadId: threadId, chapters: [], loading: false });
-        return;
-      }
       set({ loading: true });
       try {
         const { chapters } = await httpClient.getJSON<{
@@ -113,7 +105,7 @@ export const useChaptersStore = create<ChaptersState>()(
 
     loadChapterContent: async (chapterId: string) => {
       const threadId = get().currentThreadId;
-      if (!threadId || isLocalId(threadId)) return;
+      if (!threadId) return;
       try {
         const { chapter } = await httpClient.getJSON<{ chapter: ChapterFull }>(
           `/entertainment/threads/${threadId}/chapters/${chapterId}`,
