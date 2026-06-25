@@ -245,6 +245,34 @@ function scanModels(baseDir: string, currentDir: string): ModelDefinition[] {
   return result;
 }
 
+/**
+ * Register the virtual "openai-compatible" provider (no TOML on disk).
+ *
+ * Extracted from getAllProviders() so both it and getProvider() resolve the
+ * provider consistently regardless of which is called first. Without this,
+ * getProvider("openai-compatible") returns undefined until getAllProviders()
+ * runs — and /configured/models (read by the model selector) calls
+ * getProvider() directly, so the logo never reached the selector.
+ *
+ * Idempotent: no-op once registered (or before basePath is set).
+ */
+function ensureOpenAiCompatibleProvider(): void {
+  if (providers.has("openai-compatible") || !basePath) return;
+
+  const openaiLogoPath = path.join(basePath, "openai", "logo.svg");
+  providers.set("openai-compatible", {
+    dir: "openai-compatible",
+    name: "OpenAI Compatible",
+    env: ["API_KEY"],
+    npm: "@ai-sdk/openai-compatible",
+    api: "http://localhost:11434/v1",
+    doc: "https://sdk.vercel.ai/providers/ai-sdk-providers/openai-compatible",
+    ...(fs.existsSync(openaiLogoPath) && {
+      logo: fs.readFileSync(openaiLogoPath, "utf-8"),
+    }),
+  });
+}
+
 // ──────────────────────────────────────────────
 // Public getters
 // ──────────────────────────────────────────────
@@ -261,20 +289,7 @@ export function getAllProviders(): ProviderDefinition[] {
     }
 
     // Virtual provider — no TOML files on disk
-    if (!providers.has("openai-compatible")) {
-      const openaiLogoPath = path.join(basePath, "openai", "logo.svg");
-      providers.set("openai-compatible", {
-        dir: "openai-compatible",
-        name: "OpenAI Compatible",
-        env: ["API_KEY"],
-        npm: "@ai-sdk/openai-compatible",
-        api: "http://localhost:11434/v1",
-        doc: "https://sdk.vercel.ai/providers/ai-sdk-providers/openai-compatible",
-        ...(fs.existsSync(openaiLogoPath) && {
-          logo: fs.readFileSync(openaiLogoPath, "utf-8"),
-        }),
-      });
-    }
+    ensureOpenAiCompatibleProvider();
 
     logger.info(`Loaded ${providers.size} providers`);
   }
@@ -287,6 +302,11 @@ export function getAllProviders(): ProviderDefinition[] {
 }
 
 export function getProvider(dir: string): ProviderDefinition | undefined {
+  // The virtual provider has no TOML on disk, so register it before the lookup.
+  // Otherwise it's only available after getAllProviders() has primed the map,
+  // and callers like /configured/models (which go straight to getProvider)
+  // would see undefined and lose the provider's logo.
+  if (dir === "openai-compatible") ensureOpenAiCompatibleProvider();
   if (providers.has(dir)) return providers.get(dir);
   return loadProvider(dir);
 }

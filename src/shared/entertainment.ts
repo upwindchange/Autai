@@ -96,3 +96,33 @@ export type EntertainmentMode = EntertainmentConfig["mode"];
 export type NovelInput = z.infer<typeof NovelInputSchema>;
 export type DehydrateBasic = z.infer<typeof DehydrateBasicSchema>;
 export type DehydrateDepth = z.infer<typeof DehydrateDepthSchema>;
+
+// ---------------------------------------------------------------------------
+// Database-contract types (entertainment persistence layer).
+//
+// These are shared between main (schema + services) and renderer so the worker
+// that writes metadata and the UI that reads it agree on the discriminated
+// `kind` set. See src/main/db/schema.ts for the table definitions.
+// ---------------------------------------------------------------------------
+
+/** Lifecycle of a `chapters` row. */
+export type ChapterStatus = "streaming" | "complete" | "error";
+
+/**
+ * Discriminator for the open, extensible `chapter_meta` table. Seeded with the
+ * per-chapter metadata kinds from the entertainment-mode requirements:
+ *   - `setting`             — per-chapter setting overrides
+ *   - `user_interaction`    — a user action/choice for this chapter
+ *   - `agent_comment`       — an agent-authored annotation/comment
+ *   - `tool_call`           — a tool the agent invoked for this chapter
+ *   - `interaction_options` — story-interaction options the agent offered
+ *
+ * The set is intentionally OPEN: new entertainment modes append values here and
+ * define a Zod schema for the matching `payload` shape — no DB migration needed.
+ */
+export type ChapterMetaKind =
+  | "setting"
+  | "user_interaction"
+  | "agent_comment"
+  | "tool_call"
+  | "interaction_options";
