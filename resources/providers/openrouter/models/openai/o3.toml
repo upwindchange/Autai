@@ -1,19 +1,10 @@
-temperature = false
-tool_call = true
-structured_output = true
+base_model = "openai/o3"
 
-[extends]
-from = "openai/o3"
+[[reasoning_options]]
+type = "effort"
+values = ["low", "medium", "high"]
 
 [cost]
 input = 2
 output = 8
 cache_read = 0.5
-
-[limit]
-context = 200_000
-output = 100_000
-
-[modalities]
-input = ["image", "text", "pdf"]
-output = ["text"]

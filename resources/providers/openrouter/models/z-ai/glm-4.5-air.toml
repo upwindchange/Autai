@@ -1,20 +1,10 @@
-temperature = true
-tool_call = true
+base_model = "zhipuai/glm-4.5-air"
 structured_output = false
 
-[extends]
-from = "zai/glm-4.5-air"
-omit = ["cost.cache_write"]
+[[reasoning_options]]
+type = "toggle"
 
 [cost]
 input = 0.13
 output = 0.85
 cache_read = 0.025
-
-[limit]
-context = 131_072
-output = 98_304
-
-[modalities]
-input = ["text"]
-output = ["text"]

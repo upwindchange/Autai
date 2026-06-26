@@ -1,2 +1,10 @@
-[extends]
-from = "alibaba/qwen3-coder-plus"
+base_model = "alibaba/qwen3-coder-plus"
+
+[cost]
+input = 6
+output = 60
+cache_read = 1.2
+cache_write = 7.5
+
+[limit]
+context = 1_000_000

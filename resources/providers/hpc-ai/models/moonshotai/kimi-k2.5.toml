@@ -1,9 +1,10 @@
 name = "Kimi K2.5"
-family = "kimi"
+family = "kimi-k2"
 release_date = "2026-01-01"
-last_updated = "2026-03-25"
+last_updated = "2026-06-01"
 attachment = false
 reasoning = true
+reasoning_options = [{ type = "toggle" }]
 structured_output = true
 temperature = false
 tool_call = true
@@ -14,9 +15,9 @@ open_weights = true
 field = "reasoning_content"
 
 [cost]
-input = 0.21
-output = 1.00
-cache_read = 0.03
+input = 0.30
+output = 1.50
+cache_read = 0.05
 
 [limit]
 context = 262_144

@@ -1,10 +1,8 @@
-temperature = true
-tool_call = true
-structured_output = true
+base_model = "google/gemini-3-flash-preview"
 
-[extends]
-from = "google/gemini-3-flash-preview"
-omit = ["cost.input_audio"]
+[[reasoning_options]]
+type = "effort"
+values = ["minimal", "low", "medium", "high"]
 
 [interleaved]
 field = "reasoning_details"
@@ -17,9 +15,4 @@ cache_read = 0.05
 cache_write = 0.083333
 
 [limit]
-context = 1_048_576
-output = 65_536
-
-[modalities]
-input = ["text", "image", "pdf", "audio", "video"]
-output = ["text"]
+output = 65_535

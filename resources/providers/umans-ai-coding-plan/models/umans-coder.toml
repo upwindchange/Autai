@@ -1,5 +1,10 @@
+base_model = "moonshotai/kimi-k2.7-code"
 name = "Umans Coder"
 temperature = false
+reasoning_options = []
+
+[interleaved]
+field = "reasoning_content"
 
 [cost]
 input = 0
@@ -9,7 +14,3 @@ cache_write = 0
 
 [modalities]
 input = ["text", "image"]
-output = ["text"]
-
-[extends]
-from = "moonshotai/kimi-k2.6"

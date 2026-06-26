@@ -1,5 +1,9 @@
-[extends]
-from = "zai/glm-5.1"
+base_model = "zhipuai/glm-5.1"
+name = "GLM 5.1"
+reasoning_options = []
+
+[interleaved]
+field = "reasoning_content"
 
 [cost]
 input = 1.4
@@ -8,9 +12,4 @@ cache_read = 0
 cache_write = 0
 
 [limit]
-context = 202752
-output = 131072
-
-[modalities]
-input = ["text"]
-output = ["text"]
+context = 202_752

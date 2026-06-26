@@ -1,2 +1,10 @@
-[extends]
-from = "minimax/MiniMax-M2.5"
+base_model = "minimax/MiniMax-M2.5"
+
+[cost]
+input = 0.3
+output = 1.2
+cache_read = 0.03
+cache_write = 0.375
+
+[limit]
+context = 228_700

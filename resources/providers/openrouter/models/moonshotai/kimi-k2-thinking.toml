@@ -1,10 +1,6 @@
-temperature = true
-tool_call = true
+base_model = "moonshotai/kimi-k2-thinking"
 structured_output = true
-
-[extends]
-from = "moonshotai/kimi-k2-thinking"
-omit = ["cost.cache_read"]
+reasoning_options = []
 
 [interleaved]
 field = "reasoning_details"
@@ -12,11 +8,4 @@ field = "reasoning_details"
 [cost]
 input = 0.6
 output = 2.5
-
-[limit]
-context = 262_144
-output = 262_144
-
-[modalities]
-input = ["text"]
-output = ["text"]
+cache_read = 0.6
