@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { entertainmentService } from "@/services";
+import { entertainmentService, threadPersistenceService } from "@/services";
+import { runDehydrate } from "@agents/workers/entertainmentWorker/dehydrate/worker";
 import { EntertainmentConfigSchema } from "@shared";
 import log from "electron-log/main";
 
@@ -10,6 +11,10 @@ export const entertainmentChapterRoutes = new Hono();
 
 const GenerateChapterSchema = z.object({
   config: EntertainmentConfigSchema.optional(),
+  // Raw novel text for file uploads (dehydrate ingestion). The renderer reads the
+  // File as UTF-8 text and sends it inline; present only on the first chapter of
+  // a file-novel thread. Omitted for the "generate next chapter" (Next button) path.
+  novelText: z.string().optional(),
 });
 
 // A safety-net timeout so a detached generation can never hang forever. The
@@ -49,10 +54,12 @@ entertainmentChapterRoutes.get(
   },
 );
 
-// POST /entertainment/threads/:threadId/chapters — start/continue generation.
-// Inserts an in-progress chapter row, returns 202 immediately, and runs the
-// (detached) stub generation which writes the complete row + fires
-// `entertainment:chapterReady`. `config` is required on the first chapter.
+// POST /entertainment/threads/:threadId/chapters — start/continue the dehydrate
+// pipeline. Persists config + sets up the thread on the first chapter, then runs
+// the (detached) worker. With `novelText` it ingests the file into unprocessed
+// chapter rows; otherwise it generates the next chapter. Returns 202 immediately;
+// the worker creates rows and emits `entertainment:chapterReady`, which the store
+// re-reads from disk. `config` is required on the first chapter.
 entertainmentChapterRoutes.post("/threads/:threadId/chapters", async (c) => {
   try {
     const threadId = c.req.param("threadId");
@@ -64,35 +71,40 @@ entertainmentChapterRoutes.post("/threads/:threadId/chapters", async (c) => {
         400,
       );
     }
+    const { config, novelText } = parsed.data;
 
-    const existing = entertainmentService.getEntertainmentConfig(threadId);
-    const isFirst = !existing;
-    if (isFirst && !parsed.data.config) {
-      return c.json(
-        { error: "config is required when starting the first chapter" },
-        400,
-      );
+    // Defensive: make sure the thread row exists (covers assistant-ui
+    // materialization timing).
+    if (!threadPersistenceService.getThread(threadId)) {
+      threadPersistenceService.createThread(threadId, "entertainment");
     }
 
-    const { chapterId, chapterNumber, title } = entertainmentService.beginChapter(
+    const isFirst = !entertainmentService.getEntertainmentConfig(threadId);
+    if (isFirst) {
+      if (!config) {
+        return c.json(
+          { error: "config is required when starting the first chapter" },
+          400,
+        );
+      }
+      entertainmentService.upsertEntertainmentConfig(threadId, config);
+      entertainmentService.setupEntertainmentThread(threadId, config);
+    } else if (config) {
+      entertainmentService.upsertEntertainmentConfig(threadId, config);
+    }
+
+    // Fire-and-forget: the worker owns all parsing/generation and signals the
+    // renderer via entertainment:chapterReady. Survives the 202 response.
+    void runDehydrate(
       threadId,
-      parsed.data.config,
+      config,
+      novelText,
+      AbortSignal.timeout(GENERATION_TIMEOUT_MS),
+    ).catch((err) =>
+      logger.error("dehydrate pipeline failed", { threadId, err }),
     );
 
-    // Fire-and-forget: survives the 202 response. On completion (or abort) it
-    // writes the row and emits entertainment:chapterReady.
-    void entertainmentService
-      .generateChapter(
-        threadId,
-        chapterId,
-        chapterNumber,
-        AbortSignal.timeout(GENERATION_TIMEOUT_MS),
-      )
-      .catch((err) =>
-        logger.error("chapter generation failed", { threadId, chapterId, err }),
-      );
-
-    return c.json({ chapterId, chapterNumber, title }, 202);
+    return c.json({ queued: true }, 202);
   } catch (error) {
     logger.error("Error starting chapter generation:", error);
     return c.json({ error: "Failed to start chapter generation" }, 500);

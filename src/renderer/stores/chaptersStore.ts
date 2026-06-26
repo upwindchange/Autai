@@ -42,7 +42,11 @@ interface ChaptersState {
   /** Fetch one chapter's content and merge it into the list (lazy, on demand). */
   loadChapterContent: (chapterId: string) => Promise<void>;
   /** Start the first chapter of a dehydrate run (wizard submit). */
-  startDehydrate: (threadId: string, config: EntertainmentConfig) => Promise<void>;
+  startDehydrate: (
+    threadId: string,
+    config: EntertainmentConfig,
+    novelText?: string,
+  ) => Promise<void>;
   /** Generate the next chapter (reader "Next" at the latest). */
   nextChapter: (threadId: string, config?: EntertainmentConfig) => Promise<void>;
   setCurrentChapter: (id: string | null) => void;
@@ -122,13 +126,18 @@ export const useChaptersStore = create<ChaptersState>()(
       }
     },
 
-    startDehydrate: async (threadId: string, config: EntertainmentConfig) => {
+    startDehydrate: async (
+      threadId: string,
+      config: EntertainmentConfig,
+      novelText?: string,
+    ) => {
       if (get().chapters.some((c) => c.status === "streaming")) return;
       await httpClient.postJSON(
         `/entertainment/threads/${threadId}/chapters`,
-        { config },
+        { config, novelText },
       );
-      // Sync the in-progress row from disk so the waiting state shows.
+      // The worker is fire-and-forget; reload to pick up any rows written before
+      // the chapterReady event lands (ingestion may already be done).
       await get().loadChapters(threadId);
     },
 

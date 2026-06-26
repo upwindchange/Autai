@@ -106,7 +106,11 @@ export type DehydrateDepth = z.infer<typeof DehydrateDepthSchema>;
 // ---------------------------------------------------------------------------
 
 /** Lifecycle of a `chapters` row. */
-export type ChapterStatus = "streaming" | "complete" | "error";
+export type ChapterStatus =
+  | "streaming" // being generated (legacy/sample generation; no prose yet)
+  | "complete" // generated prose is in `content`
+  | "error" // generation failed / aborted
+  | "unprocessed"; // parsed from the source file, awaiting dehydration
 
 /**
  * Light chapter shape returned by the list endpoint (no `content` — chapters
@@ -122,6 +126,12 @@ export interface ChapterSummary {
 /** Full chapter (single-chapter endpoint), adds the prose `content`. */
 export interface ChapterFull extends ChapterSummary {
   content: string | null;
+  /**
+   * Raw chapter text sliced from the source novel at ingestion time. Present for
+   * rows created by the dehydrate file-ingestion pipeline; null for the legacy
+   * sample-generation flow.
+   */
+  originalContent: string | null;
 }
 
 /**

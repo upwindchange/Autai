@@ -39,10 +39,15 @@ export const EntertainmentWizard: FC = () => {
     if (submitted || !mainThreadId) return;
     // Keep sessionId aligned with the active thread (mirrors the old start form).
     useUiStore.getState().setSessionId(mainThreadId);
-    // The stub ignores file bytes; config.novel carries the filename. Start the
-    // first chapter — the store re-reads the in-progress row from disk so the
-    // waiting state shows immediately.
-    await useChaptersStore.getState().startDehydrate(mainThreadId, config);
+    // For a file novel, read its text (UTF-8) and send it inline so the worker
+    // can parse chapters and ingest them. (GBK/charset detection is a follow-up.)
+    const novelText =
+      config.novel.type === "file" && pendingFile ?
+        await pendingFile.text()
+      : undefined;
+    await useChaptersStore
+      .getState()
+      .startDehydrate(mainThreadId, config, novelText);
     setSubmitted(true);
   };
 

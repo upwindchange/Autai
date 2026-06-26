@@ -174,6 +174,11 @@ export const chapters = sqliteTable(
       .default("streaming")
       .$type<ChapterStatus>(),
     content: text("content"),
+    // Raw, un-dehydrated chapter text sliced from the source novel at ingestion
+    // time. Filled when the row is created with status='unprocessed'; stays put
+    // as the dehydrated `content` is generated on top of it. Nullable so older
+    // rows (and the legacy streaming sample flow) remain valid.
+    originalContent: text("original_content"),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),

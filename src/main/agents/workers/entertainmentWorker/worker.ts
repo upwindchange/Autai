@@ -6,7 +6,6 @@ import {
 } from "ai";
 import type { EntertainmentConfig } from "@shared";
 import log from "electron-log/main";
-import { dehydrateWorker } from "./dehydrate/worker";
 import { interactiveWorker } from "./interactive/worker";
 
 const logger = log.scope("EntertainmentWorker");
@@ -44,15 +43,12 @@ export async function EntertainmentWorker(
 
   switch (config.mode) {
     case "dehydrate":
-      logger.info("routing to dehydrate (网文脱水) placeholder");
-      return dehydrateWorker(
-        modelMessages,
-        sessionId,
-        messages,
-        config,
-        chatLanguageModel,
-        onFinish,
-        signal,
+      // Dehydrate no longer routes through this streaming worker — it runs the
+      // event-driven `runDehydrate` pipeline from the chapter REST route. The
+      // case is kept (as a throw) so the exhaustive `never` guard below still
+      // type-checks; the `EntertainmentConfig` union still includes "dehydrate".
+      throw new Error(
+        "dehydrate does not route through EntertainmentWorker; it is handled by runDehydrate in dehydrate/worker.ts",
       );
 
     case "interactive":

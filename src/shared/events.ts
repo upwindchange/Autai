@@ -32,14 +32,17 @@ export interface AppMessage {
 }
 
 /**
- * Payload for `entertainment:chapterReady`: fired when the stub worker has
- * finished writing a chapter to the DB. The frontend reads the chapter from
- * disk on receipt. There is NO streaming — this single event is the only
- * generation signal.
+ * Payload for `entertainment:chapterReady`: fired when the worker has written
+ * chapter row(s) to the DB. The frontend re-reads the chapter list from disk on
+ * receipt. There is NO streaming — this single event is the only signal.
+ *
+ * `chapterId` is set for a single-chapter generation; it is omitted when the
+ * event represents a thread-wide change (e.g. file ingestion populated many
+ * rows at once), in which case the store reloads the whole list.
  */
 export interface ChapterReadyPayload {
   threadId: string;
-  chapterId: string;
+  chapterId?: string;
 }
 
 /**

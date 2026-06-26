@@ -12,7 +12,9 @@ interface TableOfContentsProps {
 /**
  * Table of contents — the chapter list for the active thread, read from disk via
  * the chapters store. Clicking an entry pins the reader to that chapter. A
- * chapter still being generated (status: 'streaming') shows a spinner.
+ * chapter still being generated (status: 'streaming') shows a spinner. A parsed-
+ * but-not-yet-dehydrated chapter (status: 'unprocessed') renders greyed and
+ * non-interactive.
  *
  * Rendered inside the responsive reader-controls shell, which supplies the
  * panel title — so this is just the body.
@@ -37,6 +39,23 @@ export const TableOfContents: FC<TableOfContentsProps> = ({
     <ul className="flex flex-col gap-0.5">
       {chapters.map((c) => {
         const active = c.id === currentChapterId;
+        // Parsed from the source file but not yet dehydrated: render greyed and
+        // non-interactive (no onSelect). Click/navigation is wired later.
+        if (c.status === "unprocessed") {
+          return (
+            <li key={c.id}>
+              <div
+                aria-disabled="true"
+                className="flex w-full cursor-not-allowed items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-muted-foreground opacity-50"
+              >
+                <span className="shrink-0 text-muted-foreground/70 text-xs tabular-nums">
+                  {c.chapterNumber}
+                </span>
+                {c.title && <span className="truncate">{c.title}</span>}
+              </div>
+            </li>
+          );
+        }
         return (
           <li key={c.id}>
             <button
