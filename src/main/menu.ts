@@ -1,4 +1,9 @@
-import { app, BrowserWindow, Menu, type MenuItemConstructorOptions } from "electron";
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  type MenuItemConstructorOptions,
+} from "electron";
 import { i18n } from "@/i18n";
 import { settingsService } from "@/services";
 

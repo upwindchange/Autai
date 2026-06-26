@@ -47,9 +47,10 @@ function pickViaBrowser(): Promise<File[]> {
 // available in native mode.
 export async function pickFiles(): Promise<PickedFile[]> {
   if (isNativeRenderer()) {
-    const results = await httpClient.postJSON<
-      Array<{ path: string; name: string; data: string; mimeType: string }>
-    >("/dialog/open-files");
+    const results =
+      await httpClient.postJSON<
+        Array<{ path: string; name: string; data: string; mimeType: string }>
+      >("/dialog/open-files");
     if (!Array.isArray(results)) return [];
     return results.map(({ path: fsPath, name, data, mimeType }) => ({
       file: new File(

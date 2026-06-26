@@ -174,7 +174,8 @@ export async function browserResearchWorker(
 
               logger.info("Extraction complete", {
                 extractionCount: extractionResults.length,
-                relevantCount: extractionResults.filter((r) => r.relevant).length,
+                relevantCount: extractionResults.filter((r) => r.relevant)
+                  .length,
               });
 
               // ============================================================

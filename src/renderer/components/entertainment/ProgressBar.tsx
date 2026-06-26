@@ -11,7 +11,13 @@ interface ProgressBarProps {
  */
 export function ProgressBar({ step, labels }: ProgressBarProps) {
   return (
-    <div className="flex flex-col gap-1.5" role="progressbar" aria-valuemin={1} aria-valuemax={labels.length} aria-valuenow={step + 1}>
+    <div
+      className="flex flex-col gap-1.5"
+      role="progressbar"
+      aria-valuemin={1}
+      aria-valuemax={labels.length}
+      aria-valuenow={step + 1}
+    >
       <div className="flex h-1.5 gap-1">
         {labels.map((_, i) => (
           <div
@@ -33,14 +39,14 @@ export function ProgressBar({ step, labels }: ProgressBarProps) {
             key={i}
             className={cn(
               "text-xs transition-colors",
-              i === step ?
-                "font-medium text-foreground"
-              : i < step ?
-                "text-muted-foreground"
+              i === step ? "font-medium text-foreground"
+              : i < step ? "text-muted-foreground"
               : "text-muted-foreground/50",
-            i === labels.length - 1 ? "text-right" : i === 0 ? "text-left" : "text-center",
-            i !== 0 && i !== labels.length - 1 && "flex-1",
-          )}
+              i === labels.length - 1 ? "text-right"
+              : i === 0 ? "text-left"
+              : "text-center",
+              i !== 0 && i !== labels.length - 1 && "flex-1",
+            )}
           >
             {label}
           </span>

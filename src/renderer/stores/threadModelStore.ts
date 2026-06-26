@@ -18,7 +18,9 @@ export interface ThreadModelSelection {
 
 interface ThreadModelState {
   map: Record<string, ThreadModelSelection | undefined>;
-  get: (threadId: string | null | undefined) => ThreadModelSelection | undefined;
+  get: (
+    threadId: string | null | undefined,
+  ) => ThreadModelSelection | undefined;
   set: (threadId: string, selection: ThreadModelSelection) => void;
   clear: (threadId: string) => void;
   /** Load the saved override from the DB once per thread (validated server-side). */

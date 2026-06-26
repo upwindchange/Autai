@@ -380,14 +380,14 @@ function StepBodyContent({
   const isTransitioning = transitionDirection !== undefined;
 
   const enterClass =
-    transitionDirection === "forward"
-      ? "motion-safe:slide-in-from-right-4"
-      : "motion-safe:slide-in-from-left-4";
+    transitionDirection === "forward" ?
+      "motion-safe:slide-in-from-right-4"
+    : "motion-safe:slide-in-from-left-4";
 
   const exitClass =
-    transitionDirection === "forward"
-      ? "motion-safe:slide-out-to-left-4"
-      : "motion-safe:slide-out-to-right-4";
+    transitionDirection === "forward" ?
+      "motion-safe:slide-out-to-left-4"
+    : "motion-safe:slide-out-to-right-4";
 
   return (
     <div
@@ -439,7 +439,12 @@ function StepBodyContent({
               selectionMode={selectionMode}
               isFirst={index === 0}
               isLast={index === optionStates.length - 1}
-              tabIndex={isExiting ? -1 : index === activeIndex ? 0 : -1}
+              tabIndex={
+                isExiting ? -1
+                : index === activeIndex ?
+                  0
+                : -1
+              }
               onFocus={() => !isExiting && setActiveIndex(index)}
               buttonRef={(el) => {
                 optionRefs.current[index] = el;
@@ -485,9 +490,8 @@ function StepContent({
     resolvedStepKey,
   );
 
-  const stepLabel = totalSteps
-    ? `Step ${step} of ${totalSteps}`
-    : `Step ${step}`;
+  const stepLabel =
+    totalSteps ? `Step ${step} of ${totalSteps}` : `Step ${step}`;
 
   return (
     <div
@@ -564,7 +568,7 @@ function StepContent({
         )}
 
         <div className="flex items-center justify-between pt-2">
-          {showBack ? (
+          {showBack ?
             <Button
               variant="ghost"
               size="default"
@@ -575,9 +579,7 @@ function StepContent({
               <ChevronLeft className="size-4" />
               Back
             </Button>
-          ) : (
-            <div />
-          )}
+          : <div />}
           <Button
             variant="default"
             size="default"
@@ -657,7 +659,7 @@ function QuestionFlowProgressive({
   const handleNext = useCallback(() => {
     if (selectedIds.size === 0) return;
     const selection = Array.from(selectedIds).map((id) =>
-      id === CUSTOM_OPTION_ID ? (customText.trim() || CUSTOM_OPTION_ID) : id,
+      id === CUSTOM_OPTION_ID ? customText.trim() || CUSTOM_OPTION_ID : id,
     );
     onSelect?.(selection);
   }, [onSelect, selectedIds, customText]);
@@ -753,7 +755,10 @@ function QuestionFlowUpfront({
           } else if (optionId === CUSTOM_OPTION_ID) {
             next = [CUSTOM_OPTION_ID];
           } else {
-            next = [...current.filter((id) => id !== CUSTOM_OPTION_ID), optionId];
+            next = [
+              ...current.filter((id) => id !== CUSTOM_OPTION_ID),
+              optionId,
+            ];
           }
         }
 
@@ -766,12 +771,10 @@ function QuestionFlowUpfront({
   const buildExitingData = useCallback(
     (stepIdx: number): StepBodyData => {
       const stepData = expandedSteps[stepIdx];
-      const stepOptions: QuestionFlowOption[] = stepData.options.map(
-        (opt) => ({
-          ...opt,
-          icon: undefined,
-        }),
-      );
+      const stepOptions: QuestionFlowOption[] = stepData.options.map((opt) => ({
+        ...opt,
+        icon: undefined,
+      }));
       return {
         stepKey: stepData.id,
         title: stepData.title,
@@ -792,7 +795,13 @@ function QuestionFlowUpfront({
       setCurrentStepIndex(prevIndex);
       onStepChange?.(expandedSteps[prevIndex].id);
     }
-  }, [answers, buildExitingData, currentStepIndex, expandedSteps, onStepChange]);
+  }, [
+    answers,
+    buildExitingData,
+    currentStepIndex,
+    expandedSteps,
+    onStepChange,
+  ]);
 
   const handleNext = useCallback(() => {
     if (currentSelection.size === 0) return;
@@ -803,7 +812,7 @@ function QuestionFlowUpfront({
       for (const [stepId, ids] of Object.entries(answers)) {
         resolved[stepId] = ids.map((id) =>
           id === CUSTOM_OPTION_ID ?
-            (customTexts[stepId]?.trim() || CUSTOM_OPTION_ID)
+            customTexts[stepId]?.trim() || CUSTOM_OPTION_ID
           : id,
         );
       }

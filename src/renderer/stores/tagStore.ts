@@ -52,7 +52,10 @@ interface TagState {
   fetchTags: () => Promise<void>;
   createTag: (name: string, color: string) => Promise<TagRow>;
   deleteTag: (id: number) => Promise<void>;
-  updateTag: (id: number, updates: { name?: string; color?: string }) => Promise<void>;
+  updateTag: (
+    id: number,
+    updates: { name?: string; color?: string },
+  ) => Promise<void>;
   setSelectedTagId: (id: number | null) => void;
   setViewMode: (mode: ViewMode) => void;
   setViewingArchive: (viewing: boolean) => void;
@@ -125,7 +128,11 @@ export const useTagStore = create<TagState>()(
     },
 
     createTag: async (name: string, color: string) => {
-      const tag = await apiCreateTag(name, color, useUiStore.getState().appMode);
+      const tag = await apiCreateTag(
+        name,
+        color,
+        useUiStore.getState().appMode,
+      );
       set((state) => ({ tags: [...state.tags, tag] }));
       return tag;
     },
@@ -315,7 +322,10 @@ export const useTagStore = create<TagState>()(
       }
       set({ isSearching: true });
       try {
-        const result = await apiSearchThreads(trimmed, useUiStore.getState().appMode);
+        const result = await apiSearchThreads(
+          trimmed,
+          useUiStore.getState().appMode,
+        );
         const ids = new Set(result.threads.map((t) => t.remoteId));
         set({ searchResultIds: ids, isSearching: false });
       } catch {

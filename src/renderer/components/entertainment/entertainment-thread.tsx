@@ -68,12 +68,12 @@ export const EntertainmentThread: FC = () => {
   }, [mainThreadId, loadChapters]);
 
   const lastChapter = chapters[chapters.length - 1];
-  const current = currentChapterId ?
-    chapters.find((c) => c.id === currentChapterId)
-  : lastChapter;
-  const currentIndex = current ?
-    chapters.findIndex((c) => c.id === current.id)
-  : -1;
+  const current =
+    currentChapterId ?
+      chapters.find((c) => c.id === currentChapterId)
+    : lastChapter;
+  const currentIndex =
+    current ? chapters.findIndex((c) => c.id === current.id) : -1;
   const canGoPrev = currentIndex > 0;
 
   // Lazy-load the current chapter's prose from disk when it hasn't been fetched

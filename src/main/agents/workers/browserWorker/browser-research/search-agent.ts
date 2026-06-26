@@ -75,25 +75,24 @@ const SEARCH_ENGINE_CONFIGS: Record<
   SearchEngineConfig
 > = {
   google: {
-    buildUrl: (q) =>
-      `https://www.google.com/search?q=${encodeURIComponent(q)}`,
+    buildUrl: (q) => `https://www.google.com/search?q=${encodeURIComponent(q)}`,
     displayName: "Google",
     domHint: "Google search result links are anchor (<a>) elements",
-    navElements:
-      "Google's own navigation (Images, Videos, News tabs, etc.)",
+    navElements: "Google's own navigation (Images, Videos, News tabs, etc.)",
   },
   bing: {
-    buildUrl: (q) =>
-      `https://www.bing.com/search?q=${encodeURIComponent(q)}`,
+    buildUrl: (q) => `https://www.bing.com/search?q=${encodeURIComponent(q)}`,
     displayName: "Bing",
-    domHint: "Bing search result links are anchor (<a>) elements, often inside <li> with class 'b_algo'",
+    domHint:
+      "Bing search result links are anchor (<a>) elements, often inside <li> with class 'b_algo'",
     navElements: "Bing's own navigation and sidebar elements",
   },
   bingChina: {
     buildUrl: (q) =>
       `https://www.bing.com/search?q=${encodeURIComponent(q)}&mkt=zh-CN`,
     displayName: "必应 (Bing China)",
-    domHint: "Bing search result links are anchor (<a>) elements, often inside <li> with class 'b_algo'",
+    domHint:
+      "Bing search result links are anchor (<a>) elements, often inside <li> with class 'b_algo'",
     navElements: "Bing's own navigation and sidebar elements",
   },
   duckduckgo: {
@@ -103,25 +102,26 @@ const SEARCH_ENGINE_CONFIGS: Record<
     navElements: "DuckDuckGo's own navigation and ad elements",
   },
   baidu: {
-    buildUrl: (q) =>
-      `https://www.baidu.com/s?wd=${encodeURIComponent(q)}`,
+    buildUrl: (q) => `https://www.baidu.com/s?wd=${encodeURIComponent(q)}`,
     displayName: "百度",
-    domHint: "Baidu search results are in div elements with class 'result' or 'c-container'",
+    domHint:
+      "Baidu search results are in div elements with class 'result' or 'c-container'",
     navElements:
       "Baidu's own navigation, ads (often labeled '广告'), and promoted content",
   },
   sogou: {
-    buildUrl: (q) =>
-      `https://www.sogou.com/web?query=${encodeURIComponent(q)}`,
+    buildUrl: (q) => `https://www.sogou.com/web?query=${encodeURIComponent(q)}`,
     displayName: "搜狗",
-    domHint: "Sogou search results are in div elements with class 'vrwrap' or 'rb'",
+    domHint:
+      "Sogou search results are in div elements with class 'vrwrap' or 'rb'",
     navElements: "Sogou's own navigation, ads, and promoted content",
   },
   brave: {
     buildUrl: (q) =>
       `https://search.brave.com/search?q=${encodeURIComponent(q)}`,
     displayName: "Brave Search",
-    domHint: "Brave Search result links are anchor elements inside divs with class 'snippet'",
+    domHint:
+      "Brave Search result links are anchor elements inside divs with class 'snippet'",
     navElements: "Brave's own navigation and ad elements",
   },
 };

@@ -103,7 +103,9 @@ export const ReaderControlsButton: FC = () => {
           onClick={() => setExpanded((e) => !e)}
           className="size-10 rounded-full shadow-md"
         >
-          {expanded ? <X className="size-5" /> : <Settings2 className="size-5" />}
+          {expanded ?
+            <X className="size-5" />
+          : <Settings2 className="size-5" />}
         </Button>
       )}
     </div>

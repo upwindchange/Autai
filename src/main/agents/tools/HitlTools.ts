@@ -33,7 +33,9 @@ export const requestHumanInterventionTool = tool({
   }),
   execute: async ({ reason }, { toolCallId, experimental_context }) => {
     const hitlService = HitlService.getInstance();
-    const ctx = experimental_context as { abortSignal?: AbortSignal } | undefined;
+    const ctx = experimental_context as
+      | { abortSignal?: AbortSignal }
+      | undefined;
 
     const response = await hitlService.request<{
       completed: boolean;
@@ -81,9 +83,15 @@ export const requestUserInputTool = tool({
   }),
   execute: async ({ question }, { toolCallId, experimental_context }) => {
     const hitlService = HitlService.getInstance();
-    const ctx = experimental_context as { abortSignal?: AbortSignal } | undefined;
+    const ctx = experimental_context as
+      | { abortSignal?: AbortSignal }
+      | undefined;
 
-    const response = await hitlService.request<{ answer: string }>(toolCallId, undefined, ctx?.abortSignal);
+    const response = await hitlService.request<{ answer: string }>(
+      toolCallId,
+      undefined,
+      ctx?.abortSignal,
+    );
 
     return {
       answer: response.answer,
@@ -148,9 +156,14 @@ export const requestOptionListTool = tool({
       .optional()
       .describe("Pre-selected option ID(s)"),
   }),
-  execute: async ({ prompt, options }, { toolCallId, experimental_context }) => {
+  execute: async (
+    { prompt, options },
+    { toolCallId, experimental_context },
+  ) => {
     const hitlService = HitlService.getInstance();
-    const ctx = experimental_context as { abortSignal?: AbortSignal } | undefined;
+    const ctx = experimental_context as
+      | { abortSignal?: AbortSignal }
+      | undefined;
 
     const response = await hitlService.request<{
       selection: string | string[] | null;
@@ -239,7 +252,9 @@ export const requestQuestionFlowTool = tool({
   }),
   execute: async ({ prompt, steps }, { toolCallId, experimental_context }) => {
     const hitlService = HitlService.getInstance();
-    const ctx = experimental_context as { abortSignal?: AbortSignal } | undefined;
+    const ctx = experimental_context as
+      | { abortSignal?: AbortSignal }
+      | undefined;
 
     const response = await hitlService.request<{
       answers: Record<string, string[]>;

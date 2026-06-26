@@ -11,10 +11,7 @@ import { i18n } from "@/i18n";
 import { sendAlert } from "@/utils";
 import { eventBus } from "@/utils/eventBus";
 import { ChatRequestSchema } from "../schemas/apiSchemas";
-import {
-  EntertainmentConfigSchema,
-  type EntertainmentConfig,
-} from "@shared";
+import { EntertainmentConfigSchema, type EntertainmentConfig } from "@shared";
 import { entertainmentChapterRoutes } from "./entertainmentChapterRoutes";
 import log from "electron-log/main";
 
@@ -93,9 +90,9 @@ entertainmentRoutes.post("/", async (c) => {
     const chatProviderId = c.req.header("x-chat-provider-id");
     const chatModelId = c.req.header("x-chat-model-id");
     const chatSelection =
-      chatProviderId && chatModelId
-        ? { providerId: chatProviderId, modelId: chatModelId }
-        : undefined;
+      chatProviderId && chatModelId ?
+        { providerId: chatProviderId, modelId: chatModelId }
+      : undefined;
     const chatLanguageModel = chatModel(chatSelection);
 
     logger.info("Entertainment request received", {
@@ -128,9 +125,10 @@ entertainmentRoutes.post("/", async (c) => {
       const novelLabel =
         novel.type === "internet" ? novel.title : novel.filename;
       const isZh = (i18n.language ?? "en").startsWith("zh");
-      const title = isZh ?
-        `《${novelLabel}》 — ${modeLabel}`
-      : `${novelLabel} — ${modeLabel}`;
+      const title =
+        isZh ?
+          `《${novelLabel}》 — ${modeLabel}`
+        : `${novelLabel} — ${modeLabel}`;
       threadPersistenceService.renameThread(sessionId, title);
 
       // Attach the matching entertainment tag. Seeded at startup; the

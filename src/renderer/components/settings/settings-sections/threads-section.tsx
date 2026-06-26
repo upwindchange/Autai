@@ -194,10 +194,7 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
         <CardContent className="space-y-4">
           {/* Add new tag */}
           <div className="flex items-center gap-2">
-            <ColorPicker
-              color={newTagColor}
-              onChange={setNewTagColor}
-            />
+            <ColorPicker color={newTagColor} onChange={setNewTagColor} />
             <Input
               placeholder={t("tagManagement.newTag.placeholder")}
               value={newTagName}

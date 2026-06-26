@@ -170,14 +170,18 @@ const DocumentAttachmentCard: FC = () => {
         role={filePath ? "button" : undefined}
         tabIndex={filePath ? 0 : undefined}
         onClick={handleReveal}
-        onKeyDown={filePath ? (e) => {
-          if (e.key === "Enter" || e.key === " ") handleReveal();
-        } : undefined}
+        onKeyDown={
+          filePath ?
+            (e) => {
+              if (e.key === "Enter" || e.key === " ") handleReveal();
+            }
+          : undefined
+        }
         className={cn(
           "aui-attachment-file-card group inline-flex items-stretch overflow-hidden rounded-xl border border-border bg-card shadow-sm transition-all",
-          filePath
-            ? "cursor-pointer hover:border-primary/25 hover:shadow-md"
-            : "hover:opacity-75",
+          filePath ?
+            "cursor-pointer hover:border-primary/25 hover:shadow-md"
+          : "hover:opacity-75",
           isComposer && "pr-8",
         )}
       >

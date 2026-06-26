@@ -13,6 +13,7 @@ import {
   createContext,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type FC,
   type ReactNode,
@@ -125,15 +126,18 @@ function ContextDisplayRootBase({
   const totalTokens = tokenState.totalTokens;
   const percent = getUsagePercent(totalTokens, modelContextWindow);
 
+  const contextValue = useMemo(
+    () => ({
+      usage: tokenState.usage,
+      totalTokens,
+      percent,
+      modelContextWindow,
+    }),
+    [tokenState.usage, totalTokens, percent, modelContextWindow],
+  );
+
   return (
-    <ContextDisplayContext.Provider
-      value={{
-        usage: tokenState.usage,
-        totalTokens,
-        percent,
-        modelContextWindow,
-      }}
-    >
+    <ContextDisplayContext.Provider value={contextValue}>
       <Tooltip>{children}</Tooltip>
     </ContextDisplayContext.Provider>
   );
@@ -213,7 +217,7 @@ function ContextDisplayContent({
       sideOffset={8}
       data-slot="context-display-popover"
       className={cn(
-        "[&_span>svg]:hidden! rounded-lg border bg-popover px-3 py-2 text-popover-foreground shadow-md",
+        "bg-popover text-popover-foreground rounded-lg border px-3 py-2 shadow-md [&_span>svg]:hidden!",
         className,
       )}
     >
@@ -335,7 +339,7 @@ function BarVisual() {
 
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
+      <div className="bg-muted h-1.5 w-16 overflow-hidden rounded-full">
         <div
           className={cn(
             "h-full rounded-full transition-all duration-300",
@@ -344,7 +348,7 @@ function BarVisual() {
           style={{ width: `${percent}%` }}
         />
       </div>
-      <span className="text-[10px] text-muted-foreground tabular-nums">
+      <span className="text-muted-foreground text-[10px] tabular-nums">
         {formatTokenCount(totalTokens)} ({Math.round(percent)}%)
       </span>
     </div>
@@ -388,7 +392,7 @@ const ContextDisplayText: FC<PresetProps> = ({
     <ContextDisplayTrigger
       aria-label="Context usage"
       className={cn(
-        "px-2 py-1 font-mono text-muted-foreground text-xs tabular-nums hover:bg-accent hover:text-accent-foreground",
+        "text-muted-foreground hover:bg-accent hover:text-accent-foreground px-2 py-1 font-mono text-xs tabular-nums",
         className,
       )}
     >

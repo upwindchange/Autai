@@ -187,7 +187,10 @@ export const chapters = sqliteTable(
       .default(sql`(datetime('now'))`),
   },
   (t) => [
-    uniqueIndex("chapters_thread_number_unique").on(t.threadId, t.chapterNumber),
+    uniqueIndex("chapters_thread_number_unique").on(
+      t.threadId,
+      t.chapterNumber,
+    ),
     index("chapters_thread_id_idx").on(t.threadId),
   ],
 );

@@ -36,8 +36,22 @@ export const StepNovel: FC<StepNovelProps> = ({
     setPendingFile(file);
     setConfig((prev) =>
       prev.mode === "dehydrate" ?
-        { ...prev, novel: { type: "file", filename: name, ...(fsPath ? { fsPath } : {}) } }
-      : { ...prev, novel: { type: "file", filename: name, ...(fsPath ? { fsPath } : {}) } },
+        {
+          ...prev,
+          novel: {
+            type: "file",
+            filename: name,
+            ...(fsPath ? { fsPath } : {}),
+          },
+        }
+      : {
+          ...prev,
+          novel: {
+            type: "file",
+            filename: name,
+            ...(fsPath ? { fsPath } : {}),
+          },
+        },
     );
   };
 
@@ -90,9 +104,7 @@ export const StepNovel: FC<StepNovelProps> = ({
         >
           <div className="flex items-center gap-2">
             <RadioGroupItem value="file" id="ent-novel-file" />
-            <Label htmlFor="ent-novel-file">
-              {t("novel.file.label")}
-            </Label>
+            <Label htmlFor="ent-novel-file">{t("novel.file.label")}</Label>
           </div>
           <div className="flex items-center gap-2">
             <RadioGroupItem value="internet" id="ent-novel-internet" />
@@ -103,7 +115,7 @@ export const StepNovel: FC<StepNovelProps> = ({
         </RadioGroup>
       )}
 
-      {config.novel.type === "file" ? (
+      {config.novel.type === "file" ?
         <div className="flex flex-col gap-2">
           <Button
             type="button"
@@ -129,8 +141,7 @@ export const StepNovel: FC<StepNovelProps> = ({
             </div>
           )}
         </div>
-      ) : (
-        <>
+      : <>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="ent-novel-title">
               {t("novel.internet.title.label")}
@@ -158,17 +169,13 @@ export const StepNovel: FC<StepNovelProps> = ({
               <Label htmlFor="ent-novel-source">
                 {t("novel.internet.source.label")}
               </Label>
-              <HelpIcon
-                label={t("novel.internet.source.tooltip")}
-              />
+              <HelpIcon label={t("novel.internet.source.tooltip")} />
             </div>
             <Textarea
               id="ent-novel-source"
               value={config.novel.source}
               onChange={(e) => setInternetField("source", e.target.value)}
-              placeholder={t(
-                "novel.internet.source.placeholder",
-              )}
+              placeholder={t("novel.internet.source.placeholder")}
               rows={3}
             />
             <p className="text-xs text-muted-foreground">
@@ -176,7 +183,7 @@ export const StepNovel: FC<StepNovelProps> = ({
             </p>
           </div>
         </>
-      )}
+      }
     </div>
   );
 };

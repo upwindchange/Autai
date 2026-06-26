@@ -38,7 +38,9 @@ export const ChapterNav: FC<ChapterNavProps> = ({
             className="rounded-full"
           >
             <ChevronLeft className="size-4" />
-            <span className="hidden sm:inline">{t("reader.chapter.previous")}</span>
+            <span className="hidden sm:inline">
+              {t("reader.chapter.previous")}
+            </span>
           </Button>
         )}
         <Button

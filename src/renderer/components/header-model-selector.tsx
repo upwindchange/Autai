@@ -54,15 +54,15 @@ export function HeaderModelSelector() {
   const activeModelId =
     selection?.modelId ?? settings.modelAssignments.chat.modelId;
   const effectiveId =
-    activeProviderId && activeModelId
-      ? `${activeProviderId}::${activeModelId}`
-      : null;
+    activeProviderId && activeModelId ?
+      `${activeProviderId}::${activeModelId}`
+    : null;
   // Guard: if the effective model isn't in the list (provider removed), show
   // the default entry so the trigger always renders a known option.
   const value =
-    effectiveId && options.some((o) => o.id === effectiveId)
-      ? effectiveId
-      : USE_DEFAULT_ID;
+    effectiveId && options.some((o) => o.id === effectiveId) ?
+      effectiveId
+    : USE_DEFAULT_ID;
 
   const handleSelect = (compositeId: string) => {
     if (!currentRemoteId) return;

@@ -1,11 +1,13 @@
-import { stepCountIs, streamText, createUIMessageStream, type LanguageModel } from "ai";
+import {
+  stepCountIs,
+  streamText,
+  createUIMessageStream,
+  type LanguageModel,
+} from "ai";
 import { complexModel } from "@agents/providers";
 import { settingsService, SessionTabService } from "@/services";
 import { sendAlert } from "@/utils/messageUtils";
-import {
-  TIMEOUTS,
-  isTimeoutError,
-} from "@agents/utils";
+import { TIMEOUTS, isTimeoutError } from "@agents/utils";
 import log from "electron-log/main";
 import { interactiveTools } from "@agents/tools/InteractiveTools";
 import { navigationTools } from "@agents/tools/TabControlTools";

@@ -44,9 +44,8 @@ export function buildReaderCssVars(settings: ReaderSettings): CSSProperties {
     ["--reader-line-height" as string]: String(settings.lineHeight),
     ["--reader-letter-spacing" as string]: `${settings.letterSpacing}em`,
     ["--reader-paragraph-spacing" as string]: `${settings.paragraphSpacing}em`,
-    ["--reader-indent" as string]: settings.indent
-      ? `${settings.indentAmount}em`
-      : "0",
+    ["--reader-indent" as string]:
+      settings.indent ? `${settings.indentAmount}em` : "0",
     ["--reader-text-align" as string]: settings.textAlign,
     ["--reader-font-weight" as string]: String(settings.fontWeight),
     // Reuses the existing token also consumed by the user meta card + novel text.

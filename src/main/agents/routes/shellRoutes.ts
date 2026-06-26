@@ -16,11 +16,15 @@ shellRoutes.post("/open-external", async (c) => {
   try {
     const parsed = UrlSchema.safeParse(await c.req.json());
     if (!parsed.success) {
-      return c.json({ error: "Invalid url", details: parsed.error.issues }, 400);
+      return c.json(
+        { error: "Invalid url", details: parsed.error.issues },
+        400,
+      );
     }
     const { url } = parsed.data;
     if (url.startsWith("http://") || url.startsWith("https://")) {
-      const tabId = await SessionTabService.getInstance().navigateActiveTabToUrl(url);
+      const tabId =
+        await SessionTabService.getInstance().navigateActiveTabToUrl(url);
       if (tabId) eventBus.emitEvent("splitview:activate", null);
       return c.json({ success: true });
     }
@@ -37,7 +41,10 @@ shellRoutes.post("/open-system-browser", async (c) => {
   try {
     const parsed = UrlSchema.safeParse(await c.req.json());
     if (!parsed.success) {
-      return c.json({ error: "Invalid url", details: parsed.error.issues }, 400);
+      return c.json(
+        { error: "Invalid url", details: parsed.error.issues },
+        400,
+      );
     }
     await shell.openExternal(parsed.data.url);
     return c.json({ success: true });
@@ -52,7 +59,10 @@ shellRoutes.post("/show-in-folder", async (c) => {
   try {
     const parsed = FilePathSchema.safeParse(await c.req.json());
     if (!parsed.success) {
-      return c.json({ error: "Invalid filePath", details: parsed.error.issues }, 400);
+      return c.json(
+        { error: "Invalid filePath", details: parsed.error.issues },
+        400,
+      );
     }
     await shell.showItemInFolder(parsed.data.filePath);
     return c.json({ success: true });

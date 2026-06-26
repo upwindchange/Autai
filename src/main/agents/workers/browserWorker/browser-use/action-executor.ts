@@ -1,4 +1,10 @@
-import { stepCountIs, streamText, tool, createUIMessageStream, type LanguageModel } from "ai";
+import {
+  stepCountIs,
+  streamText,
+  tool,
+  createUIMessageStream,
+  type LanguageModel,
+} from "ai";
 import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import { settingsService } from "@/services";
@@ -168,7 +174,7 @@ function buildSubtaskContext(
       )
       .join("\n");
     context +=
-      "\n\nIMPORTANT: You may detect that a current action has accidentally completed or invalidated an upcoming task. If so, use the \"sideEffects\" field in subtaskComplete to mark it.\n";
+      '\n\nIMPORTANT: You may detect that a current action has accidentally completed or invalidated an upcoming task. If so, use the "sideEffects" field in subtaskComplete to mark it.\n';
   }
 
   return context.trim();
@@ -260,10 +266,7 @@ export async function executeSubtasks(
         }
 
         // Skip tasks already resolved by side effects from a previous subtask
-        if (
-          subtask.status === "completed" ||
-          subtask.status === "cancelled"
-        ) {
+        if (subtask.status === "completed" || subtask.status === "cancelled") {
           logger.debug("Skipping already-resolved task", {
             subtaskId: subtask.id,
             status: subtask.status,
@@ -321,9 +324,7 @@ export async function executeSubtasks(
                 inputSchema: z.object({
                   success: z
                     .boolean()
-                    .describe(
-                      "Whether the current subtask goal was achieved",
-                    ),
+                    .describe("Whether the current subtask goal was achieved"),
                   summary: z
                     .string()
                     .describe(
@@ -427,24 +428,20 @@ export async function executeSubtasks(
             );
           }
 
-          const {
-            success,
-            summary,
-            sideEffects,
-            requestReplan,
-          } = completeResult.output as {
-            success: boolean;
-            summary: string;
-            sideEffects?: Array<{
-              todoId: string;
-              status: "completed" | "cancelled";
-              reason: string;
-            }>;
-            requestReplan?: {
-              reason: string;
-              fromPosition: "current" | "next";
+          const { success, summary, sideEffects, requestReplan } =
+            completeResult.output as {
+              success: boolean;
+              summary: string;
+              sideEffects?: Array<{
+                todoId: string;
+                status: "completed" | "cancelled";
+                reason: string;
+              }>;
+              requestReplan?: {
+                reason: string;
+                fromPosition: "current" | "next";
+              };
             };
-          };
 
           logger.debug("Subtask completed", {
             subtaskId: subtask.id,
@@ -471,9 +468,7 @@ export async function executeSubtasks(
           // ============================================================
           if (sideEffects && sideEffects.length > 0) {
             for (const effect of sideEffects) {
-              const targetTodo = plan.todos.find(
-                (t) => t.id === effect.todoId,
-              );
+              const targetTodo = plan.todos.find((t) => t.id === effect.todoId);
               if (targetTodo && targetTodo.status === "pending") {
                 logger.info("Applying side effect", {
                   sourceTaskId: subtask.id,

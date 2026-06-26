@@ -1,4 +1,10 @@
-import { streamText, stepCountIs, tool, type LanguageModel, type ModelMessage } from "ai";
+import {
+  streamText,
+  stepCountIs,
+  tool,
+  type LanguageModel,
+  type ModelMessage,
+} from "ai";
 import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import {
@@ -36,9 +42,7 @@ const broadQueriesSchema = z.object({
         rationale: z
           .string()
           .min(1)
-          .describe(
-            "Why this query helps understand the overall landscape",
-          ),
+          .describe("Why this query helps understand the overall landscape"),
       }),
     )
     .min(2)

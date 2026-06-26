@@ -11,7 +11,10 @@ import type { ServerEventName, ServerEvents } from "@shared/events";
  * are removed.
  */
 class TypedEventBus extends EventEmitter {
-  emitEvent<K extends ServerEventName>(name: K, payload: ServerEvents[K]): boolean {
+  emitEvent<K extends ServerEventName>(
+    name: K,
+    payload: ServerEvents[K],
+  ): boolean {
     return super.emit(name, payload);
   }
 

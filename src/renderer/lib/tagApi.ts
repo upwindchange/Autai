@@ -134,7 +134,9 @@ export async function searchThreads(
 }> {
   const params = new URLSearchParams({ q: query });
   if (mode) params.set("mode", mode);
-  const res = await fetch(`${getApiBase()}/threads/search?${params.toString()}`);
+  const res = await fetch(
+    `${getApiBase()}/threads/search?${params.toString()}`,
+  );
   return (await res.json()) as {
     threads: {
       remoteId: string;

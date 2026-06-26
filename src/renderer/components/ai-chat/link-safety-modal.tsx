@@ -119,17 +119,16 @@ export function LinkSafetyModal({
             onClick={copyLink}
             type="button"
           >
-            {copied ? (
+            {copied ?
               <>
                 <CheckIcon size={14} />
                 <span>{t("linkSafety.copied")}</span>
               </>
-            ) : (
-              <>
+            : <>
                 <CopyIcon size={14} />
                 <span>{t("linkSafety.copyLink")}</span>
               </>
-            )}
+            }
           </button>
           <button
             className={cn(

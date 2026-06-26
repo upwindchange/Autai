@@ -1,11 +1,11 @@
 "use client";
 
-import type { ComponentProps } from "react";
+import { type ComponentProps, useMemo } from "react";
 import type { SyntaxHighlighterProps } from "@assistant-ui/react-markdown";
 import { cva, type VariantProps } from "class-variance-authority";
 import { diffLines } from "diff";
 import parseDiff from "parse-diff";
-import { useMemo } from "react";
+
 import { cn } from "@/lib/utils";
 
 type DiffLineType = "add" | "del" | "normal";
@@ -147,9 +147,9 @@ const diffViewerVariants = cva(
   {
     variants: {
       variant: {
-        default: "border bg-background",
+        default: "bg-background border",
         ghost: "bg-transparent",
-        muted: "border border-muted-foreground/20 bg-muted",
+        muted: "border-muted-foreground/20 bg-muted border",
       },
       size: {
         sm: "text-xs",
@@ -205,7 +205,7 @@ function DiffViewerFileBadge({ filename }: { filename?: string | undefined }) {
   return (
     <span
       data-slot="diff-viewer-file-badge"
-      className="inline-flex size-5 shrink-0 items-end justify-end rounded-sm border bg-background font-bold text-[8px] leading-none"
+      className="bg-background inline-flex size-5 shrink-0 items-end justify-end rounded-sm border text-[8px] leading-none font-bold"
     >
       <span className="p-0.5">{ext}</span>
     </span>
@@ -270,7 +270,7 @@ function DiffViewerHeader({
     <div
       data-slot="diff-viewer-header"
       className={cn(
-        "flex items-center gap-2 border-b bg-muted px-4 py-2 text-muted-foreground",
+        "bg-muted text-muted-foreground flex items-center gap-2 border-b px-4 py-2",
         className,
       )}
       {...props}
@@ -320,7 +320,7 @@ function DiffViewerLine({
       {showLineNumbers && (
         <span
           data-slot="diff-viewer-line-number"
-          className="w-12 shrink-0 select-none px-2 text-end text-muted-foreground"
+          className="text-muted-foreground w-12 shrink-0 px-2 text-end select-none"
         >
           {line.type === "del" ?
             line.oldLineNumber
@@ -332,7 +332,7 @@ function DiffViewerLine({
       <span
         data-slot="diff-viewer-indicator"
         className={cn(
-          "w-4 shrink-0 select-none text-center",
+          "w-4 shrink-0 text-center select-none",
           diffLineTextVariants({ type: line.type }),
         )}
       >
@@ -341,7 +341,7 @@ function DiffViewerLine({
       <span
         data-slot="diff-viewer-content"
         className={cn(
-          "flex-1 whitespace-pre-wrap break-all",
+          "flex-1 break-all whitespace-pre-wrap",
           diffLineTextVariants({ type: line.type }),
         )}
       >
@@ -379,13 +379,13 @@ function DiffViewerSplitLine({
         )}
       >
         {showLineNumbers && (
-          <span className="w-12 shrink-0 select-none px-2 text-end text-muted-foreground">
+          <span className="text-muted-foreground w-12 shrink-0 px-2 text-end select-none">
             {left?.oldLineNumber ?? ""}
           </span>
         )}
         <span
           className={cn(
-            "w-4 shrink-0 select-none text-center",
+            "w-4 shrink-0 text-center select-none",
             diffLineTextVariants({ type: left?.type ?? "empty" }),
           )}
         >
@@ -397,7 +397,7 @@ function DiffViewerSplitLine({
         </span>
         <span
           className={cn(
-            "flex-1 whitespace-pre-wrap break-all",
+            "flex-1 break-all whitespace-pre-wrap",
             diffLineTextVariants({ type: left?.type ?? "empty" }),
           )}
         >
@@ -413,13 +413,13 @@ function DiffViewerSplitLine({
         )}
       >
         {showLineNumbers && (
-          <span className="w-12 shrink-0 select-none px-2 text-end text-muted-foreground">
+          <span className="text-muted-foreground w-12 shrink-0 px-2 text-end select-none">
             {right?.newLineNumber ?? ""}
           </span>
         )}
         <span
           className={cn(
-            "w-4 shrink-0 select-none text-center",
+            "w-4 shrink-0 text-center select-none",
             diffLineTextVariants({ type: right?.type ?? "empty" }),
           )}
         >
@@ -431,7 +431,7 @@ function DiffViewerSplitLine({
         </span>
         <span
           className={cn(
-            "flex-1 whitespace-pre-wrap break-all",
+            "flex-1 break-all whitespace-pre-wrap",
             diffLineTextVariants({ type: right?.type ?? "empty" }),
           )}
         >
@@ -495,7 +495,7 @@ function DiffViewer({
     return (
       <pre
         data-slot="diff-viewer"
-        className={cn("rounded-lg bg-muted p-4", className)}
+        className={cn("bg-muted rounded-lg p-4", className)}
       >
         No diff content provided
       </pre>

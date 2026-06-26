@@ -131,7 +131,10 @@ class EntertainmentService {
       .get();
   }
 
-  upsertEntertainmentConfig(threadId: string, config: EntertainmentConfig): void {
+  upsertEntertainmentConfig(
+    threadId: string,
+    config: EntertainmentConfig,
+  ): void {
     const db = getDb();
     db.insert(entertainmentConfigs)
       .values({
@@ -170,14 +173,18 @@ class EntertainmentService {
    * chapter content. Called by the chapter route on the first chapter of a
    * thread.
    */
-  setupEntertainmentThread(threadId: string, config: EntertainmentConfig): void {
+  setupEntertainmentThread(
+    threadId: string,
+    config: EntertainmentConfig,
+  ): void {
     const novel = config.novel;
     const modeLabel = i18n.t(`entertainment.${config.mode}`);
     const novelLabel = novel.type === "internet" ? novel.title : novel.filename;
     const isZh = (i18n.language ?? "en").startsWith("zh");
-    const title = isZh ?
-      `《${novelLabel}》 — ${modeLabel}`
-    : `${novelLabel} — ${modeLabel}`;
+    const title =
+      isZh ?
+        `《${novelLabel}》 — ${modeLabel}`
+      : `${novelLabel} — ${modeLabel}`;
     threadPersistenceService.renameThread(threadId, title);
 
     let tag = threadPersistenceService

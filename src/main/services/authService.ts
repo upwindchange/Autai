@@ -209,7 +209,11 @@ class AuthService {
       const parsed = JSON.parse(row.value) as Partial<PasswordRecord>;
       this.password =
         parsed.salt && parsed.iters && parsed.derivedKey ?
-          { salt: parsed.salt, iters: parsed.iters, derivedKey: parsed.derivedKey }
+          {
+            salt: parsed.salt,
+            iters: parsed.iters,
+            derivedKey: parsed.derivedKey,
+          }
         : null;
     } catch {
       logger.warn("auth_password row was malformed; ignoring");
@@ -240,10 +244,7 @@ class AuthService {
 
   private purgeExpiredSessions(): void {
     const now = new Date().toISOString();
-    getDb()
-      .delete(authSessions)
-      .where(lt(authSessions.expiresAt, now))
-      .run();
+    getDb().delete(authSessions).where(lt(authSessions.expiresAt, now)).run();
   }
 
   private gcChallenges(): void {

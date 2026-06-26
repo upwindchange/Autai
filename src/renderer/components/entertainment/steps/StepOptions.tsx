@@ -112,7 +112,9 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
   // onAction is the single source of truth for the reset behavior.
   const onDepthReset = (actionId: string) => {
     if (actionId !== "reset-depth") return;
-    setConfig((prev) => patchSharedOptions(prev, { depth: { ...DEFAULT_DEPTH } }));
+    setConfig((prev) =>
+      patchSharedOptions(prev, { depth: { ...DEFAULT_DEPTH } }),
+    );
   };
 
   const onFrequencyReset = (actionId: string) => {
@@ -153,7 +155,12 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
     : [];
   const freqValues: SliderValue[] =
     config.mode === "interactive" ?
-      [{ id: "interactionFrequency", value: config.options.interactionFrequency }]
+      [
+        {
+          id: "interactionFrequency",
+          value: config.options.interactionFrequency,
+        },
+      ]
     : [];
 
   return (

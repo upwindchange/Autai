@@ -22,11 +22,7 @@ import { CircleHelp, ShieldAlert } from "lucide-react";
 import { useSettings } from "@/components/settings";
 import { useTranslation } from "react-i18next";
 import { getApiBase } from "@/lib/api";
-import {
-  getAuthStatus,
-  setPassword,
-  clearPassword,
-} from "@/lib/authClient";
+import { getAuthStatus, setPassword, clearPassword } from "@/lib/authClient";
 import type { SettingsState, ServerMode } from "@shared";
 
 interface ConnectionSectionProps {
@@ -157,7 +153,9 @@ function AuthSection() {
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="auth-password">{t("connection.auth.password.label")}</Label>
+          <Label htmlFor="auth-password">
+            {t("connection.auth.password.label")}
+          </Label>
           <Input
             id="auth-password"
             type="password"
@@ -190,11 +188,7 @@ function AuthSection() {
             : t("connection.auth.set")}
           </Button>
           {hasPassword && (
-            <Button
-              variant="outline"
-              onClick={handleRemove}
-              disabled={busy}
-            >
+            <Button variant="outline" onClick={handleRemove} disabled={busy}>
               {t("connection.auth.remove")}
             </Button>
           )}
@@ -318,10 +312,14 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
                 />
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5">
-                    <Label htmlFor={`mode-${opt.value}`}>{t(opt.labelKey)}</Label>
+                    <Label htmlFor={`mode-${opt.value}`}>
+                      {t(opt.labelKey)}
+                    </Label>
                     <HelpIcon label={t(opt.tooltipKey)} />
                   </div>
-                  <p className="text-sm text-muted-foreground">{t(opt.descKey)}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {t(opt.descKey)}
+                  </p>
                 </div>
               </div>
             ))}

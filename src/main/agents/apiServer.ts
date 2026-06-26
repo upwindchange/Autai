@@ -93,11 +93,13 @@ export class ApiServer {
     });
   }
 
-  async start(opts: {
-    host?: string;
-    port?: number;
-    staticRoot?: string;
-  } = {}): Promise<number> {
+  async start(
+    opts: {
+      host?: string;
+      port?: number;
+      staticRoot?: string;
+    } = {},
+  ): Promise<number> {
     const host = opts.host ?? "127.0.0.1";
     const port = opts.port ?? 0;
 

@@ -1,10 +1,6 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import type {
-  ChapterFull,
-  ChapterSummary,
-  EntertainmentConfig,
-} from "@shared";
+import type { ChapterFull, ChapterSummary, EntertainmentConfig } from "@shared";
 import { httpClient } from "@/lib/httpClient";
 import { serverEvents } from "@/lib/serverEvents";
 
@@ -48,7 +44,10 @@ interface ChaptersState {
     novelText?: string,
   ) => Promise<void>;
   /** Generate the next chapter (reader "Next" at the latest). */
-  nextChapter: (threadId: string, config?: EntertainmentConfig) => Promise<void>;
+  nextChapter: (
+    threadId: string,
+    config?: EntertainmentConfig,
+  ) => Promise<void>;
   setCurrentChapter: (id: string | null) => void;
 }
 
@@ -96,9 +95,8 @@ export const useChaptersStore = create<ChaptersState>()(
           return {
             currentThreadId: threadId,
             chapters: next,
-            currentChapterId: currentStillPresent ?
-              state.currentChapterId
-            : null,
+            currentChapterId:
+              currentStillPresent ? state.currentChapterId : null,
             loading: false,
           };
         });
@@ -116,9 +114,7 @@ export const useChaptersStore = create<ChaptersState>()(
         );
         set((state) => ({
           chapters: state.chapters.map((c) =>
-            c.id === chapterId ?
-              { ...c, content: chapter.content }
-            : c,
+            c.id === chapterId ? { ...c, content: chapter.content } : c,
           ),
         }));
       } catch {
@@ -132,10 +128,10 @@ export const useChaptersStore = create<ChaptersState>()(
       novelText?: string,
     ) => {
       if (get().chapters.some((c) => c.status === "streaming")) return;
-      await httpClient.postJSON(
-        `/entertainment/threads/${threadId}/chapters`,
-        { config, novelText },
-      );
+      await httpClient.postJSON(`/entertainment/threads/${threadId}/chapters`, {
+        config,
+        novelText,
+      });
       // The worker is fire-and-forget; reload to pick up any rows written before
       // the chapterReady event lands (ingestion may already be done).
       await get().loadChapters(threadId);

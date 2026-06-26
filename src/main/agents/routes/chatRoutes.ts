@@ -39,9 +39,8 @@ chatRoutes.post("/", async (c) => {
 
     // Read MCP server IDs from header
     const mcpServerIdsHeader = c.req.header("x-mcp-servers");
-    const mcpServerIds = mcpServerIdsHeader
-      ? mcpServerIdsHeader.split(",").filter(Boolean)
-      : [];
+    const mcpServerIds =
+      mcpServerIdsHeader ? mcpServerIdsHeader.split(",").filter(Boolean) : [];
 
     const sessionTabService = SessionTabService.getInstance();
     const sessionId =
@@ -52,9 +51,9 @@ chatRoutes.post("/", async (c) => {
     const chatProviderId = c.req.header("x-chat-provider-id");
     const chatModelId = c.req.header("x-chat-model-id");
     const chatSelection =
-      chatProviderId && chatModelId
-        ? { providerId: chatProviderId, modelId: chatModelId }
-        : undefined;
+      chatProviderId && chatModelId ?
+        { providerId: chatProviderId, modelId: chatModelId }
+      : undefined;
     const chatLanguageModel = chatModel(chatSelection);
 
     logger.info("Chat request received", {
@@ -179,9 +178,9 @@ chatRoutes.post("/", async (c) => {
             });
           // Close MCP clients
           for (const client of mcpClients) {
-            await client.close().catch((e) =>
-              logger.warn("MCP client close error:", e),
-            );
+            await client
+              .close()
+              .catch((e) => logger.warn("MCP client close error:", e));
           }
         },
       });

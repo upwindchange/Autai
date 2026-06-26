@@ -169,7 +169,12 @@ function loadBaseModel(from: string): ModelToml | null {
   if (slashIdx < 0) return null;
   const providerDir = from.slice(0, slashIdx);
   const modelRel = from.slice(slashIdx + 1);
-  const baseFile = path.join(basePath, providerDir, "models", `${modelRel}.toml`);
+  const baseFile = path.join(
+    basePath,
+    providerDir,
+    "models",
+    `${modelRel}.toml`,
+  );
   if (!fs.existsSync(baseFile)) return null;
 
   try {

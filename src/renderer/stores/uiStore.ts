@@ -142,8 +142,9 @@ export const useUiStore = create<UiState>()(
     toggleMcpServer: (serverId) =>
       set((state) => {
         const willEnable = !state.enabledMcpServerIds.includes(serverId);
-        const newIds = willEnable
-          ? [...state.enabledMcpServerIds, serverId]
+        const newIds =
+          willEnable ?
+            [...state.enabledMcpServerIds, serverId]
           : state.enabledMcpServerIds.filter((id) => id !== serverId);
         return {
           enabledMcpServerIds: newIds,

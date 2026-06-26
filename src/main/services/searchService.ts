@@ -40,13 +40,19 @@ class SearchService {
         ${mode ? "AND t.mode = ?" : ""}
         ORDER BY t.updated_at DESC
       `);
-      rows = (mode ? stmt.all(trimmed, mode) : stmt.all(trimmed)) as ThreadRow[];
+      rows = (
+        mode ?
+          stmt.all(trimmed, mode)
+        : stmt.all(trimmed)) as ThreadRow[];
     } else {
       // LIKE fallback for short Latin queries (1-2 chars)
       const stmt = sqlite.prepare(
         `SELECT * FROM threads WHERE title LIKE ? ${mode ? "AND mode = ?" : ""} ORDER BY updated_at DESC`,
       );
-      rows = (mode ? stmt.all(`%${trimmed}%`, mode) : stmt.all(`%${trimmed}%`)) as ThreadRow[];
+      rows = (
+        mode ?
+          stmt.all(`%${trimmed}%`, mode)
+        : stmt.all(`%${trimmed}%`)) as ThreadRow[];
     }
 
     return rows.map((thread) => ({

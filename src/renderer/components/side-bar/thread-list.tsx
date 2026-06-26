@@ -360,7 +360,9 @@ const GroupedThreadItem: FC<{
       {selectionIndicator}
       <span className="min-w-0 flex-1 truncate">{thread.title}</span>
       {thread.tags.map((tag) => {
-        const { style: tagStyle, className: tagClass } = getTagChipStyle(tag.color);
+        const { style: tagStyle, className: tagClass } = getTagChipStyle(
+          tag.color,
+        );
         return (
           <span
             key={tag.id}
@@ -582,7 +584,8 @@ const ThreadListItemMore: FC<{ threadRemoteId: string | undefined }> = ({
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
               {availableTags.map((tag) => {
-                const { style: tagStyle, className: tagClass } = getTagChipStyle(tag.color);
+                const { style: tagStyle, className: tagClass } =
+                  getTagChipStyle(tag.color);
                 return (
                   <DropdownMenuItem
                     key={tag.id}

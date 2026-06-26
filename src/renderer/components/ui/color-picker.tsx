@@ -37,9 +37,9 @@ export function ColorPicker({ color, onChange, disabled }: ColorPickerProps) {
               type="button"
               className={cn(
                 "size-6 rounded-md border-2 transition-transform hover:scale-110",
-                color === hex
-                  ? "border-primary ring-2 ring-primary/30"
-                  : "border-transparent",
+                color === hex ?
+                  "border-primary ring-2 ring-primary/30"
+                : "border-transparent",
               )}
               style={{ backgroundColor: hex }}
               onClick={() => onChange(hex)}

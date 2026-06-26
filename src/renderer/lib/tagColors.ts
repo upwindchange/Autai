@@ -59,9 +59,10 @@ export function getContrastTextColor(bgHex: string): string {
  * Returns inline style and className for a tag chip based on its stored color.
  * If color is null/empty (legacy DB data), falls back to muted default style.
  */
-export function getTagChipStyle(
-  color: string | null | undefined,
-): { style: CSSProperties; className: string } {
+export function getTagChipStyle(color: string | null | undefined): {
+  style: CSSProperties;
+  className: string;
+} {
   if (!color) {
     return { style: {}, className: "bg-muted text-muted-foreground" };
   }

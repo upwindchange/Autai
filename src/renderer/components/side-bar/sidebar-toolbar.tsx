@@ -55,10 +55,7 @@ import {
 } from "@/lib/tagApi";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import {
-  getTagChipStyle,
-  getRandomPaletteColor,
-} from "@/lib/tagColors";
+import { getTagChipStyle, getRandomPaletteColor } from "@/lib/tagColors";
 
 // ---------------------------------------------------------------------------
 // Active panel type
@@ -492,7 +489,9 @@ function RenameTagMenuItem({
             if (e.key === "Enter") {
               const trimmed = name.trim();
               if (trimmed && trimmed !== currentName) {
-                await useTagStore.getState().updateTag(tagId, { name: trimmed });
+                await useTagStore
+                  .getState()
+                  .updateTag(tagId, { name: trimmed });
               }
               setIsRenaming(false);
             }

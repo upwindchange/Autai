@@ -2,25 +2,46 @@
 
 import {
   memo,
-  useState,
+  useCallback,
   useEffect,
+  useMemo,
+  useRef,
+  useState,
   createContext,
   useContext,
   type ComponentPropsWithoutRef,
+  type KeyboardEvent,
   type ReactNode,
 } from "react";
-import { Select as SelectPrimitive } from "radix-ui";
-import type { VariantProps } from "class-variance-authority";
-import { CheckIcon } from "lucide-react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { CheckIcon, ChevronDownIcon } from "lucide-react";
 import { useAui } from "@assistant-ui/react";
 import { cn } from "@/lib/utils";
 import {
-  SelectRoot,
-  SelectTrigger,
-  SelectContent,
-  type SelectItem,
-  type selectTriggerVariants,
-} from "@/components/assistant-ui/select";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
+
+export type ModelSelectorEffortOption = {
+  id: string;
+  name: string;
+};
+
+export const DEFAULT_EFFORT_OPTIONS: readonly ModelSelectorEffortOption[] = [
+  { id: "low", name: "Low" },
+  { id: "medium", name: "Medium" },
+  { id: "high", name: "High" },
+];
 
 export type ModelOption = {
   id: string;
@@ -28,11 +49,87 @@ export type ModelOption = {
   description?: string;
   icon?: ReactNode;
   disabled?: boolean;
+  /** Extra terms matched by ModelSelector.Search, in addition to id and name. */
+  keywords?: readonly string[];
+  /**
+   * Reasoning effort levels the model supports. Pass `true` for the default
+   * low/medium/high levels, or a custom list. Omit for models without
+   * configurable reasoning.
+   */
+  efforts?: boolean | readonly ModelSelectorEffortOption[];
 };
 
+function getModelEfforts(
+  model: ModelOption | undefined,
+): readonly ModelSelectorEffortOption[] | undefined {
+  if (!model?.efforts) return undefined;
+  return model.efforts === true ? DEFAULT_EFFORT_OPTIONS : model.efforts;
+}
+
+function resolveEffort(
+  efforts: readonly ModelSelectorEffortOption[] | undefined,
+  effort: string | undefined,
+): string | undefined {
+  if (effort === undefined) return undefined;
+  return efforts?.some((e) => e.id === effort) ? effort : undefined;
+}
+
+/**
+ * Returns the effort id if the given model supports it, otherwise undefined.
+ * Effort selection is kept sticky across model switches; this resolves what
+ * actually applies to the current model.
+ */
+export function resolveModelEffort(
+  models: readonly ModelOption[],
+  modelId: string | undefined,
+  effort: string | undefined,
+): string | undefined {
+  return resolveEffort(
+    getModelEfforts(models.find((m) => m.id === modelId)),
+    effort,
+  );
+}
+
+function useControllableState<T>({
+  prop,
+  defaultProp,
+  onChange,
+}: {
+  prop: T | undefined;
+  defaultProp: T | undefined;
+  onChange: ((next: T) => void) | undefined;
+}) {
+  const [internal, setInternal] = useState(defaultProp);
+  const isControlled = prop !== undefined;
+  const value = isControlled ? prop : internal;
+  // Read onChange through a ref so inline callbacks don't recreate the setter
+  // (and with it the memoized context value) every render.
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
+  const setValue = useCallback(
+    (next: T) => {
+      if (!isControlled) setInternal(next);
+      onChangeRef.current?.(next);
+    },
+    [isControlled],
+  );
+  return [value, setValue] as const;
+}
+
 type ModelSelectorContextValue = {
-  models: ModelOption[];
+  models: readonly ModelOption[];
   value: string | undefined;
+  setValue: (value: string) => void;
+  /** The model matching `value`, derived once for all sub-components. */
+  selectedModel: ModelOption | undefined;
+  /** The selected model's effort levels, undefined when not configurable. */
+  efforts: readonly ModelSelectorEffortOption[] | undefined;
+  /** Effort resolved against the selected model's supported levels. */
+  effort: string | undefined;
+  setEffort: (effort: string) => void;
+  setOpen: (open: boolean) => void;
 };
 
 const ModelSelectorContext = createContext<ModelSelectorContextValue | null>(
@@ -49,41 +146,127 @@ function useModelSelectorContext() {
   return ctx;
 }
 
+/**
+ * The selected model's effort levels and the active selection. Use it to build
+ * a custom effort UI inside ModelSelector.Content (e.g. a slider or a shadcn
+ * DropdownMenu) when the built-in ModelSelector.Effort layout doesn't fit.
+ * `efforts` is undefined for models without configurable reasoning.
+ */
+export function useModelSelectorEfforts(): {
+  efforts: readonly ModelSelectorEffortOption[] | undefined;
+  effort: string | undefined;
+  setEffort: (effort: string) => void;
+} {
+  const { efforts, effort, setEffort } = useModelSelectorContext();
+  return { efforts, effort, setEffort };
+}
+
 export type ModelSelectorRootProps = {
-  models: ModelOption[];
+  models: readonly ModelOption[];
   value?: string;
-  onValueChange?: (value: string) => void;
   defaultValue?: string;
+  onValueChange?: (value: string) => void;
+  effort?: string;
+  defaultEffort?: string;
+  onEffortChange?: (effort: string) => void;
   open?: boolean;
-  onOpenChange?: (open: boolean) => void;
   defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
   children: ReactNode;
 };
 
 function ModelSelectorRoot({
   models,
-  defaultValue: defaultValueProp,
+  value: valueProp,
+  defaultValue,
+  onValueChange,
+  effort: effortProp,
+  defaultEffort,
+  onEffortChange,
+  open: openProp,
+  defaultOpen,
+  onOpenChange,
   children,
-  value,
-  ...selectProps
 }: ModelSelectorRootProps) {
-  const defaultValue = defaultValueProp ?? models[0]?.id;
+  const [value, setValue] = useControllableState({
+    prop: valueProp,
+    defaultProp: defaultValue ?? models[0]?.id,
+    onChange: onValueChange,
+  });
+  const [effort, setEffort] = useControllableState({
+    prop: effortProp,
+    defaultProp: defaultEffort,
+    onChange: onEffortChange,
+  });
+  const [open, setOpen] = useControllableState({
+    prop: openProp,
+    defaultProp: defaultOpen ?? false,
+    onChange: onOpenChange,
+  });
+
+  const selectedModel = models.find((m) => m.id === value);
+  const efforts = getModelEfforts(selectedModel);
+  const activeEffort = resolveEffort(efforts, effort);
+  const contextValue = useMemo(
+    () => ({
+      models,
+      value,
+      setValue,
+      selectedModel,
+      efforts,
+      effort: activeEffort,
+      setEffort,
+      setOpen,
+    }),
+    [
+      models,
+      value,
+      setValue,
+      selectedModel,
+      efforts,
+      activeEffort,
+      setEffort,
+      setOpen,
+    ],
+  );
+
   return (
-    <ModelSelectorContext.Provider value={{ models, value }}>
-      <SelectRoot
-        {...(defaultValue !== undefined ? { defaultValue } : undefined)}
-        {...(value !== undefined ? { value } : undefined)}
-        {...selectProps}
-      >
+    <ModelSelectorContext.Provider value={contextValue}>
+      {/* `?? false` narrows away undefined for exactOptionalPropertyTypes consumers. */}
+      <Popover open={open ?? false} onOpenChange={setOpen}>
         {children}
-      </SelectRoot>
+      </Popover>
     </ModelSelectorContext.Provider>
   );
 }
 
+export const modelSelectorTriggerVariants = cva(
+  "focus-visible:ring-ring/50 flex w-fit items-center justify-between gap-2 overflow-hidden rounded-md text-sm whitespace-nowrap transition-colors outline-none focus-visible:ring-2 disabled:cursor-not-allowed disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  {
+    variants: {
+      variant: {
+        outline:
+          "border-input hover:bg-accent hover:text-accent-foreground border bg-transparent",
+        ghost: "hover:bg-accent hover:text-accent-foreground",
+        muted: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+      },
+      size: {
+        default: "h-9 px-3 py-2",
+        sm: "h-8 px-2.5 py-1.5 text-xs",
+        lg: "h-10 px-4 py-2.5",
+      },
+    },
+    defaultVariants: {
+      variant: "outline",
+      size: "default",
+    },
+  },
+);
+
 export type ModelSelectorTriggerProps = ComponentPropsWithoutRef<
-  typeof SelectTrigger
->;
+  typeof PopoverTrigger
+> &
+  VariantProps<typeof modelSelectorTriggerVariants>;
 
 function ModelSelectorTrigger({
   className,
@@ -93,80 +276,195 @@ function ModelSelectorTrigger({
   ...props
 }: ModelSelectorTriggerProps) {
   return (
-    <SelectTrigger
+    <PopoverTrigger
       data-slot="model-selector-trigger"
-      variant={variant}
-      size={size}
-      className={cn("aui-model-selector-trigger", className)}
+      data-variant={variant ?? "outline"}
+      data-size={size ?? "default"}
+      role="combobox"
+      className={cn(modelSelectorTriggerVariants({ variant, size }), className)}
       {...props}
     >
       {children ?? <ModelSelectorValue />}
-    </SelectTrigger>
+      <ChevronDownIcon className="size-4 opacity-50" />
+    </PopoverTrigger>
   );
 }
 
-/**
- * Renders the selected model display in the trigger.
- *
- * Bypasses Radix Select.Value to avoid the empty-on-SSR issue caused by
- * Select items living inside a Portal (not rendered server-side).
- * Falls back to Select.Value for uncontrolled (defaultValue-only) usage.
- */
-function ModelSelectorValue() {
-  const { models, value } = useModelSelectorContext();
-  const selectedModel =
-    value != null ? models.find((m) => m.id === value) : undefined;
+export type ModelSelectorValueProps = {
+  placeholder?: ReactNode;
+  /** Show the active effort level next to the model name. */
+  showEffort?: boolean;
+  className?: string;
+};
+
+function ModelIcon({ children }: { children: ReactNode }) {
+  return (
+    <span className="flex size-4 shrink-0 items-center justify-center [&_svg]:size-4">
+      {children}
+    </span>
+  );
+}
+
+function ModelSelectorValue({
+  placeholder = "Select model",
+  showEffort = true,
+  className,
+}: ModelSelectorValueProps) {
+  const { selectedModel, efforts, effort } = useModelSelectorContext();
 
   if (!selectedModel) {
-    return <SelectPrimitive.Value />;
+    return (
+      <span
+        data-slot="model-selector-value"
+        className={cn("text-muted-foreground", className)}
+      >
+        {placeholder}
+      </span>
+    );
   }
 
+  const effortName =
+    showEffort && effort !== undefined ?
+      efforts?.find((e) => e.id === effort)?.name
+    : undefined;
+
   return (
-    <span>
-      <span className="flex items-center gap-2">
-        {selectedModel.icon && (
-          <span className="flex size-4 shrink-0 items-center justify-center [&_svg]:size-4">
-            {selectedModel.icon}
-          </span>
-        )}
-        <span className="truncate font-medium">{selectedModel.name}</span>
-      </span>
+    <span
+      data-slot="model-selector-value"
+      className={cn("flex min-w-0 items-center gap-2", className)}
+    >
+      {selectedModel.icon && <ModelIcon>{selectedModel.icon}</ModelIcon>}
+      <span className="truncate font-medium">{selectedModel.name}</span>
+      {effortName && (
+        <span className="text-muted-foreground truncate">{effortName}</span>
+      )}
     </span>
   );
 }
 
 export type ModelSelectorContentProps = ComponentPropsWithoutRef<
-  typeof SelectContent
+  typeof PopoverContent
 >;
 
 function ModelSelectorContent({
   className,
+  align = "start",
+  sideOffset = 6,
   children,
   ...props
 }: ModelSelectorContentProps) {
-  const { models } = useModelSelectorContext();
+  const { value } = useModelSelectorContext();
 
   return (
-    <SelectContent
+    <PopoverContent
       data-slot="model-selector-content"
-      className={cn("min-w-[180px]", className)}
+      align={align}
+      sideOffset={sideOffset}
+      className={cn(
+        "bg-popover/95 w-72 min-w-(--radix-popover-trigger-width) overflow-hidden rounded-xl p-0 shadow-lg backdrop-blur-sm",
+        className,
+      )}
       {...props}
     >
-      {children ??
-        models.map((model) => (
-          <ModelSelectorItem
-            key={model.id}
-            model={model}
-            {...(model.disabled ? { disabled: true } : undefined)}
-          />
-        ))}
-    </SelectContent>
+      {/* Seeding cmdk with the selected id makes it the active item, which
+          cmdk scrolls into view when the popover opens. */}
+      <Command
+        className="bg-transparent"
+        {...(value !== undefined ? { defaultValue: value } : {})}
+      >
+        {children ?? (
+          <>
+            <ModelSelectorList />
+            <ModelSelectorEffort />
+          </>
+        )}
+      </Command>
+    </PopoverContent>
   );
 }
 
+export type ModelSelectorSearchProps = ComponentPropsWithoutRef<
+  typeof CommandInput
+>;
+
+function ModelSelectorSearch({
+  placeholder = "Search models...",
+  ...props
+}: ModelSelectorSearchProps) {
+  return (
+    <CommandInput
+      data-slot="model-selector-search"
+      placeholder={placeholder}
+      {...props}
+    />
+  );
+}
+
+export type ModelSelectorListProps = ComponentPropsWithoutRef<
+  typeof CommandList
+>;
+
+function ModelSelectorList({
+  className,
+  children,
+  ...props
+}: ModelSelectorListProps) {
+  const { models } = useModelSelectorContext();
+
+  return (
+    <CommandList
+      data-slot="model-selector-list"
+      className={cn(
+        "[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        className,
+      )}
+      {...props}
+    >
+      {children ?? (
+        <>
+          <ModelSelectorEmpty />
+          <CommandGroup>
+            {models.map((model) => (
+              <ModelSelectorItem key={model.id} model={model} />
+            ))}
+          </CommandGroup>
+        </>
+      )}
+    </CommandList>
+  );
+}
+
+export type ModelSelectorEmptyProps = ComponentPropsWithoutRef<
+  typeof CommandEmpty
+>;
+
+function ModelSelectorEmpty({ children, ...props }: ModelSelectorEmptyProps) {
+  return (
+    <CommandEmpty data-slot="model-selector-empty" {...props}>
+      {children ?? "No models found."}
+    </CommandEmpty>
+  );
+}
+
+export type ModelSelectorGroupProps = ComponentPropsWithoutRef<
+  typeof CommandGroup
+>;
+
+function ModelSelectorGroup(props: ModelSelectorGroupProps) {
+  return <CommandGroup data-slot="model-selector-group" {...props} />;
+}
+
+export type ModelSelectorSeparatorProps = ComponentPropsWithoutRef<
+  typeof CommandSeparator
+>;
+
+function ModelSelectorSeparator(props: ModelSelectorSeparatorProps) {
+  return <CommandSeparator data-slot="model-selector-separator" {...props} />;
+}
+
 export type ModelSelectorItemProps = Omit<
-  ComponentPropsWithoutRef<typeof SelectItem>,
-  "value" | "children"
+  ComponentPropsWithoutRef<typeof CommandItem>,
+  "value"
 > & {
   model: ModelOption;
 };
@@ -174,86 +472,160 @@ export type ModelSelectorItemProps = Omit<
 function ModelSelectorItem({
   model,
   className,
+  children,
+  onSelect,
   ...props
 }: ModelSelectorItemProps) {
+  const { value, setValue, setOpen } = useModelSelectorContext();
+  const isSelected = value === model.id;
+
   return (
-    <SelectPrimitive.Item
+    <CommandItem
       data-slot="model-selector-item"
       value={model.id}
-      textValue={model.name}
-      className={cn(
-        "relative flex w-full cursor-default select-none items-center gap-2 rounded-lg py-2 ps-3 pe-9 text-sm outline-none",
-        "focus:bg-accent focus:text-accent-foreground",
-        "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
-        className,
-      )}
+      keywords={[model.name, ...(model.keywords ?? [])]}
+      {...(model.disabled ? { disabled: true } : undefined)}
+      onSelect={(selectedValue) => {
+        setValue(model.id);
+        setOpen(false);
+        onSelect?.(selectedValue);
+      }}
+      className={cn("relative gap-2 rounded-lg py-2 ps-3 pe-9", className)}
       {...props}
     >
-      <span className="absolute end-3 flex size-4 items-center justify-center">
-        <SelectPrimitive.ItemIndicator>
+      {children ?? (
+        <>
+          {model.icon && <ModelIcon>{model.icon}</ModelIcon>}
+          <span className="flex min-w-0 flex-col">
+            <span className="truncate font-medium">{model.name}</span>
+            {model.description && (
+              <span className="text-muted-foreground truncate text-xs">
+                {model.description}
+              </span>
+            )}
+          </span>
+        </>
+      )}
+      {isSelected && (
+        <span className="absolute end-3 flex size-4 items-center justify-center">
           <CheckIcon className="size-4" />
-        </SelectPrimitive.ItemIndicator>
-      </span>
-      <SelectPrimitive.ItemText>
-        <span className="flex items-center gap-2">
-          {model.icon && (
-            <span className="flex size-4 shrink-0 items-center justify-center [&_svg]:size-4">
-              {model.icon}
-            </span>
-          )}
-          <span className="truncate font-medium">{model.name}</span>
-        </span>
-      </SelectPrimitive.ItemText>
-      {model.description && (
-        <span className="truncate text-muted-foreground text-xs">
-          {model.description}
         </span>
       )}
-    </SelectPrimitive.Item>
+    </CommandItem>
+  );
+}
+
+export type ModelSelectorEffortProps = ComponentPropsWithoutRef<"div"> & {
+  label?: ReactNode;
+};
+
+function ModelSelectorEffort({
+  label = "Thinking",
+  className,
+  onKeyDown,
+  ...props
+}: ModelSelectorEffortProps) {
+  const { efforts, effort, setEffort } = useModelSelectorEfforts();
+
+  if (!efforts?.length) return null;
+
+  return (
+    <div
+      data-slot="model-selector-effort"
+      className={cn(
+        "flex items-center justify-between gap-3 border-t px-3 py-2",
+        className,
+      )}
+      onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
+        // cmdk's root keydown handler claims Enter to select the highlighted
+        // model; stop it from seeing Enter so the focused toggle activates.
+        if (e.key === "Enter") e.stopPropagation();
+        onKeyDown?.(e);
+      }}
+      {...props}
+    >
+      <span className="text-muted-foreground text-xs">{label}</span>
+      <div
+        role="group"
+        aria-label={typeof label === "string" ? label : "Reasoning effort"}
+        className="flex items-center gap-0.5"
+      >
+        {efforts.map((option) => {
+          const isActive = option.id === effort;
+          return (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={isActive}
+              data-state={isActive ? "on" : "off"}
+              onClick={() => setEffort(option.id)}
+              className={cn(
+                "focus-visible:ring-ring/50 rounded-md px-2 py-1 text-xs transition-colors outline-none focus-visible:ring-2",
+                isActive ?
+                  "bg-accent text-accent-foreground font-medium"
+                : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {option.name}
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
 export type ModelSelectorProps = Omit<ModelSelectorRootProps, "children"> &
-  VariantProps<typeof selectTriggerVariants> & {
+  VariantProps<typeof modelSelectorTriggerVariants> & {
+    /** Render a search input above the model list. */
+    searchable?: boolean;
+    className?: string;
     contentClassName?: string;
   };
 
-const ModelSelectorImpl = ({
-  value: controlledValue,
-  onValueChange: controlledOnValueChange,
-  defaultValue,
-  models,
-  variant,
-  size,
-  contentClassName,
-  ...forwardedProps
-}: ModelSelectorProps) => {
-  const isControlled = controlledValue !== undefined;
-  const [internalValue, setInternalValue] = useState(
-    () => defaultValue ?? models[0]?.id ?? "",
-  );
-
-  const value = isControlled ? controlledValue : internalValue;
-  const onValueChange = controlledOnValueChange ?? setInternalValue;
-
+/** Registers the selection with assistant-ui's ModelContext system. The
+ * context's effort is already resolved against the selected model. */
+function ModelSelectorModelContext() {
+  const { value, effort } = useModelSelectorContext();
   const api = useAui();
 
   useEffect(() => {
-    const config = { config: { modelName: value } };
+    if (value === undefined) return;
+    const config = {
+      config: {
+        modelName: value,
+        ...(effort !== undefined ? { reasoningEffort: effort } : undefined),
+      },
+    };
     return api.modelContext().register({
       getModelContext: () => config,
     });
-  }, [api, value]);
+  }, [api, value, effort]);
 
+  return null;
+}
+
+const ModelSelectorImpl = ({
+  searchable,
+  variant,
+  size,
+  className,
+  contentClassName,
+  ...rootProps
+}: ModelSelectorProps) => {
   return (
-    <ModelSelectorRoot
-      models={models}
-      value={value}
-      onValueChange={onValueChange}
-      {...forwardedProps}
-    >
-      <ModelSelectorTrigger variant={variant} size={size} />
-      <ModelSelectorContent className={contentClassName} />
+    <ModelSelectorRoot {...rootProps}>
+      <ModelSelectorModelContext />
+      <ModelSelectorTrigger
+        variant={variant}
+        size={size}
+        className={className}
+      />
+      <ModelSelectorContent className={contentClassName}>
+        {searchable && <ModelSelectorSearch />}
+        <ModelSelectorList />
+        <ModelSelectorEffort />
+      </ModelSelectorContent>
     </ModelSelectorRoot>
   );
 };
@@ -262,9 +634,15 @@ type ModelSelectorComponent = typeof ModelSelectorImpl & {
   displayName?: string;
   Root: typeof ModelSelectorRoot;
   Trigger: typeof ModelSelectorTrigger;
-  Content: typeof ModelSelectorContent;
-  Item: typeof ModelSelectorItem;
   Value: typeof ModelSelectorValue;
+  Content: typeof ModelSelectorContent;
+  Search: typeof ModelSelectorSearch;
+  List: typeof ModelSelectorList;
+  Empty: typeof ModelSelectorEmpty;
+  Group: typeof ModelSelectorGroup;
+  Separator: typeof ModelSelectorSeparator;
+  Item: typeof ModelSelectorItem;
+  Effort: typeof ModelSelectorEffort;
 };
 
 const ModelSelector = memo(
@@ -274,15 +652,27 @@ const ModelSelector = memo(
 ModelSelector.displayName = "ModelSelector";
 ModelSelector.Root = ModelSelectorRoot;
 ModelSelector.Trigger = ModelSelectorTrigger;
-ModelSelector.Content = ModelSelectorContent;
-ModelSelector.Item = ModelSelectorItem;
 ModelSelector.Value = ModelSelectorValue;
+ModelSelector.Content = ModelSelectorContent;
+ModelSelector.Search = ModelSelectorSearch;
+ModelSelector.List = ModelSelectorList;
+ModelSelector.Empty = ModelSelectorEmpty;
+ModelSelector.Group = ModelSelectorGroup;
+ModelSelector.Separator = ModelSelectorSeparator;
+ModelSelector.Item = ModelSelectorItem;
+ModelSelector.Effort = ModelSelectorEffort;
 
 export {
   ModelSelector,
   ModelSelectorRoot,
   ModelSelectorTrigger,
-  ModelSelectorContent,
-  ModelSelectorItem,
   ModelSelectorValue,
+  ModelSelectorContent,
+  ModelSelectorSearch,
+  ModelSelectorList,
+  ModelSelectorEmpty,
+  ModelSelectorGroup,
+  ModelSelectorSeparator,
+  ModelSelectorItem,
+  ModelSelectorEffort,
 };

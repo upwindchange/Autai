@@ -2,7 +2,11 @@ import { useSidebar } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/toggle";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { HeaderModelSelector } from "@/components/header-model-selector";
 import {
@@ -25,13 +29,17 @@ interface AppHeaderProps {
   title: string;
 }
 
-export const AppHeader: FC<AppHeaderProps> = ({
-  title,
-}) => {
+export const AppHeader: FC<AppHeaderProps> = ({ title }) => {
   const { theme, resolvedTheme, setTheme } = useTheme();
   const { t } = useTranslation("common");
   const { t: tSettings } = useTranslation("settings");
-  const { showSettings, setShowSettings, showSplitView, toggleSplitView, appMode } = useUiStore();
+  const {
+    showSettings,
+    setShowSettings,
+    showSplitView,
+    toggleSplitView,
+    appMode,
+  } = useUiStore();
   const { open, toggleSidebar } = useSidebar();
 
   useEffect(() => {

@@ -191,16 +191,12 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
       <Card>
         <CardHeader>
           <CardTitle>{t("aiAgents.retries.title")}</CardTitle>
-          <CardDescription>
-            {t("aiAgents.retries.description")}
-          </CardDescription>
+          <CardDescription>{t("aiAgents.retries.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
-              <Label htmlFor="max-retries">
-                {t("aiAgents.retries.label")}
-              </Label>
+              <Label htmlFor="max-retries">{t("aiAgents.retries.label")}</Label>
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -309,9 +305,7 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
             {TIMEOUT_FIELDS.map(({ field, labelKey, tooltipKey, unitKey }) => (
               <div key={field} className="space-y-2">
                 <div className="flex items-center gap-1.5">
-                  <Label htmlFor={`timeout-${field}`}>
-                    {t(labelKey)}
-                  </Label>
+                  <Label htmlFor={`timeout-${field}`}>{t(labelKey)}</Label>
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger asChild>
@@ -331,9 +325,7 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
                     max={3600}
                     className="w-32"
                     value={settings.timeouts?.[field] ?? ""}
-                    onChange={(e) =>
-                      handleTimeoutChange(field, e.target.value)
-                    }
+                    onChange={(e) => handleTimeoutChange(field, e.target.value)}
                   />
                   <span className="text-sm text-muted-foreground">
                     {t(unitKey)}

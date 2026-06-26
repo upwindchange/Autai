@@ -104,17 +104,11 @@ export const EntertainmentWizard: FC = () => {
 
       <ProgressBar
         step={step}
-        labels={[
-          t("step.0.title"),
-          t("step.1.title"),
-          t("step.2.title"),
-        ]}
+        labels={[t("step.0.title"), t("step.1.title"), t("step.2.title")]}
       />
 
       <div className="flex flex-col gap-4">
-        {step === 0 && (
-          <StepMode config={config} setConfig={setConfig} />
-        )}
+        {step === 0 && <StepMode config={config} setConfig={setConfig} />}
         {step === 1 && (
           <StepNovel
             config={config}
@@ -144,9 +138,7 @@ export const EntertainmentWizard: FC = () => {
           disabled={!valid || submitted}
           className="self-start"
         >
-          {isLast ?
-            t("nav.start")
-          : t("nav.next")}
+          {isLast ? t("nav.start") : t("nav.next")}
           {!isLast && <ArrowRight className="size-4" />}
         </Button>
       </div>

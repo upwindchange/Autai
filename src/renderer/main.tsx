@@ -47,10 +47,7 @@ import { initApiBase, getApiBase } from "@/lib/api";
 import { httpClient } from "@/lib/httpClient";
 import { isNativeRenderer } from "@/lib/env";
 import { serverEvents } from "@/lib/serverEvents";
-import {
-  getAuthStatus,
-  AUTH_UNAUTHORIZED_EVENT,
-} from "@/lib/authClient";
+import { getAuthStatus, AUTH_UNAUTHORIZED_EVENT } from "@/lib/authClient";
 import { LoginScreen } from "@/components/auth/LoginScreen";
 
 import "./index.css";
@@ -118,11 +115,7 @@ const handleAppMessage = (message: AppMessage) => {
  */
 function AppContent() {
   const { t } = useTranslation("common");
-  const {
-    showSettings,
-    showSplitView,
-    setContainerRef,
-  } = useUiStore();
+  const { showSettings, showSplitView, setContainerRef } = useUiStore();
   const appMode = useUiStore((s) => s.appMode);
   const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
   // Latest mainThreadId readable inside the appMode subscription callback
@@ -289,7 +282,15 @@ function App() {
         transport: new AssistantChatTransport({
           api: `${getApiBase()}/chat`,
           headers: async () => {
-            const { useBrowser, usePlannedBrowser, webSearch, deepResearch, quickSearch, sessionId, enabledMcpServerIds } = useUiStore.getState();
+            const {
+              useBrowser,
+              usePlannedBrowser,
+              webSearch,
+              deepResearch,
+              quickSearch,
+              sessionId,
+              enabledMcpServerIds,
+            } = useUiStore.getState();
             const chatSelection = useThreadModelStore.getState().get(sessionId);
             return {
               "X-Use-Browser": String(useBrowser),
@@ -299,12 +300,12 @@ function App() {
               "X-Quick-Search": String(quickSearch),
               "X-Session-Id": sessionId || "",
               "X-Mcp-Servers": enabledMcpServerIds.join(","),
-              ...(chatSelection?.providerId
-                ? { "X-Chat-Provider-Id": chatSelection.providerId }
-                : {}),
-              ...(chatSelection?.modelId
-                ? { "X-Chat-Model-Id": chatSelection.modelId }
-                : {}),
+              ...(chatSelection?.providerId ?
+                { "X-Chat-Provider-Id": chatSelection.providerId }
+              : {}),
+              ...(chatSelection?.modelId ?
+                { "X-Chat-Model-Id": chatSelection.modelId }
+              : {}),
             };
           },
           // Route entertainment sends to the /entertainment endpoint. The
@@ -328,9 +329,9 @@ function App() {
               headers,
               credentials,
               api:
-                appMode === "entertainment"
-                  ? `${getApiBase()}/entertainment`
-                  : `${getApiBase()}/chat`,
+                appMode === "entertainment" ?
+                  `${getApiBase()}/entertainment`
+                : `${getApiBase()}/chat`,
             };
           },
         }),

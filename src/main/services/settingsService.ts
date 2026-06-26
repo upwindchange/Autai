@@ -107,26 +107,28 @@ class SettingsService {
         10,
       ),
       maxRetries: parseInt(settingsMap.get("max_retries") || "3", 10),
-      searchEngine:
-        settingsMap.get("search_engine") || defaults.searchEngine,
-      customSearchEngine: settingsMap.get("custom_search_engine")
-        ? JSON.parse(settingsMap.get("custom_search_engine")!)
+      searchEngine: settingsMap.get("search_engine") || defaults.searchEngine,
+      customSearchEngine:
+        settingsMap.get("custom_search_engine") ?
+          JSON.parse(settingsMap.get("custom_search_engine")!)
         : undefined,
-      timeouts: settingsMap.get("timeouts")
-        ? JSON.parse(settingsMap.get("timeouts")!)
+      timeouts:
+        settingsMap.get("timeouts") ?
+          JSON.parse(settingsMap.get("timeouts")!)
         : defaults.timeouts,
       serverMode:
         settingsMap.get("server_mode") === "remote" ? "remote" : "standalone",
       serverHost: settingsMap.get("server_host") || defaults.serverHost,
       serverPort:
-        parseInt(settingsMap.get("server_port") || String(defaults.serverPort), 10) ||
-        defaults.serverPort,
-      sessionExpires: settingsMap.get("session_expires") !== "false",
-      sessionTtlDays:
         parseInt(
-          settingsMap.get("session_ttl_days") || String(defaults.sessionTtlDays),
+          settingsMap.get("server_port") || String(defaults.serverPort),
           10,
-        ),
+        ) || defaults.serverPort,
+      sessionExpires: settingsMap.get("session_expires") !== "false",
+      sessionTtlDays: parseInt(
+        settingsMap.get("session_ttl_days") || String(defaults.sessionTtlDays),
+        10,
+      ),
     });
   }
 
@@ -176,15 +178,13 @@ class SettingsService {
         ["search_engine", settingsState.searchEngine || "google"],
         [
           "custom_search_engine",
-          settingsState.customSearchEngine
-            ? JSON.stringify(settingsState.customSearchEngine)
-            : "",
+          settingsState.customSearchEngine ?
+            JSON.stringify(settingsState.customSearchEngine)
+          : "",
         ],
         [
           "timeouts",
-          settingsState.timeouts
-            ? JSON.stringify(settingsState.timeouts)
-            : "",
+          settingsState.timeouts ? JSON.stringify(settingsState.timeouts) : "",
         ],
         ["server_mode", settingsState.serverMode],
         ["server_host", settingsState.serverHost || ""],

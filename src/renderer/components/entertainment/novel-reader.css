@@ -18,7 +18,10 @@
 .ent-novel-reader {
   max-width: var(--reading-max-width, 42rem);
   margin-inline: auto;
-  font-family: var(--reader-font-family, inherit); /* hook for deferred font picker */
+  font-family: var(
+    --reader-font-family,
+    inherit
+  ); /* hook for deferred font picker */
   font-size: var(--reader-font-size, 1.0625rem); /* 17px default */
   line-height: var(--reader-line-height, 1.9); /* generous for CJK reading */
   letter-spacing: var(--reader-letter-spacing, 0);

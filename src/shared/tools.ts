@@ -10,7 +10,10 @@ export const presentSourcesToolSchema = z.object({
     .array(
       z.object({
         url: z.string().describe("Source URL"),
-        title: z.string().optional().describe("Display title (defaults to domain)"),
+        title: z
+          .string()
+          .optional()
+          .describe("Display title (defaults to domain)"),
       }),
     )
     .min(1)

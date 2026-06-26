@@ -31,7 +31,10 @@ appRoutes.post("/theme", async (c) => {
   try {
     const parsed = ThemeSchema.safeParse(await c.req.json());
     if (!parsed.success) {
-      return c.json({ error: "Invalid theme", details: parsed.error.issues }, 400);
+      return c.json(
+        { error: "Invalid theme", details: parsed.error.issues },
+        400,
+      );
     }
     nativeTheme.themeSource = parsed.data.theme;
     return c.json({ success: true });

@@ -113,8 +113,9 @@ export function McpServersSection() {
       url?: string;
       headers?: Record<string, string>;
     };
-    const headerLines = config.headers
-      ? Object.entries(config.headers)
+    const headerLines =
+      config.headers ?
+        Object.entries(config.headers)
           .map(([k, v]) => `${k}: ${v}`)
           .join("\n")
       : "";
@@ -248,12 +249,11 @@ export function McpServersSection() {
           </div>
         </CardHeader>
         <CardContent>
-          {servers.length === 0 ? (
+          {servers.length === 0 ?
             <p className="text-muted-foreground text-sm py-4">
               {t("serverList.empty")}
             </p>
-          ) : (
-            <div className="space-y-4">
+          : <div className="space-y-4">
               {servers.map((server) => {
                 const testResult = testResults[server.id];
                 const isTesting = testingId === server.id;
@@ -319,11 +319,9 @@ export function McpServersSection() {
                         disabled={isTesting}
                         className="gap-1"
                       >
-                        {isTesting ? (
+                        {isTesting ?
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Wifi className="h-3.5 w-3.5" />
-                        )}
+                        : <Wifi className="h-3.5 w-3.5" />}
                         {isTesting ? t("test.testing") : t("test.button")}
                       </Button>
                       <Button
@@ -349,9 +347,7 @@ export function McpServersSection() {
                           handleToggle(server.id, checked)
                         }
                         aria-label={
-                          isEnabled
-                            ? t("enabled.label")
-                            : t("disabled.label")
+                          isEnabled ? t("enabled.label") : t("disabled.label")
                         }
                       />
                     </div>
@@ -359,7 +355,7 @@ export function McpServersSection() {
                 );
               })}
             </div>
-          )}
+          }
         </CardContent>
       </Card>
 
@@ -371,9 +367,9 @@ export function McpServersSection() {
               {editingServer ? t("edit.button") : t("serverList.add")}
             </DialogTitle>
             <DialogDescription>
-              {editingServer
-                ? t("form.description.placeholder")
-                : t("serverList.description")}
+              {editingServer ?
+                t("form.description.placeholder")
+              : t("serverList.description")}
             </DialogDescription>
           </DialogHeader>
 
@@ -470,7 +466,10 @@ export function McpServersSection() {
             >
               {t("cancel.button")}
             </Button>
-            <Button onClick={handleSave} disabled={saving || !form.name || !form.url}>
+            <Button
+              onClick={handleSave}
+              disabled={saving || !form.name || !form.url}
+            >
               {saving ? t("common:btn.loading") : t("save.button")}
             </Button>
           </DialogFooter>

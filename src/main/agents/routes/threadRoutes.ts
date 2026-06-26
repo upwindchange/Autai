@@ -21,7 +21,8 @@ export const threadRoutes = new Hono();
 // Returns regular + archived of that mode; the client filters by status.
 threadRoutes.get("/", (c) => {
   try {
-    const mode = (c.req.query("mode") as "chat" | "entertainment" | undefined) ?? "chat";
+    const mode =
+      (c.req.query("mode") as "chat" | "entertainment" | undefined) ?? "chat";
     const threads = threadPersistenceService.listThreadsByMode(mode);
     return c.json({
       threads: threads.map((t) => ({
@@ -197,7 +198,10 @@ threadRoutes.patch("/:id", async (c) => {
       threadPersistenceService.unarchiveThread(id);
     }
     if (parsed.data.chatOverride !== undefined) {
-      threadPersistenceService.setThreadChatOverride(id, parsed.data.chatOverride);
+      threadPersistenceService.setThreadChatOverride(
+        id,
+        parsed.data.chatOverride,
+      );
     }
     // Refresh the thread list unless this was a chatOverride-only change. The
     // per-thread model override isn't shown in the list and the header picker

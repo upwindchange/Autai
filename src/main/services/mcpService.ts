@@ -44,11 +44,7 @@ class McpService {
 
   getServer(id: string): McpServerRow | undefined {
     const db = getDb();
-    return db
-      .select()
-      .from(mcpServers)
-      .where(eq(mcpServers.id, id))
-      .get();
+    return db.select().from(mcpServers).where(eq(mcpServers.id, id)).get();
   }
 
   addServer(config: McpServerConfig): McpServerRow {
@@ -80,12 +76,10 @@ class McpService {
       values.transportType = config.transportType;
     if (config.connectionConfig !== undefined)
       values.connectionConfig = JSON.stringify(config.connectionConfig);
-    if (config.enabled !== undefined) values.enabled = config.enabled ? "true" : "false";
+    if (config.enabled !== undefined)
+      values.enabled = config.enabled ? "true" : "false";
 
-    db.update(mcpServers)
-      .set(values)
-      .where(eq(mcpServers.id, id))
-      .run();
+    db.update(mcpServers).set(values).where(eq(mcpServers.id, id)).run();
     this.logger.info("Updated MCP server", { id });
     return this.getServer(id)!;
   }
@@ -102,9 +96,7 @@ class McpService {
 
   // --- Client lifecycle and tool discovery ---
 
-  async connectAndDiscoverTools(
-    serverIds: string[],
-  ): Promise<McpToolsResult> {
+  async connectAndDiscoverTools(serverIds: string[]): Promise<McpToolsResult> {
     const allTools: Record<string, Tool> = {};
     const clients: MCPClient[] = [];
 
@@ -157,8 +149,7 @@ class McpService {
       );
       return { success: true, toolCount: toolNames.length, toolNames };
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
       this.logger.error(`Test connection to "${server.name}" failed:`, error);
       return { success: false, error: message };
     } finally {

@@ -40,7 +40,8 @@ export class ChatWorker {
       hasSystem: !!system,
       sessionId: sessionId,
       hasTools: !!tools,
-      toolCount: tools ? Object.keys(tools as Record<string, unknown>).length : 0,
+      toolCount:
+        tools ? Object.keys(tools as Record<string, unknown>).length : 0,
       mcpServerIds: mcpServerIds?.length ?? 0,
     });
 
@@ -52,7 +53,8 @@ export class ChatWorker {
 
       // Load MCP tools if server IDs provided
       if (mcpServerIds && mcpServerIds.length > 0) {
-        const mcpResult = await mcpService.connectAndDiscoverTools(mcpServerIds);
+        const mcpResult =
+          await mcpService.connectAndDiscoverTools(mcpServerIds);
         mergedTools = { ...mergedTools, ...mcpResult.tools };
         mcpClients = mcpResult.clients;
         this.logger.info("Loaded MCP tools", {

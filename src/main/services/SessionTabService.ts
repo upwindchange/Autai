@@ -242,12 +242,15 @@ export class SessionTabService extends EventEmitter {
       setupDOMBuilding();
     } else {
       // Load localized welcome page as default content
-      const resourcesBase = import.meta.env.DEV
-        ? path.join(process.env.APP_ROOT!, "resources")
+      const resourcesBase =
+        import.meta.env.DEV ?
+          path.join(process.env.APP_ROOT!, "resources")
         : path.join(process.resourcesPath, "resources");
       const welcomePath = path.join(resourcesBase, "welcome.html");
       let html = fs.readFileSync(welcomePath, "utf-8");
-      html = html.replace(/\{\{([^}]+)\}\}/g, (_, key) => i18n.t(`welcome.${key}`));
+      html = html.replace(/\{\{([^}]+)\}\}/g, (_, key) =>
+        i18n.t(`welcome.${key}`),
+      );
       const dataUrl = `data:text/html,${encodeURIComponent(html)}`;
       this.logger.debug("Loading welcome page to initialize DOM");
       await tab.webContents.loadURL(dataUrl);
@@ -432,9 +435,7 @@ export class SessionTabService extends EventEmitter {
 
       // Show the active tab now that we have real bounds
       if (this.activeSessionId) {
-        const activeTabId = this.getActiveTabForSession(
-          this.activeSessionId,
-        );
+        const activeTabId = this.getActiveTabForSession(this.activeSessionId);
         if (activeTabId) {
           await this.updateTabVisibility(activeTabId);
         }
@@ -445,9 +446,7 @@ export class SessionTabService extends EventEmitter {
 
       // Hide the active tab
       if (this.activeSessionId) {
-        const activeTabId = this.getActiveTabForSession(
-          this.activeSessionId,
-        );
+        const activeTabId = this.getActiveTabForSession(this.activeSessionId);
         if (activeTabId) {
           await this.updateTabVisibility(activeTabId);
         }

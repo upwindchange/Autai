@@ -225,9 +225,7 @@ export async function browserDeepResearchWorker(
             let hitlAnswer: string | null = null;
 
             if (preResearchResult.summaryText.length > 0) {
-              logger.debug(
-                "Stage 0.5: Evaluating if clarification is needed",
-              );
+              logger.debug("Stage 0.5: Evaluating if clarification is needed");
 
               // Abort guard: skip HITL if already cancelled
               if (signal?.aborted) {
@@ -239,8 +237,7 @@ export async function browserDeepResearchWorker(
               const userText = messages
                 .filter((m) => m.role === "user")
                 .map((m) =>
-                  typeof m.content === "string" ?
-                    m.content
+                  typeof m.content === "string" ? m.content
                   : Array.isArray(m.content) ?
                     m.content
                       .filter(
@@ -356,7 +353,9 @@ export async function browserDeepResearchWorker(
             );
 
             if (!deepPlan) {
-              logger.error("Failed to generate deep research plan after retries");
+              logger.error(
+                "Failed to generate deep research plan after retries",
+              );
               throw new Error(
                 "Failed to generate deep research plan: showDeepResearchPlan tool not called after retries",
               );

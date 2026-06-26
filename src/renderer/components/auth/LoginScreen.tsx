@@ -72,7 +72,11 @@ export function LoginScreen({ onSuccess }: LoginScreenProps) {
                 <span>{error}</span>
               </div>
             )}
-            <Button type="submit" className="w-full" disabled={busy || !password}>
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={busy || !password}
+            >
               {busy ? t("login.submitting") : t("login.submit")}
             </Button>
           </form>

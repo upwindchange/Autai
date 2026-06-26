@@ -24,7 +24,9 @@ sessionRoutes.post("/activate", async (c) => {
     if (!parsed.success) {
       return c.json({ error: "Invalid sessionId" }, 400);
     }
-    await SessionTabService.getInstance().activateSession(parsed.data.sessionId);
+    await SessionTabService.getInstance().activateSession(
+      parsed.data.sessionId,
+    );
     return c.json({ success: true });
   } catch (error) {
     logger.error("Error activating session:", error);

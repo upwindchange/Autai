@@ -168,11 +168,7 @@ export function parseChapters(rawText: string): ParsedChapter[] {
   for (const m of deduped) {
     const num = toChapterNumber(m.numberText);
     if (num !== null && num > MAX_PLAUSIBLE_CHAPTER) continue;
-    if (
-      num !== null &&
-      lastAcceptedNum !== null &&
-      num < lastAcceptedNum - 1
-    ) {
+    if (num !== null && lastAcceptedNum !== null && num < lastAcceptedNum - 1) {
       continue;
     }
     accepted.push(m);

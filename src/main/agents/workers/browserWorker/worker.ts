@@ -60,6 +60,8 @@ export async function BrowserWorker(
       signal,
     );
   } else {
-    throw new Error("Either useBrowser, webSearch, deepResearch, or quickSearch must be true");
+    throw new Error(
+      "Either useBrowser, webSearch, deepResearch, or quickSearch must be true",
+    );
   }
 }

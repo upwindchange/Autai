@@ -197,10 +197,7 @@ export const hitlToolkit: Toolkit = {
         });
 
         return (
-          <QuestionFlow
-            id={id}
-            choice={{ title: args.prompt, summary }}
-          />
+          <QuestionFlow id={id} choice={{ title: args.prompt, summary }} />
         );
       }
 

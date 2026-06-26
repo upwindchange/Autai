@@ -119,9 +119,10 @@ function createModel(role: ModelRole): LanguageModel {
  * construction failure on the explicit selection falls back to the global
  * default so a stale pick never hard-blocks the chat.
  */
-export function chatModel(
-  selection?: { providerId: string; modelId: string },
-): LanguageModel {
+export function chatModel(selection?: {
+  providerId: string;
+  modelId: string;
+}): LanguageModel {
   if (selection && selection.providerId && selection.modelId) {
     try {
       return resolveSelection(selection);

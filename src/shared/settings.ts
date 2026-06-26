@@ -168,9 +168,18 @@ export const SettingsStateSchema = z
     timeouts: TimeoutsConfigSchema.default(DEFAULT_SETTINGS.timeouts),
     serverMode: ServerModeSchema.default(DEFAULT_SETTINGS.serverMode),
     serverHost: z.string().default(DEFAULT_SETTINGS.serverHost),
-    serverPort: z.number().int().min(1).max(65535).default(DEFAULT_SETTINGS.serverPort),
+    serverPort: z
+      .number()
+      .int()
+      .min(1)
+      .max(65535)
+      .default(DEFAULT_SETTINGS.serverPort),
     sessionExpires: z.boolean().default(DEFAULT_SETTINGS.sessionExpires),
-    sessionTtlDays: z.number().int().min(1).default(DEFAULT_SETTINGS.sessionTtlDays),
+    sessionTtlDays: z
+      .number()
+      .int()
+      .min(1)
+      .default(DEFAULT_SETTINGS.sessionTtlDays),
   })
   .default(DEFAULT_SETTINGS);
 

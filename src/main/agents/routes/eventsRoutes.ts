@@ -37,7 +37,8 @@ eventsRoutes.get("/", (c) => {
       void send("threads:metadataUpdated", p);
     const onSugg = (p: ServerEvents["threads:suggestionsUpdated"]) =>
       void send("threads:suggestionsUpdated", p);
-    const onMsg = (p: ServerEvents["app:message"]) => void send("app:message", p);
+    const onMsg = (p: ServerEvents["app:message"]) =>
+      void send("app:message", p);
     const onSplit = () => void send("splitview:activate", null);
     const onListChanged = () => void send("threads:listChanged", null);
     const onChapterReady = (p: ServerEvents["entertainment:chapterReady"]) =>

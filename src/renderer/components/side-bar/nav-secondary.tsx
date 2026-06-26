@@ -31,13 +31,13 @@ export function NavSecondary({
               variant="ghost"
               size="sm"
               className="w-full justify-start gap-2"
-              onClick={() => setAppMode(isEntertainment ? "chat" : "entertainment")}
+              onClick={() =>
+                setAppMode(isEntertainment ? "chat" : "entertainment")
+              }
             >
-              {isEntertainment ? (
+              {isEntertainment ?
                 <MessageSquare className="size-4" />
-              ) : (
-                <Film className="size-4" />
-              )}
+              : <Film className="size-4" />}
               {isEntertainment ? "Back to Chat" : "Entertainment"}
             </Button>
           </SidebarMenuItem>

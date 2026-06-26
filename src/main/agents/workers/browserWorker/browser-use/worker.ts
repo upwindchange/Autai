@@ -12,7 +12,11 @@ import { sendAlert } from "@/utils/messageUtils";
 import { flushTelemetry } from "@/agents/utils/telemetry";
 import log from "electron-log/main";
 import { observe } from "@langfuse/tracing";
-import { browserUsePlanner, browserUseReplanner, type UIPlanType } from "./planner";
+import {
+  browserUsePlanner,
+  browserUseReplanner,
+  type UIPlanType,
+} from "./planner";
 import { executeSubtasks, type ExecutionOutcome } from "./action-executor";
 import { executeSimpleBrowserTask } from "./simple-executor";
 import {
@@ -43,7 +47,12 @@ export async function browserUseWorker(
 
   // Simple mode: direct execution, no planner
   if (!options?.planned) {
-    const simpleStream = await executeSimpleBrowserTask(messages, sessionId, chatLanguageModel, signal);
+    const simpleStream = await executeSimpleBrowserTask(
+      messages,
+      sessionId,
+      chatLanguageModel,
+      signal,
+    );
     return createUIMessageStream({
       originalMessages,
       onFinish:
@@ -112,8 +121,9 @@ export async function browserUseWorker(
             });
 
             logger.info("Waiting for plan approval", { planId: plan.id });
-            const abortOnCancel = signal
-              ? new Promise<never>((_, reject) => {
+            const abortOnCancel =
+              signal ?
+                new Promise<never>((_, reject) => {
                   signal.addEventListener(
                     "abort",
                     () => reject(new DOMException("Aborted", "AbortError")),
@@ -121,18 +131,18 @@ export async function browserUseWorker(
                   );
                 })
               : null;
-            const approvalDecision = await (abortOnCancel
-              ? Promise.race([
-                  HitlService.getInstance().request<"approved" | "rejected">(
-                    plan.id,
-                    undefined,
-                    signal,
-                  ),
-                  abortOnCancel,
-                ])
-              : HitlService.getInstance().request<"approved" | "rejected">(
+            const approvalDecision = await (abortOnCancel ?
+              Promise.race([
+                HitlService.getInstance().request<"approved" | "rejected">(
                   plan.id,
-                ));
+                  undefined,
+                  signal,
+                ),
+                abortOnCancel,
+              ])
+            : HitlService.getInstance().request<"approved" | "rejected">(
+                plan.id,
+              ));
 
             if (approvalDecision === "rejected") {
               logger.info("Plan rejected by user", { planId: plan.id });
@@ -175,7 +185,10 @@ export async function browserUseWorker(
               typeof lastUserMessage.content === "string" ?
                 lastUserMessage.content
               : lastUserMessage.content
-                  .filter((p): p is { type: "text"; text: string } => p.type === "text")
+                  .filter(
+                    (p): p is { type: "text"; text: string } =>
+                      p.type === "text",
+                  )
                   .map((p) => p.text)
                   .join("\n");
 
@@ -227,11 +240,7 @@ export async function browserUseWorker(
                 });
                 const startIndex =
                   failedTodoIndex >= 0 ? failedTodoIndex + 1 : 0;
-                for (
-                  let i = startIndex;
-                  i < currentPlan.todos.length;
-                  i++
-                ) {
+                for (let i = startIndex; i < currentPlan.todos.length; i++) {
                   if (currentPlan.todos[i].status === "pending") {
                     currentPlan.todos[i].status = "cancelled";
                   }

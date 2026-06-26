@@ -19,7 +19,8 @@ export const authRoutes = new Hono();
 // GET /auth/status — lets the UI decide whether to render the login screen.
 authRoutes.get("/status", (c) => {
   const authRequired =
-    settingsService.settings.serverMode === "remote" && authService.hasPassword();
+    settingsService.settings.serverMode === "remote" &&
+    authService.hasPassword();
   const authenticated =
     isLocalOwner(c) ||
     (authService.hasPassword() &&

@@ -14,38 +14,34 @@ const extractDomain = (url: string): string => {
   }
 };
 
-const getDomainInitial = (url: string): string => {
-  const domain = extractDomain(url);
-  return domain.charAt(0).toUpperCase();
-};
+const defaultFaviconUrl = (domain: string) =>
+  `https://icons.duckduckgo.com/ip3/${domain}.ico`;
 
 function SourceIcon({
   url,
   className,
+  faviconUrl = defaultFaviconUrl,
   ...props
-}: ComponentProps<"span"> & { url: string }) {
-  const [hasError, setHasError] = useState(false);
+}: ComponentProps<"span"> & {
+  url: string;
+  faviconUrl?: (domain: string) => string;
+}) {
   const domain = extractDomain(url);
-
-  let faviconSrc: string;
-  try {
-    const { origin } = new URL(url);
-    faviconSrc = `${origin}/favicon.ico`;
-  } catch {
-    faviconSrc = `https://www.google.com/s2/favicons?domain=${domain}&sz=32`;
-  }
+  const src = faviconUrl(domain);
+  const [errorSrc, setErrorSrc] = useState<string | undefined>(undefined);
+  const hasError = errorSrc === src;
 
   if (hasError) {
     return (
       <span
         data-slot="source-icon-fallback"
         className={cn(
-          "flex size-3 shrink-0 items-center justify-center rounded-sm bg-muted font-medium text-[10px]",
+          "bg-muted flex size-3 shrink-0 items-center justify-center rounded-sm text-[10px] font-medium",
           className,
         )}
         {...props}
       >
-        {getDomainInitial(url)}
+        {domain.charAt(0).toUpperCase() || "?"}
       </span>
     );
   }
@@ -53,10 +49,10 @@ function SourceIcon({
   return (
     <img
       data-slot="source-icon"
-      src={faviconSrc}
+      src={src}
       alt=""
       className={cn("size-3 shrink-0 rounded-sm", className)}
-      onError={() => setHasError(true)}
+      onError={() => setErrorSrc(src)}
       {...(props as ComponentProps<"img">)}
     />
   );
@@ -77,7 +73,7 @@ function DocumentSourceIcon({ className, ...props }: ComponentProps<"span">) {
     <span
       data-slot="source-document-icon"
       className={cn(
-        "flex size-3 shrink-0 items-center justify-center text-muted-foreground",
+        "text-muted-foreground flex size-3 shrink-0 items-center justify-center",
         className,
       )}
       {...props}
@@ -107,7 +103,7 @@ function Source({
       variant={variant}
       size={size}
       className={cn(
-        "cursor-pointer outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        "focus-visible:border-ring focus-visible:ring-ring/50 cursor-pointer outline-none focus-visible:ring-[3px]",
         className,
       )}
     >
@@ -138,7 +134,7 @@ const SourcesImpl: SourceMessagePartComponent = (part) => {
     return (
       <Badge
         variant="secondary"
-        className="outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="focus-visible:border-ring focus-visible:ring-ring/50 outline-none focus-visible:ring-[3px]"
       >
         <span data-slot="source" className="inline-flex items-center gap-1.5">
           <DocumentSourceIcon />
@@ -168,5 +164,4 @@ export {
   SourceIcon,
   SourceTitle,
   badgeVariants as sourceVariants,
-  extractDomain,
 };
