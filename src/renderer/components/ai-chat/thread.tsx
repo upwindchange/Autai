@@ -20,6 +20,7 @@ import {
   ActionBarMorePrimitive,
   ActionBarPrimitive,
   AuiIf,
+  type AssistantState,
   BranchPickerPrimitive,
   ComposerPrimitive,
   ErrorPrimitive,
@@ -64,6 +65,13 @@ import { useUiStore } from "@/stores/uiStore";
 import { isNativeRenderer } from "@/lib/env";
 import { ComposerAction } from "@/components/ai-chat/composer-action";
 
+// Treat the startup loading-placeholder thread as a new chat so the welcome
+// screen still renders during initial history load — plain s.thread.isEmpty
+// is false while that placeholder is loading. Mirrors upstream thread.tsx.
+const isNewChatView = (s: AssistantState) =>
+  s.thread.messages.length === 0 &&
+  (!s.thread.isLoading || s.threads.isLoading);
+
 // --- custom: session tracking ---
 function ThreadIdTracker() {
   const setSessionId = useUiStore((state) => state.setSessionId);
@@ -94,7 +102,7 @@ export const Thread: FC = () => {
         className="relative flex flex-1 flex-col overflow-x-auto overflow-y-auto scroll-smooth"
       >
         <div className="mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4">
-          <AuiIf condition={(s) => s.thread.isEmpty}>
+          <AuiIf condition={isNewChatView}>
             <ThreadWelcome />
           </AuiIf>
 
@@ -274,16 +282,8 @@ const AssistantMessage: FC = () => {
   const ACTION_BAR_PT = "pt-1.5";
   const ACTION_BAR_HEIGHT = `-mb-7.5 min-h-7.5 ${ACTION_BAR_PT}`;
   const status = useAuiState((s) => s.message.status?.type);
-  // Show the running indicator while the message is running and the last
-  // content part is not text/reasoning (tool-call-only, between tool calls,
-  // or empty pre-text). Disappears once text starts streaming (caret takes over).
-  const showIndicator = useAuiState((s) => {
-    if ((s.message.status?.type ?? "complete") !== "running") return false;
-    const parts = s.message.parts;
-    if (parts.length === 0) return true;
-    const last = parts[parts.length - 1];
-    return last.type !== "text" && last.type !== "reasoning";
-  });
+  // The "working" indicator is rendered via the built-in `indicator` part
+  // (case below) — GroupedParts emits it while running with no text yet.
 
   return (
     <MessagePrimitive.Root
@@ -294,7 +294,7 @@ const AssistantMessage: FC = () => {
       <div
         data-slot="aui_assistant-message-content"
         data-status={status !== "running" ? status : undefined}
-        className="wrap-break-word px-2 text-foreground leading-relaxed flex flex-col gap-3"
+        className="wrap-break-word px-2 text-foreground leading-relaxed flex flex-col gap-3 [contain-intrinsic-size:auto_24px] [content-visibility:auto]"
       >
         <MessagePrimitive.GroupedParts
           groupBy={(part) => {
@@ -328,12 +328,15 @@ const AssistantMessage: FC = () => {
                 return <Image {...part} />;
               case "file":
                 return <File {...part} />;
+              case "data":
+                return part.dataRendererUI;
+              case "indicator":
+                return <RunningIndicator />;
               default:
                 return null;
             }
           }}
         </MessagePrimitive.GroupedParts>
-        {showIndicator && <RunningIndicator />}
         <MessageError />
       </div>
 
@@ -361,7 +364,7 @@ const AssistantActionBar: FC = () => {
     <ActionBarPrimitive.Root
       hideWhenRunning
       autohide="not-last"
-      className="aui-assistant-action-bar-root col-start-3 row-start-2 -ms-1 flex gap-1 text-muted-foreground"
+      className="aui-assistant-action-bar-root text-muted-foreground animate-in fade-in col-start-3 row-start-2 -ms-1 flex gap-1 duration-200"
     >
       {/* --- custom: speech --- */}
       <AuiIf
@@ -385,10 +388,10 @@ const AssistantActionBar: FC = () => {
       <ActionBarPrimitive.Copy asChild>
         <TooltipIconButton tooltip={t("action.copy")}>
           <AuiIf condition={(s) => s.message.isCopied}>
-            <CheckIcon />
+            <CheckIcon className="animate-in zoom-in-50 fade-in duration-200 ease-out" />
           </AuiIf>
           <AuiIf condition={(s) => !s.message.isCopied}>
-            <CopyIcon />
+            <CopyIcon className="animate-in zoom-in-75 fade-in duration-150" />
           </AuiIf>
         </TooltipIconButton>
       </ActionBarPrimitive.Copy>
@@ -411,10 +414,11 @@ const AssistantActionBar: FC = () => {
         <ActionBarMorePrimitive.Content
           side="bottom"
           align="start"
-          className="aui-action-bar-more-content z-50 min-w-32 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+          sideOffset={6}
+          className="aui-action-bar-more-content text-popover-foreground bg-popover/95 data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-32 overflow-hidden rounded-xl border p-1.5 shadow-lg backdrop-blur-sm"
         >
           <ActionBarPrimitive.ExportMarkdown filename={exportFilename} asChild>
-            <ActionBarMorePrimitive.Item className="aui-action-bar-more-item flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
+            <ActionBarMorePrimitive.Item className="aui-action-bar-more-item flex cursor-pointer select-none items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground">
               <DownloadIcon className="size-4" />
               {t("action.exportMarkdown")}
             </ActionBarMorePrimitive.Item>

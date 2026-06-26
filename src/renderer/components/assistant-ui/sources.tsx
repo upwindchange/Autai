@@ -6,7 +6,7 @@ import type { SourceMessagePartComponent } from "@assistant-ui/react";
 import { cn } from "@/lib/utils";
 import { Badge, badgeVariants, type BadgeProps } from "./badge";
 
-const extractDomain = (url: string): string => {
+export const extractDomain = (url: string): string => {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
   } catch {

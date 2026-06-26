@@ -14,7 +14,8 @@ Autai is a desktop application built with Electron, React, and TypeScript. Its c
 2. This project does not use npm, npx. It uses pnpm and pnpm dlx.
 3. All files uses 2 whitespaces to indent, not tab.
 4. All files, except for windows .bat and .cmd files, use LF as end of line, not CRLF.
-5. In your plan, design, and implementation workflow, do not include any verification step other than running `pnpm tsc`. You are not allowed to write tests or run any kind of tests.
+5. In your plan, design, and implementation workflow, do not include any verification step other than running `pnpm tsc`.
+6. You are not allowed to design/write/run tests other than running `pnpm tsc`.
 
 ```bash
 # Development
