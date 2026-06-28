@@ -23,10 +23,11 @@ export interface ThreadSuggestionsPayload {
 
 /**
  * Payload for the `app:message` server-push event: a toast notification shown
- * to the user (info / alert / success).
+ * to the user (info / alert / warning / success). `alert` is a fatal, persistent
+ * error; `warning` is a non-fatal partial failure the workflow recovers from.
  */
 export interface AppMessage {
-  type: "info" | "alert" | "success";
+  type: "info" | "alert" | "warning" | "success";
   title: string;
   description: string;
 }

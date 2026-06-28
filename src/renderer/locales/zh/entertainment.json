@@ -46,5 +46,9 @@
   "options.dehydrate.depth.literaryEnhance.label": "文采",
 
   "options.interactive.frequency.label": "互动频率",
-  "options.interactive.frequency.levelHint": "1 = 偶尔 · 2 = 适中 · 3 = 经常"
+  "options.interactive.frequency.levelHint": "1 = 偶尔 · 2 = 适中 · 3 = 经常",
+
+  "options.customInstruction.label": "还想改什么？",
+  "options.customInstruction.placeholder": "想怎么改都行，告诉我就好",
+  "options.customInstruction.tooltip": "  请确保不要和上面选项冲突，否则产生的结果比薛定谔的猫还不可控"
 }

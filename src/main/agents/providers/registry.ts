@@ -37,10 +37,11 @@ interface ProviderToml {
 
 interface ModelToml {
   name: string;
-  // `[extends] from = "<providerDir>/<modelFile>"` — inherit fields from a
-  // base model in another provider (e.g. a coding-plan tier re-exposing a base
-  // model with different cost). Resolved in scanModels.
-  extends?: { from: string; omit?: string[] };
+  // `base_model = "<providerDir>/<modelFile>"` — the models.dev catalog's
+  // inheritance key. The child file holds only the fields it overrides (e.g.
+  // cost); it inherits name/family/limit/modalities/capabilities from the base.
+  // Resolved in scanModels / loadBaseModel.
+  base_model?: string;
   family?: string;
   attachment?: boolean;
   reasoning?: boolean;
@@ -133,7 +134,9 @@ function stripUndefined<T extends object>(obj: T): Partial<T> {
 /** Map a parsed model TOML to a ModelDefinition with the given file id. */
 function toModelDefinition(toml: ModelToml, file: string): ModelDefinition {
   return {
-    name: toml.name,
+    // Fall back to the file id so a model whose `base_model` is missing/broken
+    // (or a sparse self-referential base) never renders nameless.
+    name: toml.name ?? file,
     file,
     family: toml.family,
     attachment: toml.attachment,
@@ -160,10 +163,17 @@ function toModelDefinition(toml: ModelToml, file: string): ModelDefinition {
 }
 
 /**
- * Load the base model TOML referenced by `[extends] from`.
+ * Load the base model TOML referenced by `base_model`.
  * `from` is `"<providerDir>/<modelFile>"` (modelFile may itself be a nested path).
+ * Resolves chained `base_model` references so multi-hop and self-referential
+ * chains collapse to a complete model; a `visited` set + depth cap terminate cycles.
  */
-function loadBaseModel(from: string): ModelToml | null {
+function loadBaseModel(
+  from: string,
+  visited: Set<string> = new Set(),
+): ModelToml | null {
+  if (visited.has(from) || visited.size >= 8) return null; // cycle / depth guard
+  visited.add(from);
   if (!basePath) return null;
   const slashIdx = from.indexOf("/");
   if (slashIdx < 0) return null;
@@ -185,7 +195,16 @@ function loadBaseModel(from: string): ModelToml | null {
       const resolved = path.resolve(path.dirname(baseFile), trimmed);
       if (fs.existsSync(resolved)) raw = fs.readFileSync(resolved, "utf-8");
     }
-    return TOML.parse(raw) as unknown as ModelToml;
+    const toml = TOML.parse(raw) as unknown as ModelToml;
+
+    // Resolve chained inheritance: merge any ancestor the base itself references,
+    // so multi-hop and self-referential `base_model` chains collapse to one model.
+    // Nearer base overrides the deeper ancestor.
+    if (toml.base_model) {
+      const ancestor = loadBaseModel(toml.base_model, visited);
+      if (ancestor) return { ...ancestor, ...stripUndefined(toml) };
+    }
+    return toml;
   } catch (err) {
     logger.error(`Failed to parse base model ${from}:`, err);
     return null;
@@ -227,11 +246,11 @@ function scanModels(baseDir: string, currentDir: string): ModelDefinition[] {
       const relPath = path.relative(baseDir, fullPath);
       const file = relPath.replace(/\.toml$/, "").replace(/\+/g, ":");
 
-      // Resolve `[extends]`: inherit the base model's fields (name, family, …),
+      // Resolve `base_model`: inherit the base model's fields (name, family, …),
       // then let this model override anything it explicitly defines (e.g. cost).
       // The child keeps its own `file` (its own model id / API endpoint).
-      if (toml.extends?.from) {
-        const base = loadBaseModel(toml.extends.from);
+      if (toml.base_model) {
+        const base = loadBaseModel(toml.base_model);
         if (base) {
           result.push({
             ...toModelDefinition(base, file),

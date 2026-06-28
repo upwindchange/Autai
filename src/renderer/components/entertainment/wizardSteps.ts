@@ -35,7 +35,11 @@ export const DEFAULT_DEPTH: DehydrateDepth = {
 export const INITIAL_DEHYDRATE: DehydrateConfig = {
   mode: "dehydrate",
   novel: { type: "internet", title: "", source: "" },
-  options: { basic: { ...DEFAULT_BASIC }, depth: { ...DEFAULT_DEPTH } },
+  options: {
+    basic: { ...DEFAULT_BASIC },
+    depth: { ...DEFAULT_DEPTH },
+    customInstruction: "",
+  },
 };
 
 export const INITIAL_INTERACTIVE: InteractiveConfig = {
@@ -46,6 +50,7 @@ export const INITIAL_INTERACTIVE: InteractiveConfig = {
     interactionFrequency: 2,
     basic: { ...DEFAULT_BASIC },
     depth: { ...DEFAULT_DEPTH },
+    customInstruction: "",
   },
 };
 
@@ -59,21 +64,23 @@ export function swapMode(
   mode: EntertainmentMode,
 ): EntertainmentConfig {
   if (config.mode === mode) return config;
-  // Both modes share basic + depth, so they survive the swap unchanged.
+  // Both modes share basic + depth + customInstruction, so they survive the
+  // swap unchanged.
   const basic = config.options.basic;
   const depth = config.options.depth;
+  const customInstruction = config.options.customInstruction;
   switch (mode) {
     case "interactive":
       return {
         mode: "interactive",
         novel: { type: "file", filename: "" },
-        options: { interactionFrequency: 2, basic, depth },
+        options: { interactionFrequency: 2, basic, depth, customInstruction },
       };
     case "dehydrate":
       return {
         mode: "dehydrate",
         novel: { type: "internet", title: "", source: "" },
-        options: { basic, depth },
+        options: { basic, depth, customInstruction },
       };
     // Future modes fall through unchanged rather than producing an invalid
     // config; the caller can add a dedicated case when a new mode lands.
@@ -83,13 +90,17 @@ export function swapMode(
 }
 
 /**
- * Patch the shared Module-1 (basic) / Module-2 (depth) options. Mode is narrowed
- * per branch so the spread keeps the `mode` discriminant literal. Only one of
- * `basic` / `depth` is patched per call.
+ * Patch the shared Module-1 (basic) / Module-2 (depth) options, plus the
+ * free-form `customInstruction`. Mode is narrowed per branch so the spread
+ * keeps the `mode` discriminant literal. Any subset of the three may be passed.
  */
 export function patchSharedOptions(
   prev: EntertainmentConfig,
-  patch: { basic?: Partial<DehydrateBasic>; depth?: Partial<DehydrateDepth> },
+  patch: {
+    basic?: Partial<DehydrateBasic>;
+    depth?: Partial<DehydrateDepth>;
+    customInstruction?: string;
+  },
 ): EntertainmentConfig {
   if (prev.mode === "dehydrate") {
     return {
@@ -101,6 +112,9 @@ export function patchSharedOptions(
         : {}),
         ...(patch.depth ?
           { depth: { ...prev.options.depth, ...patch.depth } }
+        : {}),
+        ...(patch.customInstruction !== undefined ?
+          { customInstruction: patch.customInstruction }
         : {}),
       },
     };
@@ -114,6 +128,9 @@ export function patchSharedOptions(
       : {}),
       ...(patch.depth ?
         { depth: { ...prev.options.depth, ...patch.depth } }
+      : {}),
+      ...(patch.customInstruction !== undefined ?
+        { customInstruction: patch.customInstruction }
       : {}),
     },
   };

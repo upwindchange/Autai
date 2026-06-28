@@ -34,7 +34,7 @@ export function TomlModelList({
     filter ?
       models.filter(
         (m) =>
-          m.name.toLowerCase().includes(filter.toLowerCase()) ||
+          m.name?.toLowerCase().includes(filter.toLowerCase()) ||
           m.file.toLowerCase().includes(filter.toLowerCase()) ||
           (m.family && m.family.toLowerCase().includes(filter.toLowerCase())),
       )

@@ -15,7 +15,7 @@ import { navigateTool } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { settingsService, SessionTabService } from "@/services";
 import { i18n } from "@/i18n";
-import { sendAlert } from "@/utils/messageUtils";
+import { sendWarning } from "@/utils/messageUtils";
 import type { SearchResultItem } from "./search-agent";
 import type { ResearchQuery } from "./planner";
 import log from "electron-log/main";
@@ -233,12 +233,12 @@ async function executeSingleExtraction(
     });
 
     if (isTimeoutError(error)) {
-      sendAlert(
+      sendWarning(
         i18n.t("agents.timeoutErrorTitle"),
         i18n.t("agents.timeoutErrorBody"),
       );
     } else {
-      sendAlert(
+      sendWarning(
         i18n.t("agents.extractionErrorTitle"),
         i18n.t("agents.extractionErrorBody", {
           title: searchResult.title,
@@ -353,7 +353,7 @@ export async function extractResultsFromUrls(
           url: searchResults[i].url,
           error: errorMessage,
         });
-        sendAlert(
+        sendWarning(
           i18n.t("agents.extractionErrorTitle"),
           i18n.t("agents.extractionErrorBody", {
             title: searchResults[i].title,

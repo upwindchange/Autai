@@ -6,8 +6,9 @@ import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { toast } from "sonner";
 import { AppMessage } from "@shared";
-import { AlertCircle, CheckCircle2, Info, X } from "lucide-react";
+import { X } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { DotMatrix } from "@/components/assistant-ui/dot-matrix";
 import log from "electron-log/renderer";
 import { SidebarLeft } from "@/components/side-bar/sidebar-left";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -54,6 +55,12 @@ import "./index.css";
 
 const logger = log.scope("Main");
 
+// Force the Alert's icon column on. The shadcn Alert only reserves an icon
+// column when it has a direct <svg> child (has-[>svg]), but DotMatrix wraps its
+// svg in a span, so we set the same grid template the component uses itself.
+const ALERT_ICON_GRID =
+  "relative grid-cols-[calc(var(--spacing)*4)_1fr] gap-x-3";
+
 // Main process message handler
 const handleAppMessage = (message: AppMessage) => {
   logger.debug("app message received", {
@@ -62,12 +69,12 @@ const handleAppMessage = (message: AppMessage) => {
   });
   switch (message.type) {
     case "alert":
-      // Persistent alert with dismiss button
+      // Fatal error — persistent until dismissed.
       toast.custom(
         (t) => (
           <div className="w-full">
-            <Alert variant="destructive" className="relative">
-              <AlertCircle className="h-4 w-4" />
+            <Alert variant="destructive" className={ALERT_ICON_GRID}>
+              <DotMatrix state="error" className="size-4 translate-y-0.5" />
               <AlertTitle>{message.title}</AlertTitle>
               <AlertDescription>{message.description}</AlertDescription>
               <button
@@ -84,11 +91,23 @@ const handleAppMessage = (message: AppMessage) => {
         },
       );
       break;
+    case "warning":
+      // Non-fatal — the workflow continues despite a partial failure.
+      toast.custom(() => (
+        <div className="w-full">
+          <Alert className={ALERT_ICON_GRID}>
+            <DotMatrix state="warning" className="size-4 translate-y-0.5" />
+            <AlertTitle>{message.title}</AlertTitle>
+            <AlertDescription>{message.description}</AlertDescription>
+          </Alert>
+        </div>
+      ));
+      break;
     case "info":
       toast.custom(() => (
         <div className="w-full">
-          <Alert className="relative">
-            <Info className="h-4 w-4" />
+          <Alert className={ALERT_ICON_GRID}>
+            <DotMatrix state="info" className="size-4 translate-y-0.5" />
             <AlertTitle>{message.title}</AlertTitle>
             <AlertDescription>{message.description}</AlertDescription>
           </Alert>
@@ -98,8 +117,8 @@ const handleAppMessage = (message: AppMessage) => {
     case "success":
       toast.custom(() => (
         <div className="w-full">
-          <Alert className="relative">
-            <CheckCircle2 className="h-4 w-4" />
+          <Alert className={ALERT_ICON_GRID}>
+            <DotMatrix state="success" className="size-4 translate-y-0.5" />
             <AlertTitle>{message.title}</AlertTitle>
             <AlertDescription>{message.description}</AlertDescription>
           </Alert>

@@ -78,9 +78,13 @@ export const EntertainmentWizard: FC = () => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Enter") return;
       const target = e.target as HTMLElement | null;
-      // Source textarea: Shift+Enter = newline; plain Enter = advance.
+      // Textareas: Shift+Enter = newline everywhere. Plain Enter = advance,
+      // EXCEPT for boxes marked `data-no-enter-advance` (e.g. the free-form
+      // custom-instruction box on the final step), where plain Enter should
+      // insert a newline rather than start the job mid-thought.
       if (target instanceof HTMLTextAreaElement) {
         if (e.shiftKey) return;
+        if (target.closest("[data-no-enter-advance]")) return;
         e.preventDefault();
         void advanceRef.current();
         return;

@@ -1,6 +1,7 @@
 import { type FC, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
-import { BookOpen, Loader2 } from "lucide-react";
+import { BookOpen } from "lucide-react";
+import { DotMatrix } from "@/components/assistant-ui/dot-matrix";
 import type { ChapterView } from "@/stores/chaptersStore";
 
 interface TableOfContentsProps {
@@ -101,7 +102,12 @@ export const TableOfContents: FC<TableOfContentsProps> = ({
               </span>
               {c.title && <span className="truncate">{c.title}</span>}
               {busy && (
-                <Loader2 className="ml-auto size-3.5 shrink-0 animate-spin" />
+                <DotMatrix
+                  state={
+                    c.sourceStatus === "fetching" ? "loading" : "uploading"
+                  }
+                  className="ml-auto size-4 shrink-0"
+                />
               )}
             </button>
           </li>

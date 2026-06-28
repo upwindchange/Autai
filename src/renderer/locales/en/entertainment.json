@@ -46,5 +46,9 @@
   "options.dehydrate.depth.literaryEnhance.label": "Literary polish",
 
   "options.interactive.frequency.label": "Interaction frequency",
-  "options.interactive.frequency.levelHint": "1 = now and then · 2 = balanced · 3 = often"
+  "options.interactive.frequency.levelHint": "1 = now and then · 2 = balanced · 3 = often",
+
+  "options.customInstruction.label": "Anything else to tweak?",
+  "options.customInstruction.placeholder": "Change it however you like — just tell me.",
+  "options.customInstruction.tooltip": "Make sure this doesn't conflict with the options above, or the result will be even more unpredictable than Schrödinger's cat."
 }

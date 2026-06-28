@@ -22,6 +22,19 @@ export function sendAlert(title: string, description: string): void {
 }
 
 /**
+ * Helper function to send a warning message — a non-fatal partial failure where
+ * the workflow continues despite the error (e.g. one analysis failed but the
+ * others still run and a result is still produced).
+ */
+export function sendWarning(title: string, description: string): void {
+  sendAppMessage({
+    type: "warning",
+    title,
+    description,
+  });
+}
+
+/**
  * Helper function to send an info message
  */
 export function sendInfo(title: string, description: string): void {

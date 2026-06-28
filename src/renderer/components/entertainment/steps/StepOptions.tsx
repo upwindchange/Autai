@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ParameterSlider,
   type SliderConfig,
@@ -80,6 +81,9 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
   const setBasic = (key: keyof DehydrateBasic, value: boolean) =>
     setConfig((prev) => patchSharedOptions(prev, { basic: { [key]: value } }));
 
+  const setCustomInstruction = (value: string) =>
+    setConfig((prev) => patchSharedOptions(prev, { customInstruction: value }));
+
   const onDepthChange = (vals: SliderValue[]) => {
     const patch: Partial<DehydrateDepth> = {};
     for (const v of vals) {
@@ -110,6 +114,7 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
       const base = patchSharedOptions(prev, {
         basic: { ...DEFAULT_BASIC },
         depth: { ...DEFAULT_DEPTH },
+        customInstruction: "",
       });
       if (base.mode === "interactive") {
         return {
@@ -217,6 +222,30 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
           sliders={depthSliders}
           values={depthValues}
           onChange={onDepthChange}
+        />
+      </section>
+
+      {/* Free-form guidance — whatever the toggles and sliders above don't
+          cover. `data-no-enter-advance` opts this multi-line box out of the
+          wizard's Enter-to-advance handler, so Enter inserts a newline here
+          instead of starting the job (this is the last step). */}
+      <section className="flex flex-col gap-2">
+        <div className="flex items-center gap-1.5">
+          <Label
+            htmlFor="ent-custom-instruction"
+            className="text-sm font-medium"
+          >
+            {t("options.customInstruction.label")}
+          </Label>
+          <HelpIcon label={t("options.customInstruction.tooltip")} />
+        </div>
+        <Textarea
+          id="ent-custom-instruction"
+          data-no-enter-advance
+          value={config.options.customInstruction}
+          onChange={(e) => setCustomInstruction(e.target.value)}
+          placeholder={t("options.customInstruction.placeholder")}
+          rows={3}
         />
       </section>
     </div>

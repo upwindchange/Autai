@@ -3,7 +3,7 @@ import {
   UserMessageAttachments,
 } from "@/components/ai-chat/attachment";
 import { MarkdownText } from "@/components/ai-chat/streamdown";
-import { RunningIndicator } from "@/components/ai-chat/running-indicator";
+import { DotMatrix } from "@/components/assistant-ui/dot-matrix";
 import {
   Reasoning,
   ReasoningContent,
@@ -331,7 +331,14 @@ const AssistantMessage: FC = () => {
               case "data":
                 return part.dataRendererUI;
               case "indicator":
-                return <RunningIndicator />;
+                return (
+                  <DotMatrix
+                    state="loading"
+                    label="Assistant is working"
+                    aria-busy="true"
+                    className="size-5 text-muted-foreground"
+                  />
+                );
               default:
                 return null;
             }

@@ -12,7 +12,8 @@ import { z } from "zod";
  *     in EntertainmentWorker).
  *   - `novel` is mode-dependent: `dehydrate` accepts file OR internet;
  *     `interactive` accepts a text file ONLY.
- *   - Both modes share Module 1 (basic toggles) + Module 2 (depth sliders).
+ *   - Both modes share Module 1 (basic toggles) + Module 2 (depth sliders) +
+ *     a free-form `customInstruction` (user guidance applied on top of both).
  *     `interactive` additionally carries `interactionFrequency`.
  */
 
@@ -63,6 +64,15 @@ const InteractiveOptionsSchema = z.object({
   interactionFrequency: z.number().int().min(1).max(3).default(2),
 });
 
+/**
+ * Free-form user guidance applied on top of Module 1/2 — whatever the toggles
+ * and sliders don't cover (a tone to aim for, pet peeves to skip, etc.). Shared
+ * by both modes; persisted as part of the `options` JSON blob, so it flows the
+ * same path as `basic`/`depth`. `.default("")` keeps pre-existing stored
+ * configs (which predate this field) valid without a migration.
+ */
+const CustomInstructionSchema = z.string().trim().default("");
+
 // --- Per-mode configs ------------------------------------------------------
 
 export const DehydrateConfigSchema = z.object({
@@ -71,16 +81,18 @@ export const DehydrateConfigSchema = z.object({
   options: z.object({
     basic: DehydrateBasicSchema,
     depth: DehydrateDepthSchema,
+    customInstruction: CustomInstructionSchema,
   }),
 });
 
 export const InteractiveConfigSchema = z.object({
   mode: z.literal("interactive"),
   novel: FileNovelSchema, // interactive accepts a text file ONLY
-  // Composes all three: interactionFrequency + Module 1 + Module 2.
+  // Composes all four: interactionFrequency + Module 1 + Module 2 + custom.
   options: InteractiveOptionsSchema.extend({
     basic: DehydrateBasicSchema,
     depth: DehydrateDepthSchema,
+    customInstruction: CustomInstructionSchema,
   }),
 });
 

@@ -9,7 +9,7 @@ import {
 } from "ai";
 import { settingsService, SessionTabService } from "@/services";
 import { i18n } from "@/i18n";
-import { sendAlert } from "@/utils/messageUtils";
+import { sendAlert, sendWarning } from "@/utils/messageUtils";
 import { flushTelemetry } from "@/agents/utils/telemetry";
 import log from "electron-log/main";
 import { observe } from "@langfuse/tracing";
@@ -528,7 +528,7 @@ export async function browserDeepResearchWorker(
                   error: errorMsg,
                 });
                 if (isTimeoutError(error)) {
-                  sendAlert(
+                  sendWarning(
                     i18n.t("agents.timeoutErrorTitle"),
                     i18n.t("agents.timeoutErrorBody"),
                   );

@@ -18,7 +18,7 @@ import { getAttributeTool } from "@agents/tools/InteractiveTools";
 import { getAllAttributesTool } from "@agents/tools/InteractiveTools";
 import { settingsService, SessionTabService } from "@/services";
 import { i18n } from "@/i18n";
-import { sendAlert } from "@/utils/messageUtils";
+import { sendWarning } from "@/utils/messageUtils";
 import type { ResearchPlan } from "./planner";
 import type { SearchEngine, CustomSearchEngine } from "@shared";
 import log from "electron-log/main";
@@ -443,12 +443,12 @@ async function executeSingleSearchQuery(
       error: errorMessage,
     });
     if (isTimeoutError(error)) {
-      sendAlert(
+      sendWarning(
         i18n.t("agents.timeoutErrorTitle"),
         i18n.t("agents.timeoutErrorBody"),
       );
     } else {
-      sendAlert(
+      sendWarning(
         i18n.t("agents.searchErrorTitle"),
         i18n.t("agents.searchErrorBody", { query, error: errorMessage }),
       );
@@ -552,7 +552,7 @@ export async function executeSearchQueries(
           query: plan.queries[i].query,
           error: errorMessage,
         });
-        sendAlert(
+        sendWarning(
           i18n.t("agents.searchErrorTitle"),
           i18n.t("agents.searchErrorBody", {
             query: plan.queries[i].query,

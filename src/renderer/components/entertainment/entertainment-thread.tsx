@@ -1,19 +1,31 @@
 import "streamdown/styles.css";
 // NOTE: katex css is intentionally NOT imported — the math plugin is disabled.
 import "./novel-reader.css"; // scoped novel-reading typography
-import { useEffect, useRef, type FC } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FC,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import { ThreadPrimitive, useAuiState } from "@assistant-ui/react";
 import { useTranslation } from "react-i18next";
-import { Loader2 } from "lucide-react";
+import { DotMatrix, type DotMatrixState } from "@/components/assistant-ui/dot-matrix";
 import { useUiStore } from "@/stores/uiStore";
 import { useReaderSettings } from "@/stores/readerSettingsStore";
 import { useChaptersStore, type ChapterView } from "@/stores/chaptersStore";
 import { useChapterReadiness } from "@/hooks/useChapterReadiness";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { NovelText } from "./NovelText";
 import { EntertainmentWizard } from "./EntertainmentWizard";
 import { buildReaderCssVars } from "./reader-settings/reader-theme";
-import { ReaderControlsButton } from "./reader-settings/ReaderControlsButton";
-import { ChapterNav } from "./chapter-nav/ChapterNav";
+import { ReaderFooter } from "./ReaderFooter";
+
+// Desktop-only bottom band (px from the reading viewport's bottom edge) that
+// reveals the footer on hover. Invisible — hover is detected via mousemove, not
+// an overlay, so the prose stays fully interactive. Tuned to sit just above the
+// footer pill on both tall phones and short desktop windows.
+const HOVER_BAND_PX = 120;
 
 /**
  * Entertainment thread — a guided novel-reading surface.
@@ -39,6 +51,7 @@ function ThreadIdTracker() {
 export const EntertainmentThread: FC = () => {
   const settings = useReaderSettings();
   const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
+  const isMobile = useIsMobile();
 
   const chapters = useChaptersStore((s) => s.chapters);
   const currentChapterNumber = useChaptersStore((s) => s.currentChapterNumber);
@@ -50,6 +63,11 @@ export const EntertainmentThread: FC = () => {
   const setCurrentChapter = useChaptersStore((s) => s.setCurrentChapter);
 
   const viewportRef = useRef<HTMLDivElement>(null);
+  // Pinned open by a tap/click on the reading surface (mobile + desktop); the
+  // footer also reveals on desktop hover. See ReaderFooter.
+  const [footerPinned, setFooterPinned] = useState(false);
+  // Desktop hover state for the footer (driven by the mousemove effect below).
+  const [footerHovered, setFooterHovered] = useState(false);
 
   // Recovery + initial load: on thread switch, load chapters + resume position,
   // then ensure the worker for that chapter (point 9 — same path as activation).
@@ -99,6 +117,27 @@ export const EntertainmentThread: FC = () => {
     viewportRef.current?.scrollTo({ top: 0 });
   }, [currentChapterNumber]);
 
+  // Desktop hover: reveal the footer when the pointer enters the bottom band of
+  // the reading viewport, hide when it leaves. Detected via mousemove (not an
+  // overlay) so text selection / link clicks on the prose are never blocked.
+  // Touch has no hover — mobile relies on the tap-to-pin path (handleReadingClick).
+  useEffect(() => {
+    if (isMobile) return;
+    const el = viewportRef.current;
+    if (!el) return;
+    const onMove = (e: MouseEvent) => {
+      const fromBottom = el.getBoundingClientRect().bottom - e.clientY;
+      setFooterHovered(fromBottom >= 0 && fromBottom < HOVER_BAND_PX);
+    };
+    const onLeave = () => setFooterHovered(false);
+    el.addEventListener("mousemove", onMove);
+    el.addEventListener("mouseleave", onLeave);
+    return () => {
+      el.removeEventListener("mousemove", onMove);
+      el.removeEventListener("mouseleave", onLeave);
+    };
+  }, [isMobile]);
+
   // Wizard only on a fresh thread (no chapters, nothing started yet).
   const showWizard = chapters.length === 0 && currentChapterNumber == null;
 
@@ -117,13 +156,28 @@ export const EntertainmentThread: FC = () => {
     void ensureWorker(mainThreadId, next); // snappy; the hook re-ensures too
   };
 
+  // Tap/click the reading surface to toggle the footer (mobile + desktop).
+  // Taps on the footer itself or its panels don't reach here (they're siblings
+  // of this content area), so the toggle only fires on the prose surface.
+  // Selection (drag/long-press) and clicks on links/buttons pass through.
+  const handleReadingClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (currentChapterNumber == null) return;
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) return;
+    if ((e.target as HTMLElement | null)?.closest("a, button")) return;
+    setFooterPinned((p) => !p);
+  };
+
   return (
     <ThreadPrimitive.Root
       className="aui-root aui-thread-root @container relative flex h-full flex-col bg-background"
       style={{
+        // Reader CSS vars are defined here so they cascade to the prose
+        // container below; the root itself stays bg-background so the wizard /
+        // options chrome follows the app theme. The reader background is now
+        // applied on the prose container (see the inner div), not the root.
         ["--thread-max-width" as string]: "88rem",
         ...buildReaderCssVars(settings),
-        backgroundColor: "var(--reader-background)",
       }}
     >
       <ThreadIdTracker />
@@ -137,7 +191,19 @@ export const EntertainmentThread: FC = () => {
         data-slot="aui_thread-viewport"
         className="relative flex flex-1 flex-col overflow-x-auto overflow-y-auto scroll-smooth"
       >
-        <div className="mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4">
+        {/* Reader theme background is scoped to the reading surface — applied
+            only while a chapter is open (currentChapterNumber != null), so the
+            wizard shown on a fresh thread keeps the app theme. */}
+        <div
+          onClick={handleReadingClick}
+          style={{
+            backgroundColor:
+              currentChapterNumber != null ?
+                "var(--reader-background)"
+              : undefined,
+          }}
+          className="mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4 pb-24"
+        >
           {showWizard && <EntertainmentWizard />}
 
           {currentChapterNumber != null && (
@@ -151,16 +217,14 @@ export const EntertainmentThread: FC = () => {
         </div>
       </ThreadPrimitive.Viewport>
       {currentChapterNumber != null && (
-        <>
-          <ChapterNav
-            canGoPrev={canGoPrev}
-            canGoNext={canGoNext}
-            fetching={false}
-            onPrev={() => void handlePrev()}
-            onNext={() => void handleNext()}
-          />
-          <ReaderControlsButton />
-        </>
+        <ReaderFooter
+          canGoPrev={canGoPrev}
+          canGoNext={canGoNext}
+          onPrev={() => void handlePrev()}
+          onNext={() => void handleNext()}
+          pinned={footerPinned}
+          hovered={footerHovered}
+        />
       )}
     </ThreadPrimitive.Root>
   );
@@ -173,27 +237,29 @@ const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
     chapter.sourceStatus === null ||
     chapter.sourceStatus === "fetching"
   ) {
-    return <ChapterState icon keyLabel="reader.chapter.fetching" />;
+    return <ChapterState state="loading" keyLabel="reader.chapter.fetching" />;
   }
   if (chapter.sourceStatus === "error" || chapter.rewriteStatus === "error") {
     return <ChapterState textLabel="reader.chapter.error" />;
   }
   if (chapter.rewriteStatus !== "rewritten") {
-    return <ChapterState icon keyLabel="reader.chapter.rewriting" />;
+    return (
+      <ChapterState state="uploading" keyLabel="reader.chapter.rewriting" />
+    );
   }
   return <NovelText content={chapter.content ?? ""} />;
 };
 
-/** Fetching/rewriting/error placeholder. */
+/** Fetching/rewriting/error placeholder. `state` selects the indicator phase. */
 const ChapterState: FC<{
-  icon?: boolean;
+  state?: DotMatrixState;
   keyLabel?: string;
   textLabel?: string;
-}> = ({ icon, keyLabel, textLabel }) => {
+}> = ({ state, keyLabel, textLabel }) => {
   const { t } = useTranslation("reader");
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-20 text-center text-muted-foreground">
-      {icon && <Loader2 className="size-6 animate-spin" />}
+      {state && <DotMatrix state={state} className="size-6" />}
       <p className="text-sm">{t(keyLabel ?? textLabel ?? "")}</p>
     </div>
   );
