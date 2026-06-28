@@ -11,6 +11,7 @@ import { SettingsButton } from "@/components/settings";
 import { Button } from "@/components/ui/button";
 import { useUiStore } from "@/stores/uiStore";
 import { Film, MessageSquare } from "lucide-react";
+import { useTranslation } from "react-i18next";
 
 export function NavSecondary({
   ...props
@@ -18,14 +19,15 @@ export function NavSecondary({
   const appMode = useUiStore((s) => s.appMode);
   const setAppMode = useUiStore((s) => s.setAppMode);
   const isEntertainment = appMode === "entertainment";
+  const { t } = useTranslation("common");
 
   return (
     <SidebarGroup {...props}>
       <SidebarGroupContent>
         <SidebarSeparator className="mx-0" />
         <SidebarMenu>
-          {/* Provisional mode toggle (English-only placeholder). The real
-              entry-point placement is a later UX decision. */}
+          {/* Provisional mode toggle. The real entry-point placement is a
+              later UX decision. */}
           <SidebarMenuItem>
             <Button
               variant="ghost"
@@ -38,7 +40,9 @@ export function NavSecondary({
               {isEntertainment ?
                 <MessageSquare className="size-4" />
               : <Film className="size-4" />}
-              {isEntertainment ? "Back to Chat" : "Entertainment"}
+              {isEntertainment ?
+                t("sidebar.mode.chat")
+              : t("sidebar.mode.entertainment")}
             </Button>
           </SidebarMenuItem>
           <SidebarMenuItem>

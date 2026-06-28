@@ -49,6 +49,8 @@
   "sidebar.untagged": "Untagged",
   "sidebar.rename": "Rename",
   "sidebar.renameTitle": "Rename Conversation",
+  "sidebar.mode.chat": "Chat Mode",
+  "sidebar.mode.entertainment": "Entertainment Mode",
   "common.cancel": "Cancel",
   "composer.browser.on": "AI operates webpages for you",
   "composer.browser.off": "Let AI operate webpages for you",

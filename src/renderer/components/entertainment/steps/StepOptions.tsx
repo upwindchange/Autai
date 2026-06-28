@@ -1,5 +1,6 @@
 import { type Dispatch, type FC, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
@@ -12,7 +13,11 @@ import type {
   DehydrateDepth,
   EntertainmentConfig,
 } from "@shared";
-import { DEFAULT_DEPTH, patchSharedOptions } from "../wizardSteps";
+import {
+  DEFAULT_BASIC,
+  DEFAULT_DEPTH,
+  patchSharedOptions,
+} from "../wizardSteps";
 import { HelpIcon } from "./HelpIcon";
 
 interface StepOptionsProps {
@@ -69,16 +74,6 @@ const DEPTH_ITEMS: { key: keyof DehydrateDepth; labelKey: string }[] = [
   },
 ];
 
-// ParameterSlider's built-in default renders a Reset + Apply pair. Here every
-// change already updates the wizard state live, so Apply is meaningless — we
-// pass a single custom "reset" action (with a distinct id so ParameterSlider's
-// internal reset no-op isn't triggered) wired to restore defaults.
-const RESET_ACTION = (label: string, id: string) => ({
-  id,
-  label,
-  variant: "ghost" as const,
-});
-
 export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
   const { t } = useTranslation("entertainment");
 
@@ -107,30 +102,30 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
     }
   };
 
-  // Distinct ids ("reset-depth" / "reset-freq") keep ParameterSlider's internal
-  // handleReset (which only fires for id === "reset") out of the path — our
-  // onAction is the single source of truth for the reset behavior.
-  const onDepthReset = (actionId: string) => {
-    if (actionId !== "reset-depth") return;
-    setConfig((prev) =>
-      patchSharedOptions(prev, { depth: { ...DEFAULT_DEPTH } }),
-    );
-  };
-
-  const onFrequencyReset = (actionId: string) => {
-    if (actionId !== "reset-freq") return;
-    setConfig((prev) =>
-      prev.mode === "interactive" ?
-        { ...prev, options: { ...prev.options, interactionFrequency: 2 } }
-      : prev,
-    );
+  // One reset for everything: basic toggles + depth sliders, plus the
+  // interaction-frequency slider when in interactive mode. The sliders are
+  // rendered with `hideActions`, so this external button is the only reset.
+  const resetAll = () => {
+    setConfig((prev) => {
+      const base = patchSharedOptions(prev, {
+        basic: { ...DEFAULT_BASIC },
+        depth: { ...DEFAULT_DEPTH },
+      });
+      if (base.mode === "interactive") {
+        return {
+          ...base,
+          options: { ...base.options, interactionFrequency: 2 },
+        };
+      }
+      return base;
+    });
   };
 
   const depthSliders: SliderConfig[] = DEPTH_ITEMS.map((item) => ({
     id: item.key,
     label: t(item.labelKey),
     min: 1,
-    max: 5,
+    max: 3,
     step: 1,
     value: config.options.depth[item.key],
   }));
@@ -165,6 +160,12 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
 
   return (
     <div className="flex flex-col gap-5">
+      <div className="flex justify-end">
+        <Button variant="ghost" size="sm" onClick={resetAll}>
+          {t("options.reset")}
+        </Button>
+      </div>
+
       {config.mode === "interactive" && (
         <section className="flex flex-col gap-2">
           <Label className="text-sm font-medium">
@@ -172,11 +173,10 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
           </Label>
           <ParameterSlider
             id="ent-frequency"
-            actions={[RESET_ACTION(t("options.reset"), "reset-freq")]}
+            hideActions
             sliders={freqSliders}
             values={freqValues}
             onChange={onFrequencyChange}
-            onAction={onFrequencyReset}
           />
           <p className="text-xs text-muted-foreground">
             {t("options.interactive.frequency.levelHint")}
@@ -213,11 +213,10 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
         </p>
         <ParameterSlider
           id="ent-depth"
-          actions={[RESET_ACTION(t("options.reset"), "reset-depth")]}
+          hideActions
           sliders={depthSliders}
           values={depthValues}
           onChange={onDepthChange}
-          onAction={onDepthReset}
         />
       </section>
     </div>

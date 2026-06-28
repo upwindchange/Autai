@@ -33,6 +33,13 @@ export function GeneralSection() {
     });
   };
 
+  const handleStartupModeChange = async (mode: string) => {
+    await updateSettings({
+      ...settings,
+      defaultAppMode: mode as "chat" | "entertainment",
+    });
+  };
+
   return (
     <div className="space-y-6">
       <div>
@@ -116,6 +123,33 @@ export function GeneralSection() {
               </SelectItem>
               <SelectItem value="en">English</SelectItem>
               <SelectItem value="zh">中文</SelectItem>
+            </SelectContent>
+          </Select>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("general.startup.title")}</CardTitle>
+          <CardDescription>
+            {t("general.startup.description")}
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Select
+            value={settings.defaultAppMode}
+            onValueChange={handleStartupModeChange}
+          >
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="chat">
+                {t("general.startup.chat")}
+              </SelectItem>
+              <SelectItem value="entertainment">
+                {t("general.startup.entertainment")}
+              </SelectItem>
             </SelectContent>
           </Select>
         </CardContent>

@@ -11,6 +11,7 @@ import { getDefaultSettings } from "@shared";
 import log from "electron-log/renderer";
 import i18n, { resolveLanguage } from "@/i18n";
 import { getApiBase } from "@/lib/api";
+import { useUiStore } from "@/stores/uiStore";
 
 const logger = log.scope("SettingsContext");
 
@@ -41,6 +42,14 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       const res = await fetch(`${getApiBase()}/settings`);
       const loadedSettings = (await res.json()) as SettingsState;
       setSettings(loadedSettings);
+      // Seed the boot mode once settings arrive: the persisted default
+      // decides which top-level mode (chat | entertainment) the app opens
+      // in. This runs only on mount (one-shot), so manual toggles afterward
+      // stick for the session; the default re-applies on the next launch.
+      const bootMode = loadedSettings.defaultAppMode;
+      if (bootMode && bootMode !== useUiStore.getState().appMode) {
+        useUiStore.getState().setAppMode(bootMode);
+      }
       if (loadedSettings.language) {
         const resolved = resolveLanguage(loadedSettings.language);
         if (resolved !== i18n.language) {

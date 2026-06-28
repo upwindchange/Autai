@@ -696,6 +696,7 @@ export function ParameterSlider({
   trackClassName,
   fillClassName,
   handleClassName,
+  hideActions,
 }: ParameterSliderProps) {
   const slidersSignature = useMemo(
     () => createSliderSignature(sliders),
@@ -796,19 +797,21 @@ export function ParameterSlider({
         ))}
       </div>
 
-      <div className="@container/actions">
-        <ActionButtons
-          actions={normalizedActions.items}
-          align={normalizedActions.align}
-          confirmTimeout={normalizedActions.confirmTimeout}
-          onAction={handleAction}
-          onBeforeAction={
-            onBeforeAction ?
-              (actionId) => onBeforeAction(actionId, currentValues)
-            : undefined
-          }
-        />
-      </div>
+      {!hideActions && (
+        <div className="@container/actions">
+          <ActionButtons
+            actions={normalizedActions.items}
+            align={normalizedActions.align}
+            confirmTimeout={normalizedActions.confirmTimeout}
+            onAction={handleAction}
+            onBeforeAction={
+              onBeforeAction ?
+                (actionId) => onBeforeAction(actionId, currentValues)
+              : undefined
+            }
+          />
+        </div>
+      )}
     </article>
   );
 }

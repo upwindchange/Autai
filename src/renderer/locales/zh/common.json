@@ -49,6 +49,8 @@
   "sidebar.untagged": "无标签",
   "sidebar.rename": "重命名",
   "sidebar.renameTitle": "重命名对话",
+  "sidebar.mode.chat": "对话模式",
+  "sidebar.mode.entertainment": "娱乐模式",
   "common.cancel": "取消",
   "composer.browser.on": "AI正在替你操作网页",
   "composer.browser.off": "让AI替你操作网页",

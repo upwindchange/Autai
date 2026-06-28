@@ -102,6 +102,10 @@ class SettingsService {
         settingsMap.get("auto_tag_creation_enabled") !== "false",
       systemPrompt: settingsMap.get("system_prompt") || defaults.systemPrompt,
       language: settingsMap.get("language") || defaults.language,
+      defaultAppMode:
+        settingsMap.get("default_app_mode") === "entertainment" ?
+          "entertainment"
+        : "chat",
       maxParallelAgents: parseInt(
         settingsMap.get("max_parallel_agents") || "2",
         10,
@@ -173,6 +177,7 @@ class SettingsService {
         ],
         ["system_prompt", settingsState.systemPrompt || ""],
         ["language", settingsState.language || "en"],
+        ["default_app_mode", settingsState.defaultAppMode],
         ["max_parallel_agents", String(settingsState.maxParallelAgents)],
         ["max_retries", String(settingsState.maxRetries)],
         ["search_engine", settingsState.searchEngine || "google"],

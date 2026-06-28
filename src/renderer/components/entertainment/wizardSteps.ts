@@ -23,12 +23,13 @@ export const DEFAULT_BASIC: DehydrateBasic = {
 };
 
 export const DEFAULT_DEPTH: DehydrateDepth = {
-  dialoguePacing: 3,
-  dehydrate: 3,
-  sceneEnhance: 3,
-  combatEnhance: 3,
-  emotionEnhance: 3,
-  literaryEnhance: 3,
+  // 1 = light · 2 = medium · 3 = heavy — default to a balanced medium pass.
+  dialoguePacing: 2,
+  dehydrate: 2,
+  sceneEnhance: 2,
+  combatEnhance: 2,
+  emotionEnhance: 2,
+  literaryEnhance: 2,
 };
 
 export const INITIAL_DEHYDRATE: DehydrateConfig = {

@@ -111,4 +111,10 @@ export interface ParameterSliderProps extends Omit<
   trackClassName?: string;
   fillClassName?: string;
   handleClassName?: string;
+  /**
+   * Render the sliders with no action buttons (Reset/Apply). Useful when the
+   * caller drives its own external reset/apply affordance for a group of
+   * controls. Defaults to false (renders the configured or default actions).
+   */
+  hideActions?: boolean;
 }

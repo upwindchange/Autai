@@ -1,6 +1,6 @@
 import { type FC } from "react";
 import { useTranslation } from "react-i18next";
-import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 interface ChapterNavProps {
@@ -41,7 +41,7 @@ export const ChapterNav: FC<ChapterNavProps> = ({
             onClick={onPrev}
             className="rounded-full"
           >
-            <ChevronLeft className="size-4" />
+            <NavChevronLeft className="size-4" />
             <span className="hidden sm:inline">
               {t("reader.chapter.previous")}
             </span>
@@ -55,12 +55,72 @@ export const ChapterNav: FC<ChapterNavProps> = ({
           disabled={!canGoNext || fetching}
           className="rounded-full"
         >
+          <span className="hidden sm:inline">{t("reader.chapter.next")}</span>
           {fetching ?
             <Loader2 className="size-4 animate-spin" />
-          : <ChevronRight className="size-4" />}
-          <span className="hidden sm:inline">{t("reader.chapter.next")}</span>
+          : <NavChevronRight className="size-4" />}
         </Button>
       </div>
     </div>
   );
 };
+
+/**
+ * Animated chevrons for chapter navigation. The strokes draw themselves in over
+ * ~0.4s via SMIL (`stroke-dashoffset` 12 → 0, frozen at the end), so the arrow
+ * "writes" itself whenever the icon (re)mounts — on first appearance, and again
+ * when the next button swaps back from its loading spinner.
+ *
+ * Prev points left and leads the label; next points right and trails it.
+ */
+const NavChevronLeft: FC<{ className?: string }> = ({ className }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M0 0h24v24H0z" fill="none" />
+    <path
+      stroke="currentColor"
+      strokeDasharray="12"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      d="M8 12l7 -7M8 12l7 7"
+    >
+      <animate
+        fill="freeze"
+        attributeName="stroke-dashoffset"
+        dur="0.4s"
+        values="12;0"
+      />
+    </path>
+  </svg>
+);
+
+const NavChevronRight: FC<{ className?: string }> = ({ className }) => (
+  <svg
+    viewBox="0 0 24 24"
+    fill="none"
+    className={className}
+    aria-hidden="true"
+  >
+    <path d="M0 0h24v24H0z" fill="none" />
+    <path
+      stroke="currentColor"
+      strokeDasharray="12"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="2"
+      d="M16 12l-7 -7M16 12l-7 7"
+    >
+      <animate
+        fill="freeze"
+        attributeName="stroke-dashoffset"
+        dur="0.4s"
+        values="12;0"
+      />
+    </path>
+  </svg>
+);

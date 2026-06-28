@@ -113,6 +113,8 @@ const DEFAULT_SETTINGS = {
   autoTagCreationEnabled: true,
   systemPrompt: "",
   language: "system" as const,
+  // Which top-level mode (chat | entertainment) the app opens in on boot.
+  defaultAppMode: "chat" as const,
   maxParallelAgents: 2,
   maxRetries: 3,
   searchEngine: "google" as const,
@@ -151,6 +153,9 @@ export const SettingsStateSchema = z
       .default(DEFAULT_SETTINGS.autoTagCreationEnabled),
     systemPrompt: z.string().default(DEFAULT_SETTINGS.systemPrompt),
     language: z.enum(["system", "en", "zh"]).default(DEFAULT_SETTINGS.language),
+    defaultAppMode: z
+      .enum(["chat", "entertainment"])
+      .default(DEFAULT_SETTINGS.defaultAppMode),
     maxParallelAgents: z
       .number()
       .int()

@@ -48,14 +48,14 @@ const DehydrateBasicSchema = z.object({
   preachRemoval: z.boolean().default(false),
 });
 
-/** Module 2 — 深度重写 (1–5 intensity sliders). */
+/** Module 2 — 深度重写 (1–3 intensity sliders). */
 const DehydrateDepthSchema = z.object({
-  dialoguePacing: z.number().int().min(1).max(5).default(3),
-  dehydrate: z.number().int().min(1).max(5).default(3),
-  sceneEnhance: z.number().int().min(1).max(5).default(3),
-  combatEnhance: z.number().int().min(1).max(5).default(3),
-  emotionEnhance: z.number().int().min(1).max(5).default(3),
-  literaryEnhance: z.number().int().min(1).max(5).default(3),
+  dialoguePacing: z.number().int().min(1).max(3).default(2),
+  dehydrate: z.number().int().min(1).max(3).default(2),
+  sceneEnhance: z.number().int().min(1).max(3).default(2),
+  combatEnhance: z.number().int().min(1).max(3).default(2),
+  emotionEnhance: z.number().int().min(1).max(3).default(2),
+  literaryEnhance: z.number().int().min(1).max(3).default(2),
 });
 
 /** Interactive-only option. */
