@@ -1,102 +1,91 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import type { ChapterFull, ChapterSummary, EntertainmentConfig } from "@shared";
+import type {
+  ChapterDetail,
+  ChapterProgress,
+  EntertainmentConfig,
+} from "@shared";
 import { httpClient } from "@/lib/httpClient";
-import { serverEvents } from "@/lib/serverEvents";
 
 /**
- * Entertainment reader store — the single source of truth for the dehydrate
- * reader. There is NO live streaming: the stub worker writes complete chapters
- * to the DB and fires `entertainment:chapterReady`; this store reads every
- * chapter from disk.
+ * Entertainment reader store — the reader's source of truth.
  *
- * Resilience model: a thread's "waiting/generating" state is DERIVED from the
- * loaded chapter list (any row with `status: 'streaming'`), never from a
- * volatile flag. `loadChapters` (a REST GET) is the only way the view is
- * populated — on mount, thread switch, after a generation POST, and on a
- * `chapterReady` event for the current thread. Because the waiting state lives
- * in the DB, it survives thread switches, exiting/entering entertainment mode,
- * and reloads. Multiple threads can generate concurrently: the single global
- * `chapterReady` subscription routes by `currentThreadId` (background threads
- * are already correct in the DB and reconcile on switch).
+ * Polling-driven, NOT event-driven: there is NO SSE subscription for chapters.
+ * The `useChapterReadiness` hook polls chapter detail + worker liveness and
+ * writes results back here. The DB status columns are the single source of
+ * truth; this store is just a cache the reader renders from.
  */
-export interface ChapterView extends ChapterSummary {
-  // undefined = not fetched yet; null = generating (no prose yet); string = loaded
+export interface ChapterView extends ChapterProgress {
+  // Cached rewritten prose (undefined = not fetched yet; null = not rewritten).
   content?: string | null;
+}
+
+export interface WorkerInfo {
+  active: boolean;
+  target: number;
+  pending: number;
+  size: number;
 }
 
 interface ChaptersState {
   currentThreadId: string | null;
   chapters: ChapterView[]; // sorted by chapterNumber
-  currentChapterId: string | null; // null = follow the latest chapter
+  currentChapterNumber: number | null;
+  novelType: "file" | "internet" | null;
   loading: boolean;
 
-  /** Register the global chapterReady/onReconnect handlers (call once). */
-  init: () => void;
-  /** Re-read the chapter list from disk; sets currentThreadId. */
+  /** Re-read the chapter list (statuses); preserves cached content. */
   loadChapters: (threadId: string) => Promise<void>;
-  /** Fetch one chapter's content and merge it into the list (lazy, on demand). */
-  loadChapterContent: (chapterId: string) => Promise<void>;
-  /** Start the first chapter of a dehydrate run (wizard submit). */
-  startDehydrate: (
+  /** Re-read one chapter's detail (statuses + content) and merge it in. */
+  loadChapterDetail: (
+    threadId: string,
+    n: number,
+  ) => Promise<ChapterDetail | undefined>;
+  /** Internet wizard submit: save config + set up the thread. */
+  setupInternet: (threadId: string, config: EntertainmentConfig) => Promise<void>;
+  /** File wizard submit: upload (backend detects encoding + ingests + starts rewrite). */
+  uploadFile: (
     threadId: string,
     config: EntertainmentConfig,
-    novelText?: string,
+    payload: { fsPath?: string; fileBytesBase64?: string },
   ) => Promise<void>;
-  /** Generate the next chapter (reader "Next" at the latest). */
-  nextChapter: (
-    threadId: string,
-    config?: EntertainmentConfig,
-  ) => Promise<void>;
-  setCurrentChapter: (id: string | null) => void;
+  /** Query the per-thread worker's liveness. */
+  queryWorker: (threadId: string) => Promise<WorkerInfo>;
+  /** Ensure a worker is processing chapter n's window (start-if-absent). */
+  ensureWorker: (threadId: string, n: number) => Promise<WorkerInfo>;
+  /** Last-read chapter (for resume-on-reopen). */
+  getPosition: (threadId: string) => Promise<number | null>;
+  /** Persist the reader's current chapter. */
+  setPosition: (threadId: string, n: number) => Promise<void>;
+  setCurrentChapter: (n: number | null) => void;
 }
 
-let initialized = false;
-
 export const useChaptersStore = create<ChaptersState>()(
-  subscribeWithSelector((set, get) => ({
+  subscribeWithSelector((set) => ({
     currentThreadId: null,
     chapters: [],
-    currentChapterId: null,
+    currentChapterNumber: null,
+    novelType: null,
     loading: false,
 
-    init: () => {
-      if (initialized) return;
-      initialized = true;
-      // Single global subscription. Routes by the LIVE currentThreadId so events
-      // for background threads are ignored (their DB state is already correct
-      // and reconciles when the user switches to them).
-      serverEvents.on("entertainment:chapterReady", ({ threadId }) => {
-        if (threadId !== get().currentThreadId) return;
-        void get().loadChapters(threadId);
-      });
-      serverEvents.onReconnect(() => {
-        const t = get().currentThreadId;
-        if (t) void get().loadChapters(t);
-      });
-    },
-
-    loadChapters: async (threadId: string) => {
+    loadChapters: async (threadId) => {
       set({ loading: true });
       try {
-        const { chapters } = await httpClient.getJSON<{
-          chapters: ChapterSummary[];
+        const { chapters, novelType } = await httpClient.getJSON<{
+          chapters: ChapterProgress[];
+          novelType: "file" | "internet" | null;
         }>(`/entertainment/threads/${threadId}/chapters`);
         set((state) => {
-          // Preserve already-loaded content + the current pin (if still present).
-          const prevById = new Map(state.chapters.map((c) => [c.id, c]));
-          const next: ChapterView[] = chapters.map((c) => {
-            const prev = prevById.get(c.id);
-            return prev ? { ...c, content: prev.content } : { ...c };
-          });
-          const currentStillPresent =
-            state.currentChapterId === null ||
-            next.some((c) => c.id === state.currentChapterId);
+          const prevByNum = new Map(
+            state.chapters.map((c) => [c.chapterNumber, c]),
+          );
           return {
             currentThreadId: threadId,
-            chapters: next,
-            currentChapterId:
-              currentStillPresent ? state.currentChapterId : null,
+            novelType,
+            chapters: chapters.map((c) => {
+              const prev = prevByNum.get(c.chapterNumber);
+              return prev ? { ...c, content: prev.content } : { ...c };
+            }),
             loading: false,
           };
         });
@@ -105,51 +94,68 @@ export const useChaptersStore = create<ChaptersState>()(
       }
     },
 
-    loadChapterContent: async (chapterId: string) => {
-      const threadId = get().currentThreadId;
-      if (!threadId) return;
+    loadChapterDetail: async (threadId, n) => {
       try {
-        const { chapter } = await httpClient.getJSON<{ chapter: ChapterFull }>(
-          `/entertainment/threads/${threadId}/chapters/${chapterId}`,
+        const { chapter } = await httpClient.getJSON<{ chapter: ChapterDetail }>(
+          `/entertainment/threads/${threadId}/chapters/${n}`,
         );
-        set((state) => ({
-          chapters: state.chapters.map((c) =>
-            c.id === chapterId ? { ...c, content: chapter.content } : c,
-          ),
-        }));
+        set((state) => {
+          // Upsert: a network chapter may not be in the list yet (no source row).
+          const exists = state.chapters.some(
+            (c) => c.chapterNumber === n,
+          );
+          const merged: ChapterView = { ...chapter, content: chapter.content };
+          const next = exists ?
+              state.chapters.map((c) =>
+                c.chapterNumber === n ? merged : c,
+              )
+            : [...state.chapters, merged].sort(
+                (a, b) => a.chapterNumber - b.chapterNumber,
+              );
+          return { chapters: next };
+        });
+        return chapter;
       } catch {
-        // leave content unloaded; the reader shows its fallback
+        return undefined;
       }
     },
 
-    startDehydrate: async (
-      threadId: string,
-      config: EntertainmentConfig,
-      novelText?: string,
-    ) => {
-      if (get().chapters.some((c) => c.status === "streaming")) return;
-      await httpClient.postJSON(`/entertainment/threads/${threadId}/chapters`, {
+    setupInternet: async (threadId, config) => {
+      await httpClient.postJSON(`/entertainment/threads/${threadId}/setup`, {
         config,
-        novelText,
       });
-      // The worker is fire-and-forget; reload to pick up any rows written before
-      // the chapterReady event lands (ingestion may already be done).
-      await get().loadChapters(threadId);
     },
 
-    nextChapter: async (threadId: string, config?: EntertainmentConfig) => {
-      if (get().chapters.some((c) => c.status === "streaming")) return;
-      await httpClient.postJSON(
-        `/entertainment/threads/${threadId}/chapters`,
-        config ? { config } : {},
-      );
-      await get().loadChapters(threadId);
+    uploadFile: async (threadId, config, payload) => {
+      await httpClient.postJSON(`/entertainment/threads/${threadId}/upload`, {
+        config,
+        ...payload,
+      });
     },
 
-    setCurrentChapter: (id) => set({ currentChapterId: id }),
+    queryWorker: (threadId) =>
+      httpClient.getJSON<WorkerInfo>(
+        `/entertainment/threads/${threadId}/worker`,
+      ),
+
+    ensureWorker: (threadId, n) =>
+      httpClient.postJSON<WorkerInfo>(
+        `/entertainment/threads/${threadId}/worker`,
+        { chapterNumber: n },
+      ),
+
+    getPosition: async (threadId) => {
+      const { lastChapterNumber } = await httpClient.getJSON<{
+        lastChapterNumber: number | null;
+      }>(`/entertainment/threads/${threadId}/position`);
+      return lastChapterNumber;
+    },
+
+    setPosition: (threadId, n) =>
+      httpClient.postJSON(`/entertainment/threads/${threadId}/position`, {
+        chapterNumber: n,
+      }),
+
+    setCurrentChapter: (n) => set({ currentChapterNumber: n }),
   })),
 );
-
-/** A thread is "waiting/generating" iff a chapter row is still in progress. */
-export const selectWaiting = (s: ChaptersState): boolean =>
-  s.chapters.some((c) => c.status === "streaming");

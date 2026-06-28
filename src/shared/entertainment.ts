@@ -100,38 +100,34 @@ export type DehydrateDepth = z.infer<typeof DehydrateDepthSchema>;
 // ---------------------------------------------------------------------------
 // Database-contract types (entertainment persistence layer).
 //
-// These are shared between main (schema + services) and renderer so the worker
-// that writes metadata and the UI that reads it agree on the discriminated
-// `kind` set. See src/main/db/schema.ts for the table definitions.
+// Shared between main (schema + services) and renderer. The dehydration
+// pipeline uses TWO tables — `source_chapters` (原文) and `rewritten_chapters`
+// (重写) — keyed by (threadId, chapterNumber). The reader never shows 原文; it
+// renders fetching / rewriting / ready / error states derived from the two
+// statuses (polled from the REST API, never from SSE).
 // ---------------------------------------------------------------------------
 
-/** Lifecycle of a `chapters` row. */
-export type ChapterStatus =
-  | "streaming" // being generated (legacy/sample generation; no prose yet)
-  | "complete" // generated prose is in `content`
-  | "error" // generation failed / aborted
-  | "unprocessed"; // parsed from the source file, awaiting dehydration
+/** Lifecycle of a `source_chapters` row (原文 acquisition). */
+export type SourceChapterStatus = "fetching" | "fetched" | "error";
+
+/** Lifecycle of a `rewritten_chapters` row (重写 transformation). */
+export type RewrittenChapterStatus = "rewriting" | "rewritten" | "error";
 
 /**
- * Light chapter shape returned by the list endpoint (no `content` — chapters
- * can be long, so content is fetched on demand via the single-chapter endpoint).
+ * Per-chapter pipeline progress — the reader's list/TOC view, merging the two
+ * tables by chapterNumber. A `null` status means no row for that table yet
+ * (the chapter hasn't been acquired/rewritten). No prose here; see ChapterDetail.
  */
-export interface ChapterSummary {
-  id: string;
+export interface ChapterProgress {
   chapterNumber: number;
   title: string | null;
-  status: ChapterStatus;
+  sourceStatus: SourceChapterStatus | null;
+  rewriteStatus: RewrittenChapterStatus | null;
 }
 
-/** Full chapter (single-chapter endpoint), adds the prose `content`. */
-export interface ChapterFull extends ChapterSummary {
+/** Single-chapter detail: progress + the rewritten prose (null unless rewritten). */
+export interface ChapterDetail extends ChapterProgress {
   content: string | null;
-  /**
-   * Raw chapter text sliced from the source novel at ingestion time. Present for
-   * rows created by the dehydrate file-ingestion pipeline; null for the legacy
-   * sample-generation flow.
-   */
-  originalContent: string | null;
 }
 
 /**

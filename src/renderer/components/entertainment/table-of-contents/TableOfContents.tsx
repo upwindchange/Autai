@@ -1,30 +1,70 @@
-import { type FC } from "react";
+import { type FC, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { BookOpen, Loader2 } from "lucide-react";
 import type { ChapterView } from "@/stores/chaptersStore";
 
 interface TableOfContentsProps {
   chapters: ChapterView[];
-  currentChapterId: string | null;
-  onSelect: (id: string) => void;
+  currentChapterNumber: number | null;
+  onSelect: (chapterNumber: number) => void;
 }
 
 /**
- * Table of contents — the chapter list for the active thread, read from disk via
- * the chapters store. Clicking an entry pins the reader to that chapter. A
- * chapter still being generated (status: 'streaming') shows a spinner. A parsed-
- * but-not-yet-dehydrated chapter (status: 'unprocessed') renders greyed and
- * non-interactive.
+ * Walk up from `el` to its nearest scrollable ancestor (the panel's list
+ * viewport). Returns null when nothing overflows — a short list needs no scroll.
+ */
+function findScrollParent(el: HTMLElement): HTMLElement | null {
+  let node = el.parentElement;
+  while (node && node !== document.body) {
+    const { overflowY } = getComputedStyle(node);
+    if (
+      (overflowY === "auto" ||
+        overflowY === "scroll" ||
+        overflowY === "overlay") &&
+      node.scrollHeight > node.clientHeight
+    ) {
+      return node;
+    }
+    node = node.parentElement;
+  }
+  return null;
+}
+
+/**
+ * Table of contents — the chapter list for the active thread. Clicking an entry
+ * jumps the reader (set position + kick the worker for that chapter). A chapter
+ * being fetched/rewritten shows a spinner; one not yet rewritten is dimmed but
+ * still selectable. Rendered inside the responsive reader-controls shell.
  *
- * Rendered inside the responsive reader-controls shell, which supplies the
- * panel title — so this is just the body.
+ * On open (the panel mounts this list fresh) the current chapter is scrolled to
+ * the centre of the viewport. Measurement uses offsetTop — transform-independent,
+ * so it stays correct mid open-animation — and is confined to the panel's own
+ * scroll container, never the page.
  */
 export const TableOfContents: FC<TableOfContentsProps> = ({
   chapters,
-  currentChapterId,
+  currentChapterNumber,
   onSelect,
 }) => {
   const { t } = useTranslation("reader");
+  const activeRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const el = activeRef.current;
+    if (!el) return;
+    const container = findScrollParent(el);
+    if (!container) return;
+    // Accumulate offsetTop up to the scroll container (transform-independent).
+    let top = 0;
+    let node: HTMLElement | null = el;
+    while (node && node !== container) {
+      top += node.offsetTop;
+      node = node.offsetParent as HTMLElement | null;
+    }
+    if (node !== container) return; // container isn't an offsetParent ancestor
+    const target = top - (container.clientHeight - el.offsetHeight) / 2;
+    container.scrollTop = Math.max(0, Math.round(target));
+  }, [currentChapterNumber, chapters.length]);
 
   if (chapters.length === 0) {
     return (
@@ -38,32 +78,21 @@ export const TableOfContents: FC<TableOfContentsProps> = ({
   return (
     <ul className="flex flex-col gap-0.5">
       {chapters.map((c) => {
-        const active = c.id === currentChapterId;
-        // Parsed from the source file but not yet dehydrated: render greyed and
-        // non-interactive (no onSelect). Click/navigation is wired later.
-        if (c.status === "unprocessed") {
-          return (
-            <li key={c.id}>
-              <div
-                aria-disabled="true"
-                className="flex w-full cursor-not-allowed items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-muted-foreground opacity-50"
-              >
-                <span className="shrink-0 text-muted-foreground/70 text-xs tabular-nums">
-                  {c.chapterNumber}
-                </span>
-                {c.title && <span className="truncate">{c.title}</span>}
-              </div>
-            </li>
-          );
-        }
+        const active = c.chapterNumber === currentChapterNumber;
+        const busy =
+          c.sourceStatus === "fetching" || c.rewriteStatus === "rewriting";
+        const dimmed = c.rewriteStatus !== "rewritten"; // not yet readable
         return (
-          <li key={c.id}>
+          <li key={c.chapterNumber}>
             <button
+              ref={active ? activeRef : undefined}
               type="button"
-              onClick={() => onSelect(c.id)}
+              onClick={() => onSelect(c.chapterNumber)}
               className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted ${
                 active ?
                   "bg-muted font-medium text-foreground"
+                : dimmed ?
+                  "text-muted-foreground/70"
                 : "text-muted-foreground"
               }`}
             >
@@ -71,7 +100,7 @@ export const TableOfContents: FC<TableOfContentsProps> = ({
                 {c.chapterNumber}
               </span>
               {c.title && <span className="truncate">{c.title}</span>}
-              {c.status === "streaming" && (
+              {busy && (
                 <Loader2 className="ml-auto size-3.5 shrink-0 animate-spin" />
               )}
             </button>

@@ -41,15 +41,12 @@ eventsRoutes.get("/", (c) => {
       void send("app:message", p);
     const onSplit = () => void send("splitview:activate", null);
     const onListChanged = () => void send("threads:listChanged", null);
-    const onChapterReady = (p: ServerEvents["entertainment:chapterReady"]) =>
-      void send("entertainment:chapterReady", p);
 
     eventBus.onEvent("threads:metadataUpdated", onMeta);
     eventBus.onEvent("threads:suggestionsUpdated", onSugg);
     eventBus.onEvent("app:message", onMsg);
     eventBus.onEvent("splitview:activate", onSplit);
     eventBus.onEvent("threads:listChanged", onListChanged);
-    eventBus.onEvent("entertainment:chapterReady", onChapterReady);
 
     // Keep idle proxies/dev-server from dropping the connection.
     const heartbeat = setInterval(() => {
@@ -63,7 +60,6 @@ eventsRoutes.get("/", (c) => {
       eventBus.offEvent("app:message", onMsg);
       eventBus.offEvent("splitview:activate", onSplit);
       eventBus.offEvent("threads:listChanged", onListChanged);
-      eventBus.offEvent("entertainment:chapterReady", onChapterReady);
     };
     signal.addEventListener("abort", cleanup, { once: true });
 

@@ -31,6 +31,9 @@
   "reader.reset": "Reset to defaults",
   "reader.chapter.next": "Next chapter",
   "reader.chapter.previous": "Previous chapter",
+  "reader.chapter.fetching": "Fetching chapter…",
+  "reader.chapter.rewriting": "Rewriting…",
+  "reader.chapter.error": "This chapter failed to load.",
   "reader.toc.title": "Contents",
   "reader.toc.empty": "No chapters yet",
   "reader.controls.label": "Reader tools"

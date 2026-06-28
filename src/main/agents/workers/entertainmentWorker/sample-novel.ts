@@ -1,13 +1,14 @@
 /**
- * Throwaway multi-chapter CJK sample used by the entertainment-mode stub
- * workers so the novel-reading UI has a long, realistically-structured text to
- * render (chapter headings via `# 第N章`, paragraphs separated by blank lines).
+ * Throwaway multi-chapter CJK sample used by the interactive stub worker so the
+ * novel-reading UI has a long, realistically-structured text to render (chapter
+ * headings via `# 第N章`, paragraphs separated by blank lines).
  *
  * Each entry is streamed as its own `text-delta` followed by `\n\n`, so
  * streamdown renders headings as `<h1>` and each paragraph as a `<p>` — which
  * is what exercises the reader's heading + paragraph typography.
  *
- * This is stub content only; the real dehydrate/interactive logic replaces it.
+ * This is stub content only; the real interactive logic replaces it. (Dehydrate
+ * does not use this — it dehydrates the user's uploaded novel text instead.)
  */
 export const SAMPLE_NOVEL_PARAGRAPHS: readonly string[] = [
   "# 第一章 初入江湖",
@@ -45,43 +46,3 @@ export const SAMPLE_NOVEL_PARAGRAPHS: readonly string[] = [
   "「师父，」他在心中默念，「弟子终于踏进了这片江湖。无论前路如何，弟子都会记得您的话——剑，是用来守护的。」",
   "钟声再度响起，演武场上，第一场比试，即将开始。",
 ];
-
-/**
- * The sample novel split into chapters by the `# 第N章 …` headings, for the
- * dehydrate REST path (one generated chapter = one entry here). `number` is
- * 1-based; the title is the heading text with the leading `# ` stripped.
- *
- * `getSampleChapter(n)` cycles so a thread can request more chapters than the
- * sample defines (stub content only).
- */
-export interface SampleChapter {
-  number: number;
-  title: string;
-  paragraphs: string[];
-}
-
-export const SAMPLE_NOVEL_CHAPTERS: readonly SampleChapter[] = (() => {
-  const chapters: SampleChapter[] = [];
-  let current: SampleChapter | null = null;
-  for (const paragraph of SAMPLE_NOVEL_PARAGRAPHS) {
-    const isHeading = /^#\s+第/.test(paragraph);
-    if (isHeading) {
-      current = {
-        number: chapters.length + 1,
-        title: paragraph.replace(/^#\s+/, ""),
-        paragraphs: [],
-      };
-      chapters.push(current);
-    } else if (paragraph !== "" && current) {
-      current.paragraphs.push(paragraph);
-    }
-  }
-  return chapters;
-})();
-
-/** Stub chapter for a given 1-based number (cycles through the sample). */
-export function getSampleChapter(chapterNumber: number): SampleChapter {
-  const len = SAMPLE_NOVEL_CHAPTERS.length;
-  const base = SAMPLE_NOVEL_CHAPTERS[(chapterNumber - 1) % len]!;
-  return { ...base, number: chapterNumber };
-}

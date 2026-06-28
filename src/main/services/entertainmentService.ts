@@ -1,114 +1,202 @@
 import { getDb } from "@/db";
-import { chapters, entertainmentConfigs, threads } from "@/db/schema";
+import {
+  sourceChapters,
+  rewrittenChapters,
+  entertainmentConfigs,
+  threads,
+} from "@/db/schema";
 import type {
-  ChapterFull,
-  ChapterStatus,
-  ChapterSummary,
+  ChapterDetail,
+  ChapterProgress,
   EntertainmentConfig,
+  RewrittenChapterStatus,
+  SourceChapterStatus,
 } from "@shared";
 import type { EntertainmentConfigRow } from "@/db/types";
 import { threadPersistenceService } from "./threadPersistenceService";
 import { i18n } from "@/i18n";
 import { eventBus } from "@/utils/eventBus";
-import { asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import log from "electron-log/main";
 
 const logger = log.scope("EntertainmentService");
 
 /**
  * Entertainment-mode persistence — a thin DB CRUD layer ONLY. It is the single
- * place the REST routes (and the dehydrate worker) touch the entertainment
- * tables. It holds NO novel/LLM workflow: parsing, ingestion, and generation
- * live in `dehydrate/worker.ts`. Anything that reads or writes chapter/config
- * rows goes through here.
+ * place the REST routes (and the dehydrate scheduler) touch the entertainment
+ * tables. It holds NO novel/LLM workflow: encoding/ingestion, the lookahead
+ * queue, acquisition, and rewriting live in the dehydrate scheduler/ingest
+ * modules. Anything that reads or writes chapter/config rows goes through here.
  *
- * Mirrors the CRUD style of `threadPersistenceService` (getDb(), .run()/.all()/
- * .get(), db.transaction).
+ * Chapters span TWO tables — `sourceChapters` (原文) and `rewrittenChapters`
+ * (重写) — merged by chapterNumber for the reader's view (`listChapterProgress`
+ * / `getChapterDetail`). Mirrors the CRUD style of `threadPersistenceService`.
  */
 class EntertainmentService {
   initialize(): void {
     logger.info("EntertainmentService ready");
   }
 
-  // --- chapters -----------------------------------------------------------
+  // --- source chapters (原文) ---------------------------------------------
 
-  /** Light list (no `content`/`originalContent`) ordered by chapterNumber — for the TOC/reader. */
-  listChapters(threadId: string): ChapterSummary[] {
+  /** All source rows for the thread, ordered by chapterNumber. */
+  listSourceChapters(threadId: string) {
     const db = getDb();
-    const rows = db
-      .select({
-        id: chapters.id,
-        chapterNumber: chapters.chapterNumber,
-        title: chapters.title,
-        status: chapters.status,
-      })
-      .from(chapters)
-      .where(eq(chapters.threadId, threadId))
-      .orderBy(asc(chapters.chapterNumber))
-      .all();
-    return rows;
-  }
-
-  /** Single chapter incl. `content` + `originalContent`, scoped to the thread. */
-  getChapter(threadId: string, chapterId: string): ChapterFull | undefined {
-    const db = getDb();
-    const row = db
+    return db
       .select()
-      .from(chapters)
-      .where(eq(chapters.id, chapterId))
-      .get();
-    if (!row || row.threadId !== threadId) return undefined;
-    return {
-      id: row.id,
-      chapterNumber: row.chapterNumber,
-      title: row.title,
-      status: row.status,
-      content: row.content,
-      originalContent: row.originalContent,
-    };
+      .from(sourceChapters)
+      .where(eq(sourceChapters.threadId, threadId))
+      .orderBy(asc(sourceChapters.chapterNumber))
+      .all();
   }
 
-  /** Insert a chapter row in any status; returns its id/number/title. */
-  createChapter(input: {
+  /** Source row by chapter number (undefined if none). */
+  getSourceChapter(threadId: string, chapterNumber: number) {
+    const db = getDb();
+    return db
+      .select()
+      .from(sourceChapters)
+      .where(
+        and(
+          eq(sourceChapters.threadId, threadId),
+          eq(sourceChapters.chapterNumber, chapterNumber),
+        ),
+      )
+      .get();
+  }
+
+  /** Insert a source row (caller ensures it doesn't exist yet). */
+  insertSourceChapter(input: {
     threadId: string;
     chapterNumber: number;
-    title: string | null;
-    status: ChapterStatus;
+    title?: string | null;
     content?: string | null;
-    originalContent?: string | null;
-  }): { id: string; chapterNumber: number; title: string | null } {
+    status: SourceChapterStatus;
+  }): void {
     const db = getDb();
-    const id = crypto.randomUUID();
-    db.insert(chapters)
+    db.insert(sourceChapters)
       .values({
-        id,
+        id: crypto.randomUUID(),
         threadId: input.threadId,
         chapterNumber: input.chapterNumber,
-        title: input.title,
-        status: input.status,
+        title: input.title ?? null,
         content: input.content ?? null,
-        originalContent: input.originalContent ?? null,
+        status: input.status,
       })
       .run();
-    const row = db.select().from(chapters).where(eq(chapters.id, id)).get()!;
-    return { id: row.id, chapterNumber: row.chapterNumber, title: row.title };
   }
 
-  /** Patch a chapter row's mutable columns (status/content/originalContent/title). */
-  updateChapter(
-    chapterId: string,
+  /** Patch a source row's mutable columns. */
+  updateSourceChapter(
+    threadId: string,
+    chapterNumber: number,
     patch: {
-      status?: ChapterStatus;
+      status?: SourceChapterStatus;
       content?: string | null;
-      originalContent?: string | null;
       title?: string | null;
     },
   ): void {
     const db = getDb();
-    db.update(chapters)
+    db.update(sourceChapters)
       .set({ ...patch, updatedAt: sql`(datetime('now'))` })
-      .where(eq(chapters.id, chapterId))
+      .where(
+        and(
+          eq(sourceChapters.threadId, threadId),
+          eq(sourceChapters.chapterNumber, chapterNumber),
+        ),
+      )
       .run();
+  }
+
+  // --- rewritten chapters (重写) ------------------------------------------
+
+  /** Rewrite row by chapter number (undefined if none). */
+  getRewrittenChapter(threadId: string, chapterNumber: number) {
+    const db = getDb();
+    return db
+      .select()
+      .from(rewrittenChapters)
+      .where(
+        and(
+          eq(rewrittenChapters.threadId, threadId),
+          eq(rewrittenChapters.chapterNumber, chapterNumber),
+        ),
+      )
+      .get();
+  }
+
+  /** Insert a rewrite row (caller ensures it doesn't exist yet). */
+  insertRewrittenChapter(input: {
+    threadId: string;
+    chapterNumber: number;
+    content?: string | null;
+    status: RewrittenChapterStatus;
+  }): void {
+    const db = getDb();
+    db.insert(rewrittenChapters)
+      .values({
+        id: crypto.randomUUID(),
+        threadId: input.threadId,
+        chapterNumber: input.chapterNumber,
+        content: input.content ?? null,
+        status: input.status,
+      })
+      .run();
+  }
+
+  /** Patch a rewrite row's mutable columns. */
+  updateRewrittenChapter(
+    threadId: string,
+    chapterNumber: number,
+    patch: {
+      status?: RewrittenChapterStatus;
+      content?: string | null;
+    },
+  ): void {
+    const db = getDb();
+    db.update(rewrittenChapters)
+      .set({ ...patch, updatedAt: sql`(datetime('now'))` })
+      .where(
+        and(
+          eq(rewrittenChapters.threadId, threadId),
+          eq(rewrittenChapters.chapterNumber, chapterNumber),
+        ),
+      )
+      .run();
+  }
+
+  // --- merged reader view -------------------------------------------------
+
+  /** Per-chapter pipeline progress (source + rewrite merged), ordered. */
+  listChapterProgress(threadId: string): ChapterProgress[] {
+    const sources = this.listSourceChapters(threadId);
+    const db = getDb();
+    const rewrites = db
+      .select()
+      .from(rewrittenChapters)
+      .where(eq(rewrittenChapters.threadId, threadId))
+      .all();
+    const rewriteByNum = new Map(rewrites.map((r) => [r.chapterNumber, r]));
+    return sources.map((s) => ({
+      chapterNumber: s.chapterNumber,
+      title: s.title,
+      sourceStatus: s.status,
+      rewriteStatus: rewriteByNum.get(s.chapterNumber)?.status ?? null,
+    }));
+  }
+
+  /** Single-chapter detail (synthesizes null statuses if no rows yet). */
+  getChapterDetail(threadId: string, chapterNumber: number): ChapterDetail {
+    const s = this.getSourceChapter(threadId, chapterNumber);
+    const r = this.getRewrittenChapter(threadId, chapterNumber);
+    return {
+      chapterNumber,
+      title: s?.title ?? null,
+      sourceStatus: s?.status ?? null,
+      rewriteStatus: r?.status ?? null,
+      // Only expose rewritten prose to the reader (never 原文).
+      content: r?.status === "rewritten" ? r.content : null,
+    };
   }
 
   /** Bump `threads.updatedAt` so the thread floats to the top of the sidebar. */
@@ -157,15 +245,38 @@ class EntertainmentService {
       .run();
   }
 
-  // --- thread setup (metadata only — no generation) -----------------------
-
-  /** 1-based next chapter number for the thread (1 if none yet). */
-  nextChapterNumber(threadId: string): number {
-    const list = this.listChapters(threadId);
-    return list.length === 0 ?
-        1
-      : list.reduce((max, c) => Math.max(max, c.chapterNumber), 0) + 1;
+  /** Last-read chapter for interrupt recovery (null if never read). */
+  getLastChapterNumber(threadId: string): number | null {
+    return this.getEntertainmentConfig(threadId)?.lastChapterNumber ?? null;
   }
+
+  /** Persist the reader's current chapter for resume-on-reopen. */
+  setLastChapterNumber(threadId: string, chapterNumber: number): void {
+    const db = getDb();
+    db.update(entertainmentConfigs)
+      .set({
+        lastChapterNumber: chapterNumber,
+        updatedAt: sql`(datetime('now'))`,
+      })
+      .where(eq(entertainmentConfigs.threadId, threadId))
+      .run();
+  }
+
+  /** Novel source type from the stored config — drives file-vs-internet behavior. */
+  getNovelType(threadId: string): "file" | "internet" | null {
+    const row = this.getEntertainmentConfig(threadId);
+    if (!row?.novelSource) return null;
+    try {
+      const novel = JSON.parse(row.novelSource) as { type?: string };
+      return novel.type === "file" || novel.type === "internet" ?
+          novel.type
+        : null;
+    } catch {
+      return null;
+    }
+  }
+
+  // --- thread setup (metadata only — no generation) -----------------------
 
   /**
    * First-chapter side-effects: a deterministic title + the entertainment tag.

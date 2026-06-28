@@ -5,6 +5,7 @@ import { ArrowRight, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUiStore } from "@/stores/uiStore";
 import { useChaptersStore } from "@/stores/chaptersStore";
+import { toFileTransfer } from "@/lib/fileTransfer";
 import type { EntertainmentConfig } from "@shared";
 import { INITIAL_DEHYDRATE, isStepValid } from "./wizardSteps";
 import { ProgressBar } from "./ProgressBar";
@@ -18,11 +19,10 @@ const STEPS = 3;
  * Entertainment wizard — the only "composer" surface in this mode, shown on an
  * empty thread. Three steps (mode → novel → options), advanced by the Next
  * button or Enter (in text inputs / the source textarea). On the final step the
- * action becomes Start, which POSTs the full `EntertainmentConfig` to the
- * dehydrate chapter endpoint (POST /entertainment/threads/:id/chapters) via the
- * chapters store. The stub worker then writes chapter 1 to the DB and fires
- * `entertainment:chapterReady`; the store picks it up and the reader renders it
- * from disk.
+ * action becomes Start, which uploads the file (the backend detects encoding +
+ * ingests chapters) or saves the internet config via the chapters store, then
+ * opens chapter 1. The dehydrate scheduler rewrites chapters (current + 10) in
+ * the background; the reader polls each chapter until it's ready.
  */
 export const EntertainmentWizard: FC = () => {
   const { t } = useTranslation("entertainment");
@@ -39,15 +39,24 @@ export const EntertainmentWizard: FC = () => {
     if (submitted || !mainThreadId) return;
     // Keep sessionId aligned with the active thread (mirrors the old start form).
     useUiStore.getState().setSessionId(mainThreadId);
-    // For a file novel, read its text (UTF-8) and send it inline so the worker
-    // can parse chapters and ingest them. (GBK/charset detection is a follow-up.)
-    const novelText =
-      config.novel.type === "file" && pendingFile ?
-        await pendingFile.text()
-      : undefined;
-    await useChaptersStore
-      .getState()
-      .startDehydrate(mainThreadId, config, novelText);
+    const store = useChaptersStore.getState();
+    // File: send fsPath (or base64) so the BACKEND detects encoding + ingests.
+    // Internet: just save config; acquisition starts when the reader polls ch1.
+    if (config.novel.type === "file") {
+      if (!pendingFile) return;
+      const transfer = await toFileTransfer({
+        fsPath: config.novel.fsPath,
+        file: pendingFile,
+      });
+      await store.uploadFile(mainThreadId, config, transfer);
+    } else {
+      await store.setupInternet(mainThreadId, config);
+    }
+    // Load novelType (+ all chapters for file) so canGoNext + the reader work.
+    await store.loadChapters(mainThreadId);
+    store.setCurrentChapter(1);
+    void store.setPosition(mainThreadId, 1);
+    void store.ensureWorker(mainThreadId, 1);
     setSubmitted(true);
   };
 

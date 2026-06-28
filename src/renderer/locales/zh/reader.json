@@ -31,6 +31,9 @@
   "reader.reset": "恢复默认",
   "reader.chapter.next": "下一章",
   "reader.chapter.previous": "上一章",
+  "reader.chapter.fetching": "正在获取章节…",
+  "reader.chapter.rewriting": "正在重写…",
+  "reader.chapter.error": "本章加载失败。",
   "reader.toc.title": "目录",
   "reader.toc.empty": "暂无目录",
   "reader.controls.label": "阅读工具"

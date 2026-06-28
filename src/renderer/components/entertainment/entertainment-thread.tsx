@@ -1,9 +1,14 @@
+import "streamdown/styles.css";
+// NOTE: katex css is intentionally NOT imported — the math plugin is disabled.
+import "./novel-reader.css"; // scoped novel-reading typography
 import { useEffect, useRef, type FC } from "react";
 import { ThreadPrimitive, useAuiState } from "@assistant-ui/react";
+import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { useUiStore } from "@/stores/uiStore";
 import { useReaderSettings } from "@/stores/readerSettingsStore";
-import { selectWaiting, useChaptersStore } from "@/stores/chaptersStore";
+import { useChaptersStore, type ChapterView } from "@/stores/chaptersStore";
+import { useChapterReadiness } from "@/hooks/useChapterReadiness";
 import { NovelText } from "./NovelText";
 import { EntertainmentWizard } from "./EntertainmentWizard";
 import { buildReaderCssVars } from "./reader-settings/reader-theme";
@@ -13,24 +18,14 @@ import { ChapterNav } from "./chapter-nav/ChapterNav";
 /**
  * Entertainment thread — a guided novel-reading surface.
  *
- * DB-backed, not message-backed: the reader's source of truth is the chapters
- * store, which reads every chapter from disk (REST). There is NO live
- * streaming — the stub worker writes complete chapters and fires
- * `entertainment:chapterReady`; the store refreshes the viewed thread on that
- * event. A chapter with `status: 'streaming'` is still being generated, so the
- * reader shows a waiting indicator for it.
- *
- * The reader is PAGINATED: one chapter is shown at a time (pinned via
- * currentChapterId, or "follow the latest" when null).
- *
- * The assistant-ui shell (ThreadPrimitive.Root/Viewport + ThreadIdTracker) is
- * kept only for layout + the active thread id; no assistant-ui messages are
- * used for content.
+ * DB-backed + polling-driven: the reader renders from the chapters store, which
+ * polls chapter detail + worker liveness (`useChapterReadiness`). The reader
+ * NEVER shows 原文 — it renders fetching / rewriting / ready / error states
+ * derived from the source+rewrite statuses, and only the rewritten prose once
+ * ready. The assistant-ui shell is kept only for layout + the active thread id.
  */
 
-// --- custom: session tracking ---
-// Sync sessionId from the active thread id whenever it changes. (Kept from the
-// message-based version; still needed so headers/cookie align with the thread.)
+// Sync sessionId from the active thread id (kept from the message-based version).
 function ThreadIdTracker() {
   const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
   useEffect(() => {
@@ -46,80 +41,84 @@ export const EntertainmentThread: FC = () => {
   const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
 
   const chapters = useChaptersStore((s) => s.chapters);
-  const currentChapterId = useChaptersStore((s) => s.currentChapterId);
+  const currentChapterNumber = useChaptersStore((s) => s.currentChapterNumber);
+  const novelType = useChaptersStore((s) => s.novelType);
   const loadChapters = useChaptersStore((s) => s.loadChapters);
-  const loadChapterContent = useChaptersStore((s) => s.loadChapterContent);
-  const nextChapter = useChaptersStore((s) => s.nextChapter);
+  const getPosition = useChaptersStore((s) => s.getPosition);
+  const setPosition = useChaptersStore((s) => s.setPosition);
+  const ensureWorker = useChaptersStore((s) => s.ensureWorker);
   const setCurrentChapter = useChaptersStore((s) => s.setCurrentChapter);
-  const waiting = useChaptersStore(selectWaiting);
 
   const viewportRef = useRef<HTMLDivElement>(null);
 
-  // Register the global chapterReady/onReconnect handlers once.
-  useEffect(() => {
-    useChaptersStore.getState().init();
-  }, []);
-
-  // (Re)load this thread's chapters from disk whenever the active thread
-  // changes — this is what makes the waiting state survive switches/reloads.
+  // Recovery + initial load: on thread switch, load chapters + resume position,
+  // then ensure the worker for that chapter (point 9 — same path as activation).
   useEffect(() => {
     if (!mainThreadId) return;
-    void loadChapters(mainThreadId);
-  }, [mainThreadId, loadChapters]);
+    void (async () => {
+      await loadChapters(mainThreadId);
+      const pos = await getPosition(mainThreadId);
+      const store = useChaptersStore.getState();
+      const hasChapters = store.chapters.length > 0;
+      if (pos != null) {
+        setCurrentChapter(pos);
+        void ensureWorker(mainThreadId, pos);
+      } else if (hasChapters) {
+        setCurrentChapter(1);
+        void ensureWorker(mainThreadId, 1);
+      }
+      // else: fresh thread — the wizard drives the first chapter.
+    })();
+  }, [
+    mainThreadId,
+    loadChapters,
+    getPosition,
+    ensureWorker,
+    setCurrentChapter,
+  ]);
 
-  const lastChapter = chapters[chapters.length - 1];
+  // Drive the current chapter to readiness (poll + worker liveness).
+  useChapterReadiness(mainThreadId, currentChapterNumber);
+
   const current =
-    currentChapterId ?
-      chapters.find((c) => c.id === currentChapterId)
-    : lastChapter;
-  const currentIndex =
-    current ? chapters.findIndex((c) => c.id === current.id) : -1;
-  const canGoPrev = currentIndex > 0;
+    currentChapterNumber != null ?
+      chapters.find((c) => c.chapterNumber === currentChapterNumber)
+    : undefined;
 
-  // Lazy-load the current chapter's prose from disk when it hasn't been fetched
-  // yet (and isn't still generating — a streaming row has no content to load).
-  useEffect(() => {
-    if (
-      current &&
-      current.content === undefined &&
-      current.status !== "streaming"
-    ) {
-      void loadChapterContent(current.id);
-    }
-  }, [current, loadChapterContent]);
+  const maxChapterNumber = chapters.reduce(
+    (m, c) => Math.max(m, c.chapterNumber),
+    0,
+  );
+  const canGoPrev = (currentChapterNumber ?? 1) > 1;
+  const canGoNext =
+    novelType === "internet" ||
+    (currentChapterNumber != null && currentChapterNumber < maxChapterNumber);
 
   // Start each displayed chapter at the top.
   useEffect(() => {
     viewportRef.current?.scrollTo({ top: 0 });
-  }, [current?.id]);
+  }, [currentChapterNumber]);
 
-  // Wizard only when there are no chapters AND nothing is generating. An empty
-  // thread with an in-progress chapter shows the waiting state, not the wizard.
-  const showWizard = chapters.length === 0 && !waiting;
-  const hasContent = chapters.length > 0 || waiting;
+  // Wizard only on a fresh thread (no chapters, nothing started yet).
+  const showWizard = chapters.length === 0 && currentChapterNumber == null;
 
-  const handlePrev = () => {
-    if (currentIndex <= 0) return;
-    setCurrentChapter(chapters[currentIndex - 1]!.id);
+  const handlePrev = async () => {
+    if (!mainThreadId || !canGoPrev || currentChapterNumber == null) return;
+    const prev = currentChapterNumber - 1;
+    setCurrentChapter(prev);
+    void setPosition(mainThreadId, prev);
   };
 
   const handleNext = async () => {
-    if (waiting) return;
-    // Move forward among already-generated chapters without re-generating.
-    if (current && currentIndex >= 0 && currentIndex < chapters.length - 1) {
-      setCurrentChapter(chapters[currentIndex + 1]!.id);
-      return;
-    }
-    // At the latest: generate the next chapter (disk-backed).
-    if (mainThreadId) {
-      setCurrentChapter(null); // follow the new chapter as it completes
-      await nextChapter(mainThreadId);
-    }
+    if (!mainThreadId || !canGoNext || currentChapterNumber == null) return;
+    const next = currentChapterNumber + 1;
+    setCurrentChapter(next);
+    void setPosition(mainThreadId, next);
+    void ensureWorker(mainThreadId, next); // snappy; the hook re-ensures too
   };
 
   return (
     <ThreadPrimitive.Root
-      // `relative` anchors the floating reader-controls button + chapter nav.
       className="aui-root aui-thread-root @container relative flex h-full flex-col bg-background"
       style={{
         ["--thread-max-width" as string]: "88rem",
@@ -132,7 +131,6 @@ export const EntertainmentThread: FC = () => {
         ref={viewportRef}
         turnAnchor="top"
         autoScroll={false}
-        // Pagination owns scroll position: every chapter starts at the top.
         scrollToBottomOnRunStart={false}
         scrollToBottomOnInitialize={false}
         scrollToBottomOnThreadSwitch={false}
@@ -142,26 +140,24 @@ export const EntertainmentThread: FC = () => {
         <div className="mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4">
           {showWizard && <EntertainmentWizard />}
 
-          {hasContent && (
+          {currentChapterNumber != null && (
             <div
               data-slot="aui_message-group"
               className="mb-10 flex flex-col gap-y-10 empty:hidden"
             >
-              {current &&
-                (current.status === "streaming" ?
-                  <ChapterGenerating title={current.title} />
-                : <NovelText content={current.content ?? ""} />)}
+              <ChapterBody chapter={current} />
             </div>
           )}
         </div>
       </ThreadPrimitive.Viewport>
-      {hasContent && (
+      {currentChapterNumber != null && (
         <>
           <ChapterNav
             canGoPrev={canGoPrev}
-            fetching={waiting}
-            onPrev={handlePrev}
-            onNext={handleNext}
+            canGoNext={canGoNext}
+            fetching={false}
+            onPrev={() => void handlePrev()}
+            onNext={() => void handleNext()}
           />
           <ReaderControlsButton />
         </>
@@ -170,10 +166,35 @@ export const EntertainmentThread: FC = () => {
   );
 };
 
-/** Placeholder shown while a chapter is being generated (status: streaming). */
-const ChapterGenerating: FC<{ title: string | null }> = ({ title }) => (
-  <div className="flex flex-col items-center justify-center gap-3 py-20 text-center text-muted-foreground">
-    <Loader2 className="size-6 animate-spin" />
-    {title && <p className="text-sm">{title}</p>}
-  </div>
-);
+/** Renders the current chapter by its pipeline status (never shows 原文). */
+const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
+  if (
+    !chapter ||
+    chapter.sourceStatus === null ||
+    chapter.sourceStatus === "fetching"
+  ) {
+    return <ChapterState icon keyLabel="reader.chapter.fetching" />;
+  }
+  if (chapter.sourceStatus === "error" || chapter.rewriteStatus === "error") {
+    return <ChapterState textLabel="reader.chapter.error" />;
+  }
+  if (chapter.rewriteStatus !== "rewritten") {
+    return <ChapterState icon keyLabel="reader.chapter.rewriting" />;
+  }
+  return <NovelText content={chapter.content ?? ""} />;
+};
+
+/** Fetching/rewriting/error placeholder. */
+const ChapterState: FC<{
+  icon?: boolean;
+  keyLabel?: string;
+  textLabel?: string;
+}> = ({ icon, keyLabel, textLabel }) => {
+  const { t } = useTranslation("reader");
+  return (
+    <div className="flex flex-col items-center justify-center gap-3 py-20 text-center text-muted-foreground">
+      {icon && <Loader2 className="size-6 animate-spin" />}
+      <p className="text-sm">{t(keyLabel ?? textLabel ?? "")}</p>
+    </div>
+  );
+};

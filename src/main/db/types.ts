@@ -8,7 +8,8 @@ import {
   settings,
   mcpServers,
   entertainmentConfigs,
-  chapters,
+  sourceChapters,
+  rewrittenChapters,
   bookmarks,
   chapterMeta,
 } from "./schema";
@@ -23,7 +24,8 @@ export type McpServerRow = InferSelectModel<typeof mcpServers>;
 export type EntertainmentConfigRow = InferSelectModel<
   typeof entertainmentConfigs
 >;
-export type ChapterRow = InferSelectModel<typeof chapters>;
+export type SourceChapterRow = InferSelectModel<typeof sourceChapters>;
+export type RewrittenChapterRow = InferSelectModel<typeof rewrittenChapters>;
 export type BookmarkRow = InferSelectModel<typeof bookmarks>;
 export type ChapterMetaRow = InferSelectModel<typeof chapterMeta>;
 

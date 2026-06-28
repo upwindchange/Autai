@@ -10,7 +10,8 @@ import { sql } from "drizzle-orm";
 import type { ThreadMode } from "@shared/tag";
 import type {
   EntertainmentMode,
-  ChapterStatus,
+  SourceChapterStatus,
+  RewrittenChapterStatus,
   ChapterMetaKind,
 } from "@shared/entertainment";
 
@@ -128,10 +129,10 @@ export const authSessions = sqliteTable("auth_sessions", {
 //
 // Entertainment threads (threads.mode = 'entertainment') hold a novel-reading
 // session. Unlike chat, entertainment is fully decoupled from the `messages`
-// table: chapter prose lives on `chapters.content`, not in assistant messages.
-// One interaction session may yield 0..N chapters (structured output → many;
-// a HITL-only turn → none), so chapters are first-class entities keyed by their
-// own UUID, never by a message id. All four tables hang off `threads.id`.
+// table: chapter prose lives across `source_chapters` (原文) and
+// `rewritten_chapters` (重写), not in assistant messages. Chapters are
+// first-class entities keyed by their own UUID, never by a message id. All
+// entertainment tables hang off `threads.id`.
 // ---------------------------------------------------------------------------
 
 // Wizard settings + novel origin, 1:1 with a thread. `mode` + `options` are the
@@ -139,7 +140,7 @@ export const authSessions = sqliteTable("auth_sessions", {
 // (file path / URL / search guidance) from the wizard — NOT the novel content.
 // It is nullable and updatable because the input is dynamic, especially for
 // internet novels fetched chapter-by-chapter over multiple sessions. The actual
-// novel content accrues as `chapters` rows.
+// novel content accrues as `source_chapters` / `rewritten_chapters` rows.
 export const entertainmentConfigs = sqliteTable("entertainment_configs", {
   threadId: text("thread_id")
     .primaryKey()
@@ -147,6 +148,8 @@ export const entertainmentConfigs = sqliteTable("entertainment_configs", {
   mode: text("mode").notNull().$type<EntertainmentMode>(),
   options: text("options").notNull(), // JSON: mode-dependent settings (basic/depth/frequency)
   novelSource: text("novel_source"), // nullable, updatable JSON: origin pointer/instruction (see above)
+  // Last-read chapter for interrupt recovery (point 9); reopen resumes here.
+  lastChapterNumber: integer("last_chapter_number"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),
@@ -155,13 +158,16 @@ export const entertainmentConfigs = sqliteTable("entertainment_configs", {
     .default(sql`(datetime('now'))`),
 });
 
-// First-class chapter index — the backbone of the table of contents and chapter
-// navigation. `id` is independent (crypto.randomUUID()), never derived from a
-// message id. Ordered within a thread by `chapterNumber`. `content` holds the
-// canonical chapter prose (null/empty while status='streaming', filled on
-// complete); it is produced incrementally as the agent fetches/generates.
-export const chapters = sqliteTable(
-  "chapters",
+// --- Dehydration pipeline tables --------------------------------------------
+// Two tables, each keyed by (threadId, chapterNumber):
+//   - sourceChapters    原文 — acquired text (file ingestion OR network fetch)
+//   - rewrittenChapters 重写 — the rewritten prose the reader actually shows
+// The reader only ever reads rewrittenChapters; sourceChapters feeds the
+// rewrite agent. Both accrue as the lookahead window (current chapter + 10)
+// advances. `id` is independent (crypto.randomUUID()), never a message id.
+
+export const sourceChapters = sqliteTable(
+  "source_chapters",
   {
     id: text("id").primaryKey(),
     threadId: text("thread_id")
@@ -169,16 +175,11 @@ export const chapters = sqliteTable(
       .references(() => threads.id, { onDelete: "cascade" }),
     chapterNumber: integer("chapter_number").notNull(),
     title: text("title"),
+    content: text("content"), // 原文 (raw source text); null while status='fetching'
     status: text("status")
       .notNull()
-      .default("streaming")
-      .$type<ChapterStatus>(),
-    content: text("content"),
-    // Raw, un-dehydrated chapter text sliced from the source novel at ingestion
-    // time. Filled when the row is created with status='unprocessed'; stays put
-    // as the dehydrated `content` is generated on top of it. Nullable so older
-    // rows (and the legacy streaming sample flow) remain valid.
-    originalContent: text("original_content"),
+      .default("fetching")
+      .$type<SourceChapterStatus>(),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),
@@ -187,11 +188,40 @@ export const chapters = sqliteTable(
       .default(sql`(datetime('now'))`),
   },
   (t) => [
-    uniqueIndex("chapters_thread_number_unique").on(
+    uniqueIndex("source_chapters_thread_number_unique").on(
       t.threadId,
       t.chapterNumber,
     ),
-    index("chapters_thread_id_idx").on(t.threadId),
+    index("source_chapters_thread_id_idx").on(t.threadId),
+  ],
+);
+
+export const rewrittenChapters = sqliteTable(
+  "rewritten_chapters",
+  {
+    id: text("id").primaryKey(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    chapterNumber: integer("chapter_number").notNull(),
+    content: text("content"), // 重写 (rewritten prose); null while status='rewriting'
+    status: text("status")
+      .notNull()
+      .default("rewriting")
+      .$type<RewrittenChapterStatus>(),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (t) => [
+    uniqueIndex("rewritten_chapters_thread_number_unique").on(
+      t.threadId,
+      t.chapterNumber,
+    ),
+    index("rewritten_chapters_thread_id_idx").on(t.threadId),
   ],
 );
 
@@ -208,7 +238,7 @@ export const bookmarks = sqliteTable(
       .references(() => threads.id, { onDelete: "cascade" }),
     chapterId: text("chapter_id")
       .notNull()
-      .references(() => chapters.id, { onDelete: "cascade" }),
+      .references(() => rewrittenChapters.id, { onDelete: "cascade" }),
     anchor: text("anchor"),
     label: text("label"),
     note: text("note"),
@@ -243,7 +273,7 @@ export const chapterMeta = sqliteTable(
       .references(() => threads.id, { onDelete: "cascade" }),
     chapterId: text("chapter_id")
       .notNull()
-      .references(() => chapters.id, { onDelete: "cascade" }),
+      .references(() => rewrittenChapters.id, { onDelete: "cascade" }),
     kind: text("kind").notNull().$type<ChapterMetaKind>(),
     payload: text("payload").notNull(), // JSON: shape varies by `kind`
     sortOrder: integer("sort_order").notNull().default(0),
