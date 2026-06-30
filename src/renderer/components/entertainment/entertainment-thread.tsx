@@ -15,6 +15,7 @@ import { useUiStore } from "@/stores/uiStore";
 import { useReaderSettings } from "@/stores/readerSettingsStore";
 import { useChaptersStore, type ChapterView } from "@/stores/chaptersStore";
 import { useChapterReadiness } from "@/hooks/useChapterReadiness";
+import { useReaderHotkeys } from "@/hooks/useReaderHotkeys";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { NovelText } from "./NovelText";
 import { EntertainmentWizard } from "./EntertainmentWizard";
@@ -63,6 +64,10 @@ export const EntertainmentThread: FC = () => {
   const setCurrentChapter = useChaptersStore((s) => s.setCurrentChapter);
 
   const viewportRef = useRef<HTMLDivElement>(null);
+  // Common ancestor of BOTH the reading viewport and the ReaderFooter overlay.
+  // The desktop hover listener attaches here, not to the viewport — see the
+  // hover effect below for why.
+  const rootRef = useRef<HTMLDivElement>(null);
   // Pinned open by a tap/click on the reading surface (mobile + desktop); the
   // footer also reveals on desktop hover. See ReaderFooter.
   const [footerPinned, setFooterPinned] = useState(false);
@@ -112,18 +117,30 @@ export const EntertainmentThread: FC = () => {
     novelType === "internet" ||
     (currentChapterNumber != null && currentChapterNumber < maxChapterNumber);
 
-  // Start each displayed chapter at the top.
+  // Start each displayed chapter at the top. Instant (not smooth) so it can't
+  // race with a reader hotkey scroll fired immediately after a chapter change —
+  // the viewport is scroll-smooth, which would otherwise animate this reset.
   useEffect(() => {
-    viewportRef.current?.scrollTo({ top: 0 });
+    viewportRef.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [currentChapterNumber]);
 
   // Desktop hover: reveal the footer when the pointer enters the bottom band of
-  // the reading viewport, hide when it leaves. Detected via mousemove (not an
-  // overlay) so text selection / link clicks on the prose are never blocked.
-  // Touch has no hover — mobile relies on the tap-to-pin path (handleReadingClick).
+  // the reading surface, hide when it leaves. The listener is attached to the
+  // thread ROOT, not the viewport, because the footer overlay is a SIBLING of
+  // the viewport (absolute-positioned on top of it). Tracked against the
+  // viewport, moving the pointer onto the pill — which is pointer-events-auto
+  // while visible and lives outside the viewport's subtree — would fire the
+  // viewport's mouseleave (hovered=false), revert the pill to pointer-events-
+  // none, let the next mousemove fall back through to the viewport (hovered=
+  // true), and oscillate on every wiggle = the flicker. On the root the pill is
+  // a descendant, so the pointer never "leaves" while over it and mousemove
+  // keeps firing regardless of the pill's pointer-events state. Detected via
+  // mousemove (not an overlay) so text selection / link clicks on the prose are
+  // never blocked. Touch has no hover — mobile relies on the tap-to-pin path
+  // (handleReadingClick).
   useEffect(() => {
     if (isMobile) return;
-    const el = viewportRef.current;
+    const el = rootRef.current;
     if (!el) return;
     const onMove = (e: MouseEvent) => {
       const fromBottom = el.getBoundingClientRect().bottom - e.clientY;
@@ -156,6 +173,17 @@ export const EntertainmentThread: FC = () => {
     void ensureWorker(mainThreadId, next); // snappy; the hook re-ensures too
   };
 
+  // Reader keyboard shortcuts (chapter nav, Space/PageDn scroll, Home/End).
+  // Window-level; only active while a chapter is open. See useReaderHotkeys.
+  useReaderHotkeys({
+    viewportRef,
+    onPrev: () => void handlePrev(),
+    onNext: () => void handleNext(),
+    canGoPrev,
+    canGoNext,
+    enabled: currentChapterNumber != null,
+  });
+
   // Tap/click the reading surface to toggle the footer (mobile + desktop).
   // Taps on the footer itself or its panels don't reach here (they're siblings
   // of this content area), so the toggle only fires on the prose surface.
@@ -170,13 +198,15 @@ export const EntertainmentThread: FC = () => {
 
   return (
     <ThreadPrimitive.Root
+      ref={rootRef}
       className="aui-root aui-thread-root @container relative flex h-full flex-col bg-background"
       style={{
-        // Reader CSS vars are defined here so they cascade to the prose
-        // container below; the root itself stays bg-background so the wizard /
-        // options chrome follows the app theme. The reader background is now
-        // applied on the prose container (see the inner div), not the root.
-        ["--thread-max-width" as string]: "88rem",
+        // Reader CSS vars are defined here so they cascade into the viewport
+        // and the prose column below; the root itself stays bg-background so
+        // the wizard / options chrome follows the app theme. The reader
+        // background is applied on the viewport (see below) — NOT this root —
+        // so it spans the full window width. The prose column's width is set
+        // purely by side margin (--reader-margin), not a content max-width.
         ...buildReaderCssVars(settings),
       }}
     >
@@ -190,19 +220,27 @@ export const EntertainmentThread: FC = () => {
         scrollToBottomOnThreadSwitch={false}
         data-slot="aui_thread-viewport"
         className="relative flex flex-1 flex-col overflow-x-auto overflow-y-auto scroll-smooth"
+        style={{
+          // Reader theme background is scoped to the reading surface and
+          // applied on the full-width viewport (not the centered prose column)
+          // so the theme color fills the whole window. Only while a chapter is
+          // open (currentChapterNumber != null) — a fresh thread's wizard keeps
+          // the app theme.
+          backgroundColor:
+            currentChapterNumber != null ?
+              "var(--reader-background)"
+            : undefined,
+        }}
       >
-        {/* Reader theme background is scoped to the reading surface — applied
-            only while a chapter is open (currentChapterNumber != null), so the
-            wizard shown on a fresh thread keeps the app theme. */}
         <div
           onClick={handleReadingClick}
-          style={{
-            backgroundColor:
-              currentChapterNumber != null ?
-                "var(--reader-background)"
-              : undefined,
-          }}
-          className="mx-auto flex w-full max-w-(--thread-max-width) flex-1 flex-col px-4 pt-4 pb-24"
+          className="flex w-full flex-1 flex-col pt-4 pb-24"
+          // Width is controlled purely by side margin: the prose column fills
+          // the viewport edge-to-edge behind the reader background, with
+          // symmetric inline padding from --reader-margin. The 40vw cap keeps
+          // the column from collapsing on narrow windows; there is no content
+          // max-width (increase the margin to narrow the text).
+          style={{ paddingInline: "min(var(--reader-margin, 12rem), 40vw)" }}
         >
           {showWizard && <EntertainmentWizard />}
 

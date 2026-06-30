@@ -1,6 +1,6 @@
 import { type FC, type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { List } from "lucide-react";
+import { List, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -23,6 +23,7 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DotMatrix, type DotMatrixState } from "@/components/assistant-ui/dot-matrix";
 import { useChaptersStore } from "@/stores/chaptersStore";
+import { useUiStore } from "@/stores/uiStore";
 import { cn } from "@/lib/utils";
 import { ReaderSettingsPanel } from "./reader-settings/ReaderSettingsPanel";
 import { TableOfContents } from "./table-of-contents/TableOfContents";
@@ -69,6 +70,8 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
 }) => {
   const { t } = useTranslation("reader");
   const isMobile = useIsMobile();
+  const zenMode = useUiStore((s) => s.zenMode);
+  const toggleZenMode = useUiStore((s) => s.toggleZenMode);
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
@@ -215,6 +218,32 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
               onSelect={handleSelect}
             />
           </ResponsivePanel>
+
+          {/* Zen toggle (right edge) — hides all chrome so the reader fills the
+              window. In zen the footer stays hidden until the surface is tapped
+              (pinned), so this button is also the mouse exit path. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={toggleZenMode}
+                aria-label={
+                  zenMode ? t("reader.zen.exit") : t("reader.zen.enter")
+                }
+                aria-pressed={zenMode}
+                className="size-9 rounded-full"
+              >
+                {zenMode ?
+                  <Minimize2 className="size-5" />
+                : <Maximize2 className="size-5" />}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              {zenMode ? t("reader.zen.exit") : t("reader.zen.enter")}
+            </TooltipContent>
+          </Tooltip>
         </div>
       </TooltipProvider>
     </div>

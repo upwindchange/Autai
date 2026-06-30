@@ -7,6 +7,12 @@
   "reader.theme.sepia": "护眼黄",
   "reader.theme.night": "夜间",
   "reader.theme.green": "护眼绿",
+  "reader.theme.cream": "米白",
+  "reader.theme.gray": "浅灰",
+  "reader.theme.teal": "青色",
+  "reader.theme.rose": "玫红",
+  "reader.theme.midnight": "午夜蓝",
+  "reader.theme.black": "纯黑",
   "reader.color.label": "自定义颜色",
   "reader.color.background": "背景",
   "reader.color.text": "文字",
@@ -22,7 +28,7 @@
   "reader.weight.500": "中等",
   "reader.weight.600": "半粗",
   "reader.layout.label": "版式",
-  "reader.maxWidth.label": "页宽",
+  "reader.margin.label": "页边距",
   "reader.textAlign.label": "对齐",
   "reader.textAlign.left": "左对齐",
   "reader.textAlign.justify": "两端对齐",
@@ -36,5 +42,7 @@
   "reader.chapter.error": "本章加载失败。",
   "reader.toc.title": "目录",
   "reader.toc.empty": "暂无目录",
-  "reader.controls.label": "阅读工具"
+  "reader.controls.label": "阅读工具",
+  "reader.zen.enter": "进入沉浸阅读",
+  "reader.zen.exit": "退出沉浸阅读"
 }

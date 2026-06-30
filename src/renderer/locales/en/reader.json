@@ -7,6 +7,12 @@
   "reader.theme.sepia": "Sepia",
   "reader.theme.night": "Night",
   "reader.theme.green": "Green",
+  "reader.theme.cream": "Cream",
+  "reader.theme.gray": "Gray",
+  "reader.theme.teal": "Teal",
+  "reader.theme.rose": "Rose",
+  "reader.theme.midnight": "Midnight",
+  "reader.theme.black": "Black",
   "reader.color.label": "Custom colors",
   "reader.color.background": "Background",
   "reader.color.text": "Text",
@@ -22,7 +28,7 @@
   "reader.weight.500": "Medium",
   "reader.weight.600": "Semibold",
   "reader.layout.label": "Layout",
-  "reader.maxWidth.label": "Column width",
+  "reader.margin.label": "Side margin",
   "reader.textAlign.label": "Alignment",
   "reader.textAlign.left": "Left",
   "reader.textAlign.justify": "Justify",
@@ -36,5 +42,7 @@
   "reader.chapter.error": "This chapter failed to load.",
   "reader.toc.title": "Contents",
   "reader.toc.empty": "No chapters yet",
-  "reader.controls.label": "Reader tools"
+  "reader.controls.label": "Reader tools",
+  "reader.zen.enter": "Enter zen mode",
+  "reader.zen.exit": "Exit zen mode"
 }

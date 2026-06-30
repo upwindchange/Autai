@@ -51,6 +51,13 @@ interface UiState {
   appMode: "chat" | "entertainment";
   setAppMode: (mode: "chat" | "entertainment") => void;
 
+  // Zen mode: hides the sidebar + header so the entertainment reader fills the
+  // whole window. Only effective in entertainment mode without settings open;
+  // AppContent derives the effective flag and clamps this to false otherwise.
+  zenMode: boolean;
+  setZenMode: (zen: boolean) => void;
+  toggleZenMode: () => void;
+
   // Last-active thread id per mode, so switching modes restores the thread the
   // user was on instead of landing on a fresh one.
   lastActiveByMode: Record<"chat" | "entertainment", string | null>;
@@ -130,6 +137,11 @@ export const useUiStore = create<UiState>()(
     // App mode
     appMode: "chat",
     setAppMode: (appMode) => set({ appMode }),
+
+    // Zen mode
+    zenMode: false,
+    setZenMode: (zenMode) => set({ zenMode }),
+    toggleZenMode: () => set((state) => ({ zenMode: !state.zenMode })),
     lastActiveByMode: { chat: null, entertainment: null },
     setLastActiveByMode: (mode, threadId) =>
       set((state) => ({

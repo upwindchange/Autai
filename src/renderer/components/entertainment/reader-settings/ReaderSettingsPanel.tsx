@@ -37,7 +37,7 @@ export const ReaderSettingsPanel = () => {
     <div className="flex flex-col gap-4">
       {/* Theme swatches */}
       <Field label={t("reader.theme.label")}>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {READER_THEMES.map((th) => (
             <button
               key={th.value}
@@ -143,12 +143,13 @@ export const ReaderSettingsPanel = () => {
       {/* Layout */}
       <SectionLabel>{t("reader.layout.label")}</SectionLabel>
       <SliderRow
-        label={t("reader.maxWidth.label")}
-        value={settings.maxWidth}
-        min={30}
-        max={60}
-        step={1}
-        onChange={(v) => setSetting("maxWidth", v)}
+        label={t("reader.margin.label")}
+        value={settings.margin}
+        min={0}
+        max={40}
+        step={0.5}
+        format={(v) => `${v}rem`}
+        onChange={(v) => setSetting("margin", v)}
       />
       <Field label={t("reader.textAlign.label")}>
         <div className="grid grid-cols-2 gap-1.5">

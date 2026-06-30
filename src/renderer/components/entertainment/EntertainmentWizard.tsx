@@ -105,7 +105,7 @@ export const EntertainmentWizard: FC = () => {
   const valid = isStepValid(step, config);
 
   return (
-    <div className="my-auto mx-auto flex w-full max-w-(--reading-max-width) flex-col gap-6 px-4 pb-10">
+    <div className="my-auto mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 pb-10">
       <div className="flex flex-col gap-1">
         <h1 className="fade-in slide-in-from-bottom-1 animate-in fill-mode-both font-semibold text-2xl duration-200">
           {t("title")}

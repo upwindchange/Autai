@@ -16,8 +16,10 @@
  * reader still renders before the store hydrates. */
 
 .ent-novel-reader {
-  max-width: var(--reading-max-width, 42rem);
-  margin-inline: auto;
+  /* No max-width here: the prose column's width is set by side margin
+   * (--reader-margin) on the padded container in entertainment-thread.tsx, so
+   * this element fills that column. The container provides the symmetric
+   * inline padding; this rule only shapes the text. */
   font-family: var(
     --reader-font-family,
     inherit

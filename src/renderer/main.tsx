@@ -34,6 +34,7 @@ import {
 import { AppHeader } from "@/components/app-header";
 import { useRef, useEffect, useState } from "react";
 import { useSessionLifecycle, useThreadListRefresh } from "@/hooks";
+import { useZenModeHotkeys } from "@/hooks/useZenModeHotkeys";
 import {
   ResizablePanelGroup,
   ResizablePanel,
@@ -136,6 +137,7 @@ function AppContent() {
   const { t } = useTranslation("common");
   const { showSettings, showSplitView, setContainerRef } = useUiStore();
   const appMode = useUiStore((s) => s.appMode);
+  const zenMode = useUiStore((s) => s.zenMode);
   const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
   // Latest mainThreadId readable inside the appMode subscription callback
   // (which fires outside the render cycle).
@@ -189,6 +191,19 @@ function AppContent() {
     );
   }, [refreshThreads]);
 
+  // Zen mode is entertainment-only: clamp it off whenever the reader isn't the
+  // active surface (mode switch or settings open) so it can't linger or snap
+  // back unexpectedly. Read via getState() to avoid subscribing to zenMode here.
+  useEffect(() => {
+    if (appMode !== "entertainment" || showSettings) {
+      useUiStore.getState().setZenMode(false);
+    }
+  }, [appMode, showSettings]);
+
+  // Global F10 (enter) / Esc (exit) zen hotkeys. F11 stays the Electron
+  // OS-fullscreen menu accelerator.
+  useZenModeHotkeys();
+
   const workspaceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -231,15 +246,19 @@ function AppContent() {
       t("header.settings")
     : (threadTitle ?? `${t("app.title")} ${t("header.aiAssistant")}`);
 
+  // Effective zen: hide sidebar + header so the reader fills the window. Only
+  // in entertainment mode without settings open.
+  const zen = zenMode && appMode === "entertainment" && !showSettings;
+
   return (
     <SettingsProvider>
       <div className="w-dvw flex flex-row h-dvh">
         <SidebarProvider>
-          {showSettings ?
+          {zen ? null : showSettings ?
             <SettingsSidebar />
           : <SidebarLeft />}
           <SidebarInset className="relative flex-1">
-            {showSplitView ?
+            {showSplitView && !zen ?
               <ResizablePanelGroup orientation="horizontal" className="flex-1">
                 <ResizablePanel defaultSize={50} minSize={30}>
                   <div className="flex h-full flex-col overflow-hidden">
@@ -260,7 +279,7 @@ function AppContent() {
                 </ResizablePanel>
               </ResizablePanelGroup>
             : <>
-                <AppHeader title={headerTitle} />
+                {zen ? null : <AppHeader title={headerTitle} />}
                 <div className="relative flex flex-1 flex-col overflow-hidden h-full">
                   {showSettings ?
                     <SettingsView />

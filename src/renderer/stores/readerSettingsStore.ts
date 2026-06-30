@@ -1,7 +1,18 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
-export type ReaderTheme = "auto" | "day" | "sepia" | "night" | "green";
+export type ReaderTheme =
+  | "auto"
+  | "day"
+  | "cream"
+  | "sepia"
+  | "gray"
+  | "green"
+  | "teal"
+  | "rose"
+  | "night"
+  | "midnight"
+  | "black";
 export type ReaderTextAlign = "left" | "justify";
 
 /**
@@ -23,7 +34,7 @@ export interface ReaderSettings {
   indent: boolean;
   indentAmount: number; // em, 0–4
   textAlign: ReaderTextAlign;
-  maxWidth: number; // rem, 30–60
+  margin: number; // rem, 0–40 — side padding; text fills the rest
   fontWeight: 300 | 400 | 500 | 600;
 }
 
@@ -38,7 +49,7 @@ export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   indent: true,
   indentAmount: 2,
   textAlign: "left",
-  maxWidth: 42,
+  margin: 12,
   fontWeight: 400,
 };
 
@@ -70,7 +81,20 @@ export const useReaderSettingsStore = create<ReaderSettingsState>()(
     }),
     {
       name: "autai.reader-settings",
-      version: 1,
+      version: 2,
+      // v1 stored maxWidth (a content column width in rem); v2 replaced it with
+      // margin (side padding). There's no sensible remap (content width ≠ side
+      // margin), so drop the old field and start margin at the default.
+      migrate: (persistedState, _version) => {
+        const s = persistedState as
+          | { settings?: Record<string, unknown> }
+          | undefined;
+        if (s?.settings) {
+          delete s.settings.maxWidth;
+          if (s.settings.margin == null) s.settings.margin = 12;
+        }
+        return persistedState as ReaderSettingsState;
+      },
     },
   ),
 );

@@ -206,8 +206,49 @@ export async function acquireSourceStub(chapterNumber: number): Promise<string> 
   return `第${chapterNumber}章 · 原文\n\n${filler}\n\n（占位文本；实际网络获取逻辑待实现。）`;
 }
 
-/** STUB rewrite — garbled/transformed text after a short delay. */
+// CJK filler sentences cycled so each generated paragraph reads a little
+// differently. Throwaway — only used to give the reader long prose to scroll
+// and page through until the real rewrite agent lands.
+const REWRITE_FILLER_SENTENCES: readonly string[] = [
+  "山间的薄雾尚未散去，露珠挂在草叶上，映着初升的日光，闪烁着细碎的光。",
+  "少年握紧了腰间那柄尚未开锋的剑，沿着山道一路向东走去，风从谷底升起，吹动他的衣袂。",
+  "酒旗在风中猎猎作响，野店里烟气混着酒香，几个行脚商低声说着青锋山庄与那把剑的传说。",
+  "师父临终前的话又在耳边响起——剑是用来守护的，不是用来逞强的；江湖很大，大到能让人忘记最初为何出发。",
+  "演武场上钟声悠长，黑袍老者周身寒意森然，白衣女子剑法轻灵，号称一剑光寒，令人不敢逼视。",
+  "他把这句话记在心里，深吸一口气，踏入了那扇沉重的朱漆大门，前路漫漫，恩怨未明。",
+];
+
+/**
+ * Builds a long, multi-section markdown body so the reader has plenty of prose
+ * to scroll / page through. Stub-only — the real rewrite agent replaces this.
+ * The generated length is intentionally "very long" (many screens) so the
+ * reader's scroll + page-down behaviour is easy to exercise during development.
+ */
+function buildLongRewriteStub(sourceText: string): string {
+  const lead = `${(sourceText.trim().slice(0, 48) || "（占位原文）")}…`;
+  const lines: string[] = [
+    "> ▸ 重写版（stub · 长文本用于阅读器滚动 / 翻页测试）",
+    "",
+    lead,
+    "",
+  ];
+  const sections = 14;
+  const parasPerSection = 6;
+  for (let s = 1; s <= sections; s++) {
+    lines.push(`## 第 ${s} 节 阅读器滚动测试段落 ${s}`);
+    for (let p = 0; p < parasPerSection; p++) {
+      const idx = (s * 5 + p * 2) % REWRITE_FILLER_SENTENCES.length;
+      const sentence = REWRITE_FILLER_SENTENCES[idx];
+      // Repeat the sentence a few times so each paragraph is a hefty block.
+      lines.push(`（第 ${s} 节 · 第 ${p + 1} 段）${sentence}${sentence}${sentence}`);
+    }
+  }
+  lines.push("", "（占位长文本结束；实际重写 agent 待实现。）");
+  return lines.join("\n\n");
+}
+
+/** STUB rewrite — long garbled/transformed text after a short delay. */
 export async function rewriteStub(sourceText: string): Promise<string> {
   await delay(STUB_DELAY_MS);
-  return `> ▸ 重写版（stub）\n\n${sourceText.slice(0, 48)}…\n\n（占位文本；实际重写 agent 待实现。）`;
+  return buildLongRewriteStub(sourceText);
 }
