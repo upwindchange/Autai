@@ -3,13 +3,16 @@ import { z } from "zod";
 /**
  * Entertainment-mode configuration contract.
  *
- * The wizard (renderer) serializes an `EntertainmentConfig` as a JSON text
- * message via `aui.thread().append()`. The backend route parses the last user
- * message's text part with `EntertainmentConfigSchema` and routes on `mode`.
+ * The wizard (renderer) builds an `EntertainmentConfig` and sends it to the
+ * entertainment REST endpoints (`/upload` for a file, `/setup` for an internet
+ * novel) as the `config` field. The backend validates it with
+ * `EntertainmentConfigSchema` and persists it; `novel.type` (`file` |
+ * `internet`) drives the scheduler's file-vs-internet behaviour.
  *
  * Key shapes:
- *   - `mode` discriminates the top-level union (drives the exhaustive `switch`
- *     in EntertainmentWorker).
+ *   - `mode` discriminates the top-level union (`dehydrate` | `interactive`).
+ *     Only `dehydrate` is served today; `interactive` is a UI-only "coming soon"
+ *     placeholder with no backend yet.
  *   - `novel` is mode-dependent: `dehydrate` accepts file OR internet;
  *     `interactive` accepts a text file ONLY.
  *   - Both modes share Module 1 (basic toggles) + Module 2 (depth sliders) +
