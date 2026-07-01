@@ -346,12 +346,12 @@ function App() {
               : {}),
             };
           },
-          // Route entertainment sends to the /entertainment endpoint. The
-          // transport's `api` is a static string, so this per-send hook is the
-          // place to flip the destination by appMode. The body must be
-          // reconstructed here — providing this hook replaces the default body
-          // synthesis (which injects messages/id/trigger/messageId), so we
-          // mirror that shape to avoid dropping the messages payload.
+          // The body must be reconstructed here — providing this hook replaces
+          // the default body synthesis (which injects messages/id/trigger/
+          // messageId), so we mirror that shape to avoid dropping the messages
+          // payload. Entertainment mode has no chat composer — it drives the
+          // backend through the REST chapter routes (chaptersStore) — so every
+          // chat send targets /chat.
           prepareSendMessagesRequest: ({
             id,
             messages,
@@ -361,15 +361,11 @@ function App() {
             trigger,
             messageId,
           }) => {
-            const { appMode } = useUiStore.getState();
             return {
               body: { ...body, id, messages, trigger, messageId },
               headers,
               credentials,
-              api:
-                appMode === "entertainment" ?
-                  `${getApiBase()}/entertainment`
-                : `${getApiBase()}/chat`,
+              api: `${getApiBase()}/chat`,
             };
           },
         }),

@@ -1,203 +1,216 @@
+/**
+ * Entertainment REST API — mounted at `/entertainment` (see apiServer.ts). This
+ * is the sole entertainment backend surface: the wizard's file/internet submit,
+ * chapter progress + detail polling, read-position persistence, and the worker
+ * liveness/nudge endpoints. It drives the dehydrate scheduler directly; there
+ * is no streaming chat path. (The `interactive` mode is a UI-only "coming soon"
+ * placeholder today — no endpoint serves it yet.)
+ */
 import { Hono } from "hono";
-import { createUIMessageStreamResponse } from "ai";
-import { chatModel } from "@agents/providers";
-import { EntertainmentWorker } from "@agents/workers/entertainmentWorker/worker";
+import { z } from "zod";
+import { entertainmentService, threadPersistenceService } from "@/services";
+import { dehydrateScheduler } from "@agents/workers/entertainmentWorker/scheduler";
 import {
-  SessionTabService,
-  threadPersistenceService,
-  threadIntelligenceService,
-} from "@/services";
-import { i18n } from "@/i18n";
-import { sendAlert } from "@/utils";
-import { eventBus } from "@/utils/eventBus";
-import { ChatRequestSchema } from "../schemas/apiSchemas";
-import { EntertainmentConfigSchema, type EntertainmentConfig } from "@shared";
-import { entertainmentChapterRoutes } from "./entertainmentChapterRoutes";
+  decodeNovelFile,
+  ingestNovel,
+} from "@agents/workers/entertainmentWorker/ingest";
+import { EntertainmentConfigSchema } from "@shared";
 import log from "electron-log/main";
 
 const logger = log.scope("ApiServer:Entertainment");
 
 export const entertainmentRoutes = new Hono();
 
-// Dehydrate now flows through the DB-backed chapter routes below (REST + the
-// entertainment:chapterReady event); this POST "/" UIMessage path remains for
-// the interactive placeholder / future use. Nested here so both share the
-// /entertainment prefix (/entertainment/threads/:tid/chapters).
-entertainmentRoutes.route("/", entertainmentChapterRoutes);
+const PositionSchema = z.object({
+  chapterNumber: z.number().int().min(1),
+});
+
+const WorkerSchema = z.object({
+  chapterNumber: z.number().int().min(1),
+});
+
+const UploadSchema = z.object({
+  config: EntertainmentConfigSchema,
+  // Native pick: backend reads the file by path → detects encoding. Browser
+  // fallback: renderer sends base64 bytes. Exactly one is present.
+  fsPath: z.string().optional(),
+  fileBytesBase64: z.string().optional(),
+  filename: z.string().optional(),
+});
+
+const SetupSchema = z.object({
+  config: EntertainmentConfigSchema,
+});
 
 /**
- * Entertainment endpoint — mirrors chatRoutes but always routes through the
- * EntertainmentWorker (no plain-chat fallback). The wizard serializes the full
- * configuration (mode + novel + options) as a JSON text part in the last user
- * message; we parse + Zod-validate it here and forward the typed config to the
- * worker, which routes on `mode` (dehydrate | interactive).
+ * Persist config + first-time thread setup (title/tag). Shared by the upload
+ * (file) and setup (internet) wizard paths. Idempotent: setupEntertainmentThread
+ * only fires on the thread's first config.
  */
-entertainmentRoutes.post("/", async (c) => {
+function applyConfig(threadId: string, config: z.infer<typeof EntertainmentConfigSchema>): void {
+  if (!threadPersistenceService.getThread(threadId)) {
+    threadPersistenceService.createThread(threadId, "entertainment");
+  }
+  const isFirst = !entertainmentService.getEntertainmentConfig(threadId);
+  entertainmentService.upsertEntertainmentConfig(threadId, config);
+  if (isFirst) entertainmentService.setupEntertainmentThread(threadId, config);
+  logger.info("applied config", {
+    threadId,
+    mode: config.mode,
+    novelType: config.novel.type,
+    isFirst,
+  });
+}
+
+// POST /entertainment/threads/:threadId/setup — internet wizard submit: save
+// config + set up the thread. Acquisition/rewriting start when the reader opens
+// chapter 1 and polls the worker.
+entertainmentRoutes.post("/threads/:threadId/setup", async (c) => {
   try {
-    const body = await c.req.json();
-    const parsed = ChatRequestSchema.safeParse(body);
+    const threadId = c.req.param("threadId");
+    const body = await c.req.json().catch(() => ({}));
+    const parsed = SetupSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json(
-        { error: "Invalid request body", details: parsed.error.issues },
-        400,
-      );
+      return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
     }
-
-    const { messages, system, tools } = parsed.data;
-
-    // The wizard serializes the full EntertainmentConfig as a JSON text part in
-    // the LAST user message. Parse + Zod-validate it here; the worker router
-    // consumes the typed object downstream.
-    const lastUser = [...(messages ?? [])]
-      .reverse()
-      .find((m) => m.role === "user");
-    const configText = lastUser?.parts?.find((p) => p.type === "text")?.text;
-    let parsedConfig: EntertainmentConfig | null = null;
-    if (typeof configText === "string") {
-      try {
-        const result = EntertainmentConfigSchema.safeParse(
-          JSON.parse(configText),
-        );
-        if (result.success) parsedConfig = result.data;
-      } catch {
-        // leave null — handled below
-      }
-    }
-    if (!parsedConfig) {
-      logger.warn("Invalid entertainment config in last user message", {
-        configTextPreview:
-          typeof configText === "string" ? configText.slice(0, 160) : undefined,
-      });
-      return c.json(
-        {
-          error:
-            "Invalid entertainment config (expected JSON in the last user message text part)",
-        },
-        400,
-      );
-    }
-
-    // Log the FULL parsed config so the wizard → route → worker path is
-    // verifiable from the main-process logs.
-    logger.info("parsed entertainment config", { config: parsedConfig });
-
-    const sessionTabService = SessionTabService.getInstance();
-    const sessionId =
-      c.req.header("x-session-id") ?? sessionTabService.activeSessionId;
-
-    // Per-thread chat model selection, threaded live from the UI. Absent ⇒
-    // the global "chat" assignment is used (chatModel falls back internally).
-    const chatProviderId = c.req.header("x-chat-provider-id");
-    const chatModelId = c.req.header("x-chat-model-id");
-    const chatSelection =
-      chatProviderId && chatModelId ?
-        { providerId: chatProviderId, modelId: chatModelId }
-      : undefined;
-    const chatLanguageModel = chatModel(chatSelection);
-
-    logger.info("Entertainment request received", {
-      messagesCount: messages?.length,
-      hasSystem: !!system,
-      hasTools: !!tools,
-      mode: parsedConfig.mode,
-      sessionId,
-    });
-
-    if (!sessionId) {
-      logger.error("No session ID available from headers or SessionTabService");
-      sendAlert(
-        "Entertainment Error",
-        "No session ID found. Please start a new entertainment thread.",
-      );
-      return c.json({ error: "No session ID" }, 400);
-    }
-
-    // First message: set a deterministic title + tag straight from the wizard
-    // config. Entertainment threads never go through the LLM enricher — the
-    // title and tag are fully known here (《story》 — 重写|互动), so set them
-    // directly and notify the renderer to refresh its metadata.
-    // (Dehydrate no longer reaches this route — it POSTs to the chapter endpoint
-    // and its title/tag side-effects run in entertainmentService. This block now
-    // only fires for the interactive path, but stays union-aware for safety.)
-    if (messages?.length === 1 && messages[0].role === "user") {
-      const novel = parsedConfig.novel;
-      const modeLabel = i18n.t(`entertainment.${parsedConfig.mode}`);
-      const novelLabel =
-        novel.type === "internet" ? novel.title : novel.filename;
-      const isZh = (i18n.language ?? "en").startsWith("zh");
-      const title =
-        isZh ?
-          `《${novelLabel}》 — ${modeLabel}`
-        : `${novelLabel} — ${modeLabel}`;
-      threadPersistenceService.renameThread(sessionId, title);
-
-      // Attach the matching entertainment tag. Seeded at startup; the
-      // create-if-missing covers a language switch where the seeded tag name
-      // uses a different locale than the current one.
-      let tag = threadPersistenceService
-        .listTagsByMode("entertainment")
-        .find((t) => t.name === modeLabel);
-      if (!tag) {
-        tag = threadPersistenceService.createTag(
-          modeLabel,
-          parsedConfig.mode === "dehydrate" ? "#F28E2B" : "#E15759",
-          0,
-          "entertainment",
-        );
-      }
-      threadPersistenceService.addTagToThread(sessionId, tag.id);
-
-      logger.info("Set deterministic entertainment title + tag", {
-        sessionId,
-        title,
-        tag: tag.name,
-      });
-      eventBus.emitEvent("threads:metadataUpdated", {
-        threadId: sessionId,
-        title,
-        tags: [{ ...tag, color: tag.color ?? "" }],
-      });
-    }
-
-    // Create derived AbortController from the HTTP request signal
-    const abortController = new AbortController();
-    c.req.raw.signal.addEventListener(
-      "abort",
-      () => {
-        if (!abortController.signal.aborted) {
-          abortController.abort(
-            c.req.raw.signal.reason ?? "Client disconnected",
-          );
-        }
-      },
-      { once: true },
-    );
-
-    const stream = await EntertainmentWorker(
-      messages,
-      sessionId,
-      parsedConfig,
-      chatLanguageModel,
-      (finalMessages) => {
-        threadPersistenceService.saveMessages(
-          sessionId,
-          finalMessages,
-          chatSelection,
-        );
-        threadIntelligenceService
-          .generateSuggestions(sessionId, finalMessages)
-          .catch((err) => {
-            logger.warn("Suggestion generation failed:", err);
-          });
-      },
-      abortController.signal,
-    );
-    return createUIMessageStreamResponse({ stream });
+    applyConfig(threadId, parsed.data.config);
+    return c.json({ ok: true }, 202);
   } catch (error) {
-    logger.error("Error handling entertainment:", error);
-    if (error instanceof Error && error.message === "API key not configured") {
-      return c.json({ error: "API key not configured" }, 400);
+    logger.error("Error in setup:", error);
+    return c.json({ error: "Failed to set up thread" }, 500);
+  }
+});
+
+// POST /entertainment/threads/:threadId/upload — file wizard submit: backend
+// detects encoding + decodes (iconv), splits into chapters, bulk-inserts source
+// rows, then kicks off rewriting chapter 1 (+lookahead).
+entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const body = await c.req.json().catch(() => ({}));
+    const parsed = UploadSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
     }
-    return c.json({ error: "Internal server error" }, 500);
+    const { config, fsPath, fileBytesBase64 } = parsed.data;
+    if (!fsPath && !fileBytesBase64) {
+      return c.json({ error: "fsPath or fileBytesBase64 is required" }, 400);
+    }
+
+    logger.info("upload", {
+      threadId,
+      novelType: config.novel.type,
+      via: fsPath ? "fsPath" : "base64",
+    });
+    applyConfig(threadId, config);
+
+    // One-time ingestion. Guard against double-upload for an existing thread.
+    if (entertainmentService.listSourceChapters(threadId).length === 0) {
+      const decoded = decodeNovelFile({ fsPath, base64: fileBytesBase64 });
+      const count = ingestNovel(threadId, decoded);
+      entertainmentService.setLastChapterNumber(threadId, 1);
+      logger.info("file uploaded + ingested", { threadId, count });
+    }
+
+    // Start rewriting the first window (file chapters are already sourced).
+    dehydrateScheduler.ensure(threadId, 1, config);
+    return c.json({ ok: true }, 202);
+  } catch (error) {
+    logger.error("Error in upload:", error);
+    return c.json({ error: "Failed to upload novel" }, 500);
+  }
+});
+
+// GET /entertainment/threads/:threadId/chapters — per-chapter pipeline progress
+// (source + rewrite statuses merged), ordered. Drives the TOC + reader states.
+entertainmentRoutes.get("/threads/:threadId/chapters", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const chapters = entertainmentService.listChapterProgress(threadId);
+    const novelType = entertainmentService.getNovelType(threadId);
+    return c.json({ chapters, novelType });
+  } catch (error) {
+    logger.error("Error listing chapters:", error);
+    return c.json({ error: "Failed to list chapters" }, 500);
+  }
+});
+
+// GET /entertainment/threads/:threadId/chapters/:n — single-chapter detail
+// (statuses + rewritten prose; null content until rewritten). The poll target.
+entertainmentRoutes.get("/threads/:threadId/chapters/:n", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const n = Number(c.req.param("n"));
+    if (!Number.isInteger(n) || n < 1) {
+      return c.json({ error: "Invalid chapter number" }, 400);
+    }
+    const chapter = entertainmentService.getChapterDetail(threadId, n);
+    return c.json({ chapter });
+  } catch (error) {
+    logger.error("Error getting chapter:", error);
+    return c.json({ error: "Failed to get chapter" }, 500);
+  }
+});
+
+// GET /entertainment/threads/:threadId/position — last-read chapter (recovery).
+entertainmentRoutes.get("/threads/:threadId/position", (c) => {
+  const threadId = c.req.param("threadId");
+  const lastChapterNumber = entertainmentService.getLastChapterNumber(threadId);
+  return c.json({ lastChapterNumber });
+});
+
+// POST /entertainment/threads/:threadId/position — persist current chapter.
+entertainmentRoutes.post("/threads/:threadId/position", async (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const body = await c.req.json().catch(() => ({}));
+    const parsed = PositionSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
+    }
+    entertainmentService.setLastChapterNumber(threadId, parsed.data.chapterNumber);
+    logger.debug("position set", {
+      threadId,
+      chapterNumber: parsed.data.chapterNumber,
+    });
+    return c.json({ ok: true });
+  } catch (error) {
+    logger.error("Error setting position:", error);
+    return c.json({ error: "Failed to set position" }, 500);
+  }
+});
+
+// GET /entertainment/threads/:threadId/worker — query liveness of the per-thread
+// dehydration worker (is it processing? what chapter? queue depth).
+entertainmentRoutes.get("/threads/:threadId/worker", (c) => {
+  const threadId = c.req.param("threadId");
+  return c.json(dehydrateScheduler.getInfo(threadId));
+});
+
+// POST /entertainment/threads/:threadId/worker — ensure a worker is processing
+// the window for `chapterNumber` (start-if-absent; idempotent). Used by the
+// reader's poll loop when a chapter isn't ready yet.
+entertainmentRoutes.post("/threads/:threadId/worker", async (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const body = await c.req.json().catch(() => ({}));
+    const parsed = WorkerSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
+    }
+    dehydrateScheduler.ensure(threadId, parsed.data.chapterNumber);
+    const info = dehydrateScheduler.getInfo(threadId);
+    logger.debug("worker ensure", {
+      threadId,
+      chapterNumber: parsed.data.chapterNumber,
+      active: info.active,
+      target: info.target,
+      pending: info.pending,
+      size: info.size,
+    });
+    return c.json(info);
+  } catch (error) {
+    logger.error("Error starting worker:", error);
+    return c.json({ error: "Failed to start worker" }, 500);
   }
 });
