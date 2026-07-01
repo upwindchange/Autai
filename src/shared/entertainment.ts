@@ -146,6 +146,29 @@ export interface ChapterDetail extends ChapterProgress {
 }
 
 /**
+ * A saved reading spot. `anchor` is a JSON coordinate whose shape the reader
+ * decides; today only `{ scrollRatio }` (0–1 within the chapter) is produced or
+ * consumed. `chapterNumber` + `title` are joined from the chapter tables so the
+ * renderer can list + jump by chapter number without ever touching the DB id.
+ * `label`/`note` are nullable and currently unused (auto-label is rendered
+ * client-side from chapterNumber + title so it localizes); they're kept for a
+ * future editable-label/note feature with no schema change.
+ */
+export interface BookmarkAnchor {
+  scrollRatio?: number;
+}
+
+export interface Bookmark {
+  id: string;
+  chapterNumber: number;
+  title: string | null;
+  anchor: BookmarkAnchor | null;
+  label: string | null;
+  note: string | null;
+  createdAt: string;
+}
+
+/**
  * Discriminator for the open, extensible `chapter_meta` table. Seeded with the
  * per-chapter metadata kinds from the entertainment-mode requirements:
  *   - `setting`             — per-chapter setting overrides

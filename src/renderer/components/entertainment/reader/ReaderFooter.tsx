@@ -1,6 +1,6 @@
 import { type FC, type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { List, Maximize2, Minimize2 } from "lucide-react";
+import { Bookmark, List, Maximize2, Minimize2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Popover,
@@ -23,10 +23,12 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DotMatrix, type DotMatrixState } from "@/components/assistant-ui/dot-matrix";
 import { useChaptersStore } from "@/stores/chaptersStore";
+import { useBookmarksStore } from "@/stores/bookmarksStore";
 import { useUiStore } from "@/stores/uiStore";
 import { cn } from "@/lib/utils";
 import { ReaderSettingsPanel } from "./reader-settings/ReaderSettingsPanel";
 import { TableOfContents } from "./table-of-contents/TableOfContents";
+import { Bookmarks } from "./bookmarks/Bookmarks";
 
 // Refresh cadence for the chapter list while the footer is shown.
 const POLL_MS = 1500;
@@ -40,6 +42,11 @@ interface ReaderFooterProps {
   pinned: boolean;
   /** Hovered: pointer is in the bottom reveal band (desktop only). */
   hovered: boolean;
+  /** Current within-chapter scroll ratio (0–1), captured into a bookmark anchor. */
+  getScrollRatio: () => number | null;
+  /** Jump to a chapter (+ optional scroll ratio to restore). The TOC jumps
+   *  through here too (null ratio → top) so all chapter changes share one path. */
+  onJumpBookmark: (chapterNumber: number, scrollRatio: number | null) => void;
 }
 
 /**
@@ -67,6 +74,8 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   onNext,
   pinned,
   hovered,
+  getScrollRatio,
+  onJumpBookmark,
 }) => {
   const { t } = useTranslation("reader");
   const isMobile = useIsMobile();
@@ -75,18 +84,24 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
 
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
+  const [bookmarksOpen, setBookmarksOpen] = useState(false);
 
-  // TOC data + jump handlers come from the chapters store (this footer lives
-  // inside the entertainment tree, so the active thread is already loaded).
+  // TOC data comes from the chapters store (this footer lives inside the
+  // entertainment tree, so the active thread is already loaded). Chapter jumps
+  // (TOC + bookmarks) go through `onJumpBookmark`, owned by the reader host.
   const chapters = useChaptersStore((s) => s.chapters);
   const currentChapterNumber = useChaptersStore((s) => s.currentChapterNumber);
   const currentThreadId = useChaptersStore((s) => s.currentThreadId);
-  const setCurrentChapter = useChaptersStore((s) => s.setCurrentChapter);
-  const setPosition = useChaptersStore((s) => s.setPosition);
-  const ensureWorker = useChaptersStore((s) => s.ensureWorker);
   const loadChapters = useChaptersStore((s) => s.loadChapters);
 
-  const visible = pinned || hovered || settingsOpen || tocOpen;
+  // Bookmarks for the active thread. Loaded once per thread switch (no poll —
+  // bookmarks only change via this client); add/remove mutate the store directly.
+  const bookmarks = useBookmarksStore((s) => s.bookmarks);
+  const loadBookmarks = useBookmarksStore((s) => s.loadBookmarks);
+  const addBookmark = useBookmarksStore((s) => s.addBookmark);
+  const removeBookmark = useBookmarksStore((s) => s.removeBookmark);
+
+  const visible = pinned || hovered || settingsOpen || tocOpen || bookmarksOpen;
 
   // Poll the chapter list WHILE the footer is shown, so the TOC rows and the
   // next-chapter nav indicator track backend progress. Stops the instant it
@@ -105,6 +120,13 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     return () => clearInterval(timer);
   }, [visible, currentThreadId, loadChapters]);
 
+  // Load bookmarks once per thread switch (no poll — they only change via this
+  // client; add/remove mutate the store directly).
+  useEffect(() => {
+    if (!currentThreadId) return;
+    void loadBookmarks(currentThreadId);
+  }, [currentThreadId, loadBookmarks]);
+
   // Next chapter's pipeline phase — same logic as the TOC row indicator.
   const next = chapters.find(
     (c) => c.chapterNumber === (currentChapterNumber ?? 0) + 1,
@@ -113,16 +135,32 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   if (next?.sourceStatus === "fetching") nextPhase = "loading";
   else if (next?.rewriteStatus === "rewriting") nextPhase = "uploading";
 
-  // Jumping via the TOC sets the reader position + kicks the worker for that
-  // chapter (handles jumps far ahead), then closes the TOC so the reader takes
-  // over (e-reader convention: pick a chapter → read it).
+  // Jumping via the TOC goes through the host's shared jump path (null ratio →
+  // chapter top), then closes the TOC so the reader takes over (e-reader
+  // convention: pick a chapter → read it).
   const handleSelect = (n: number) => {
-    setCurrentChapter(n);
-    if (currentThreadId) {
-      void setPosition(currentThreadId, n);
-      void ensureWorker(currentThreadId, n);
-    }
+    onJumpBookmark(n, null);
     setTocOpen(false);
+  };
+
+  // Bookmark a spot at the current scroll position; keep the panel open so the
+  // new entry appears at the top of the list.
+  const handleAddBookmark = () => {
+    if (!currentThreadId || currentChapterNumber == null) return;
+    void addBookmark(currentThreadId, {
+      chapterNumber: currentChapterNumber,
+      scrollRatio: getScrollRatio(),
+    });
+  };
+
+  const handleJumpBookmark = (chapterNumber: number, scrollRatio: number | null) => {
+    onJumpBookmark(chapterNumber, scrollRatio);
+    setBookmarksOpen(false);
+  };
+
+  const handleDeleteBookmark = (id: string) => {
+    if (!currentThreadId) return;
+    void removeBookmark(currentThreadId, id);
   };
 
   const settingsTrigger = (
@@ -146,6 +184,23 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
       className="size-9 rounded-full"
     >
       <List className="size-5" />
+    </Button>
+  );
+
+  // Subtle hint (not a toggle): the icon tints primary when the current chapter
+  // already has ≥1 bookmark. Tapping still opens the panel either way.
+  const currentHasBookmark =
+    currentChapterNumber != null &&
+    bookmarks.some((b) => b.chapterNumber === currentChapterNumber);
+  const bookmarksTrigger = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label={t("reader.bookmarks.open")}
+      className="size-9 rounded-full"
+    >
+      <Bookmark className={cn("size-5", currentHasBookmark && "text-primary")} />
     </Button>
   );
 
@@ -219,6 +274,26 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
             />
           </ResponsivePanel>
 
+          {/* Bookmarks (right) */}
+          <ResponsivePanel
+            isMobile={isMobile}
+            title={t("reader.bookmarks.title")}
+            tooltip={t("reader.bookmarks.open")}
+            open={bookmarksOpen}
+            onOpenChange={setBookmarksOpen}
+            trigger={bookmarksTrigger}
+          >
+            <Bookmarks
+              bookmarks={bookmarks}
+              currentChapterNumber={currentChapterNumber}
+              onAdd={handleAddBookmark}
+              onJump={(b) =>
+                handleJumpBookmark(b.chapterNumber, b.anchor?.scrollRatio ?? null)
+              }
+              onDelete={handleDeleteBookmark}
+            />
+          </ResponsivePanel>
+
           {/* Zen toggle (right edge) — hides all chrome so the reader fills the
               window. In zen the footer stays hidden until the surface is tapped
               (pinned), so this button is also the mouse exit path. */}
@@ -278,10 +353,21 @@ const ResponsivePanel: FC<ResponsivePanelProps> = ({
   onOpenChange,
   children,
 }) => {
+  // Tooltip is ALWAYS controlled: `false` while its panel is open, otherwise the
+  // hover state Radix reports via onOpenChange. Keeping it a stable boolean (never
+  // undefined) avoids the Radix "switching from controlled to uncontrolled"
+  // warning, which — because the trigger is also the Popover/Drawer trigger —
+  // could destabilize pointer handling on the trigger.
+  const [tooltipOpen, setTooltipOpen] = useState(false);
+  const tooltipProps = {
+    open: open ? false : tooltipOpen,
+    onOpenChange: setTooltipOpen,
+  };
+
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <Tooltip open={open ? false : undefined}>
+        <Tooltip {...tooltipProps}>
           <TooltipTrigger asChild>
             <DrawerTrigger asChild>{trigger}</DrawerTrigger>
           </TooltipTrigger>
@@ -298,7 +384,7 @@ const ResponsivePanel: FC<ResponsivePanelProps> = ({
   }
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
-      <Tooltip open={open ? false : undefined}>
+      <Tooltip {...tooltipProps}>
         <TooltipTrigger asChild>
           <PopoverTrigger asChild>{trigger}</PopoverTrigger>
         </TooltipTrigger>

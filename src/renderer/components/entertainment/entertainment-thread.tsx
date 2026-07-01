@@ -68,6 +68,12 @@ export const EntertainmentThread: FC = () => {
   // The desktop hover listener attaches here, not to the viewport — see the
   // hover effect below for why.
   const rootRef = useRef<HTMLDivElement>(null);
+  // A cross-chapter bookmark jump records { chapterNumber, ratio } here; the
+  // restore effect below applies the offset once that chapter's content is
+  // rendered. It is scoped to the target chapter, so if the user navigates
+  // elsewhere (or the chapter never becomes ready) the pending entry is
+  // discarded and never scrolls an unrelated chapter.
+  const pendingScrollRef = useRef<{ chapterNumber: number; ratio: number } | null>(null);
   // Pinned open by a tap/click on the reading surface (mobile + desktop); the
   // footer also reveals on desktop hover. See ReaderFooter.
   const [footerPinned, setFooterPinned] = useState(false);
@@ -120,9 +126,40 @@ export const EntertainmentThread: FC = () => {
   // Start each displayed chapter at the top. Instant (not smooth) so it can't
   // race with a reader hotkey scroll fired immediately after a chapter change —
   // the viewport is scroll-smooth, which would otherwise animate this reset.
+  // This ALWAYS runs on a chapter change; the bookmark-restore effect below then
+  // overrides with the saved offset for a bookmark jump (it runs after this one
+  // in the same commit, so the final position is the restored offset, not top).
   useEffect(() => {
     viewportRef.current?.scrollTo({ top: 0, behavior: "instant" });
   }, [currentChapterNumber]);
+
+  // Bookmark-jump scroll restore. A cross-chapter jump records
+  // { chapterNumber, ratio } BEFORE switching chapters (see onJumpBookmark); this
+  // applies the offset once that chapter's rewritten content is rendered. The
+  // deps cover every transition — the chapter switch, the rewrite status
+  // flipping to "rewritten", and the content arriving — so whenever the prose
+  // becomes measurable this runs. Scoped to the target chapter: if the user
+  // navigated elsewhere it discards; once the target is ready it applies (or, if
+  // the chapter fits the viewport, has nothing to scroll) and clears — so a
+  // stale ratio never carries into an unrelated chapter.
+  useEffect(() => {
+    const pending = pendingScrollRef.current;
+    if (!pending) return;
+    if (currentChapterNumber !== pending.chapterNumber) {
+      pendingScrollRef.current = null; // navigated elsewhere — discard
+      return;
+    }
+    if (current?.rewriteStatus !== "rewritten") return; // wait for content
+    const vp = viewportRef.current;
+    if (vp) {
+      const max = vp.scrollHeight - vp.clientHeight;
+      if (max > 0) {
+        vp.scrollTo({ top: Math.round(pending.ratio * max), behavior: "instant" });
+      }
+      // max <= 0: chapter fits the viewport; top is the only valid spot.
+    }
+    pendingScrollRef.current = null; // content ready — restore complete
+  }, [currentChapterNumber, current?.rewriteStatus, current?.content]);
 
   // Desktop hover: reveal the footer when the pointer enters the bottom band of
   // the reading surface, hide when it leaves. The listener is attached to the
@@ -171,6 +208,45 @@ export const EntertainmentThread: FC = () => {
     setCurrentChapter(next);
     void setPosition(mainThreadId, next);
     void ensureWorker(mainThreadId, next); // snappy; the hook re-ensures too
+  };
+
+  // Current within-chapter scroll position (0–1), or 0 for a chapter shorter
+  // than the viewport. null only when the viewport isn't mounted. Captured into
+  // a bookmark's anchor when the reader saves a spot.
+  const getScrollRatio = (): number | null => {
+    const vp = viewportRef.current;
+    if (!vp) return null;
+    const max = vp.scrollHeight - vp.clientHeight;
+    return max <= 0 ? 0 : Math.min(1, Math.max(0, vp.scrollTop / max));
+  };
+
+  // Jump to a bookmark: switch chapter + persist + ensure worker (the shared
+  // nav path), and arrange scroll restore. Same-chapter jumps apply the offset
+  // immediately; cross-chapter jumps record { chapterNumber, ratio } so the
+  // restore effect applies it once the target content is ready (overriding the
+  // default top-of-chapter reset). `scrollRatio` null/0 → top. The TOC jumps
+  // through here too (with a null ratio) so all chapter changes share one path.
+  const onJumpBookmark = (
+    chapterNumber: number,
+    scrollRatio: number | null,
+  ) => {
+    if (!mainThreadId) return;
+    const ratio = scrollRatio ?? 0;
+    if (chapterNumber === currentChapterNumber) {
+      const vp = viewportRef.current;
+      if (vp) {
+        const max = vp.scrollHeight - vp.clientHeight;
+        if (max > 0) {
+          vp.scrollTo({ top: Math.round(ratio * max), behavior: "instant" });
+        }
+      }
+      pendingScrollRef.current = null;
+      return;
+    }
+    pendingScrollRef.current = { chapterNumber, ratio }; // before the switch
+    setCurrentChapter(chapterNumber);
+    void setPosition(mainThreadId, chapterNumber);
+    void ensureWorker(mainThreadId, chapterNumber);
   };
 
   // Reader keyboard shortcuts (chapter nav, Space/PageDn scroll, Home/End).
@@ -268,6 +344,8 @@ export const EntertainmentThread: FC = () => {
           onNext={() => void handleNext()}
           pinned={footerPinned}
           hovered={footerHovered}
+          getScrollRatio={getScrollRatio}
+          onJumpBookmark={onJumpBookmark}
         />
       )}
     </ThreadPrimitive.Root>

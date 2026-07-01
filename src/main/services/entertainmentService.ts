@@ -1,11 +1,14 @@
 import { getDb } from "@/db";
 import {
+  bookmarks,
   sourceChapters,
   rewrittenChapters,
   entertainmentConfigs,
   threads,
 } from "@/db/schema";
 import type {
+  Bookmark,
+  BookmarkAnchor,
   ChapterDetail,
   ChapterProgress,
   EntertainmentConfig,
@@ -16,7 +19,7 @@ import type { EntertainmentConfigRow } from "@/db/types";
 import { threadPersistenceService } from "./threadPersistenceService";
 import { i18n } from "@/i18n";
 import { eventBus } from "@/utils/eventBus";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, desc, eq, sql } from "drizzle-orm";
 import log from "electron-log/main";
 
 const logger = log.scope("EntertainmentService");
@@ -196,6 +199,120 @@ class EntertainmentService {
       rewriteStatus: r?.status ?? null,
       // Only expose rewritten prose to the reader (never 原文).
       content: r?.status === "rewritten" ? r.content : null,
+    };
+  }
+
+  // --- bookmarks ----------------------------------------------------------
+
+  /**
+   * All bookmarks for the thread, newest first, with `chapterNumber` + `title`
+   * joined from the chapter tables (the reader lists/jumps by chapterNumber,
+   * never the DB id). Mirrors `listChapterProgress`'s in-memory merge: two bulk
+   * selects into Maps, then O(1) per row.
+   */
+  listBookmarks(threadId: string): Bookmark[] {
+    const db = getDb();
+    const rows = db
+      .select()
+      .from(bookmarks)
+      .where(eq(bookmarks.threadId, threadId))
+      .orderBy(desc(bookmarks.createdAt))
+      .all();
+    if (rows.length === 0) return [];
+    const chapterNumberById = new Map(
+      db
+        .select()
+        .from(rewrittenChapters)
+        .where(eq(rewrittenChapters.threadId, threadId))
+        .all()
+        .map((r) => [r.id, r.chapterNumber]),
+    );
+    const titleByNumber = new Map(
+      this.listSourceChapters(threadId).map((s) => [s.chapterNumber, s.title]),
+    );
+    const out: Bookmark[] = [];
+    for (const row of rows) {
+      const chapterNumber = chapterNumberById.get(row.chapterId);
+      if (chapterNumber == null) continue; // orphaned (cascade makes impossible)
+      out.push(
+        this.mapBookmark(
+          row,
+          chapterNumber,
+          titleByNumber.get(chapterNumber) ?? null,
+        ),
+      );
+    }
+    return out;
+  }
+
+  /**
+   * Save a reading spot. `chapterId` is resolved from (threadId, chapterNumber)
+   * so callers work in chapter numbers; throws if no rewrite row exists yet
+   * (the reader only bookmarks ready chapters, so this is defensive). `label`
+   * and `note` are currently left null (auto-label is rendered client-side).
+   */
+  createBookmark(
+    threadId: string,
+    chapterNumber: number,
+    anchor?: BookmarkAnchor | null,
+    label?: string | null,
+    note?: string | null,
+  ): Bookmark {
+    const rewrite = this.getRewrittenChapter(threadId, chapterNumber);
+    if (!rewrite) {
+      throw new Error(
+        `No rewritten chapter ${chapterNumber} for thread ${threadId}`,
+      );
+    }
+    const db = getDb();
+    const id = crypto.randomUUID();
+    db.insert(bookmarks)
+      .values({
+        id,
+        threadId,
+        chapterId: rewrite.id,
+        anchor: anchor ? JSON.stringify(anchor) : null,
+        label: label ?? null,
+        note: note ?? null,
+      })
+      .run();
+    // Re-read to pick up the DB-generated createdAt (consistent with listBookmarks).
+    const row = db.select().from(bookmarks).where(eq(bookmarks.id, id)).get();
+    if (!row) throw new Error(`Bookmark ${id} vanished after insert`);
+    const title = this.getSourceChapter(threadId, chapterNumber)?.title ?? null;
+    return this.mapBookmark(row, chapterNumber, title);
+  }
+
+  /** Delete a bookmark, scoped by threadId for safety. */
+  deleteBookmark(threadId: string, id: string): void {
+    const db = getDb();
+    db.delete(bookmarks)
+      .where(and(eq(bookmarks.id, id), eq(bookmarks.threadId, threadId)))
+      .run();
+  }
+
+  /** Map a raw bookmarks row to the renderer-facing `Bookmark` shape. */
+  private mapBookmark(
+    row: (typeof bookmarks)["$inferSelect"],
+    chapterNumber: number,
+    title: string | null,
+  ): Bookmark {
+    let anchor: BookmarkAnchor | null = null;
+    if (row.anchor) {
+      try {
+        anchor = JSON.parse(row.anchor) as BookmarkAnchor;
+      } catch {
+        anchor = null;
+      }
+    }
+    return {
+      id: row.id,
+      chapterNumber,
+      title,
+      anchor,
+      label: row.label,
+      note: row.note,
+      createdAt: row.createdAt,
     };
   }
 

@@ -42,6 +42,13 @@
   "reader.chapter.error": "This chapter failed to load.",
   "reader.toc.title": "Contents",
   "reader.toc.empty": "No chapters yet",
+  "reader.bookmarks.title": "Bookmarks",
+  "reader.bookmarks.open": "Open bookmarks",
+  "reader.bookmarks.add": "Bookmark this spot",
+  "reader.bookmarks.empty": "No bookmarks yet",
+  "reader.bookmarks.delete": "Delete bookmark",
+  "reader.bookmarks.jump": "Jump to bookmark",
+  "reader.bookmarks.chapterLabel": "Chapter {{n}}",
   "reader.controls.label": "Reader tools",
   "reader.zen.enter": "Enter zen mode",
   "reader.zen.exit": "Exit zen mode"

@@ -42,6 +42,17 @@ const SetupSchema = z.object({
   config: EntertainmentConfigSchema,
 });
 
+const BookmarkAnchorSchema = z.object({
+  scrollRatio: z.number().min(0).max(1),
+});
+
+const CreateBookmarkSchema = z.object({
+  chapterNumber: z.number().int().min(1),
+  anchor: BookmarkAnchorSchema.optional(),
+  label: z.string().optional(),
+  note: z.string().optional(),
+});
+
 /**
  * Persist config + first-time thread setup (title/tag). Shared by the upload
  * (file) and setup (internet) wizard paths. Idempotent: setupEntertainmentThread
@@ -212,5 +223,66 @@ entertainmentRoutes.post("/threads/:threadId/worker", async (c) => {
   } catch (error) {
     logger.error("Error starting worker:", error);
     return c.json({ error: "Failed to start worker" }, 500);
+  }
+});
+
+// --- Bookmarks -------------------------------------------------------------
+// Saved reading spots. The renderer works in chapter numbers (never the DB id),
+// so create takes chapterNumber and the service resolves the rewrittenChapter
+// id. list/delete are scoped by threadId. `anchor` is a JSON coordinate
+// ({ scrollRatio }); the reader decides the shape.
+
+// GET /entertainment/threads/:threadId/bookmarks — all bookmarks, newest first,
+// with chapterNumber + title joined for display + jump.
+entertainmentRoutes.get("/threads/:threadId/bookmarks", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    return c.json({ bookmarks: entertainmentService.listBookmarks(threadId) });
+  } catch (error) {
+    logger.error("Error listing bookmarks:", error);
+    return c.json({ error: "Failed to list bookmarks" }, 500);
+  }
+});
+
+// POST /entertainment/threads/:threadId/bookmarks — save the current reading
+// spot. 400 if the chapter has no rewrite row yet (defensive — the reader only
+// bookmarks ready chapters).
+entertainmentRoutes.post("/threads/:threadId/bookmarks", async (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const body = await c.req.json().catch(() => ({}));
+    const parsed = CreateBookmarkSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Invalid request body", details: parsed.error.issues },
+        400,
+      );
+    }
+    const { chapterNumber, anchor, label, note } = parsed.data;
+    const bookmark = entertainmentService.createBookmark(
+      threadId,
+      chapterNumber,
+      anchor,
+      label,
+      note,
+    );
+    return c.json({ bookmark }, 201);
+  } catch (error) {
+    logger.error("Error creating bookmark:", error);
+    return c.json({ error: "Failed to create bookmark" }, 500);
+  }
+});
+
+// DELETE /entertainment/threads/:threadId/bookmarks/:id — remove one bookmark
+// (scoped by threadId).
+entertainmentRoutes.delete("/threads/:threadId/bookmarks/:id", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const id = c.req.param("id");
+    entertainmentService.deleteBookmark(threadId, id);
+    return c.json({ ok: true });
+  } catch (error) {
+    logger.error("Error deleting bookmark:", error);
+    return c.json({ error: "Failed to delete bookmark" }, 500);
   }
 });

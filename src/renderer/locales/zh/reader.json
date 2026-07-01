@@ -42,6 +42,13 @@
   "reader.chapter.error": "本章加载失败。",
   "reader.toc.title": "目录",
   "reader.toc.empty": "暂无目录",
+  "reader.bookmarks.title": "书签",
+  "reader.bookmarks.open": "打开书签",
+  "reader.bookmarks.add": "收藏此处",
+  "reader.bookmarks.empty": "暂无书签",
+  "reader.bookmarks.delete": "删除书签",
+  "reader.bookmarks.jump": "跳转到书签",
+  "reader.bookmarks.chapterLabel": "第 {{n}} 章",
   "reader.controls.label": "阅读工具",
   "reader.zen.enter": "进入沉浸阅读",
   "reader.zen.exit": "退出沉浸阅读"
