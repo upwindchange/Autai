@@ -105,7 +105,7 @@ export const EntertainmentWizard: FC = () => {
   const valid = isStepValid(step, config);
 
   return (
-    <div className="my-auto mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 pb-10">
+    <div className="my-auto mx-auto flex w-full flex-col gap-4 px-4 pb-10 sm:max-w-2xl sm:gap-6">
       <div className="flex flex-col gap-1">
         <h1 className="fade-in slide-in-from-bottom-1 animate-in fill-mode-both font-semibold text-2xl duration-200">
           {t("title")}
@@ -120,18 +120,16 @@ export const EntertainmentWizard: FC = () => {
         labels={[t("step.0.title"), t("step.1.title"), t("step.2.title")]}
       />
 
-      <div className="flex flex-col gap-4">
-        {step === 0 && <StepMode config={config} setConfig={setConfig} />}
-        {step === 1 && (
-          <StepNovel
-            config={config}
-            setConfig={setConfig}
-            pendingFile={pendingFile}
-            setPendingFile={setPendingFile}
-          />
-        )}
-        {step === 2 && <StepOptions config={config} setConfig={setConfig} />}
-      </div>
+      {step === 0 && <StepMode config={config} setConfig={setConfig} />}
+      {step === 1 && (
+        <StepNovel
+          config={config}
+          setConfig={setConfig}
+          pendingFile={pendingFile}
+          setPendingFile={setPendingFile}
+        />
+      )}
+      {step === 2 && <StepOptions config={config} setConfig={setConfig} />}
 
       <div className="flex items-center gap-2">
         {step > 0 && (

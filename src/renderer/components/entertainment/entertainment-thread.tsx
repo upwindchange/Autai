@@ -1,6 +1,6 @@
 import "streamdown/styles.css";
 // NOTE: katex css is intentionally NOT imported — the math plugin is disabled.
-import "./novel-reader.css"; // scoped novel-reading typography
+import "./reader/novel-reader.css"; // scoped novel-reading typography
 import {
   useEffect,
   useRef,
@@ -17,10 +17,10 @@ import { useChaptersStore, type ChapterView } from "@/stores/chaptersStore";
 import { useChapterReadiness } from "@/hooks/useChapterReadiness";
 import { useReaderHotkeys } from "@/hooks/useReaderHotkeys";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { NovelText } from "./NovelText";
-import { EntertainmentWizard } from "./EntertainmentWizard";
-import { buildReaderCssVars } from "./reader-settings/reader-theme";
-import { ReaderFooter } from "./ReaderFooter";
+import { NovelText } from "./reader/NovelText";
+import { EntertainmentWizard } from "./wizard/EntertainmentWizard";
+import { buildReaderCssVars } from "./reader/reader-settings/reader-theme";
+import { ReaderFooter } from "./reader/ReaderFooter";
 
 // Desktop-only bottom band (px from the reading viewport's bottom edge) that
 // reveals the footer on hover. Invisible — hover is detected via mousemove, not
@@ -232,27 +232,33 @@ export const EntertainmentThread: FC = () => {
             : undefined,
         }}
       >
-        <div
-          onClick={handleReadingClick}
-          className="flex w-full flex-1 flex-col pt-4 pb-24"
-          // Width is controlled purely by side margin: the prose column fills
-          // the viewport edge-to-edge behind the reader background, with
-          // symmetric inline padding from --reader-margin. The 40vw cap keeps
-          // the column from collapsing on narrow windows; there is no content
-          // max-width (increase the margin to narrow the text).
-          style={{ paddingInline: "min(var(--reader-margin, 12rem), 40vw)" }}
-        >
-          {showWizard && <EntertainmentWizard />}
-
-          {currentChapterNumber != null && (
-            <div
-              data-slot="aui_message-group"
-              className="mb-10 flex flex-col gap-y-10 empty:hidden"
-            >
-              <ChapterBody chapter={current} />
-            </div>
-          )}
-        </div>
+        {showWizard ? (
+          // The wizard is a setup surface, not reading prose, so it's rendered
+          // as a direct child of the viewport — it does NOT inherit the prose
+          // column's --reader-margin (which would crush it on mobile). Its own
+          // container handles width + centering.
+          <EntertainmentWizard />
+        ) : (
+          <div
+            onClick={handleReadingClick}
+            className="flex w-full flex-1 flex-col pt-4 pb-24"
+            // Width is controlled purely by side margin: the prose column fills
+            // the viewport edge-to-edge behind the reader background, with
+            // symmetric inline padding from --reader-margin. The 40vw cap keeps
+            // the column from collapsing on narrow windows; there is no content
+            // max-width (increase the margin to narrow the text).
+            style={{ paddingInline: "min(var(--reader-margin, 12rem), 40vw)" }}
+          >
+            {currentChapterNumber != null && (
+              <div
+                data-slot="aui_message-group"
+                className="mb-10 flex flex-col gap-y-10 empty:hidden"
+              >
+                <ChapterBody chapter={current} />
+              </div>
+            )}
+          </div>
+        )}
       </ThreadPrimitive.Viewport>
       {currentChapterNumber != null && (
         <ReaderFooter

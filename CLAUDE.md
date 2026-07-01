@@ -10,12 +10,12 @@ Autai is a desktop application built with Electron, React, and TypeScript. Its c
 
 **IMPORTANT**:
 
-1. Do not run any pnpm command except for `pnpm tsc`, ask the user to run it.
+1. Do not write code in patchy way, you are required to write clean code that reconstruct current plumbing as much as needed to generate coherent and clean code.
 2. This project does not use npm, npx. It uses pnpm and pnpm dlx.
 3. All files uses 2 whitespaces to indent, not tab.
 4. All files, except for windows .bat and .cmd files, use LF as end of line, not CRLF.
-5. In your plan, design, and implementation workflow, do not include any verification step other than running `pnpm tsc`.
-6. You are not allowed to design/write/run tests other than running `pnpm tsc`.
+5. In your plan, design, and implementation workflow, do not include any verification/test step. The only thing you are allowed to verify/test is `pnpm tsc`, nothing else.
+6. Do not overly abstract things into class or write a function that is only going to be called one time throughout the whole project for the sake of abstraction. You can write class and function, but you need to evaluate if that is neccessary to do so. If there is not much merits, you are not justified to do it.
 
 ```bash
 # Development
