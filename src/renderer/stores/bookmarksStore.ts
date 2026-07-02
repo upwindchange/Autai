@@ -22,7 +22,7 @@ interface BookmarksState {
   /** Save the current reading spot; prepends the returned bookmark. */
   addBookmark: (
     threadId: string,
-    input: { chapterNumber: number; scrollRatio: number | null },
+    input: { chapterNumber: number; percentile: number },
   ) => Promise<void>;
   /** Remove a bookmark (optimistic). */
   removeBookmark: (threadId: string, id: string) => Promise<void>;
@@ -53,13 +53,13 @@ export const useBookmarksStore = create<BookmarksState>()(
       }
     },
 
-    addBookmark: async (threadId, { chapterNumber, scrollRatio }) => {
+    addBookmark: async (threadId, { chapterNumber, percentile }) => {
       const { bookmark } = await httpClient.postJSON<{ bookmark: Bookmark }>(
         `/entertainment/threads/${threadId}/bookmarks`,
         {
           chapterNumber,
-          // null/0 → top of a short chapter is still a valid, restorable spot.
-          anchor: { scrollRatio: scrollRatio ?? 0 },
+          // percentile (0–100) of the rendered chapter; 0 = top.
+          anchor: { percentile },
         },
       );
       set((state) => ({

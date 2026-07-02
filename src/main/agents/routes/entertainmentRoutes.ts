@@ -43,7 +43,7 @@ const SetupSchema = z.object({
 });
 
 const BookmarkAnchorSchema = z.object({
-  scrollRatio: z.number().min(0).max(1),
+  percentile: z.number().min(0).max(100),
 });
 
 const CreateBookmarkSchema = z.object({
@@ -230,7 +230,7 @@ entertainmentRoutes.post("/threads/:threadId/worker", async (c) => {
 // Saved reading spots. The renderer works in chapter numbers (never the DB id),
 // so create takes chapterNumber and the service resolves the rewrittenChapter
 // id. list/delete are scoped by threadId. `anchor` is a JSON coordinate
-// ({ scrollRatio }); the reader decides the shape.
+// ({ percentile }); the reader decides the shape.
 
 // GET /entertainment/threads/:threadId/bookmarks — all bookmarks, newest first,
 // with chapterNumber + title joined for display + jump.

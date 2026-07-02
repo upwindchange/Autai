@@ -1,73 +1,21 @@
-/* Novel-reading typography, scoped to the entertainment reader only.
- * Targets streamdown's inner elements (emitted by the markdown pipeline,
- * unreachable by Tailwind utilities) via the `.ent-novel-reader` container
- * class set on NovelText's StreamdownTextPrimitive.
- *
- * Block rules use DESCENDANT selectors (`.ent-novel-reader p`), not direct
- * children: Streamdown wraps every rendered block in its own inner
- * <div class="space-y-4">, so the <p>/<h1>/<blockquote> elements sit one level
- * below the container and a `>` combinator never matches them. That wrapper's
- * space-y-4 gap is emitted via :where() (zero specificity), so these rules
- * override it without needing !important.
- *
- * Values are driven by reader CSS variables — set on ThreadPrimitive.Root from
- * readerSettingsStore via buildReaderCssVars() — which cascade into this
- * container and Streamdown's rendered DOM. Each var has a fallback so the
- * reader still renders before the store hydrates. */
+/* Novel-prose typography for the entertainment reader. ChapterBody renders a
+ * chapter as plain <p> paragraphs inside a .novel-reader container; these rules
+ * shape them. Values come from the --reader-* custom properties that
+ * buildReaderCssVars() sets on the thread root, so the settings panel can
+ * live-update typography without re-rendering the prose. `text-pretty`
+ * (balanced CJK wrapping) is a Tailwind utility on the container, not a rule
+ * here. Each var has a fallback for first paint before the store hydrates. */
 
-.ent-novel-reader {
-  /* No max-width here: the prose column's width is set by side margin
-   * (--reader-margin) on the padded container in entertainment-thread.tsx, so
-   * this element fills that column. The container provides the symmetric
-   * inline padding; this rule only shapes the text. */
-  font-family: var(
-    --reader-font-family,
-    inherit
-  ); /* hook for deferred font picker */
-  font-size: var(--reader-font-size, 1.0625rem); /* 17px default */
-  line-height: var(--reader-line-height, 1.9); /* generous for CJK reading */
+.novel-reader {
+  font-size: var(--reader-font-size, 1.0625rem);
+  line-height: var(--reader-line-height, 1.9);
   letter-spacing: var(--reader-letter-spacing, 0);
   font-weight: var(--reader-font-weight, 400);
   text-align: var(--reader-text-align, left);
   color: var(--reader-text-color, var(--foreground));
-  text-wrap: pretty;
 }
 
-/* Paragraph spacing + classic 2-em first-line indent (Chinese convention).
- * Descendant selector so this reaches the <p> inside Streamdown's wrapper. */
-.ent-novel-reader p {
+.novel-reader p {
   margin-block: var(--reader-paragraph-spacing, 0.85em);
   text-indent: var(--reader-indent, 2em);
-}
-/* No indent on the first paragraph following a heading. */
-.ent-novel-reader h1 + p,
-.ent-novel-reader h2 + p,
-.ent-novel-reader h3 + p {
-  text-indent: 0;
-}
-
-/* Chapter-ish headings. */
-.ent-novel-reader h1,
-.ent-novel-reader h2,
-.ent-novel-reader h3 {
-  margin-block: 1.6em 0.8em;
-  font-weight: 600;
-  line-height: 1.4;
-}
-.ent-novel-reader h1 {
-  font-size: 1.5rem;
-}
-.ent-novel-reader h2 {
-  font-size: 1.25rem;
-}
-.ent-novel-reader h3 {
-  font-size: 1.125rem;
-}
-
-/* Blockquotes (if the stub emits them). */
-.ent-novel-reader blockquote {
-  margin-block: 1em;
-  padding-inline-start: 1em;
-  border-inline-start: 3px solid var(--border);
-  color: var(--muted-foreground);
 }

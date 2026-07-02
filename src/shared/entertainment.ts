@@ -146,16 +146,18 @@ export interface ChapterDetail extends ChapterProgress {
 }
 
 /**
- * A saved reading spot. `anchor` is a JSON coordinate whose shape the reader
- * decides; today only `{ scrollRatio }` (0–1 within the chapter) is produced or
- * consumed. `chapterNumber` + `title` are joined from the chapter tables so the
- * renderer can list + jump by chapter number without ever touching the DB id.
- * `label`/`note` are nullable and currently unused (auto-label is rendered
- * client-side from chapterNumber + title so it localizes); they're kept for a
- * future editable-label/note feature with no schema change.
+ * A saved reading spot. `anchor` is a within-chapter coordinate: `percentile`
+ * (0–100) of the rendered chapter's scroll extent (0 = top, 100 = bottom). The
+ * reader both produces it (capture current scroll on bookmark) and consumes it
+ * (restore scroll on jump). `chapterNumber` + `title` are joined from the
+ * chapter tables so the renderer can list + jump by chapter number without ever
+ * touching the DB id. `label`/`note` are nullable and currently unused
+ * (auto-label is rendered client-side from chapterNumber + title so it
+ * localizes); they're kept for a future editable-label/note feature with no
+ * schema change.
  */
 export interface BookmarkAnchor {
-  scrollRatio?: number;
+  percentile: number;
 }
 
 export interface Bookmark {

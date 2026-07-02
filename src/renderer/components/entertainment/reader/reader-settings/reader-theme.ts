@@ -41,7 +41,7 @@ export const READER_THEMES: { value: ReaderTheme; swatch: string }[] = [
 /**
  * Builds the CSS custom properties that drive the entertainment reader. Apply
  * on ThreadPrimitive.Root (entertainment-thread.tsx); they cascade into every
- * `.ent-novel-reader` and thus into Streamdown's rendered DOM. A custom color
+ * `.novel-reader`'s plain-text paragraphs. A custom color
  * (background/textColor) overrides the theme preset; null falls back to it.
  */
 export function buildReaderCssVars(settings: ReaderSettings): CSSProperties {

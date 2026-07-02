@@ -226,7 +226,7 @@ export const rewrittenChapters = sqliteTable(
 );
 
 // Saved reading positions within a chapter. `anchor` is a nullable JSON
-// coordinate whose shape the reader decides ({scrollRatio} | {paraIndex,
+// coordinate whose shape the reader decides ({percentile} | {paraIndex,
 // charOffset} | {textSnippet}). threadId is denormalized (derivable via
 // chapters) for direct thread-level listing and cascade safety.
 export const bookmarks = sqliteTable(

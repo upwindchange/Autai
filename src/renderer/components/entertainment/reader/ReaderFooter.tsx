@@ -42,11 +42,12 @@ interface ReaderFooterProps {
   pinned: boolean;
   /** Hovered: pointer is in the bottom reveal band (desktop only). */
   hovered: boolean;
-  /** Current within-chapter scroll ratio (0–1), captured into a bookmark anchor. */
-  getScrollRatio: () => number | null;
-  /** Jump to a chapter (+ optional scroll ratio to restore). The TOC jumps
-   *  through here too (null ratio → top) so all chapter changes share one path. */
-  onJumpBookmark: (chapterNumber: number, scrollRatio: number | null) => void;
+  /** Current within-chapter scroll percentile (0–100), captured into a bookmark anchor. */
+  getScrollPercentile: () => number;
+  /** Jump to a chapter at a within-chapter percentile (0 = top). The TOC and
+   *  prev/next jump through here too (percentile 0 → top) so all chapter
+   *  changes share one path. */
+  onJumpTo: (chapterNumber: number, percentile: number) => void;
 }
 
 /**
@@ -74,8 +75,8 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   onNext,
   pinned,
   hovered,
-  getScrollRatio,
-  onJumpBookmark,
+  getScrollPercentile,
+  onJumpTo,
 }) => {
   const { t } = useTranslation("reader");
   const isMobile = useIsMobile();
@@ -88,7 +89,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
 
   // TOC data comes from the chapters store (this footer lives inside the
   // entertainment tree, so the active thread is already loaded). Chapter jumps
-  // (TOC + bookmarks) go through `onJumpBookmark`, owned by the reader host.
+  // (TOC + bookmarks) go through `onJumpTo`, owned by the reader host.
   const chapters = useChaptersStore((s) => s.chapters);
   const currentChapterNumber = useChaptersStore((s) => s.currentChapterNumber);
   const currentThreadId = useChaptersStore((s) => s.currentThreadId);
@@ -135,11 +136,11 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   if (next?.sourceStatus === "fetching") nextPhase = "loading";
   else if (next?.rewriteStatus === "rewriting") nextPhase = "uploading";
 
-  // Jumping via the TOC goes through the host's shared jump path (null ratio →
+  // Jumping via the TOC goes through the host's shared jump path (percentile 0 →
   // chapter top), then closes the TOC so the reader takes over (e-reader
   // convention: pick a chapter → read it).
   const handleSelect = (n: number) => {
-    onJumpBookmark(n, null);
+    onJumpTo(n, 0);
     setTocOpen(false);
   };
 
@@ -149,13 +150,8 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     if (!currentThreadId || currentChapterNumber == null) return;
     void addBookmark(currentThreadId, {
       chapterNumber: currentChapterNumber,
-      scrollRatio: getScrollRatio(),
+      percentile: getScrollPercentile(),
     });
-  };
-
-  const handleJumpBookmark = (chapterNumber: number, scrollRatio: number | null) => {
-    onJumpBookmark(chapterNumber, scrollRatio);
-    setBookmarksOpen(false);
   };
 
   const handleDeleteBookmark = (id: string) => {
@@ -287,9 +283,10 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
               bookmarks={bookmarks}
               currentChapterNumber={currentChapterNumber}
               onAdd={handleAddBookmark}
-              onJump={(b) =>
-                handleJumpBookmark(b.chapterNumber, b.anchor?.scrollRatio ?? null)
-              }
+              onJump={(b) => {
+                onJumpTo(b.chapterNumber, b.anchor?.percentile ?? 0);
+                setBookmarksOpen(false);
+              }}
               onDelete={handleDeleteBookmark}
             />
           </ResponsivePanel>

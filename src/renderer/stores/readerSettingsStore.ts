@@ -18,7 +18,7 @@ export type ReaderTextAlign = "left" | "justify";
 /**
  * Reader display preferences for entertainment mode. These drive CSS variables
  * on the entertainment thread root (see reader-theme.ts → buildReaderCssVars),
- * which cascade into every `.ent-novel-reader` / Streamdown render.
+ * which cascade into every `.novel-reader` render.
  */
 export interface ReaderSettings {
   /** Background + text color preset. "auto" follows the app light/dark theme. */
