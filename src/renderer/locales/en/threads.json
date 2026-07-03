@@ -10,5 +10,9 @@
   "tagManagement.title": "Tag Management",
   "tagManagement.description": "Create, rename, and delete tags",
   "tagManagement.newTag.placeholder": "New tag name...",
-  "tagManagement.empty": "No tags yet. Create one above."
+  "tagManagement.empty": "No tags yet. Create one above.",
+  "tagManagement.chatTab": "Chat",
+  "tagManagement.entertainmentTab": "Entertainment",
+  "tagManagement.resetToDefault": "Reset to default",
+  "tagManagement.resetConfirm": "Re-add any missing default tags for this mode? Your existing tags won't be removed."
 }

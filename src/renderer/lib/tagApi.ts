@@ -39,6 +39,15 @@ export async function deleteTag(id: number): Promise<void> {
   await fetch(`${getApiBase()}/tags/${id}`, { method: "DELETE" });
 }
 
+/** Re-add any missing default tags for a mode (settings "Reset to default"). */
+export async function resetTagsToDefault(mode: ThreadMode): Promise<void> {
+  await fetch(`${getApiBase()}/tags/reset-defaults`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode }),
+  });
+}
+
 export async function addTagToThread(
   threadId: string,
   tagId: number,

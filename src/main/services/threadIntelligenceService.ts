@@ -5,6 +5,8 @@ import { settingsService, threadPersistenceService } from "@/services";
 import { i18n } from "@/i18n";
 import log from "electron-log/main";
 import { eventBus } from "@/utils/eventBus";
+import type { ThreadMode } from "@shared/tag";
+import { ENTERTAINMENT_DEFAULT_TAGS } from "./entertainmentDefaultTags";
 
 const logger = log.scope("ThreadIntelligenceService");
 
@@ -42,6 +44,13 @@ const ENTERTAINMENT_TAG_KEYS = [
 
 const ENTERTAINMENT_TAG_COLORS = ["#F28E2B", "#E15759"];
 
+// Hidden one-shot marker (raw settings KV, never surfaced to the renderer) that
+// records whether the Chinese entertainment genre tags have been auto-seeded.
+// Once set, the auto-seed never re-runs — users may freely edit/delete the
+// seeded tags. The manual "Reset to default" action backfills independently of
+// this flag.
+const CHINESE_TAGS_POPULATED_FLAG = "chinese_entertainment_tags_populated";
+
 /** All 16 palette colors (shared with renderer's tagColors.ts). */
 const PALETTE = [
   "#4E79A7",
@@ -70,6 +79,7 @@ class ThreadIntelligenceService {
   initialize(): void {
     this.seedDefaultTags();
     this.seedEntertainmentTags();
+    this.populateChineseEntertainmentTagsIfPending();
   }
 
   private seedDefaultTags(): void {
@@ -95,20 +105,103 @@ class ThreadIntelligenceService {
   // this also backfills existing DBs that already have the chat tags.
   private seedEntertainmentTags(): void {
     try {
-      const existing = threadPersistenceService.listTagsByMode("entertainment");
-      for (let i = 0; i < ENTERTAINMENT_TAG_KEYS.length; i++) {
-        const name = i18n.t(ENTERTAINMENT_TAG_KEYS[i]!);
-        if (!existing.some((t) => t.name === name)) {
-          threadPersistenceService.createTag(
-            name,
-            ENTERTAINMENT_TAG_COLORS[i]!,
-            i,
-            "entertainment",
-          );
-        }
-      }
+      const taken = new Set(
+        threadPersistenceService
+          .listTagsByMode("entertainment")
+          .map((t) => t.name),
+      );
+      this.backfillTags(
+        ENTERTAINMENT_TAG_KEYS,
+        ENTERTAINMENT_TAG_COLORS,
+        "entertainment",
+        taken,
+      );
     } catch (error) {
       logger.error("Failed to seed entertainment tags:", error);
+    }
+  }
+
+  // Insert the i18n-translated default tags for a mode, skipping any name that
+  // already exists. `taken` is the set of names already present (across all
+  // modes — `tags.name` is globally unique and createTag throws on conflict) and
+  // is mutated to include newly inserted names so callers can chain backfills.
+  private backfillTags(
+    keys: string[],
+    colors: string[],
+    mode: ThreadMode,
+    taken: Set<string>,
+  ): void {
+    for (let i = 0; i < keys.length; i++) {
+      const name = i18n.t(keys[i]!);
+      if (taken.has(name)) continue;
+      threadPersistenceService.createTag(name, colors[i]!, i, mode);
+      taken.add(name);
+    }
+  }
+
+  // Insert the CJK genre/trope vocabulary that isn't already present, each with
+  // a random palette color. No language gate and no flag interaction — callers
+  // decide whether the user is Chinese and whether the one-shot flag applies.
+  private backfillChineseGenreTags(taken: Set<string>): void {
+    // Start after the fixed 重写/互动 tags so they stay pinned at the top.
+    let sortOrder = ENTERTAINMENT_TAG_KEYS.length;
+    for (const name of ENTERTAINMENT_DEFAULT_TAGS) {
+      if (taken.has(name)) continue;
+      threadPersistenceService.createTag(
+        name,
+        getRandomPaletteColor(),
+        sortOrder++,
+        "entertainment",
+      );
+      taken.add(name);
+    }
+  }
+
+  // One-shot auto-seed of the Chinese entertainment genre tags. Fires on startup
+  // and when the user switches the UI language to Chinese. Gated on the resolved
+  // language being Chinese (these labels are meaningless to English readers) and
+  // on the hidden flag — once it has run, it never runs again, so users can
+  // freely edit or delete the seeded tags. Re-runs are a manual "Reset to
+  // default" action (see resetTagsToDefault), which does not touch this flag.
+  populateChineseEntertainmentTagsIfPending(): void {
+    if (!(i18n.language ?? "en").startsWith("zh")) return;
+    if (
+      settingsService.getRawSetting(CHINESE_TAGS_POPULATED_FLAG) === "1"
+    )
+      return;
+    try {
+      this.backfillChineseGenreTags(
+        new Set(threadPersistenceService.listTags().map((t) => t.name)),
+      );
+      settingsService.setRawSetting(CHINESE_TAGS_POPULATED_FLAG, "1");
+      logger.info("Seeded Chinese entertainment tags", {
+        count: ENTERTAINMENT_DEFAULT_TAGS.length,
+      });
+    } catch (error) {
+      logger.error("Failed to seed Chinese entertainment tags:", error);
+    }
+  }
+
+  // Manual "Reset to default" backfill for the settings page. Re-adds any
+  // missing default tags for the given mode (additive — does not undo user
+  // renames/edits). Independent of the one-shot flag. The CJK genre set is only
+  // backfilled when the UI language is Chinese.
+  resetTagsToDefault(mode: ThreadMode): void {
+    const taken = new Set(
+      threadPersistenceService.listTags().map((t) => t.name),
+    );
+    if (mode === "chat") {
+      this.backfillTags(DEFAULT_TAG_KEYS, DEFAULT_TAG_COLORS, "chat", taken);
+    } else {
+      this.backfillTags(
+        ENTERTAINMENT_TAG_KEYS,
+        ENTERTAINMENT_TAG_COLORS,
+        "entertainment",
+        taken,
+      );
+      if ((i18n.language ?? "en").startsWith("zh")) {
+        this.backfillChineseGenreTags(taken);
+      }
     }
   }
 

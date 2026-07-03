@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { threadPersistenceService } from "@/services";
+import { z } from "zod";
+import { threadIntelligenceService, threadPersistenceService } from "@/services";
 import { CreateTagSchema, UpdateTagSchema } from "../schemas/apiSchemas";
 import log from "electron-log/main";
 
@@ -79,5 +80,24 @@ tagRoutes.delete("/:id", (c) => {
   } catch (error) {
     logger.error("Error deleting tag:", error);
     return c.json({ error: "Failed to delete tag" }, 500);
+  }
+});
+
+// POST /tags/reset-defaults - re-add any missing default tags for a mode. Used
+// by the "Reset to default" button in the tags settings page. Additive only —
+// does not undo user renames/edits.
+tagRoutes.post("/reset-defaults", async (c) => {
+  const parsed = z
+    .object({ mode: z.enum(["chat", "entertainment"]) })
+    .safeParse(await c.req.json());
+  if (!parsed.success) {
+    return c.json({ error: "Invalid mode", details: parsed.error.issues }, 400);
+  }
+  try {
+    threadIntelligenceService.resetTagsToDefault(parsed.data.mode);
+    return c.json({ success: true });
+  } catch (error) {
+    logger.error("Error resetting tags:", error);
+    return c.json({ error: "Failed to reset tags" }, 500);
   }
 });

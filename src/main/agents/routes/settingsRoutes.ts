@@ -42,6 +42,7 @@ settingsRoutes.put("/", async (c) => {
 
     if (settings.language) {
       i18n.changeLanguage(resolveLanguage(settings.language));
+      threadIntelligenceService.populateChineseEntertainmentTagsIfPending();
     }
 
     if (settings.logLevel) {

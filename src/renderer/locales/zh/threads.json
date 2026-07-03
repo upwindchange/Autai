@@ -10,5 +10,9 @@
   "tagManagement.title": "标签管理",
   "tagManagement.description": "创建、重命名和删除标签",
   "tagManagement.newTag.placeholder": "新标签名称...",
-  "tagManagement.empty": "暂无标签，请在上方创建。"
+  "tagManagement.empty": "暂无标签，请在上方创建。",
+  "tagManagement.chatTab": "聊天",
+  "tagManagement.entertainmentTab": "娱乐",
+  "tagManagement.resetToDefault": "恢复默认标签",
+  "tagManagement.resetConfirm": "将重新添加该模式下缺失的默认标签，不会删除你已有的标签。"
 }

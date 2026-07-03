@@ -4,6 +4,7 @@
  */
 
 import { generateText } from "ai";
+import { eq } from "drizzle-orm";
 import { Provider } from "@agents/providers/provider";
 import { sendSuccess, sendAlert, sendInfo } from "@/utils/messageUtils";
 import { i18n } from "@/i18n";
@@ -234,6 +235,24 @@ class SettingsService {
         }
       }
     });
+  }
+
+  // Raw key-value access for internal flags that must NOT surface through the
+  // typed SettingsState (and therefore never reach GET/PUT /settings or the
+  // renderer). Used by one-shot seed markers like the Chinese entertainment tag
+  // population flag.
+  getRawSetting(key: string): string | undefined {
+    const db = getDb();
+    const row = db.select().from(settings).where(eq(settings.key, key)).get();
+    return row?.value;
+  }
+
+  setRawSetting(key: string, value: string): void {
+    const db = getDb();
+    db.insert(settings)
+      .values({ key, value })
+      .onConflictDoUpdate({ target: settings.key, set: { value } })
+      .run();
   }
 
   async testConnection(config: TestConnectionConfig): Promise<void> {
