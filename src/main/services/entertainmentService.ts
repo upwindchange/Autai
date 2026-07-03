@@ -202,6 +202,47 @@ class EntertainmentService {
     };
   }
 
+  /**
+   * Rewritten chapters in [from, to] (either bound optional), ordered asc — the
+   * export/download source. Only `rewritten` rows (with prose); title joined
+   * from the source row. Mirrors listChapterProgress's two-select + Map merge.
+   */
+  listExportChapters(
+    threadId: string,
+    range: { from?: number; to?: number },
+  ): { chapterNumber: number; title: string | null; content: string }[] {
+    const db = getDb();
+    const rewrites = db
+      .select()
+      .from(rewrittenChapters)
+      .where(
+        and(
+          eq(rewrittenChapters.threadId, threadId),
+          eq(rewrittenChapters.status, "rewritten"),
+        ),
+      )
+      .orderBy(asc(rewrittenChapters.chapterNumber))
+      .all();
+    const titleByNumber = new Map(
+      this.listSourceChapters(threadId).map((s) => [s.chapterNumber, s.title]),
+    );
+    const out: {
+      chapterNumber: number;
+      title: string | null;
+      content: string;
+    }[] = [];
+    for (const r of rewrites) {
+      if (range.from != null && r.chapterNumber < range.from) continue;
+      if (range.to != null && r.chapterNumber > range.to) continue;
+      out.push({
+        chapterNumber: r.chapterNumber,
+        title: titleByNumber.get(r.chapterNumber) ?? null,
+        content: r.content ?? "",
+      });
+    }
+    return out;
+  }
+
   // --- bookmarks ----------------------------------------------------------
 
   /**
@@ -363,16 +404,37 @@ class EntertainmentService {
   }
 
   /** Last-read chapter for interrupt recovery (null if never read). */
-  getLastChapterNumber(threadId: string): number | null {
-    return this.getEntertainmentConfig(threadId)?.lastChapterNumber ?? null;
+  getLastReadChapterNumber(threadId: string): number | null {
+    return this.getEntertainmentConfig(threadId)?.lastReadChapterNumber ?? null;
   }
 
   /** Persist the reader's current chapter for resume-on-reopen. */
-  setLastChapterNumber(threadId: string, chapterNumber: number): void {
+  setLastReadChapterNumber(threadId: string, chapterNumber: number): void {
     const db = getDb();
     db.update(entertainmentConfigs)
       .set({
-        lastChapterNumber: chapterNumber,
+        lastReadChapterNumber: chapterNumber,
+        updatedAt: sql`(datetime('now'))`,
+      })
+      .where(eq(entertainmentConfigs.threadId, threadId))
+      .run();
+  }
+
+  /**
+   * Final chapter number of the book (null = unknown → assume the next chapter
+   * exists). Set upfront: files at ingest (parsed count), the internet stub at
+   * setup (hard-wired 40). Distinct from lastReadChapterNumber (resume spot).
+   */
+  getFinalChapterNumber(threadId: string): number | null {
+    return this.getEntertainmentConfig(threadId)?.finalChapterNumber ?? null;
+  }
+
+  /** Persist the book's final chapter number. */
+  setFinalChapterNumber(threadId: string, chapterNumber: number): void {
+    const db = getDb();
+    db.update(entertainmentConfigs)
+      .set({
+        finalChapterNumber: chapterNumber,
         updatedAt: sql`(datetime('now'))`,
       })
       .where(eq(entertainmentConfigs.threadId, threadId))

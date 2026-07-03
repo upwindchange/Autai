@@ -55,6 +55,7 @@ export const EntertainmentThread: FC = () => {
   const chapters = useChaptersStore((s) => s.chapters);
   const currentChapterNumber = useChaptersStore((s) => s.currentChapterNumber);
   const novelType = useChaptersStore((s) => s.novelType);
+  const finalChapterNumber = useChaptersStore((s) => s.finalChapterNumber);
   const loadChapters = useChaptersStore((s) => s.loadChapters);
   const getPosition = useChaptersStore((s) => s.getPosition);
   const setPosition = useChaptersStore((s) => s.setPosition);
@@ -110,8 +111,11 @@ export const EntertainmentThread: FC = () => {
   );
   const canGoPrev = (currentChapterNumber ?? 1) > 1;
   const canGoNext =
-    novelType === "internet" ||
-    (currentChapterNumber != null && currentChapterNumber < maxChapterNumber);
+    currentChapterNumber != null &&
+    (finalChapterNumber != null
+      ? currentChapterNumber < finalChapterNumber // known end → stop there
+      : novelType === "internet" || // absent → assume next exists
+        currentChapterNumber < maxChapterNumber);
 
   // Scroll the reader viewport to a within-chapter percentile (0 = top, 100 =
   // bottom). Instant (not smooth) so it can't race with a reader hotkey fired

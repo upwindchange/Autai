@@ -9,7 +9,10 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { entertainmentService, threadPersistenceService } from "@/services";
-import { dehydrateScheduler } from "@agents/workers/entertainmentWorker/scheduler";
+import {
+  dehydrateScheduler,
+  INTERNET_STUB_FINAL_CHAPTER,
+} from "@agents/workers/entertainmentWorker/scheduler";
 import {
   decodeNovelFile,
   ingestNovel,
@@ -27,6 +30,13 @@ const PositionSchema = z.object({
 
 const WorkerSchema = z.object({
   chapterNumber: z.number().int().min(1),
+});
+
+// "process next N" (count) or "process all" (all). `from` is the anchor chapter.
+const ProcessSchema = z.object({
+  from: z.number().int().min(1),
+  count: z.number().int().min(1).optional(),
+  all: z.boolean().optional(),
 });
 
 const UploadSchema = z.object({
@@ -85,6 +95,12 @@ entertainmentRoutes.post("/threads/:threadId/setup", async (c) => {
       return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
     }
     applyConfig(threadId, parsed.data.config);
+    // Internet stub declares its book length up front (feature 5). A real
+    // fetcher will set finalChapterNumber itself when it discovers the end.
+    entertainmentService.setFinalChapterNumber(
+      threadId,
+      INTERNET_STUB_FINAL_CHAPTER,
+    );
     return c.json({ ok: true }, 202);
   } catch (error) {
     logger.error("Error in setup:", error);
@@ -119,7 +135,9 @@ entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
     if (entertainmentService.listSourceChapters(threadId).length === 0) {
       const decoded = decodeNovelFile({ fsPath, base64: fileBytesBase64 });
       const count = ingestNovel(threadId, decoded);
-      entertainmentService.setLastChapterNumber(threadId, 1);
+      entertainmentService.setLastReadChapterNumber(threadId, 1);
+      // Feature 4: a file's final chapter is the parsed count (known at ingest).
+      entertainmentService.setFinalChapterNumber(threadId, count);
       logger.info("file uploaded + ingested", { threadId, count });
     }
 
@@ -139,7 +157,9 @@ entertainmentRoutes.get("/threads/:threadId/chapters", (c) => {
     const threadId = c.req.param("threadId");
     const chapters = entertainmentService.listChapterProgress(threadId);
     const novelType = entertainmentService.getNovelType(threadId);
-    return c.json({ chapters, novelType });
+    const finalChapterNumber =
+      entertainmentService.getFinalChapterNumber(threadId);
+    return c.json({ chapters, novelType, finalChapterNumber });
   } catch (error) {
     logger.error("Error listing chapters:", error);
     return c.json({ error: "Failed to list chapters" }, 500);
@@ -166,8 +186,9 @@ entertainmentRoutes.get("/threads/:threadId/chapters/:n", (c) => {
 // GET /entertainment/threads/:threadId/position — last-read chapter (recovery).
 entertainmentRoutes.get("/threads/:threadId/position", (c) => {
   const threadId = c.req.param("threadId");
-  const lastChapterNumber = entertainmentService.getLastChapterNumber(threadId);
-  return c.json({ lastChapterNumber });
+  const lastReadChapterNumber =
+    entertainmentService.getLastReadChapterNumber(threadId);
+  return c.json({ lastReadChapterNumber });
 });
 
 // POST /entertainment/threads/:threadId/position — persist current chapter.
@@ -179,7 +200,10 @@ entertainmentRoutes.post("/threads/:threadId/position", async (c) => {
     if (!parsed.success) {
       return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
     }
-    entertainmentService.setLastChapterNumber(threadId, parsed.data.chapterNumber);
+    entertainmentService.setLastReadChapterNumber(
+      threadId,
+      parsed.data.chapterNumber,
+    );
     logger.debug("position set", {
       threadId,
       chapterNumber: parsed.data.chapterNumber,
@@ -223,6 +247,93 @@ entertainmentRoutes.post("/threads/:threadId/worker", async (c) => {
   } catch (error) {
     logger.error("Error starting worker:", error);
     return c.json({ error: "Failed to start worker" }, 500);
+  }
+});
+
+// POST /entertainment/threads/:threadId/process — batch-process chapters:
+// "process next N" (count) or "process all" (all). `from` is the anchor
+// chapter; ensureRange caps `to` at the book's final chapter and enqueues.
+entertainmentRoutes.post("/threads/:threadId/process", async (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const body = await c.req.json().catch(() => ({}));
+    const parsed = ProcessSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Invalid request body", details: parsed.error.issues },
+        400,
+      );
+    }
+    const { from, count, all } = parsed.data;
+    const to = all ? Number.MAX_SAFE_INTEGER : from + (count ?? 1) - 1;
+    dehydrateScheduler.ensureRange(threadId, from, to);
+    const info = dehydrateScheduler.getInfo(threadId);
+    logger.debug("process range", {
+      threadId,
+      from,
+      to,
+      all,
+      count,
+      ...info,
+    });
+    return c.json(info);
+  } catch (error) {
+    logger.error("Error processing range:", error);
+    return c.json({ error: "Failed to process range" }, 500);
+  }
+});
+
+// GET /entertainment/threads/:threadId/export?range=current|fromCurrent|all&chapter=<n>
+// — download rewritten chapters as plain text (.txt). `current` = just chapter;
+// `fromCurrent` = chapter → last ready; `all` = every ready chapter. The browser
+// handles the download via a same-origin <a download> (cookie auto-attaches for
+// remote-auth; standalone has no auth), so no Blob/fetch plumbing is needed.
+entertainmentRoutes.get("/threads/:threadId/export", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const range = (c.req.query("range") ?? "all") as
+      | "current"
+      | "fromCurrent"
+      | "all";
+    const chapter = Number(c.req.query("chapter") ?? NaN);
+    let query: { from?: number; to?: number };
+    if (range === "current") {
+      if (!Number.isInteger(chapter) || chapter < 1) {
+        return c.json({ error: "Invalid chapter for range=current" }, 400);
+      }
+      query = { from: chapter, to: chapter };
+    } else if (range === "fromCurrent") {
+      if (!Number.isInteger(chapter) || chapter < 1) {
+        return c.json(
+          { error: "Invalid chapter for range=fromCurrent" },
+          400,
+        );
+      }
+      query = { from: chapter };
+    } else {
+      query = {};
+    }
+    const chapters = entertainmentService.listExportChapters(threadId, query);
+    if (chapters.length === 0) {
+      return c.json({ error: "No processed chapters to export" }, 404);
+    }
+    const body = chapters
+      .map((ch) => {
+        const header = ch.title?.trim() || `第${ch.chapterNumber}章`;
+        return `${header}\n\n${ch.content.trim()}`;
+      })
+      .join("\n\n\n");
+    const title =
+      threadPersistenceService.getThread(threadId)?.title?.trim() ?? "";
+    const utf8Name = `${title || "novel"}-${range}.txt`;
+    const disposition = `attachment; filename="chapters.txt"; filename*=UTF-8''${encodeURIComponent(utf8Name)}`;
+    return c.text(body, 200, {
+      "Content-Type": "text/plain;charset=utf-8",
+      "Content-Disposition": disposition,
+    });
+  } catch (error) {
+    logger.error("Error exporting:", error);
+    return c.json({ error: "Failed to export" }, 500);
   }
 });
 

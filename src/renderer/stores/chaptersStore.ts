@@ -32,6 +32,7 @@ interface ChaptersState {
   chapters: ChapterView[]; // sorted by chapterNumber
   currentChapterNumber: number | null;
   novelType: "file" | "internet" | null;
+  finalChapterNumber: number | null;
   loading: boolean;
 
   /** Re-read the chapter list (statuses); preserves cached content. */
@@ -53,6 +54,11 @@ interface ChaptersState {
   queryWorker: (threadId: string) => Promise<WorkerInfo>;
   /** Ensure a worker is processing chapter n's window (start-if-absent). */
   ensureWorker: (threadId: string, n: number) => Promise<WorkerInfo>;
+  /** Batch-process: next `count` chapters from `from`, or all to the book's end. */
+  processChapters: (
+    threadId: string,
+    opts: { from: number; count?: number; all?: boolean },
+  ) => Promise<WorkerInfo>;
   /** Last-read chapter (for resume-on-reopen). */
   getPosition: (threadId: string) => Promise<number | null>;
   /** Persist the reader's current chapter. */
@@ -66,15 +72,18 @@ export const useChaptersStore = create<ChaptersState>()(
     chapters: [],
     currentChapterNumber: null,
     novelType: null,
+    finalChapterNumber: null,
     loading: false,
 
     loadChapters: async (threadId) => {
       set({ loading: true });
       try {
-        const { chapters, novelType } = await httpClient.getJSON<{
-          chapters: ChapterProgress[];
-          novelType: "file" | "internet" | null;
-        }>(`/entertainment/threads/${threadId}/chapters`);
+        const { chapters, novelType, finalChapterNumber } =
+          await httpClient.getJSON<{
+            chapters: ChapterProgress[];
+            novelType: "file" | "internet" | null;
+            finalChapterNumber: number | null;
+          }>(`/entertainment/threads/${threadId}/chapters`);
         set((state) => {
           const prevByNum = new Map(
             state.chapters.map((c) => [c.chapterNumber, c]),
@@ -82,6 +91,7 @@ export const useChaptersStore = create<ChaptersState>()(
           return {
             currentThreadId: threadId,
             novelType,
+            finalChapterNumber,
             chapters: chapters.map((c) => {
               const prev = prevByNum.get(c.chapterNumber);
               return prev ? { ...c, content: prev.content } : { ...c };
@@ -144,11 +154,17 @@ export const useChaptersStore = create<ChaptersState>()(
         { chapterNumber: n },
       ),
 
+    processChapters: (threadId, { from, count, all }) =>
+      httpClient.postJSON<WorkerInfo>(
+        `/entertainment/threads/${threadId}/process`,
+        { from, count, all },
+      ),
+
     getPosition: async (threadId) => {
-      const { lastChapterNumber } = await httpClient.getJSON<{
-        lastChapterNumber: number | null;
+      const { lastReadChapterNumber } = await httpClient.getJSON<{
+        lastReadChapterNumber: number | null;
       }>(`/entertainment/threads/${threadId}/position`);
-      return lastChapterNumber;
+      return lastReadChapterNumber;
     },
 
     setPosition: (threadId, n) =>

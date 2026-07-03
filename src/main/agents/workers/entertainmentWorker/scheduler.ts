@@ -11,6 +11,12 @@ const LOOKAHEAD = 10;
 const STUB_DELAY_MS = 2500;
 /** Hard cap on a single chapter job — bounds stuck stubs so they self-heal. */
 const JOB_TIMEOUT_MS = 5 * 60_000;
+/**
+ * Hard-wired final chapter for the internet-fetch STUB only — lets the
+ * end-of-book path be exercised e2e. The /setup route persists this as the
+ * thread's finalChapterNumber. A real fetcher will set that number itself.
+ */
+export const INTERNET_STUB_FINAL_CHAPTER = 40;
 
 interface WorkerLiveness {
   active: boolean;
@@ -55,8 +61,9 @@ class DehydrateScheduler {
   }
 
   /**
-   * Ensure the lookahead window [currentN .. currentN+LOOKAHEAD] is processed.
-   * Idempotent + dedup'd → safe for Next, TOC jumps far ahead, and recovery.
+   * Ensure the lookahead window [currentN .. currentN+LOOKAHEAD] is processed,
+   * capped at the book's final chapter when known. Idempotent + dedup'd → safe
+   * for Next, TOC jumps far ahead, and recovery.
    */
   ensure(
     threadId: string,
@@ -66,17 +73,40 @@ class DehydrateScheduler {
     const w = this.workerFor(threadId);
     const prevTarget = w.target;
     w.target = currentN;
-    let enqueued = 0;
-    for (let c = currentN; c <= currentN + LOOKAHEAD; c++) {
-      if (w.inFlight.has(c)) continue;
-      if (!this.needsWork(threadId, c)) continue;
-      this.enqueue(threadId, w, c);
-      enqueued++;
-    }
+    const final = entertainmentService.getFinalChapterNumber(threadId);
+    const end = Math.min(currentN + LOOKAHEAD, final ?? currentN + LOOKAHEAD);
+    const enqueued = this.enqueueWindow(threadId, w, currentN, end);
     logger.debug("ensure lookahead", {
       threadId,
       currentN,
       prevTarget,
+      enqueued,
+      inFlight: w.inFlight.size,
+      queueSize: w.queue.size,
+    });
+  }
+
+  /**
+   * Ensure every chapter in [fromN, toN] that needs work is enqueued — the
+   * "process next N" / "process all" path. `toN` is capped at the book's final
+   * chapter when known; callers may pass Number.MAX_SAFE_INTEGER for "all".
+   * `fromN` wins target, so chapters nearer it process first (enqueue priority).
+   */
+  ensureRange(threadId: string, fromN: number, toN: number): void {
+    const w = this.workerFor(threadId);
+    w.target = fromN;
+    const final = entertainmentService.getFinalChapterNumber(threadId);
+    // Cap at the book's final chapter when known. When unknown (only a
+    // degenerate, not-properly-initialized thread), bound at a lookahead-sized
+    // window so a stray "process all" can't enqueue an unbounded range.
+    const end =
+      final != null ? Math.min(toN, final) : Math.min(toN, fromN + LOOKAHEAD);
+    const enqueued = this.enqueueWindow(threadId, w, fromN, end);
+    logger.debug("ensureRange", {
+      threadId,
+      fromN,
+      toN,
+      end,
       enqueued,
       inFlight: w.inFlight.size,
       queueSize: w.queue.size,
@@ -98,12 +128,34 @@ class DehydrateScheduler {
   // --- internals ---------------------------------------------------------
 
   private needsWork(threadId: string, c: number): boolean {
+    const final = entertainmentService.getFinalChapterNumber(threadId);
+    if (final != null && c > final) return false; // past the book's known end
     const type = entertainmentService.getNovelType(threadId);
     const source = entertainmentService.getSourceChapter(threadId, c);
     if (!source) return type === "internet"; // file: beyond end → none; internet: acquire
     if (source.status !== "fetched") return type === "internet"; // re-acquire
     const rewrite = entertainmentService.getRewrittenChapter(threadId, c);
     return !rewrite || rewrite.status !== "rewritten"; // need rewrite
+  }
+
+  /**
+   * Enqueue every chapter in [from, end] that needs work, nearer `from` first.
+   * Shared by `ensure` (lookahead window) and `ensureRange` (explicit range).
+   */
+  private enqueueWindow(
+    threadId: string,
+    w: ThreadWorker,
+    from: number,
+    end: number,
+  ): number {
+    let enqueued = 0;
+    for (let c = from; c <= end; c++) {
+      if (w.inFlight.has(c)) continue;
+      if (!this.needsWork(threadId, c)) continue;
+      this.enqueue(threadId, w, c);
+      enqueued++;
+    }
+    return enqueued;
   }
 
   private enqueue(threadId: string, w: ThreadWorker, c: number): void {

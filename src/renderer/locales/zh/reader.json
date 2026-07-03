@@ -51,5 +51,15 @@
   "reader.bookmarks.chapterLabel": "第 {{n}} 章",
   "reader.controls.label": "阅读工具",
   "reader.zen.enter": "进入沉浸阅读",
-  "reader.zen.exit": "退出沉浸阅读"
+  "reader.zen.exit": "退出沉浸阅读",
+  "reader.download.title": "下载",
+  "reader.download.current": "本章",
+  "reader.download.fromCurrent": "本章至已处理末尾",
+  "reader.download.all": "全部已处理章节",
+  "reader.download.empty": "暂无可下载章节",
+  "reader.process.title": "处理章节",
+  "reader.process.countLabel": "处理章数",
+  "reader.process.next": "处理后续",
+  "reader.process.all": "处理全部",
+  "reader.process.toEnd": "处理全部（至第 {{n}} 章）"
 }

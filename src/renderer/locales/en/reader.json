@@ -51,5 +51,15 @@
   "reader.bookmarks.chapterLabel": "Chapter {{n}}",
   "reader.controls.label": "Reader tools",
   "reader.zen.enter": "Enter zen mode",
-  "reader.zen.exit": "Exit zen mode"
+  "reader.zen.exit": "Exit zen mode",
+  "reader.download.title": "Download",
+  "reader.download.current": "This chapter",
+  "reader.download.fromCurrent": "This chapter to end of processed",
+  "reader.download.all": "All processed chapters",
+  "reader.download.empty": "No processed chapters yet",
+  "reader.process.title": "Process chapters",
+  "reader.process.countLabel": "Chapters to process",
+  "reader.process.next": "Process next",
+  "reader.process.all": "Process all",
+  "reader.process.toEnd": "Process all (to chapter {{n}})"
 }

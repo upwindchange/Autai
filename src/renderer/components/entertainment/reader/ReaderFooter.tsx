@@ -1,7 +1,13 @@
 import { type FC, type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Bookmark, List, Maximize2, Minimize2 } from "lucide-react";
+import { Bookmark, Download, List, Maximize2, Minimize2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Popover,
   PopoverContent,
@@ -26,6 +32,8 @@ import { useChaptersStore } from "@/stores/chaptersStore";
 import { useBookmarksStore } from "@/stores/bookmarksStore";
 import { useUiStore } from "@/stores/uiStore";
 import { cn } from "@/lib/utils";
+import { getApiBase } from "@/lib/api";
+import { Label } from "@/components/ui/label";
 import { ReaderSettingsPanel } from "./reader-settings/ReaderSettingsPanel";
 import { TableOfContents } from "./table-of-contents/TableOfContents";
 import { Bookmarks } from "./bookmarks/Bookmarks";
@@ -86,6 +94,10 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
+  const [downloadOpen, setDownloadOpen] = useState(false);
+  const [downloadTooltipOpen, setDownloadTooltipOpen] = useState(false);
+  const [processOpen, setProcessOpen] = useState(false);
+  const [processCount, setProcessCount] = useState(5);
 
   // TOC data comes from the chapters store (this footer lives inside the
   // entertainment tree, so the active thread is already loaded). Chapter jumps
@@ -94,6 +106,8 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   const currentChapterNumber = useChaptersStore((s) => s.currentChapterNumber);
   const currentThreadId = useChaptersStore((s) => s.currentThreadId);
   const loadChapters = useChaptersStore((s) => s.loadChapters);
+  const finalChapterNumber = useChaptersStore((s) => s.finalChapterNumber);
+  const processChapters = useChaptersStore((s) => s.processChapters);
 
   // Bookmarks for the active thread. Loaded once per thread switch (no poll —
   // bookmarks only change via this client); add/remove mutate the store directly.
@@ -102,7 +116,14 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   const addBookmark = useBookmarksStore((s) => s.addBookmark);
   const removeBookmark = useBookmarksStore((s) => s.removeBookmark);
 
-  const visible = pinned || hovered || settingsOpen || tocOpen || bookmarksOpen;
+  const visible =
+    pinned ||
+    hovered ||
+    settingsOpen ||
+    tocOpen ||
+    bookmarksOpen ||
+    downloadOpen ||
+    processOpen;
 
   // Poll the chapter list WHILE the footer is shown, so the TOC rows and the
   // next-chapter nav indicator track backend progress. Stops the instant it
@@ -159,6 +180,49 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     void removeBookmark(currentThreadId, id);
   };
 
+  // --- Download (export) ---------------------------------------------------
+  // "Processed" = rewritten. The footer already polls `chapters` while visible,
+  // so these flags stay fresh with no extra polling. The browser streams the
+  // file via a same-origin <a download> (server sets Content-Disposition), so no
+  // fetch/Blob is needed.
+  const readyChapters = chapters.filter((c) => c.rewriteStatus === "rewritten");
+  const hasAnyReady = readyChapters.length > 0;
+  const currentReady =
+    currentChapterNumber != null &&
+    readyChapters.some((c) => c.chapterNumber === currentChapterNumber);
+  const hasReadyFromCurrent =
+    currentChapterNumber != null &&
+    readyChapters.some((c) => c.chapterNumber >= currentChapterNumber);
+
+  const triggerDownload = (range: "current" | "fromCurrent" | "all") => {
+    if (!currentThreadId) return;
+    const a = document.createElement("a");
+    a.href = `${getApiBase()}/entertainment/threads/${currentThreadId}/export?range=${range}&chapter=${currentChapterNumber ?? 1}`;
+    a.download = ""; // empty → use the server's Content-Disposition filename
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setDownloadOpen(false);
+  };
+
+  // --- Process (next N / all) ----------------------------------------------
+  const handleProcessNext = () => {
+    if (!currentThreadId || currentChapterNumber == null) return;
+    void processChapters(currentThreadId, {
+      from: currentChapterNumber,
+      count: processCount,
+    });
+    setProcessOpen(false);
+  };
+  const handleProcessAll = () => {
+    if (!currentThreadId || currentChapterNumber == null) return;
+    void processChapters(currentThreadId, {
+      from: currentChapterNumber,
+      all: true,
+    });
+    setProcessOpen(false);
+  };
+
   const settingsTrigger = (
     <Button
       type="button"
@@ -200,6 +264,31 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     </Button>
   );
 
+  const downloadTrigger = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      disabled={!hasAnyReady}
+      aria-label={t("reader.download.title")}
+      className="size-9 rounded-full"
+    >
+      <Download className="size-5" />
+    </Button>
+  );
+
+  const processTrigger = (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon"
+      aria-label={t("reader.process.title")}
+      className="size-9 rounded-full"
+    >
+      <Sparkles className="size-5" />
+    </Button>
+  );
+
   return (
     // Container is pointer-events-none so only the pill (when visible) captures
     // input; the reading surface beneath stays fully interactive.
@@ -223,6 +312,95 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
             trigger={settingsTrigger}
           >
             <ReaderSettingsPanel />
+          </ResponsivePanel>
+
+          {/* Download (left) — export rewritten chapters as .txt. Tooltip is
+              forced closed while the menu is open (mirrors ResponsivePanel). */}
+          <DropdownMenu open={downloadOpen} onOpenChange={setDownloadOpen}>
+            <Tooltip
+              open={downloadOpen ? false : downloadTooltipOpen}
+              onOpenChange={setDownloadTooltipOpen}
+            >
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  {downloadTrigger}
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {t("reader.download.title")}
+              </TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="center" side="top" sideOffset={8}>
+              <DropdownMenuItem
+                onSelect={() => triggerDownload("current")}
+                disabled={!currentReady}
+              >
+                {t("reader.download.current")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => triggerDownload("fromCurrent")}
+                disabled={!hasReadyFromCurrent}
+              >
+                {t("reader.download.fromCurrent")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => triggerDownload("all")}
+                disabled={!hasAnyReady}
+              >
+                {t("reader.download.all")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Process next N / all (left) */}
+          <ResponsivePanel
+            isMobile={isMobile}
+            title={t("reader.process.title")}
+            tooltip={t("reader.process.title")}
+            open={processOpen}
+            onOpenChange={setProcessOpen}
+            trigger={processTrigger}
+          >
+            <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label className="text-xs text-muted-foreground">
+                  {t("reader.process.countLabel")}
+                </Label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    value={processCount}
+                    onChange={(e) =>
+                      setProcessCount(
+                        Math.max(1, Math.floor(Number(e.target.value) || 1)),
+                      )
+                    }
+                    aria-label={t("reader.process.countLabel")}
+                    className="h-8 w-20 rounded-md border border-input bg-transparent px-2 text-sm tabular-nums outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleProcessNext}
+                    disabled={currentChapterNumber == null}
+                  >
+                    {t("reader.process.next")}
+                  </Button>
+                </div>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleProcessAll}
+                disabled={currentChapterNumber == null}
+              >
+                {finalChapterNumber != null
+                  ? t("reader.process.toEnd", { n: finalChapterNumber })
+                  : t("reader.process.all")}
+              </Button>
+            </div>
           </ResponsivePanel>
 
           {/* Chapter nav (center) */}

@@ -149,7 +149,12 @@ export const entertainmentConfigs = sqliteTable("entertainment_configs", {
   options: text("options").notNull(), // JSON: mode-dependent settings (basic/depth/frequency)
   novelSource: text("novel_source"), // nullable, updatable JSON: origin pointer/instruction (see above)
   // Last-read chapter for interrupt recovery (point 9); reopen resumes here.
-  lastChapterNumber: integer("last_chapter_number"),
+  // Renamed from lastChapterNumber to avoid collision with finalChapterNumber.
+  lastReadChapterNumber: integer("last_read_chapter_number"),
+  // Final chapter number of the book. null = unknown → assume the next chapter
+  // exists. Set upfront: files at ingest (parsed count), the internet stub at
+  // setup (hard-wired 40). Distinct from lastReadChapterNumber (resume position).
+  finalChapterNumber: integer("final_chapter_number"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),
