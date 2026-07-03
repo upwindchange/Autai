@@ -9,15 +9,13 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { entertainmentService, threadPersistenceService } from "@/services";
-import {
-  dehydrateScheduler,
-  INTERNET_STUB_FINAL_CHAPTER,
-} from "@agents/workers/entertainmentWorker/scheduler";
+import { dehydrateScheduler } from "@agents/workers/entertainmentWorker/scheduler";
 import {
   decodeNovelFile,
-  ingestNovel,
-} from "@agents/workers/entertainmentWorker/ingest";
-import { EntertainmentConfigSchema } from "@shared";
+  ingestFileNovel,
+} from "@agents/workers/entertainmentWorker/chapterParser";
+import { INTERNET_STUB_FINAL_CHAPTER } from "@agents/workers/entertainmentWorker/internetFetch";
+import { deriveChapterPhase, EntertainmentConfigSchema } from "@shared";
 import log from "electron-log/main";
 
 const logger = log.scope("ApiServer:Entertainment");
@@ -120,6 +118,11 @@ entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
       return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
     }
     const { config, fsPath, fileBytesBase64 } = parsed.data;
+    // The upload route serves file novels only (internet novels use /setup).
+    // Also narrows `config.novel` to FileNovel for the ingestion call below.
+    if (config.novel.type !== "file") {
+      return c.json({ error: "Upload requires a file novel" }, 400);
+    }
     if (!fsPath && !fileBytesBase64) {
       return c.json({ error: "fsPath or fileBytesBase64 is required" }, 400);
     }
@@ -134,7 +137,7 @@ entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
     // One-time ingestion. Guard against double-upload for an existing thread.
     if (entertainmentService.listSourceChapters(threadId).length === 0) {
       const decoded = decodeNovelFile({ fsPath, base64: fileBytesBase64 });
-      const count = ingestNovel(threadId, decoded);
+      const count = ingestFileNovel(threadId, config.novel, decoded);
       entertainmentService.setLastReadChapterNumber(threadId, 1);
       // Feature 4: a file's final chapter is the parsed count (known at ingest).
       entertainmentService.setFinalChapterNumber(threadId, count);
@@ -142,7 +145,7 @@ entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
     }
 
     // Start rewriting the first window (file chapters are already sourced).
-    dehydrateScheduler.ensure(threadId, 1, config);
+    dehydrateScheduler.ensure(threadId, 1);
     return c.json({ ok: true }, 202);
   } catch (error) {
     logger.error("Error in upload:", error);
@@ -151,11 +154,18 @@ entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
 });
 
 // GET /entertainment/threads/:threadId/chapters — per-chapter pipeline progress
-// (source + rewrite statuses merged), ordered. Drives the TOC + reader states.
+// (source + rewrite statuses merged), ordered, with a derived reader-facing
+// `phase` (a DotMatrix state string computed from the statuses + the scheduler's
+// inFlight set). Drives the TOC + reader states.
 entertainmentRoutes.get("/threads/:threadId/chapters", (c) => {
   try {
     const threadId = c.req.param("threadId");
-    const chapters = entertainmentService.listChapterProgress(threadId);
+    const progress = entertainmentService.listChapterProgress(threadId);
+    const inFlight = dehydrateScheduler.getInFlight(threadId);
+    const chapters = progress.map((ch) => ({
+      ...ch,
+      phase: deriveChapterPhase(ch, inFlight),
+    }));
     const novelType = entertainmentService.getNovelType(threadId);
     const finalChapterNumber =
       entertainmentService.getFinalChapterNumber(threadId);
@@ -176,7 +186,10 @@ entertainmentRoutes.get("/threads/:threadId/chapters/:n", (c) => {
       return c.json({ error: "Invalid chapter number" }, 400);
     }
     const chapter = entertainmentService.getChapterDetail(threadId, n);
-    return c.json({ chapter });
+    const inFlight = dehydrateScheduler.getInFlight(threadId);
+    return c.json({
+      chapter: { ...chapter, phase: deriveChapterPhase(chapter, inFlight) },
+    });
   } catch (error) {
     logger.error("Error getting chapter:", error);
     return c.json({ error: "Failed to get chapter" }, 500);
@@ -280,6 +293,23 @@ entertainmentRoutes.post("/threads/:threadId/process", async (c) => {
   } catch (error) {
     logger.error("Error processing range:", error);
     return c.json({ error: "Failed to process range" }, 500);
+  }
+});
+
+// POST /entertainment/threads/:threadId/reprocess-failed — re-enqueue every
+// errored chapter (source or rewrite status "error") for the thread. The ONLY
+// path that retries failed chapters: needsWork treats "error" as terminal, so
+// the lookahead/poll path and /process skip them. Returns worker liveness.
+entertainmentRoutes.post("/threads/:threadId/reprocess-failed", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    dehydrateScheduler.retryFailed(threadId);
+    const info = dehydrateScheduler.getInfo(threadId);
+    logger.debug("reprocess failed", { threadId, ...info });
+    return c.json(info);
+  } catch (error) {
+    logger.error("Error reprocessing failed:", error);
+    return c.json({ error: "Failed to reprocess failed chapters" }, 500);
   }
 });
 

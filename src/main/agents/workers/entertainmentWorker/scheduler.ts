@@ -1,22 +1,15 @@
 import PQueue from "p-queue";
 import log from "electron-log/main";
 import { entertainmentService } from "@/services";
-import type { EntertainmentConfig } from "@shared";
+import { fetchInternetChapter } from "./internetFetch";
+import { rewriteChapter } from "./rewriter";
 
 const logger = log.scope("Dehydrate:Scheduler");
 
 /** Chapters kept ready ahead of the reader's current position (point 4/7). */
 const LOOKAHEAD = 10;
-/** Per-step stub work duration (acquire and rewrite each take this long). */
-const STUB_DELAY_MS = 2500;
-/** Hard cap on a single chapter job — bounds stuck stubs so they self-heal. */
+/** Hard cap on a single chapter job — bounds stuck jobs so they self-heal. */
 const JOB_TIMEOUT_MS = 5 * 60_000;
-/**
- * Hard-wired final chapter for the internet-fetch STUB only — lets the
- * end-of-book path be exercised e2e. The /setup route persists this as the
- * thread's finalChapterNumber. A real fetcher will set that number itself.
- */
-export const INTERNET_STUB_FINAL_CHAPTER = 40;
 
 interface WorkerLiveness {
   active: boolean;
@@ -65,11 +58,7 @@ class DehydrateScheduler {
    * capped at the book's final chapter when known. Idempotent + dedup'd → safe
    * for Next, TOC jumps far ahead, and recovery.
    */
-  ensure(
-    threadId: string,
-    currentN: number,
-    _config?: EntertainmentConfig,
-  ): void {
+  ensure(threadId: string, currentN: number): void {
     const w = this.workerFor(threadId);
     const prevTarget = w.target;
     w.target = currentN;
@@ -125,6 +114,45 @@ class DehydrateScheduler {
     };
   }
 
+  /**
+   * Snapshot of the chapter numbers currently scheduled (enqueued or running)
+   * for the thread — the `inFlight` set. Read-only (does NOT create a worker).
+   * Backs the `paused` vs `stopped` distinction in the reader-facing phase: a
+   * chapter is `paused` while it's in this set and not yet `loading`/`syncing`/
+   * `success`/`error`. Returns a copy so callers can iterate safely.
+   */
+  getInFlight(threadId: string): Set<number> {
+    const w = this.workers.get(threadId);
+    return w ? new Set(w.inFlight) : new Set<number>();
+  }
+
+  /**
+   * Re-enqueue every errored chapter for the thread (source or rewrite status
+   * "error"). This is the ONLY path that retries failed chapters — `needsWork`
+   * treats "error" as terminal, so the lookahead/poll path skips them. Bypasses
+   * `needsWork` and enqueues directly (the `inFlight` dedup still applies).
+   * Returns the count actually enqueued.
+   */
+  retryFailed(threadId: string): number {
+    const w = this.workerFor(threadId);
+    const failed = entertainmentService
+      .listChapterProgress(threadId)
+      .filter((ch) => ch.sourceStatus === "error" || ch.rewriteStatus === "error");
+    let enqueued = 0;
+    for (const ch of failed) {
+      const n = ch.chapterNumber;
+      if (w.inFlight.has(n)) continue;
+      this.enqueue(threadId, w, n);
+      enqueued++;
+    }
+    logger.info("retry failed chapters", {
+      threadId,
+      failed: failed.length,
+      enqueued,
+    });
+    return enqueued;
+  }
+
   // --- internals ---------------------------------------------------------
 
   private needsWork(threadId: string, c: number): boolean {
@@ -133,8 +161,13 @@ class DehydrateScheduler {
     const type = entertainmentService.getNovelType(threadId);
     const source = entertainmentService.getSourceChapter(threadId, c);
     if (!source) return type === "internet"; // file: beyond end → none; internet: acquire
-    if (source.status !== "fetched") return type === "internet"; // re-acquire
+    // "error" is terminal: a failed chapter is never auto-retried by the
+    // lookahead/poll path (avoids hammering a persistent real failure). Only
+    // retryFailed() re-enqueues it.
+    if (source.status === "error") return false;
+    if (source.status !== "fetched") return type === "internet"; // re-acquire stuck fetching
     const rewrite = entertainmentService.getRewrittenChapter(threadId, c);
+    if (rewrite?.status === "error") return false; // terminal — see above
     return !rewrite || rewrite.status !== "rewritten"; // need rewrite
   }
 
@@ -179,14 +212,36 @@ class DehydrateScheduler {
 
   /** One chapter, serial per thread: acquire 原文 (internet only) → rewrite 重写. */
   private async processChapter(threadId: string, c: number): Promise<void> {
-    const type = entertainmentService.getNovelType(threadId);
-    logger.info("processing chapter", { threadId, chapterNumber: c, type });
+    const config = entertainmentService.getParsedConfig(threadId);
+    if (!config) {
+      logger.warn("no entertainment config; skipping chapter", {
+        threadId,
+        chapterNumber: c,
+      });
+      return;
+    }
+    if (config.mode !== "dehydrate") {
+      // interactive is a UI-only placeholder today; this scheduler serves
+      // dehydrate only.
+      logger.warn("scheduler serves dehydrate only; skipping", {
+        threadId,
+        chapterNumber: c,
+        mode: config.mode,
+      });
+      return;
+    }
+    logger.info("processing chapter", {
+      threadId,
+      chapterNumber: c,
+      novelType: config.novel.type,
+    });
 
     // 1) Acquire 原文. Internet: fetch on demand (stub). File: already ingested
     //    as 'fetched' — if no row, the chapter is beyond the file end (skip).
-    const source = entertainmentService.getSourceChapter(threadId, c);
+    //    Failure (throw) → terminal "error" status; only retryFailed() re-runs it.
+    let source = entertainmentService.getSourceChapter(threadId, c);
     if (!source || source.status !== "fetched") {
-      if (type !== "internet") {
+      if (config.novel.type !== "internet") {
         logger.debug("skip acquire — no source row (file end)", {
           threadId,
           chapterNumber: c,
@@ -194,48 +249,79 @@ class DehydrateScheduler {
         return; // file: nothing to acquire
       }
       logger.info("acquiring source", { threadId, chapterNumber: c });
-      if (!source) {
-        entertainmentService.insertSourceChapter({
+      try {
+        // Mark in-progress: insert a fresh row, or reset an existing
+        // errored/stuck one so a retry shows `loading` (not a stale `error`).
+        if (!source) {
+          entertainmentService.insertSourceChapter({
+            threadId,
+            chapterNumber: c,
+            status: "fetching",
+          });
+        } else {
+          entertainmentService.updateSourceChapter(threadId, c, {
+            status: "fetching",
+          });
+        }
+        const text = await fetchInternetChapter(config.novel, c);
+        entertainmentService.updateSourceChapter(threadId, c, {
+          status: "fetched",
+          content: text,
+        });
+        source = entertainmentService.getSourceChapter(threadId, c);
+        logger.info("source acquired", {
           threadId,
           chapterNumber: c,
-          status: "fetching",
+          contentLen: text.length,
         });
+      } catch (err) {
+        logger.error("source acquire failed", { threadId, chapterNumber: c, err });
+        entertainmentService.updateSourceChapter(threadId, c, {
+          status: "error",
+        });
+        return; // no source → don't attempt rewrite
       }
-      const text = await acquireSourceStub(c);
-      entertainmentService.updateSourceChapter(threadId, c, {
-        status: "fetched",
-        content: text,
-      });
-      logger.info("source acquired", {
-        threadId,
-        chapterNumber: c,
-        contentLen: text.length,
-      });
     }
 
-    // 2) Rewrite — auto-triggered by source-fill (point 6).
+    // 2) Rewrite — auto-triggered by source-fill (point 6). Same prepend stub
+    //    for both file and internet routes. Failure → terminal "error" status.
     const rewrite = entertainmentService.getRewrittenChapter(threadId, c);
     if (!rewrite || rewrite.status !== "rewritten") {
       logger.info("rewriting", { threadId, chapterNumber: c });
-      if (!rewrite) {
-        entertainmentService.insertRewrittenChapter({
+      try {
+        // Mark in-progress: insert a fresh row, or reset an existing
+        // errored/stuck one so a retry shows `syncing` (not a stale `error`).
+        if (!rewrite) {
+          entertainmentService.insertRewrittenChapter({
+            threadId,
+            chapterNumber: c,
+            status: "rewriting",
+          });
+        } else {
+          entertainmentService.updateRewrittenChapter(threadId, c, {
+            status: "rewriting",
+          });
+        }
+        const rewritten = await rewriteChapter(
+          source?.content ?? "",
+          config.options,
+        );
+        entertainmentService.updateRewrittenChapter(threadId, c, {
+          status: "rewritten",
+          content: rewritten,
+        });
+        entertainmentService.touchThread(threadId);
+        logger.info("chapter rewritten", {
           threadId,
           chapterNumber: c,
-          status: "rewriting",
+          contentLen: rewritten.length,
+        });
+      } catch (err) {
+        logger.error("rewrite failed", { threadId, chapterNumber: c, err });
+        entertainmentService.updateRewrittenChapter(threadId, c, {
+          status: "error",
         });
       }
-      const src = entertainmentService.getSourceChapter(threadId, c);
-      const rewritten = await rewriteStub(src?.content ?? "");
-      entertainmentService.updateRewrittenChapter(threadId, c, {
-        status: "rewritten",
-        content: rewritten,
-      });
-      entertainmentService.touchThread(threadId);
-      logger.info("chapter rewritten", {
-        threadId,
-        chapterNumber: c,
-        contentLen: rewritten.length,
-      });
     } else {
       logger.debug("chapter already rewritten", {
         threadId,
@@ -246,61 +332,3 @@ class DehydrateScheduler {
 }
 
 export const dehydrateScheduler = new DehydrateScheduler();
-
-// --- stubs (real network-fetch + rewrite-agent logic land later) -----------
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/** STUB network acquisition — garbled CJK filler after a short delay. */
-export async function acquireSourceStub(chapterNumber: number): Promise<string> {
-  await delay(STUB_DELAY_MS);
-  const filler = "网络获取的原始章节内容（stub 占位）".repeat(3);
-  return `第${chapterNumber}章 · 原文\n\n${filler}\n\n（占位文本；实际网络获取逻辑待实现。）`;
-}
-
-// CJK filler sentences cycled so each generated paragraph reads a little
-// differently. Throwaway — only used to give the reader long prose to scroll
-// and page through until the real rewrite agent lands.
-const REWRITE_FILLER_SENTENCES: readonly string[] = [
-  "山间的薄雾尚未散去，露珠挂在草叶上，映着初升的日光，闪烁着细碎的光。",
-  "少年握紧了腰间那柄尚未开锋的剑，沿着山道一路向东走去，风从谷底升起，吹动他的衣袂。",
-  "酒旗在风中猎猎作响，野店里烟气混着酒香，几个行脚商低声说着青锋山庄与那把剑的传说。",
-  "师父临终前的话又在耳边响起——剑是用来守护的，不是用来逞强的；江湖很大，大到能让人忘记最初为何出发。",
-  "演武场上钟声悠长，黑袍老者周身寒意森然，白衣女子剑法轻灵，号称一剑光寒，令人不敢逼视。",
-  "他把这句话记在心里，深吸一口气，踏入了那扇沉重的朱漆大门，前路漫漫，恩怨未明。",
-];
-
-/**
- * Builds a long, multi-section markdown body so the reader has plenty of prose
- * to scroll / page through. Stub-only — the real rewrite agent replaces this.
- * The generated length is intentionally "very long" (many screens) so the
- * reader's scroll + page-down behaviour is easy to exercise during development.
- */
-function buildLongRewriteStub(sourceText: string): string {
-  const lead = `${(sourceText.trim().slice(0, 48) || "（占位原文）")}…`;
-  const lines: string[] = [
-    "> ▸ 重写版（stub · 长文本用于阅读器滚动 / 翻页测试）",
-    "",
-    lead,
-    "",
-  ];
-  const sections = 14;
-  const parasPerSection = 6;
-  for (let s = 1; s <= sections; s++) {
-    lines.push(`## 第 ${s} 节 阅读器滚动测试段落 ${s}`);
-    for (let p = 0; p < parasPerSection; p++) {
-      const idx = (s * 5 + p * 2) % REWRITE_FILLER_SENTENCES.length;
-      const sentence = REWRITE_FILLER_SENTENCES[idx];
-      // Repeat the sentence a few times so each paragraph is a hefty block.
-      lines.push(`（第 ${s} 节 · 第 ${p + 1} 段）${sentence}${sentence}${sentence}`);
-    }
-  }
-  lines.push("", "（占位长文本结束；实际重写 agent 待实现。）");
-  return lines.join("\n\n");
-}
-
-/** STUB rewrite — long garbled/transformed text after a short delay. */
-export async function rewriteStub(sourceText: string): Promise<string> {
-  await delay(STUB_DELAY_MS);
-  return buildLongRewriteStub(sourceText);
-}

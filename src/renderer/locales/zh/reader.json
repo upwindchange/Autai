@@ -61,5 +61,6 @@
   "reader.process.countLabel": "处理章数",
   "reader.process.next": "处理后续",
   "reader.process.all": "处理全部",
-  "reader.process.toEnd": "处理全部（至第 {{n}} 章）"
+  "reader.process.toEnd": "处理全部（至第 {{n}} 章）",
+  "reader.process.retryFailed": "重试失败（{{count}}）"
 }

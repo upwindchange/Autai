@@ -341,7 +341,7 @@ const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
   }
   if (chapter.rewriteStatus !== "rewritten") {
     return (
-      <ChapterState state="uploading" keyLabel="reader.chapter.rewriting" />
+      <ChapterState state="syncing" keyLabel="reader.chapter.rewriting" />
     );
   }
   // Split on newline (handles CRLF); blank lines add no node. Each <p> gets the

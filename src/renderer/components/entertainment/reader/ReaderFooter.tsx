@@ -21,7 +21,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { DotMatrix, type DotMatrixState } from "@/components/assistant-ui/dot-matrix";
+import { DotMatrix } from "@/components/assistant-ui/dot-matrix";
 import { useChaptersStore } from "@/stores/chaptersStore";
 import { useBookmarksStore } from "@/stores/bookmarksStore";
 import { useUiStore } from "@/stores/uiStore";
@@ -63,8 +63,8 @@ interface ReaderFooterProps {
  * bottom-sheet Drawer (mobile) and keep the footer open while visible.
  *
  * The Next button mirrors the TOC's per-chapter phase indicator: while the next
- * chapter is being fetched/rewritten it shows a `loading`/`uploading` DotMatrix
- * instead of the right chevron (same status logic as the TOC row indicator).
+ * chapter is being fetched/rewritten it shows a `loading`/`syncing` DotMatrix
+ * instead of the right chevron (same `phase` as the TOC row indicator).
  *
  * While visible, the chapter list is polled every POLL_MS so the TOC and the
  * next-chapter nav indicator stay fresh with backend progress; polling stops as
@@ -101,6 +101,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   const loadChapters = useChaptersStore((s) => s.loadChapters);
   const finalChapterNumber = useChaptersStore((s) => s.finalChapterNumber);
   const processChapters = useChaptersStore((s) => s.processChapters);
+  const reprocessFailed = useChaptersStore((s) => s.reprocessFailed);
 
   // Bookmarks for the active thread. Loaded once per thread switch (no poll —
   // bookmarks only change via this client); add/remove mutate the store directly.
@@ -142,13 +143,13 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     void loadBookmarks(currentThreadId);
   }, [currentThreadId, loadBookmarks]);
 
-  // Next chapter's pipeline phase — same logic as the TOC row indicator.
+  // Next chapter's pipeline phase — derived on the backend (same `phase` the
+  // TOC renders). Only swap the chevron for a dot while it's actively working.
   const next = chapters.find(
     (c) => c.chapterNumber === (currentChapterNumber ?? 0) + 1,
   );
-  let nextPhase: DotMatrixState | null = null;
-  if (next?.sourceStatus === "fetching") nextPhase = "loading";
-  else if (next?.rewriteStatus === "rewriting") nextPhase = "uploading";
+  const nextPhase =
+    next?.phase === "loading" || next?.phase === "syncing" ? next.phase : null;
 
   // Jumping via the TOC goes through the host's shared jump path (percentile 0 →
   // chapter top), then closes the TOC so the reader takes over (e-reader
@@ -210,7 +211,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     setDownloadOpen(false);
   };
 
-  // --- Process (next N / all) ----------------------------------------------
+  // --- Process (next N / all / redo failed) --------------------------------
   const handleProcessNext = () => {
     if (!currentThreadId || currentChapterNumber == null) return;
     void processChapters(currentThreadId, {
@@ -225,6 +226,17 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
       from: currentChapterNumber,
       all: true,
     });
+    setProcessOpen(false);
+  };
+  // Errored chapters (source or rewrite "error") — drives the Redo button's
+  // enable state + label count. "error" is terminal, so this is the only way
+  // they get retried.
+  const failedCount = chapters.filter(
+    (c) => c.sourceStatus === "error" || c.rewriteStatus === "error",
+  ).length;
+  const handleReprocessFailed = () => {
+    if (!currentThreadId) return;
+    void reprocessFailed(currentThreadId);
     setProcessOpen(false);
   };
 
@@ -397,6 +409,15 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
                 {finalChapterNumber != null
                   ? t("reader.process.toEnd", { n: finalChapterNumber })
                   : t("reader.process.all")}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={handleReprocessFailed}
+                disabled={failedCount === 0}
+              >
+                {t("reader.process.retryFailed", { count: failedCount })}
               </Button>
             </div>
           </ResponsivePanel>

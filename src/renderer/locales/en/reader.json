@@ -61,5 +61,6 @@
   "reader.process.countLabel": "Chapters to process",
   "reader.process.next": "Process next",
   "reader.process.all": "Process all",
-  "reader.process.toEnd": "Process all (to chapter {{n}})"
+  "reader.process.toEnd": "Process all (to chapter {{n}})",
+  "reader.process.retryFailed": "Redo failed ({{count}})"
 }

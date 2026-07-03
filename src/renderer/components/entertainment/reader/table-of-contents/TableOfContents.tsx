@@ -80,8 +80,6 @@ export const TableOfContents: FC<TableOfContentsProps> = ({
     <ul className="flex flex-col gap-0.5">
       {chapters.map((c) => {
         const active = c.chapterNumber === currentChapterNumber;
-        const busy =
-          c.sourceStatus === "fetching" || c.rewriteStatus === "rewriting";
         const dimmed = c.rewriteStatus !== "rewritten"; // not yet readable
         return (
           <li key={c.chapterNumber}>
@@ -101,14 +99,10 @@ export const TableOfContents: FC<TableOfContentsProps> = ({
                 {c.chapterNumber}
               </span>
               {c.title && <span className="truncate">{c.title}</span>}
-              {busy && (
-                <DotMatrix
-                  state={
-                    c.sourceStatus === "fetching" ? "loading" : "uploading"
-                  }
-                  className="ml-auto size-4 shrink-0"
-                />
-              )}
+              {/* phase is derived on the backend (DotMatrix state string) — render
+                  directly with no mapping. Always shown so every row carries an
+                  indicator: loading/syncing/error/success/paused/stopped. */}
+              <DotMatrix state={c.phase} className="ml-auto size-4 shrink-0" />
             </button>
           </li>
         );

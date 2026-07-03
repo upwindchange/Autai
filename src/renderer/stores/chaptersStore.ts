@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import type {
   ChapterDetail,
+  ChapterPhase,
   ChapterProgress,
   EntertainmentConfig,
 } from "@shared";
@@ -16,6 +17,9 @@ import { httpClient } from "@/lib/httpClient";
  * truth; this store is just a cache the reader renders from.
  */
 export interface ChapterView extends ChapterProgress {
+  // Reader-facing indicator (a DotMatrix state string), derived on the backend
+  // from the statuses + the scheduler's inFlight set. Rendered directly.
+  phase: ChapterPhase;
   // Cached rewritten prose (undefined = not fetched yet; null = not rewritten).
   content?: string | null;
 }
@@ -59,6 +63,8 @@ interface ChaptersState {
     threadId: string,
     opts: { from: number; count?: number; all?: boolean },
   ) => Promise<WorkerInfo>;
+  /** Re-enqueue every errored chapter (the "Redo failed chapters" action). */
+  reprocessFailed: (threadId: string) => Promise<WorkerInfo>;
   /** Last-read chapter (for resume-on-reopen). */
   getPosition: (threadId: string) => Promise<number | null>;
   /** Persist the reader's current chapter. */
@@ -80,7 +86,7 @@ export const useChaptersStore = create<ChaptersState>()(
       try {
         const { chapters, novelType, finalChapterNumber } =
           await httpClient.getJSON<{
-            chapters: ChapterProgress[];
+            chapters: (ChapterProgress & { phase: ChapterPhase })[];
             novelType: "file" | "internet" | null;
             finalChapterNumber: number | null;
           }>(`/entertainment/threads/${threadId}/chapters`);
@@ -106,9 +112,9 @@ export const useChaptersStore = create<ChaptersState>()(
 
     loadChapterDetail: async (threadId, n) => {
       try {
-        const { chapter } = await httpClient.getJSON<{ chapter: ChapterDetail }>(
-          `/entertainment/threads/${threadId}/chapters/${n}`,
-        );
+        const { chapter } = await httpClient.getJSON<{
+          chapter: ChapterDetail & { phase: ChapterPhase };
+        }>(`/entertainment/threads/${threadId}/chapters/${n}`);
         set((state) => {
           // Upsert: a network chapter may not be in the list yet (no source row).
           const exists = state.chapters.some(
@@ -158,6 +164,12 @@ export const useChaptersStore = create<ChaptersState>()(
       httpClient.postJSON<WorkerInfo>(
         `/entertainment/threads/${threadId}/process`,
         { from, count, all },
+      ),
+
+    reprocessFailed: (threadId) =>
+      httpClient.postJSON<WorkerInfo>(
+        `/entertainment/threads/${threadId}/reprocess-failed`,
+        {},
       ),
 
     getPosition: async (threadId) => {

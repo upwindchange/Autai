@@ -22,14 +22,14 @@ import { z } from "zod";
 
 // --- Novel inputs ----------------------------------------------------------
 
-const FileNovelSchema = z.object({
+export const FileNovelSchema = z.object({
   type: z.literal("file"),
   filename: z.string().min(1),
   // native-picker only: lets a future "show in folder" affordance work.
   fsPath: z.string().optional(),
 });
 
-const InternetNovelSchema = z.object({
+export const InternetNovelSchema = z.object({
   type: z.literal("internet"),
   title: z.string().trim().min(1),
   author: z.string().trim().optional(),
@@ -109,6 +109,8 @@ export type InteractiveConfig = z.infer<typeof InteractiveConfigSchema>;
 export type EntertainmentConfig = z.infer<typeof EntertainmentConfigSchema>;
 export type EntertainmentMode = EntertainmentConfig["mode"];
 export type NovelInput = z.infer<typeof NovelInputSchema>;
+export type FileNovel = z.infer<typeof FileNovelSchema>;
+export type InternetNovel = z.infer<typeof InternetNovelSchema>;
 export type DehydrateBasic = z.infer<typeof DehydrateBasicSchema>;
 export type DehydrateDepth = z.infer<typeof DehydrateDepthSchema>;
 
@@ -143,6 +145,42 @@ export interface ChapterProgress {
 /** Single-chapter detail: progress + the rewritten prose (null unless rewritten). */
 export interface ChapterDetail extends ChapterProgress {
   content: string | null;
+}
+
+/**
+ * Reader-facing per-chapter indicator. Values deliberately match DotMatrix
+ * state names so the renderer renders `phase` with no mapping. Derived on the
+ * backend (in the REST routes) from the two lifecycle statuses + the scheduler's
+ * `inFlight` set, then sent to the renderer as a plain field.
+ */
+export type ChapterPhase =
+  | "loading" // acquiring 原文 (sourceStatus "fetching")
+  | "syncing" // rewriting 重写 (rewriteStatus "rewriting")
+  | "error" // source or rewrite failed — terminal until Redo
+  | "success" // rewritten — ready to read
+  | "paused" // scheduled (auto lookahead OR manual Process/Redo), waiting to be picked up
+  | "stopped"; // not scheduled (e.g. far down a long file)
+
+/**
+ * Map a chapter's DB statuses + whether it's currently scheduled (inFlight) to a
+ * single DotMatrix-state phase. Pure — the single source of the status→indicator
+ * mapping, run on the backend; the renderer never maps. `inFlight` covers both
+ * the auto-lookahead (`ensure`) and manual "Process next N / all / Redo failed"
+ * (`ensureRange` / `retryFailed`), which all go through `enqueue` →
+ * `inFlight.add`; a chapter leaves the set only when its job finishes. So a
+ * queued-but-not-started chapter is `paused` however it was scheduled; the
+ * running chapter is already `loading`/`syncing` by status priority; a finished
+ * chapter is `success`/`error`.
+ */
+export function deriveChapterPhase(
+  ch: ChapterProgress,
+  inFlight: Set<number>,
+): ChapterPhase {
+  if (ch.sourceStatus === "error" || ch.rewriteStatus === "error") return "error";
+  if (ch.sourceStatus === "fetching") return "loading";
+  if (ch.rewriteStatus === "rewriting") return "syncing";
+  if (ch.rewriteStatus === "rewritten") return "success";
+  return inFlight.has(ch.chapterNumber) ? "paused" : "stopped";
 }
 
 /**

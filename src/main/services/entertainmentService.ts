@@ -15,6 +15,7 @@ import type {
   RewrittenChapterStatus,
   SourceChapterStatus,
 } from "@shared";
+import { EntertainmentConfigSchema } from "@shared";
 import type { EntertainmentConfigRow } from "@/db/types";
 import { threadPersistenceService } from "./threadPersistenceService";
 import { i18n } from "@/i18n";
@@ -450,6 +451,32 @@ class EntertainmentService {
       return novel.type === "file" || novel.type === "internet" ?
           novel.type
         : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Reconstruct + re-validate the stored config into a typed
+   * `EntertainmentConfig`. The dehydrate scheduler uses this to feed the real,
+   * persisted wizard values (novel origin + options) to the acquisition/rewrite
+   * stubs. Re-validation via `EntertainmentConfigSchema.safeParse` is defensive
+   * against malformed stored JSON and also heals older configs that predate
+   * newer `.default(...)` fields (e.g. `customInstruction`) — no migration
+   * needed. Returns null (never throws) when the row or its JSON is unusable,
+   * mirroring `getNovelType`'s contract.
+   */
+  getParsedConfig(threadId: string): EntertainmentConfig | null {
+    const row = this.getEntertainmentConfig(threadId);
+    if (!row?.novelSource || !row.options) return null;
+    try {
+      const raw = {
+        mode: row.mode,
+        novel: JSON.parse(row.novelSource),
+        options: JSON.parse(row.options),
+      };
+      const parsed = EntertainmentConfigSchema.safeParse(raw);
+      return parsed.success ? parsed.data : null;
     } catch {
       return null;
     }
