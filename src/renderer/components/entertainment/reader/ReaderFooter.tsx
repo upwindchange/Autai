@@ -3,12 +3,6 @@ import { useTranslation } from "react-i18next";
 import { Bookmark, Download, List, Maximize2, Minimize2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
   Popover,
   PopoverContent,
   PopoverTrigger,
@@ -95,7 +89,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   const [tocOpen, setTocOpen] = useState(false);
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
   const [downloadOpen, setDownloadOpen] = useState(false);
-  const [downloadTooltipOpen, setDownloadTooltipOpen] = useState(false);
   const [processOpen, setProcessOpen] = useState(false);
   const [processCount, setProcessCount] = useState(5);
 
@@ -193,6 +186,18 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   const hasReadyFromCurrent =
     currentChapterNumber != null &&
     readyChapters.some((c) => c.chapterNumber >= currentChapterNumber);
+
+  // The three export ranges rendered in the Download panel, each gated by what
+  // has actually been rewritten so ranges with no ready chapters grey out.
+  const downloadOptions = [
+    { range: "current", label: t("reader.download.current"), disabled: !currentReady },
+    {
+      range: "fromCurrent",
+      label: t("reader.download.fromCurrent"),
+      disabled: !hasReadyFromCurrent,
+    },
+    { range: "all", label: t("reader.download.all"), disabled: !hasAnyReady },
+  ] as const;
 
   const triggerDownload = (range: "current" | "fromCurrent" | "all") => {
     if (!currentThreadId) return;
@@ -314,43 +319,36 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
             <ReaderSettingsPanel />
           </ResponsivePanel>
 
-          {/* Download (left) — export rewritten chapters as .txt. Tooltip is
-              forced closed while the menu is open (mirrors ResponsivePanel). */}
-          <DropdownMenu open={downloadOpen} onOpenChange={setDownloadOpen}>
-            <Tooltip
-              open={downloadOpen ? false : downloadTooltipOpen}
-              onOpenChange={setDownloadTooltipOpen}
-            >
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  {downloadTrigger}
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent side="top">
-                {t("reader.download.title")}
-              </TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent align="center" side="top" sideOffset={8}>
-              <DropdownMenuItem
-                onSelect={() => triggerDownload("current")}
-                disabled={!currentReady}
-              >
-                {t("reader.download.current")}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => triggerDownload("fromCurrent")}
-                disabled={!hasReadyFromCurrent}
-              >
-                {t("reader.download.fromCurrent")}
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onSelect={() => triggerDownload("all")}
-                disabled={!hasAnyReady}
-              >
-                {t("reader.download.all")}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Download (left) — export rewritten chapters as .txt. Same
+              responsive shell as the other reader panels: Popover on desktop,
+              bottom-sheet Drawer on mobile. */}
+          <ResponsivePanel
+            isMobile={isMobile}
+            title={t("reader.download.title")}
+            tooltip={t("reader.download.title")}
+            open={downloadOpen}
+            onOpenChange={setDownloadOpen}
+            trigger={downloadTrigger}
+          >
+            <div className="flex flex-col gap-1">
+              {downloadOptions.map((opt) => (
+                <button
+                  key={opt.range}
+                  type="button"
+                  disabled={opt.disabled}
+                  onClick={() => triggerDownload(opt.range)}
+                  className={cn(
+                    "flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors",
+                    opt.disabled
+                      ? "cursor-not-allowed text-muted-foreground/50"
+                      : "hover:bg-accent hover:text-accent-foreground",
+                  )}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </ResponsivePanel>
 
           {/* Process next N / all (left) */}
           <ResponsivePanel
