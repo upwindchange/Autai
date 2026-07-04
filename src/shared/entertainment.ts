@@ -15,8 +15,10 @@ import { z } from "zod";
  *     placeholder with no backend yet.
  *   - `novel` is mode-dependent: `dehydrate` accepts file OR internet;
  *     `interactive` accepts a text file ONLY.
- *   - Both modes share Module 1 (basic toggles) + Module 2 (depth sliders) +
- *     a free-form `customInstruction` (user guidance applied on top of both).
+ *   - Both modes share Module 1 (basic toggles) + Module 2 (depth intensity,
+ *     each `{ enabled, level }`) + Module 3 (language adaptation) + a
+ *     `nonNovelSource` flag (single-source storyline vs. chaptered novel) + a
+ *     free-form `customInstruction` (user guidance applied on top of all three).
  *     `interactive` additionally carries `interactionFrequency`.
  */
 
@@ -52,14 +54,61 @@ const DehydrateBasicSchema = z.object({
   preachRemoval: z.boolean().default(false),
 });
 
-/** Module 2 — 深度重写 (1–3 intensity sliders). */
+/**
+ * Module 2 — 深度重写. Each aspect is independently enabled with a 1–3
+ * intensity level (1 = light · 2 = medium · 3 = heavy).
+ *
+ * Reshaped from a bare 1–3 number to `{ enabled, level }`. The field schema also
+ * accepts a legacy bare number (pre-reshape stored configs) and heals it to
+ * `{ enabled: true, level }`, so `getParsedConfig`'s `safeParse` keeps existing
+ * threads valid without a migration. `.default(...)` lets a wholly-missing
+ * field heal too.
+ */
+const DepthLevelSchema = z.number().int().min(1).max(3);
+
+const DepthFieldSchema = z
+  .union([
+    z.object({
+      enabled: z.boolean().default(true),
+      level: DepthLevelSchema.default(2),
+    }),
+    DepthLevelSchema, // legacy bare number
+  ])
+  .transform(
+    (v): { enabled: boolean; level: number } =>
+      typeof v === "number" ?
+        { enabled: true, level: v }
+      : { enabled: v.enabled, level: v.level },
+  )
+  .default({ enabled: true, level: 2 });
+
 const DehydrateDepthSchema = z.object({
-  dialoguePacing: z.number().int().min(1).max(3).default(2),
-  dehydrate: z.number().int().min(1).max(3).default(2),
-  sceneEnhance: z.number().int().min(1).max(3).default(2),
-  combatEnhance: z.number().int().min(1).max(3).default(2),
-  emotionEnhance: z.number().int().min(1).max(3).default(2),
-  literaryEnhance: z.number().int().min(1).max(3).default(2),
+  dialoguePacing: DepthFieldSchema,
+  dehydrate: DepthFieldSchema,
+  sceneEnhance: DepthFieldSchema,
+  combatEnhance: DepthFieldSchema,
+  emotionEnhance: DepthFieldSchema,
+  literaryEnhance: DepthFieldSchema,
+});
+
+/**
+ * Module 3 — 语言适配. Dumb on/off toggles + a free-text target language, all
+ * independent (no cross-option conditional logic — nuances are the backend
+ * LLM-prompt's job). `targetLanguage` is the language to translate / localize
+ * names into (empty = none). `classicalToModern` (文言文→白话文, preserving 定场诗
+ * etc.) and `dialogueSubject` (restore omitted dialogue speakers — a 日轻 habit)
+ * are source-language transforms that don't need a target.
+ */
+const LanguageToggleSchema = z
+  .object({ enabled: z.boolean().default(false) })
+  .default({ enabled: false });
+
+const LanguageAdaptationSchema = z.object({
+  targetLanguage: z.string().trim().default(""),
+  translate: LanguageToggleSchema,
+  nameLocalization: LanguageToggleSchema,
+  classicalToModern: LanguageToggleSchema,
+  dialogueSubject: LanguageToggleSchema,
 });
 
 /** Interactive-only option. */
@@ -84,6 +133,11 @@ export const DehydrateConfigSchema = z.object({
   options: z.object({
     basic: DehydrateBasicSchema,
     depth: DehydrateDepthSchema,
+    language: LanguageAdaptationSchema,
+    // true = the source is one continuous text (a post, an email thread, …),
+    // not a chaptered novel; segment its storyline into organic chapters
+    // instead of parsing per-chapter pages/markers.
+    nonNovelSource: z.boolean().default(false),
     customInstruction: CustomInstructionSchema,
   }),
 });
@@ -91,10 +145,12 @@ export const DehydrateConfigSchema = z.object({
 export const InteractiveConfigSchema = z.object({
   mode: z.literal("interactive"),
   novel: FileNovelSchema, // interactive accepts a text file ONLY
-  // Composes all four: interactionFrequency + Module 1 + Module 2 + custom.
+  // Composes all five: interactionFrequency + Module 1/2/3 + nonNovelSource + custom.
   options: InteractiveOptionsSchema.extend({
     basic: DehydrateBasicSchema,
     depth: DehydrateDepthSchema,
+    language: LanguageAdaptationSchema,
+    nonNovelSource: z.boolean().default(false),
     customInstruction: CustomInstructionSchema,
   }),
 });
@@ -113,6 +169,7 @@ export type FileNovel = z.infer<typeof FileNovelSchema>;
 export type InternetNovel = z.infer<typeof InternetNovelSchema>;
 export type DehydrateBasic = z.infer<typeof DehydrateBasicSchema>;
 export type DehydrateDepth = z.infer<typeof DehydrateDepthSchema>;
+export type LanguageAdaptation = z.infer<typeof LanguageAdaptationSchema>;
 
 // ---------------------------------------------------------------------------
 // Database-contract types (entertainment persistence layer).

@@ -89,8 +89,12 @@ export const EntertainmentWizard: FC = () => {
         void advanceRef.current();
         return;
       }
-      // Title/author inputs: Enter = advance.
+      // Title/author inputs: Enter = advance, EXCEPT for inputs marked
+      // `data-no-enter-advance` (e.g. the target-language field on the options
+      // step), where Enter should be a no-op (or native) instead of starting
+      // the job mid-edit.
       if (target instanceof HTMLInputElement) {
+        if (target.closest("[data-no-enter-advance]")) return;
         e.preventDefault();
         void advanceRef.current();
         return;

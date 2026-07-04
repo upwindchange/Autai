@@ -14,13 +14,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { CircleHelp } from "lucide-react";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { useSettings } from "@/components/settings";
 import { useTranslation } from "react-i18next";
 import type { SettingsState, SearchEngine, TimeoutsConfig } from "@shared";
@@ -161,16 +155,7 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
               <Label htmlFor="max-parallel-agents">
                 {t("aiAgents.concurrency.label")}
               </Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <CircleHelp className="h-4 w-4 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    {t("aiAgents.concurrency.tooltip")}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <HelpTooltip content={t("aiAgents.concurrency.tooltip")} />
             </div>
             <Input
               id="max-parallel-agents"
@@ -197,16 +182,7 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
               <Label htmlFor="max-retries">{t("aiAgents.retries.label")}</Label>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <CircleHelp className="h-4 w-4 text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    {t("aiAgents.retries.tooltip")}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              <HelpTooltip content={t("aiAgents.retries.tooltip")} />
             </div>
             <Input
               id="max-retries"
@@ -306,16 +282,7 @@ export function AiAgentsSection({ settings }: AiAgentsSectionProps) {
               <div key={field} className="space-y-2">
                 <div className="flex items-center gap-1.5">
                   <Label htmlFor={`timeout-${field}`}>{t(labelKey)}</Label>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <CircleHelp className="h-4 w-4 text-muted-foreground" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-xs">
-                        {t(tooltipKey)}
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <HelpTooltip content={t(tooltipKey)} />
                 </div>
                 <div className="flex items-center gap-2">
                   <Input

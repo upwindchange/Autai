@@ -12,13 +12,8 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { CircleHelp, ShieldAlert } from "lucide-react";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
+import { ShieldAlert } from "lucide-react";
 import { useSettings } from "@/components/settings";
 import { useTranslation } from "react-i18next";
 import { getApiBase } from "@/lib/api";
@@ -27,19 +22,6 @@ import type { SettingsState, ServerMode } from "@shared";
 
 interface ConnectionSectionProps {
   settings: SettingsState;
-}
-
-function HelpIcon({ label }: { label: string }) {
-  return (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <CircleHelp className="h-4 w-4 text-muted-foreground" />
-        </TooltipTrigger>
-        <TooltipContent className="max-w-xs">{label}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  );
 }
 
 const MODE_OPTIONS: {
@@ -315,7 +297,7 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
                     <Label htmlFor={`mode-${opt.value}`}>
                       {t(opt.labelKey)}
                     </Label>
-                    <HelpIcon label={t(opt.tooltipKey)} />
+                    <HelpTooltip content={t(opt.tooltipKey)} />
                   </div>
                   <p className="text-sm text-muted-foreground">
                     {t(opt.descKey)}
@@ -336,7 +318,7 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
               <Label htmlFor="server-host">{t("connection.host.label")}</Label>
-              <HelpIcon label={t("connection.host.tooltip")} />
+              <HelpTooltip content={t("connection.host.tooltip")} />
             </div>
             <Input
               id="server-host"
@@ -359,7 +341,7 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
           <div className="space-y-2">
             <div className="flex items-center gap-1.5">
               <Label htmlFor="server-port">{t("connection.port.label")}</Label>
-              <HelpIcon label={t("connection.port.tooltip")} />
+              <HelpTooltip content={t("connection.port.tooltip")} />
             </div>
             <Input
               id="server-port"

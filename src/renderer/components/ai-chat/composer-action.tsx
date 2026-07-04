@@ -11,7 +11,6 @@ import { AuiIf, ComposerPrimitive } from "@assistant-ui/react";
 import {
   ArrowUpIcon,
   Blocks,
-  CircleHelpIcon,
   Globe,
   Plus,
   Search,
@@ -35,12 +34,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { ComposerAddAttachment } from "@/components/ai-chat/attachment";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 
@@ -294,19 +288,12 @@ export const ComposerAction: FC = () => {
                       <span className="text-xs font-medium">
                         {t("composer.effort.label")}
                       </span>
-                      <TooltipProvider delayDuration={0}>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <CircleHelpIcon className="size-3.5 text-muted-foreground" />
-                          </TooltipTrigger>
-                          <TooltipContent
-                            side="top"
-                            className="max-w-56 text-xs"
-                          >
-                            {t("composer.effort.description")}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
+                      <HelpTooltip
+                        content={t("composer.effort.description")}
+                        side="top"
+                        maxWidth={224}
+                        iconClassName="size-3.5 text-muted-foreground"
+                      />
                     </div>
                     <RadioGroup
                       value={String(effort)}

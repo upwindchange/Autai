@@ -6,9 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { HelpTooltip } from "@/components/ui/help-tooltip";
 import type { EntertainmentConfig } from "@shared";
 import { pickFiles } from "@/lib/filePicker";
-import { HelpIcon } from "./HelpIcon";
 
 interface StepNovelProps {
   config: EntertainmentConfig;
@@ -169,7 +169,7 @@ export const StepNovel: FC<StepNovelProps> = ({
               <Label htmlFor="ent-novel-source">
                 {t("novel.internet.source.label")}
               </Label>
-              <HelpIcon label={t("novel.internet.source.tooltip")} />
+              <HelpTooltip content={t("novel.internet.source.tooltip")} />
             </div>
             <Textarea
               id="ent-novel-source"
