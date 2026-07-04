@@ -2,6 +2,8 @@ import { type Dispatch, type FC, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { FileText, Upload, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldContent, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -9,6 +11,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import type { EntertainmentConfig } from "@shared";
 import { pickFiles } from "@/lib/filePicker";
+import { patchSharedOptions } from "../wizardSteps";
 
 interface StepNovelProps {
   config: EntertainmentConfig;
@@ -25,6 +28,12 @@ export const StepNovel: FC<StepNovelProps> = ({
 }) => {
   const { t } = useTranslation("entertainment");
   const isInteractive = config.mode === "interactive";
+  // When on, the source is one continuous text (a post, an email thread, …)
+  // and the title/author fields below are disabled — there's no "book title".
+  const nonNovel = config.options.nonNovelSource;
+
+  const setNonNovelSource = (value: boolean) =>
+    setConfig((prev) => patchSharedOptions(prev, { nonNovelSource: value }));
 
   // File acquisition — same path for both modes; unified native/browser pick.
   const onPick = async () => {
@@ -95,6 +104,34 @@ export const StepNovel: FC<StepNovelProps> = ({
 
   return (
     <div className="flex flex-col gap-4">
+      {/* Not a chaptered novel — the most consequential choice on this step:
+          it switches the reader from per-chapter parsing to building organic
+          chapters from a single storyline. Explanation is in the body (not a
+          tooltip) so it's always visible. */}
+      <div className="rounded-lg border bg-card px-4 py-3">
+        <Field orientation="horizontal">
+          <Checkbox
+            id="ent-non-novel"
+            checked={nonNovel}
+            onCheckedChange={(v) => setNonNovelSource(v === true)}
+          />
+          <FieldContent>
+            <FieldLabel
+              htmlFor="ent-non-novel"
+              className="cursor-pointer text-sm font-medium"
+            >
+              {t("options.source.nonNovel.label")}
+            </FieldLabel>
+            <FieldDescription>
+              {t("options.source.nonNovel.tooltip")}
+            </FieldDescription>
+            <FieldDescription>
+              {t("options.source.nonNovel.example")}
+            </FieldDescription>
+          </FieldContent>
+        </Field>
+      </div>
+
       {/* Source-type toggle — dehydrate only. Interactive is file-only. */}
       {!isInteractive && (
         <RadioGroup
@@ -142,35 +179,43 @@ export const StepNovel: FC<StepNovelProps> = ({
           )}
         </div>
       : <>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="ent-novel-title">
-              {t("novel.internet.title.label")}
-            </Label>
+          {/* Title — required only when it's a chaptered novel; disabled (greyed)
+              when the source isn't a novel. */}
+          <Field data-disabled={nonNovel}>
+            <FieldLabel htmlFor="ent-novel-title">
+              <span>{t("novel.internet.title.label")}</span>
+              {!nonNovel && <span className="text-destructive">*</span>}
+            </FieldLabel>
             <Input
               id="ent-novel-title"
               value={config.novel.title}
               onChange={(e) => setInternetField("title", e.target.value)}
               placeholder={t("novel.internet.title.placeholder")}
+              disabled={nonNovel}
             />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <Label htmlFor="ent-novel-author">
-              {t("novel.internet.author.label")}
-            </Label>
+          </Field>
+
+          {/* Author — never required; disabled alongside the title. */}
+          <Field data-disabled={nonNovel}>
+            <FieldLabel htmlFor="ent-novel-author">
+              <span>{t("novel.internet.author.label")}</span>
+            </FieldLabel>
             <Input
               id="ent-novel-author"
               value={config.novel.author ?? ""}
               onChange={(e) => setInternetField("author", e.target.value)}
               placeholder={t("novel.internet.author.placeholder")}
+              disabled={nonNovel}
             />
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="ent-novel-source">
-                {t("novel.internet.source.label")}
-              </Label>
+          </Field>
+
+          {/* Source — always required (where to read it), never disabled. */}
+          <Field>
+            <FieldLabel htmlFor="ent-novel-source">
+              <span>{t("novel.internet.source.label")}</span>
+              <span className="text-destructive">*</span>
               <HelpTooltip content={t("novel.internet.source.tooltip")} />
-            </div>
+            </FieldLabel>
             <Textarea
               id="ent-novel-source"
               value={config.novel.source}
@@ -181,7 +226,7 @@ export const StepNovel: FC<StepNovelProps> = ({
             <p className="text-xs text-muted-foreground">
               {t("novel.internet.source.hint")}
             </p>
-          </div>
+          </Field>
         </>
       }
     </div>

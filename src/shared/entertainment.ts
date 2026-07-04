@@ -33,7 +33,10 @@ export const FileNovelSchema = z.object({
 
 export const InternetNovelSchema = z.object({
   type: z.literal("internet"),
-  title: z.string().trim().min(1),
+  // Title is optional end-to-end: the backend accepts an empty title. The "book
+  // title required" rule is enforced only in the wizard UI (and only when the
+  // source IS a chaptered novel — see `isStepValid`).
+  title: z.string().trim(),
   author: z.string().trim().optional(),
   // A URL, a search instruction, or other guidance on where to read the novel.
   source: z.string().trim().min(1),
@@ -92,12 +95,12 @@ const DehydrateDepthSchema = z.object({
 });
 
 /**
- * Module 3 — 语言适配. Dumb on/off toggles + a free-text target language, all
+ * Module 3 — 语言适配. Dumb on/off toggles + a free-form translation field, all
  * independent (no cross-option conditional logic — nuances are the backend
- * LLM-prompt's job). `targetLanguage` is the language to translate / localize
- * names into (empty = none). `classicalToModern` (文言文→白话文, preserving 定场诗
- * etc.) and `dialogueSubject` (restore omitted dialogue speakers — a 日轻 habit)
- * are source-language transforms that don't need a target.
+ * LLM-prompt's job). `targetLanguage` holds a translation instruction or target
+ * language (e.g. "文言文翻译成白话文" or "中文"; empty = none). `dialogueSubject`
+ * (restore omitted dialogue speakers — a 日轻 habit) is a source-language
+ * transform that doesn't need a target.
  */
 const LanguageToggleSchema = z
   .object({ enabled: z.boolean().default(false) })
@@ -107,7 +110,6 @@ const LanguageAdaptationSchema = z.object({
   targetLanguage: z.string().trim().default(""),
   translate: LanguageToggleSchema,
   nameLocalization: LanguageToggleSchema,
-  classicalToModern: LanguageToggleSchema,
   dialogueSubject: LanguageToggleSchema,
 });
 

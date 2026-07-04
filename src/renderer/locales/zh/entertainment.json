@@ -19,7 +19,7 @@
   "novel.file.clear": "移除文件",
   "novel.internet.label": "从网上找",
   "novel.internet.title.label": "故事名",
-  "novel.internet.title.placeholder": "如果没有名字，可以随便写一个，但请确保来源里提供准确的连接",
+  "novel.internet.title.placeholder": "小说的书名",
   "novel.internet.author.label": "作者（可选）",
   "novel.internet.author.placeholder": "作者名",
   "novel.internet.source.label": "来源",
@@ -73,26 +73,25 @@
   "options.interactive.frequency.level.balanced": "适中",
   "options.interactive.frequency.level.high": "经常",
 
-  "options.section.source.title": "来源形式",
   "options.source.nonNovel.label": "非章节小说",
   "options.source.nonNovel.tooltip": "当你的来源是一整段非章节小说的连续文本时开启此项——比如一篇长帖（天涯、豆瓣、贴吧）、一篇长文、一封邮件往来、一个论坛帖子串等等。默认情况下，阅读器假定来源是章节小说，会从每个章节的独立网页抓取（或按文件里的章节标记切分）。开启后，它会将整段来源视为一条完整的故事线，由它自己来分章——顺着故事自然的节奏与情节转折，把叙事切成有机、节奏均匀的章节，而不是照搬原文的分页或断点。当来源里没有真正的章节可解析时使用。",
   "options.source.nonNovel.example": "例如把一篇连载的天涯长帖，或一串来回的邮件，整理成一本有章节、能顺畅读下去的书。",
 
-  "options.language.targetLanguage.placeholder": "例如：简体中文、English、日本語、한국어…",
+  "options.language.targetLanguage.placeholder": "一句翻译指示，例如「文言文翻译成白话文」；或直接写目标语言，例如简体中文、English、日本語、한국어。",
   "options.language.translate.label": "翻译",
-  "options.language.translate.tooltip": "开启后，把整本小说翻译成你填写的语言。大多数读者用不上——能直接读原文就保持关闭。",
+  "options.language.translate.tooltip": "开启后，按你填写的翻译指示或目标语言，把整本小说翻译过来。大多数读者用不上——能直接读原文就保持关闭。",
   "options.language.translate.example": "例如把一本俄文小说译成中文，故事本身不丢味。",
   "options.language.nameLocalization.label": "本地化姓名",
   "options.language.nameLocalization.tooltip": "把人名、地名改成符合目标语言阅读习惯的写法，治好那些拗口的音译名。",
   "options.language.nameLocalization.example": "例如《百年孤独》中译本里一长串难分难记的名字，改得更易读好记。",
-  "options.language.classicalToModern.label": "文言文译白话文",
-  "options.language.classicalToModern.tooltip": "把文言文改写成白话，但保留其中的诗词韵文（如定场诗、判词、引诗），让文学味道不丢。",
-  "options.language.classicalToModern.example": "例如把「吾乃常山赵子龙也」译成白话，而定场诗、判词等韵文原样保留。",
   "options.language.dialogueSubject.label": "补回对话主语",
   "options.language.dialogueSubject.tooltip": "日系轻小说常在对话中省略主语，靠口气词和口癖暗示说话人。开启后会补回明确的说话人归属（如「xx说」），让你始终清楚是谁在说话。",
   "options.language.dialogueSubject.example": "例如把一句只有口癖的台词，补成「……哦？」她甩了甩头发说道。",
 
   "options.customInstruction.label": "还想改什么？",
   "options.customInstruction.placeholder": "想怎么改都行，告诉我就好",
-  "options.customInstruction.tooltip": "  请确保不要和上面选项冲突，否则产生的结果比薛定谔的猫还不可控"
+  "options.customInstruction.tooltip": "任何以上功能没覆盖到的指令，都可以写在这里。请确保不要和上面选项冲突。例如：“翻译过程中保留原文的诗词韵文（如定场诗、判词、引诗）”",
+
+  "terms.label": "我同意使用条款",
+  "terms.body": "我将遵守所在司法管辖区的法律合法使用本软件，并仅访问我有权阅读的内容。小说来源均抓取自第三方网站，本软件不托管、不控制、不背书这些内容，也不对其负责。本软件基于 MIT 协议开源，按「现状」提供，不附任何担保；作者不因其使用承担任何法律责任。"
 }

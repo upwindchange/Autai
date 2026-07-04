@@ -19,7 +19,7 @@
   "novel.file.clear": "Remove file",
   "novel.internet.label": "Find it online",
   "novel.internet.title.label": "Story title",
-  "novel.internet.title.placeholder": "No title? Make one up — just make sure the source has a working link.",
+  "novel.internet.title.placeholder": "Bookname of the novel",
   "novel.internet.author.label": "Author (optional)",
   "novel.internet.author.placeholder": "Author name",
   "novel.internet.source.label": "Source",
@@ -73,26 +73,25 @@
   "options.interactive.frequency.level.balanced": "Balanced",
   "options.interactive.frequency.level.high": "Often",
 
-  "options.section.source.title": "Source format",
-  "options.source.nonNovel.label": "Not a chaptered novel",
-  "options.source.nonNovel.tooltip": "Turn this on when your source is one continuous block of text that isn't a chaptered novel — a long Reddit post, a blog article, an email thread, a forum thread, and so on. By default the reader assumes a chaptered novel and pulls each chapter from its own page (or splits a file by its chapter markers). With this on, it treats the whole source as a single storyline and writes the chapters itself, breaking the narrative into organic, evenly-paced chapters along the story's natural beats — not wherever the original happened to break pages. Use it whenever there are no real chapters to parse.",
+  "options.source.nonNovel.label": "Not chaptered fiction",
+  "options.source.nonNovel.tooltip": "Turn this on when your source is one continuous block of text that isn't chaptered fiction — a long Reddit post, a blog article, an email thread, a forum thread, and so on. By default the reader assumes chaptered fiction and pulls each chapter from its own page (or splits a file by its chapter markers). With this on, it treats the whole source as a single storyline and writes the chapters itself, breaking the narrative into organic, evenly-paced chapters along the story's natural beats — not wherever the original happened to break pages. Use it whenever there are no real chapters to parse.",
   "options.source.nonNovel.example": "e.g. turning a 5-part Reddit post or a back-and-forth email thread into a proper chaptered read.",
 
-  "options.language.targetLanguage.placeholder": "e.g. 简体中文, English, 日本語, 한국어",
+  "options.language.targetLanguage.placeholder": "A translation instruction like 'translate Latin and Old English into Modern English', or a target language like 简体中文、English、日本語、한국어.",
   "options.language.translate.label": "Translate",
-  "options.language.translate.tooltip": "Translates the whole novel into the language you type in once it's on. Most readers won't need this — leave it off if you already read the original.",
-  "options.language.translate.example": "e.g. reading a Russian novel in English without losing the story.",
+  "options.language.translate.tooltip": "Translates fiction per the instruction or target language you type in once it's on. Most readers won't need this — leave it off if you already read the original.",
+  "options.language.translate.example": "e.g. reading Russian fiction in English without losing the story.",
   "options.language.nameLocalization.label": "Localize names",
   "options.language.nameLocalization.tooltip": "Reworks character and place names so they read naturally in the target language — fixes tongue-twisting transliterations and unreadable romanizations.",
-  "options.language.nameLocalization.example": "e.g. taming a tangle of romanized pinyin names from a Chinese web novel into ones you can actually keep straight.",
-  "options.language.classicalToModern.label": "Classical → modern Chinese (文言→白话)",
-  "options.language.classicalToModern.tooltip": "Rewrites classical Chinese into modern prose while keeping the poetry — 定场诗, 判词, verse — intact, so the literary flavor survives the translation.",
-  "options.language.classicalToModern.example": "e.g. modernizing 「吾乃常山赵子龙也」 but leaving the opening poem untouched.",
+  "options.language.nameLocalization.example": "e.g. taming a tangle of romanized pinyin names from Chinese or romaji names from Japansee into ones you can actually keep straight.",
   "options.language.dialogueSubject.label": "Restore dialogue subjects",
-  "options.language.dialogueSubject.tooltip": "Japanese light novels often drop the subject and signal the speaker with verbal tics alone. This re-adds clear attribution so you always know who's talking.",
+  "options.language.dialogueSubject.tooltip": "Japanese fictions often drop the subject and signal the speaker with verbal tics alone. This re-adds clear attribution so you always know who's talking.",
   "options.language.dialogueSubject.example": "e.g. turning a tic-laced line into '…,' she said, flicking her hair.",
 
   "options.customInstruction.label": "Anything else to tweak?",
   "options.customInstruction.placeholder": "Change it however you like — just tell me.",
-  "options.customInstruction.tooltip": "Make sure this doesn't conflict with the options above, or the result will be even more unpredictable than Schrödinger's cat."
+  "options.customInstruction.tooltip": "Put any instruction you'd like to add that is not included in the options above. Make sure this doesn't conflict with the options above.",
+
+  "terms.label": "I agree to the usage terms",
+  "terms.body": "I will use this software in accordance with the laws of my jurisdiction and only access content I have the right to read. Content sources are fetched from third-party websites; this software does not host, control, or endorse that content and is not responsible for it. This software is licensed under the MIT License and is provided \"as is\", without warranty of any kind; the author assumes no legal liability for its use."
 }

@@ -38,7 +38,6 @@ export const DEFAULT_LANGUAGE: LanguageAdaptation = {
   targetLanguage: "",
   translate: { enabled: false },
   nameLocalization: { enabled: false },
-  classicalToModern: { enabled: false },
   dialogueSubject: { enabled: false },
 };
 
@@ -230,10 +229,12 @@ export function isStepValid(
     case 1: {
       // novel
       if (config.novel.type === "file") return config.novel.filename.length > 0;
-      return (
-        config.novel.title.trim().length > 0 &&
-        config.novel.source.trim().length > 0
-      );
+      // internet: source is always required; the title is required only when
+      // the source IS a chaptered novel (when nonNovelSource is on, the title
+      // field is disabled in the UI and the schema allows it empty).
+      const titleOk =
+        config.options.nonNovelSource || config.novel.title.trim().length > 0;
+      return titleOk && config.novel.source.trim().length > 0;
     }
     case 2:
       return true; // options always have valid defaults

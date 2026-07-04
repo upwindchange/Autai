@@ -2,7 +2,6 @@ import { type Dispatch, type FC, type ReactNode, type SetStateAction } from "rea
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -104,12 +103,6 @@ const LANG_TOGGLE_ITEMS: {
     labelKey: "options.language.nameLocalization.label",
     tooltipKey: "options.language.nameLocalization.tooltip",
     exampleKey: "options.language.nameLocalization.example",
-  },
-  {
-    key: "classicalToModern",
-    labelKey: "options.language.classicalToModern.label",
-    tooltipKey: "options.language.classicalToModern.tooltip",
-    exampleKey: "options.language.classicalToModern.example",
   },
   {
     key: "dialogueSubject",
@@ -254,9 +247,6 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
   const setCustomInstruction = (value: string) =>
     setConfig((prev) => patchSharedOptions(prev, { customInstruction: value }));
 
-  const setNonNovelSource = (value: boolean) =>
-    setConfig((prev) => patchSharedOptions(prev, { nonNovelSource: value }));
-
   const resetAll = () => {
     setConfig((prev) => {
       const base = patchSharedOptions(prev, {
@@ -287,19 +277,6 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
           {t("options.reset")}
         </Button>
       </div>
-
-      <SectionCard titleKey="options.section.source.title">
-        <SwitchRow
-          idBase="ent-non-novel"
-          labelKey="options.source.nonNovel.label"
-          tooltip={tip(
-            "options.source.nonNovel.tooltip",
-            "options.source.nonNovel.example",
-          )}
-          checked={config.options.nonNovelSource}
-          onChange={setNonNovelSource}
-        />
-      </SectionCard>
 
       {config.mode === "interactive" && (
         <SectionCard titleKey="options.interactive.frequency.label">
@@ -394,11 +371,12 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
             />
           </div>
           {lang.translate.enabled && (
-            <Input
+            <Textarea
               data-no-enter-advance
               value={lang.targetLanguage}
               onChange={(e) => setTargetLanguage(e.target.value)}
               placeholder={t("options.language.targetLanguage.placeholder")}
+              rows={2}
             />
           )}
         </div>

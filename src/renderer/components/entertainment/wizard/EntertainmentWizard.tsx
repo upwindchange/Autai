@@ -3,6 +3,13 @@ import { useAuiState } from "@assistant-ui/react";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, ChevronLeft } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+} from "@/components/ui/field";
 import { useUiStore } from "@/stores/uiStore";
 import { useChaptersStore } from "@/stores/chaptersStore";
 import { toFileTransfer } from "@/lib/fileTransfer";
@@ -32,6 +39,9 @@ export const EntertainmentWizard: FC = () => {
   const [pendingFile, setPendingFile] = useState<File | undefined>(undefined);
   const [step, setStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
+  // Legal acknowledgment — UI-only (not sent to the backend or persisted). Gates
+  // forward navigation to reduce the author's legal exposure.
+  const [agreed, setAgreed] = useState(false);
 
   const isLast = step === STEPS - 1;
 
@@ -61,7 +71,7 @@ export const EntertainmentWizard: FC = () => {
   };
 
   const advance = () => {
-    if (!isStepValid(step, config) || submitted) return;
+    if (!isStepValid(step, config) || submitted || !agreed) return;
     if (isLast) {
       void submit();
     } else {
@@ -135,6 +145,28 @@ export const EntertainmentWizard: FC = () => {
       )}
       {step === 2 && <StepOptions config={config} setConfig={setConfig} />}
 
+      {/* Legal acknowledgment — required to advance. UI-only: not sent to the
+          backend or persisted. Gates forward navigation on every step. */}
+      <div className="rounded-lg border bg-card px-4 py-3">
+        <Field orientation="horizontal">
+          <Checkbox
+            id="ent-terms"
+            checked={agreed}
+            onCheckedChange={(v) => setAgreed(v === true)}
+          />
+          <FieldContent>
+            <FieldLabel
+              htmlFor="ent-terms"
+              className="cursor-pointer text-sm font-medium"
+            >
+              <span>{t("terms.label")}</span>
+              <span className="text-destructive">*</span>
+            </FieldLabel>
+            <FieldDescription>{t("terms.body")}</FieldDescription>
+          </FieldContent>
+        </Field>
+      </div>
+
       <div className="flex items-center gap-2">
         {step > 0 && (
           <Button
@@ -150,7 +182,7 @@ export const EntertainmentWizard: FC = () => {
         <Button
           type="button"
           onClick={advance}
-          disabled={!valid || submitted}
+          disabled={!valid || submitted || !agreed}
           className="self-start"
         >
           {isLast ? t("nav.start") : t("nav.next")}
