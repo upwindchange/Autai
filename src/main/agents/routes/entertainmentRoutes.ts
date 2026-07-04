@@ -14,7 +14,6 @@ import {
   decodeNovelFile,
   ingestFileNovel,
 } from "@agents/workers/entertainmentWorker/chapterParser";
-import { INTERNET_STUB_FINAL_CHAPTER } from "@agents/workers/entertainmentWorker/internetFetch";
 import { deriveChapterPhase, EntertainmentConfigSchema } from "@shared";
 import log from "electron-log/main";
 
@@ -93,12 +92,9 @@ entertainmentRoutes.post("/threads/:threadId/setup", async (c) => {
       return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
     }
     applyConfig(threadId, parsed.data.config);
-    // Internet stub declares its book length up front (feature 5). A real
-    // fetcher will set finalChapterNumber itself when it discovers the end.
-    entertainmentService.setFinalChapterNumber(
-      threadId,
-      INTERNET_STUB_FINAL_CHAPTER,
-    );
+    // The internet fetcher discovers the book's final chapter during the crawl
+    // (phase 1's FinalChapterError when no next chapter is found), so no
+    // finalChapterNumber is set up front.
     return c.json({ ok: true }, 202);
   } catch (error) {
     logger.error("Error in setup:", error);

@@ -181,6 +181,11 @@ export const sourceChapters = sqliteTable(
     chapterNumber: integer("chapter_number").notNull(),
     title: text("title"),
     content: text("content"), // 原文 (raw source text); null while status='fetching'
+    // Real post-redirect URL of this chapter's page (internet novels only).
+    // Written by the internet-fetcher's phase-1 `landHere` tool — captured from
+    // the live WebContentsView (webContents.getURL()), never parsed from href —
+    // so it survives redirects. Read back only on the restart-recovery path.
+    url: text("url"),
     status: text("status")
       .notNull()
       .default("fetching")

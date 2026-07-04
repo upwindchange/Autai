@@ -1,49 +1,146 @@
+import { streamText, stepCountIs, tool } from "ai";
+import { z } from "zod";
 import log from "electron-log/main";
+import { complexModel } from "@agents/providers";
+import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
+import { settingsService, entertainmentService } from "@/services";
 import type { DehydrateBasic, DehydrateConfig, DehydrateDepth } from "@shared";
 
 const logger = log.scope("Dehydrate:Rewriter");
 
-/** Per-step stub work duration (simulates rewrite-agent latency). */
-const STUB_DELAY_MS = 2500;
-
-const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/** Terminal status the rewrite agent reports back to the scheduler. */
+export type RewriteOutcome = "rewritten" | "error";
 
 /**
- * STUB rewrite. The real rewrite agent will transform 原文 → 重写 prose
- * according to the dehydrate options. For now both the file and internet routes
- * share this stub: it logs the real wizard-configured options (so the e2e test
- * can confirm they flow through), then prepends a single deterministic banner
- * to the source text to mark the chapter as rewritten. The banner is kept
- * stable (no `Date.now()`/random) so the output is reproducible.
+ * `saveRewrittenContent` — the rewrite agent's single terminal tool. The agent
+ * calls it once with the fully rewritten chapter prose; execute writes that
+ * prose + the `"rewritten"` status to `rewritten_chapters(N)` in one shot.
+ * `threadId` / `chapterNumber` arrive via `experimental_context` (zero-token —
+ * never in the prompt). `hasSuccessfulToolResult("saveRewrittenContent")` then
+ * stops the stream, so this single tool call both persists the result and
+ * terminates the agent.
+ */
+const saveRewrittenContentTool = tool({
+  description:
+    "Call this with the fully rewritten chapter prose. Saves the rewritten text and marks the chapter done.",
+  inputSchema: z.object({
+    content: z
+      .string()
+      .min(1)
+      .describe("The full rewritten chapter prose, prose only."),
+  }),
+  execute: async (input, { experimental_context }) => {
+    const ctx = experimental_context as { threadId: string; chapterNumber: number };
+    entertainmentService.updateRewrittenChapter(ctx.threadId, ctx.chapterNumber, {
+      content: input.content,
+      status: "rewritten",
+    });
+    logger.info("rewritten content saved", {
+      threadId: ctx.threadId,
+      chapterNumber: ctx.chapterNumber,
+      contentLen: input.content.length,
+    });
+    return { saved: true };
+  },
+});
+
+/**
+ * Rewrite one chapter's 原文 → 重写 via a single-shot agent. Owns its own
+ * `rewritten_chapters` row lifecycle end to end: marks `"rewriting"` up front
+ * (inserting a fresh row or resetting a stale one), runs the agent under the
+ * constructed system prompt, and the agent's terminal tool dumps the rewritten
+ * prose + the `"rewritten"` status directly to the DB. On hard failure
+ * (timeout/abort/network) or step exhaustion without a save, the row is marked
+ * `"error"`. Returns the terminal status so the scheduler can branch without
+ * touching the DB itself.
  *
- * `options` is the dehydrate options block — `{ basic, depth, customInstruction }`
- * — i.e. `DehydrateConfig["options"]`.
+ * The source text is re-read here (not passed in): on the internet path phase
+ * 2's tool just wrote it during fetch, so the scheduler's in-memory copy would
+ * be stale.
  */
 export async function rewriteChapter(
-  sourceText: string,
+  threadId: string,
+  chapterNumber: number,
   options: DehydrateConfig["options"],
-): Promise<string> {
-  logger.info("rewrite options", {
-    sourceLen: sourceText.length,
-    ...options,
-  });
-  await delay(STUB_DELAY_MS);
-  const banner =
-    "> ▸ 这是重写版（stub：在原文前注入本段以标注该章节已被重写）。\n\n";
-  return `${banner}${sourceText}`;
+  signal?: AbortSignal,
+): Promise<RewriteOutcome> {
+  // Own the rewrite-row lifecycle: mark in-progress (insert fresh or reset stale).
+  const existing = entertainmentService.getRewrittenChapter(threadId, chapterNumber);
+  if (!existing) {
+    entertainmentService.insertRewrittenChapter({
+      threadId,
+      chapterNumber,
+      status: "rewriting",
+    });
+  } else {
+    entertainmentService.updateRewrittenChapter(threadId, chapterNumber, {
+      status: "rewriting",
+    });
+  }
+
+  const sourceText =
+    entertainmentService.getSourceChapter(threadId, chapterNumber)?.content ?? "";
+
+  logger.info("rewriting", { threadId, chapterNumber, sourceLen: sourceText.length });
+
+  try {
+    const result = streamText({
+      model: complexModel(),
+      system: buildRewriteSystemPrompt(options),
+      messages: [{ role: "user", content: sourceText }],
+      tools: {
+        saveRewrittenContent: saveRewrittenContentTool,
+      },
+      toolChoice: { type: "tool", toolName: "saveRewrittenContent" },
+      stopWhen: [hasSuccessfulToolResult("saveRewrittenContent"), stepCountIs(3)],
+      maxRetries: settingsService.settings.maxRetries,
+      timeout: TIMEOUTS.chat,
+      abortSignal: signal,
+      experimental_context: { threadId, chapterNumber },
+      experimental_telemetry: {
+        isEnabled: settingsService.settings.langfuse.enabled,
+        functionId: "entertainment-rewriter",
+        metadata: { threadId, chapterNumber },
+      },
+    });
+
+    const steps = await result.steps;
+    const saved = steps
+      .flatMap((s) => s.toolResults ?? [])
+      .some(
+        (tr) => tr.toolName === "saveRewrittenContent" && tr.type === "tool-result",
+      );
+    if (saved) {
+      entertainmentService.touchThread(threadId);
+      logger.info("chapter rewritten", { threadId, chapterNumber });
+      return "rewritten";
+    }
+    // Step exhaustion without a save → terminal error.
+    logger.error("rewrite ended without saving", { threadId, chapterNumber });
+    entertainmentService.updateRewrittenChapter(threadId, chapterNumber, {
+      status: "error",
+    });
+    return "error";
+  } catch (err) {
+    logger.error("rewrite failed", { threadId, chapterNumber, err });
+    entertainmentService.updateRewrittenChapter(threadId, chapterNumber, {
+      status: "error",
+    });
+    return "error";
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Rewrite system-prompt builder
 //
-// Constructs the Chinese system prompt for the (future, real) rewrite agent
-// from the wizard options. Pure/deterministic (no Date/random). Built by
-// injection: every enabled feature contributes its piece, disabled features
-// are silent (no "don't do X" noise). Each strength aspect enumerates all
-// three levels and names the chosen one, so the model has a calibrated sense
-// of the dial and never wonders which strength to apply. `customInstruction`
-// is appended only when non-empty. Not wired into the stub `rewriteChapter`
-// above — exported so it is ready to thread into the real call.
+// Constructs the Chinese system prompt for the rewrite agent from the wizard
+// options. Pure/deterministic (no Date/random). Built by injection: every
+// enabled feature contributes its piece, disabled features are silent (no
+// "don't do X" noise). Each strength aspect enumerates all three levels and
+// names the chosen one, so the model has a calibrated sense of the dial and
+// never wonders which strength to apply. `customInstruction` is appended only
+// when non-empty. Wired into `rewriteChapter` above as the agent's system
+// prompt.
 // ---------------------------------------------------------------------------
 
 const LEVEL_LABEL = { 1: "轻", 2: "中", 3: "重" } as const;
@@ -95,9 +192,9 @@ const DEPTH_ASPECTS: Record<keyof DehydrateDepth, DepthAspectText> = {
     label: "脱水提速",
     desc: "给注水内容脱水，砍掉冗余动作、重复描写和水字数，让剧情推进更快。",
     levels: {
-      1: "只删明显重复的与明显水字数的内容。",
-      2: "把“沿着走廊走着走着”这类三段冗余压成一句到位的描写。",
-      3: "大刀阔斧地精简，凡不推动剧情或不塑造人物的描写一律压缩。",
+      1: "只删明显重复的与明显水字数的内容，不删除内容走向和基本剧情。",
+      2: "精炼水字数的剧情，保留但是显著加快内容，使描写更加精炼，显著提升阅读体验。",
+      3: "完全删除有水字数特性的内容，把被删除的剧情高度精炼概括，概括越短越好。",
     },
   },
   sceneEnhance: {
@@ -219,7 +316,7 @@ export function buildRewriteSystemPrompt(
     langItems.push(
       tgt ?
         `- 本地化姓名：把人名、地名改成符合「${tgt}」阅读习惯的写法，治好拗口的音译名。`
-      : "- 本地化姓名：把拗口的人名、地名改成更易读好记、符合目标语言阅读习惯的写法。",
+      : "- 本地化姓名：把拗口的人名、地名改成更易读好记、符合输出语言阅读习惯的写法。",
     );
   }
   if (language.dialogueSubject.enabled) {

@@ -210,7 +210,14 @@ class DehydrateScheduler {
       .finally(() => w.inFlight.delete(c));
   }
 
-  /** One chapter, serial per thread: acquire 原文 (internet only) → rewrite 重写. */
+  /**
+   * One chapter, serial per thread: acquire 原文 (internet only) → rewrite 重写.
+   * The scheduler does NO DB writes — it only reads (to make scheduling
+   * decisions) and branches on the status each worker reports back. The fetcher
+   * owns the source-row lifecycle + final-chapter bookkeeping; the rewriter
+   * owns the rewrite-row lifecycle + content. Both persist their own terminal
+   * status, so this just decides whether to proceed to the next phase.
+   */
   private async processChapter(threadId: string, c: number): Promise<void> {
     const config = entertainmentService.getParsedConfig(threadId);
     if (!config) {
@@ -230,16 +237,28 @@ class DehydrateScheduler {
       });
       return;
     }
+    // Execution-time final cap: the lookahead enqueues [N..N+10] before the
+    // book's end is known, so chapters past the discovered final can still be
+    // dequeued. Skip them here. This is also what cancels the loop once the
+    // fetcher reports the final chapter: finalChapterNumber is then set, every
+    // surplus queued chapter returns here, and future ensure() windows are capped.
+    const finalCap = entertainmentService.getFinalChapterNumber(threadId);
+    if (finalCap != null && c > finalCap) {
+      logger.debug("skip — past final chapter", { threadId, c, finalCap });
+      return;
+    }
+
     logger.info("processing chapter", {
       threadId,
       chapterNumber: c,
       novelType: config.novel.type,
     });
 
-    // 1) Acquire 原文. Internet: fetch on demand (stub). File: already ingested
-    //    as 'fetched' — if no row, the chapter is beyond the file end (skip).
-    //    Failure (throw) → terminal "error" status; only retryFailed() re-runs it.
-    let source = entertainmentService.getSourceChapter(threadId, c);
+    // 1) Acquire 原文. Internet only — file chapters are pre-ingested as
+    //    'fetched', so a missing row means the file's end (skip). The fetcher
+    //    owns its row lifecycle + final-chapter handling and reports status:
+    //    "fetched" → proceed to rewrite; "finalChapter" | "error" → stop.
+    const source = entertainmentService.getSourceChapter(threadId, c);
     if (!source || source.status !== "fetched") {
       if (config.novel.type !== "internet") {
         logger.debug("skip acquire — no source row (file end)", {
@@ -248,86 +267,17 @@ class DehydrateScheduler {
         });
         return; // file: nothing to acquire
       }
-      logger.info("acquiring source", { threadId, chapterNumber: c });
-      try {
-        // Mark in-progress: insert a fresh row, or reset an existing
-        // errored/stuck one so a retry shows `loading` (not a stale `error`).
-        if (!source) {
-          entertainmentService.insertSourceChapter({
-            threadId,
-            chapterNumber: c,
-            status: "fetching",
-          });
-        } else {
-          entertainmentService.updateSourceChapter(threadId, c, {
-            status: "fetching",
-          });
-        }
-        const text = await fetchInternetChapter(config.novel, c);
-        entertainmentService.updateSourceChapter(threadId, c, {
-          status: "fetched",
-          content: text,
-        });
-        source = entertainmentService.getSourceChapter(threadId, c);
-        logger.info("source acquired", {
-          threadId,
-          chapterNumber: c,
-          contentLen: text.length,
-        });
-      } catch (err) {
-        logger.error("source acquire failed", { threadId, chapterNumber: c, err });
-        entertainmentService.updateSourceChapter(threadId, c, {
-          status: "error",
-        });
-        return; // no source → don't attempt rewrite
-      }
+      const outcome = await fetchInternetChapter(config.novel, c, {
+        threadId,
+        nonNovelSource: config.options.nonNovelSource,
+      });
+      if (outcome !== "fetched") return; // finalChapter | error → no rewrite
     }
 
-    // 2) Rewrite — auto-triggered by source-fill (point 6). Same prepend stub
-    //    for both file and internet routes. Failure → terminal "error" status.
-    const rewrite = entertainmentService.getRewrittenChapter(threadId, c);
-    if (!rewrite || rewrite.status !== "rewritten") {
-      logger.info("rewriting", { threadId, chapterNumber: c });
-      try {
-        // Mark in-progress: insert a fresh row, or reset an existing
-        // errored/stuck one so a retry shows `syncing` (not a stale `error`).
-        if (!rewrite) {
-          entertainmentService.insertRewrittenChapter({
-            threadId,
-            chapterNumber: c,
-            status: "rewriting",
-          });
-        } else {
-          entertainmentService.updateRewrittenChapter(threadId, c, {
-            status: "rewriting",
-          });
-        }
-        const rewritten = await rewriteChapter(
-          source?.content ?? "",
-          config.options,
-        );
-        entertainmentService.updateRewrittenChapter(threadId, c, {
-          status: "rewritten",
-          content: rewritten,
-        });
-        entertainmentService.touchThread(threadId);
-        logger.info("chapter rewritten", {
-          threadId,
-          chapterNumber: c,
-          contentLen: rewritten.length,
-        });
-      } catch (err) {
-        logger.error("rewrite failed", { threadId, chapterNumber: c, err });
-        entertainmentService.updateRewrittenChapter(threadId, c, {
-          status: "error",
-        });
-      }
-    } else {
-      logger.debug("chapter already rewritten", {
-        threadId,
-        chapterNumber: c,
-      });
-    }
+    // 2) Rewrite — the rewriter owns its row + content and reports a terminal
+    //    status; there is no further phase to branch on, so the outcome is the
+    //    chapter's terminal state in the DB.
+    await rewriteChapter(threadId, c, config.options);
   }
 }
 

@@ -98,6 +98,7 @@ class EntertainmentService {
       status?: SourceChapterStatus;
       content?: string | null;
       title?: string | null;
+      url?: string | null;
     },
   ): void {
     const db = getDb();
@@ -107,6 +108,33 @@ class EntertainmentService {
         and(
           eq(sourceChapters.threadId, threadId),
           eq(sourceChapters.chapterNumber, chapterNumber),
+        ),
+      )
+      .run();
+  }
+
+  /**
+   * Delete a source row (and any same-number rewrite row), scoped by
+   * (threadId, chapterNumber). Used only by the dehydrate scheduler's
+   * `FinalChapterError` path to remove the phantom row for a chapter that
+   * turned out not to exist (the advance path couldn't find a next chapter →
+   * the previous chapter was the last). Cascade-safe and idempotent.
+   */
+  deleteSourceChapter(threadId: string, chapterNumber: number): void {
+    const db = getDb();
+    db.delete(sourceChapters)
+      .where(
+        and(
+          eq(sourceChapters.threadId, threadId),
+          eq(sourceChapters.chapterNumber, chapterNumber),
+        ),
+      )
+      .run();
+    db.delete(rewrittenChapters)
+      .where(
+        and(
+          eq(rewrittenChapters.threadId, threadId),
+          eq(rewrittenChapters.chapterNumber, chapterNumber),
         ),
       )
       .run();
