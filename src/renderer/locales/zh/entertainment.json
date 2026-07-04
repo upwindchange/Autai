@@ -78,6 +78,7 @@
   "options.source.nonNovel.example": "例如把一篇连载的天涯长帖，或一串来回的邮件，整理成一本有章节、能顺畅读下去的书。",
 
   "options.language.targetLanguage.placeholder": "一句翻译指示，例如「文言文翻译成白话文」；或直接写目标语言，例如简体中文、English、日本語、한국어。",
+  "options.language.targetLanguage.label": "翻译指示或目标语言",
   "options.language.translate.label": "翻译",
   "options.language.translate.tooltip": "开启后，按你填写的翻译指示或目标语言，把整本小说翻译过来。大多数读者用不上——能直接读原文就保持关闭。",
   "options.language.translate.example": "例如把一本俄文小说译成中文，故事本身不丢味。",

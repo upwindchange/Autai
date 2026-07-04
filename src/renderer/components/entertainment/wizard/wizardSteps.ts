@@ -236,8 +236,16 @@ export function isStepValid(
         config.options.nonNovelSource || config.novel.title.trim().length > 0;
       return titleOk && config.novel.source.trim().length > 0;
     }
-    case 2:
-      return true; // options always have valid defaults
+    case 2: {
+      // Options always have valid defaults, except the translation target
+      // language — required when translate is on, because the rewrite prompt
+      // assumes a non-empty target and skips the empty-target path.
+      const { translate, targetLanguage } = config.options.language;
+      if (translate.enabled && targetLanguage.trim().length === 0) {
+        return false;
+      }
+      return true;
+    }
     default:
       return false;
   }

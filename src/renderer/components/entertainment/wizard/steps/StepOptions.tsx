@@ -371,13 +371,20 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
             />
           </div>
           {lang.translate.enabled && (
-            <Textarea
-              data-no-enter-advance
-              value={lang.targetLanguage}
-              onChange={(e) => setTargetLanguage(e.target.value)}
-              placeholder={t("options.language.targetLanguage.placeholder")}
-              rows={2}
-            />
+            <>
+              <Label htmlFor="ent-lang-target" className="text-sm font-medium">
+                <span>{t("options.language.targetLanguage.label")}</span>
+                <span className="text-destructive">*</span>
+              </Label>
+              <Textarea
+                id="ent-lang-target"
+                data-no-enter-advance
+                value={lang.targetLanguage}
+                onChange={(e) => setTargetLanguage(e.target.value)}
+                placeholder={t("options.language.targetLanguage.placeholder")}
+                rows={2}
+              />
+            </>
           )}
         </div>
         {LANG_TOGGLE_ITEMS.map((item) => (
