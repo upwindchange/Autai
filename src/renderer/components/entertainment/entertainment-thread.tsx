@@ -61,6 +61,10 @@ export const EntertainmentThread: FC = () => {
   const setPosition = useChaptersStore((s) => s.setPosition);
   const ensureWorker = useChaptersStore((s) => s.ensureWorker);
   const setCurrentChapter = useChaptersStore((s) => s.setCurrentChapter);
+  // Last fetch error (chapter list or detail) — when set, the backend is/was
+  // unreachable, which is otherwise indistinguishable from "still fetching".
+  const fetchError = useChaptersStore((s) => s.error);
+  const { t } = useTranslation("reader");
 
   const viewportRef = useRef<HTMLDivElement>(null);
   // Common ancestor of BOTH the reading viewport and the ReaderFooter overlay.
@@ -296,6 +300,14 @@ export const EntertainmentThread: FC = () => {
             // max-width (increase the margin to narrow the text).
             style={{ paddingInline: "min(var(--reader-margin, 12rem), 40vw)" }}
           >
+            {fetchError && currentChapterNumber != null && (
+              // A fetch failure (backend unreachable / 5xx / auth) would
+              // otherwise look identical to the "fetching" spinner. Surface it
+              // so the reader knows the load failed, not that it's slow.
+              <p className="mx-auto mb-6 rounded-md bg-destructive/10 px-3 py-1.5 text-center text-sm text-destructive">
+                {t("reader.fetch.error")}
+              </p>
+            )}
             {currentChapterNumber != null && (
               <div
                 data-slot="aui_message-group"

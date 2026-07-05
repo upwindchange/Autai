@@ -133,6 +133,13 @@ entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
     // One-time ingestion. Guard against double-upload for an existing thread.
     if (entertainmentService.listSourceChapters(threadId).length === 0) {
       const decoded = decodeNovelFile({ fsPath, base64: fileBytesBase64 });
+      // Reject an empty file before it becomes a single garbage chapter: an
+      // empty decode would fall through to parseChapters' "no headings → one
+      // chapter" branch, yielding an empty chapter that the rewriter then
+      // hallucinates content for. Bail as a 400 before any DB write / LLM call.
+      if (!decoded.trim()) {
+        return c.json({ error: "The file is empty" }, 400);
+      }
       const count = ingestFileNovel(threadId, config.novel, decoded);
       entertainmentService.setLastReadChapterNumber(threadId, 1);
       // Feature 4: a file's final chapter is the parsed count (known at ingest).

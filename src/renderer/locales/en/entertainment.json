@@ -4,6 +4,8 @@
   "nav.back": "Back",
   "nav.next": "Next",
   "nav.start": "Start",
+  "wizard.error.emptyFile": "That file is empty.",
+  "wizard.error.failed": "Couldn't start — please try again.",
   "step.0.title": "Style",
   "step.1.title": "Story",
   "step.2.title": "Options",

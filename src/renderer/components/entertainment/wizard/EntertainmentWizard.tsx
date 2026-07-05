@@ -42,32 +42,49 @@ export const EntertainmentWizard: FC = () => {
   // Legal acknowledgment — UI-only (not sent to the backend or persisted). Gates
   // forward navigation to reduce the author's legal exposure.
   const [agreed, setAgreed] = useState(false);
+  // Submission error surfaced inline (empty file, backend unreachable, …).
+  // Set on failure; cleared at the start of the next submit attempt.
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const isLast = step === STEPS - 1;
 
   const submit = async () => {
     if (submitted || !mainThreadId) return;
+    setSubmitError(null);
     // Keep sessionId aligned with the active thread (mirrors the old start form).
     useUiStore.getState().setSessionId(mainThreadId);
     const store = useChaptersStore.getState();
-    // File: send fsPath (or base64) so the BACKEND detects encoding + ingests.
-    // Internet: just save config; acquisition starts when the reader polls ch1.
-    if (config.novel.type === "file") {
-      if (!pendingFile) return;
-      const transfer = await toFileTransfer({
-        fsPath: config.novel.fsPath,
-        file: pendingFile,
-      });
-      await store.uploadFile(mainThreadId, config, transfer);
-    } else {
-      await store.setupInternet(mainThreadId, config);
+    try {
+      // File: send fsPath (or base64) so the BACKEND detects encoding + ingests.
+      // Internet: just save config; acquisition starts when the reader polls ch1.
+      if (config.novel.type === "file") {
+        if (!pendingFile) return;
+        // Fail fast on an empty file client-side. Otherwise the upload either
+        // 400s at the backend (the throw is unhandled here, so it'd vanish) or
+        // — if a guard ever regressed — become a hallucinated garbage chapter.
+        if (pendingFile.size === 0) {
+          setSubmitError(t("wizard.error.emptyFile"));
+          return;
+        }
+        const transfer = await toFileTransfer({
+          fsPath: config.novel.fsPath,
+          file: pendingFile,
+        });
+        await store.uploadFile(mainThreadId, config, transfer);
+      } else {
+        await store.setupInternet(mainThreadId, config);
+      }
+      // Load novelType (+ all chapters for file) so canGoNext + the reader work.
+      await store.loadChapters(mainThreadId);
+      store.setCurrentChapter(1);
+      void store.setPosition(mainThreadId, 1);
+      void store.ensureWorker(mainThreadId, 1);
+      setSubmitted(true);
+    } catch {
+      // httpClient throws a status-only Error (no backend message), so a single
+      // generic retry prompt is the best we can surface here.
+      setSubmitError(t("wizard.error.failed"));
     }
-    // Load novelType (+ all chapters for file) so canGoNext + the reader work.
-    await store.loadChapters(mainThreadId);
-    store.setCurrentChapter(1);
-    void store.setPosition(mainThreadId, 1);
-    void store.ensureWorker(mainThreadId, 1);
-    setSubmitted(true);
   };
 
   const advance = () => {
@@ -166,6 +183,10 @@ export const EntertainmentWizard: FC = () => {
           </FieldContent>
         </Field>
       </div>
+
+      {submitError && (
+        <p className="text-center text-sm text-destructive">{submitError}</p>
+      )}
 
       <div className="flex items-center gap-2">
         {step > 0 && (

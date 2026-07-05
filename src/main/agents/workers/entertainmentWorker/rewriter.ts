@@ -12,17 +12,19 @@ const logger = log.scope("Dehydrate:Rewriter");
 export type RewriteOutcome = "rewritten" | "error";
 
 /**
- * `saveRewrittenContent` — the rewrite agent's single terminal tool. The agent
- * calls it once with the fully rewritten chapter prose; execute writes that
- * prose + the `"rewritten"` status to `rewritten_chapters(N)` in one shot.
- * `threadId` / `chapterNumber` arrive via `experimental_context` (zero-token —
- * never in the prompt). `hasSuccessfulToolResult("saveRewrittenContent")` then
- * stops the stream, so this single tool call both persists the result and
- * terminates the agent.
+ * `outputProcessedContent` — the rewrite agent's terminal tool and the ONLY way
+ * it delivers the result. The agent calls it once with the fully rewritten
+ * chapter prose; execute writes that prose + the `"rewritten"` status to
+ * `rewritten_chapters(N)` in one shot, and `hasSuccessfulToolResult` then stops
+ * the stream — so this single tool call both persists the result and terminates
+ * the agent. `threadId` / `chapterNumber` arrive via `experimental_context`
+ * (zero-token — never in the prompt). Named as an output verb so the model
+ * reads it as "this is how I hand back the rewritten text", not a side-effect
+ * save it might skip in favor of plain-text output.
  */
-const saveRewrittenContentTool = tool({
+const outputProcessedContentTool = tool({
   description:
-    "Call this with the fully rewritten chapter prose. Saves the rewritten text and marks the chapter done.",
+    "The ONLY way to deliver the rewritten chapter — call this with the full rewritten prose as `content`. Do NOT output the prose as plain text; it must go through this tool. Saves the text and marks the chapter done.",
   inputSchema: z.object({
     content: z
       .string()
@@ -35,7 +37,7 @@ const saveRewrittenContentTool = tool({
       content: input.content,
       status: "rewritten",
     });
-    logger.info("rewritten content saved", {
+    logger.info("processed content output", {
       threadId: ctx.threadId,
       chapterNumber: ctx.chapterNumber,
       contentLen: input.content.length,
@@ -45,14 +47,68 @@ const saveRewrittenContentTool = tool({
 });
 
 /**
+ * Reinforcement appended to the system prompt on the one-shot retry when the
+ * agent stopped without calling `outputProcessedContent`. Tells the model
+ * plainly why its first attempt was rejected (plain-text output is discarded)
+ * and that it must hand the prose back through the tool.
+ */
+const RETRY_SUFFIX = `
+
+## ⚠ 上一次提交无效，必须重新通过工具提交
+你上一次的响应没有调用 outputProcessedContent 工具，而是直接以普通文本形式停止了输出——普通文本不会被采纳，结果无效。现在请重新提交：调用 outputProcessedContent 工具，把重写后的完整正文放入 content 参数。不要输出纯文本，也不要在工具调用之外书写任何正文。`;
+
+/**
+ * Run one rewrite-agent pass under `systemPrompt`. Returns whether the agent
+ * called `outputProcessedContent` (the tool's execute already wrote the result
+ * to the DB on success). Forced `toolChoice` + `hasSuccessfulToolResult` make
+ * the tool call the agent's terminal step; some models still ignore the forced
+ * tool and stop on plain text — that's recovered by the caller's one-shot retry
+ * with `RETRY_SUFFIX`, not by this helper.
+ */
+async function runRewriteAgent(
+  systemPrompt: string,
+  sourceText: string,
+  threadId: string,
+  chapterNumber: number,
+  signal?: AbortSignal,
+): Promise<boolean> {
+  const result = streamText({
+    model: complexModel(),
+    system: systemPrompt,
+    messages: [{ role: "user", content: sourceText }],
+    tools: {
+      outputProcessedContent: outputProcessedContentTool,
+    },
+    toolChoice: { type: "tool", toolName: "outputProcessedContent" },
+    stopWhen: [hasSuccessfulToolResult("outputProcessedContent"), stepCountIs(3)],
+    maxRetries: settingsService.settings.maxRetries,
+    timeout: TIMEOUTS.chat,
+    abortSignal: signal,
+    experimental_context: { threadId, chapterNumber },
+    experimental_telemetry: {
+      isEnabled: settingsService.settings.langfuse.enabled,
+      functionId: "entertainment-rewriter",
+      metadata: { threadId, chapterNumber },
+    },
+  });
+  const steps = await result.steps;
+  return steps
+    .flatMap((s) => s.toolResults ?? [])
+    .some(
+      (tr) => tr.toolName === "outputProcessedContent" && tr.type === "tool-result",
+    );
+}
+
+/**
  * Rewrite one chapter's 原文 → 重写 via a single-shot agent. Owns its own
- * `rewritten_chapters` row lifecycle end to end: marks `"rewriting"` up front
- * (inserting a fresh row or resetting a stale one), runs the agent under the
- * constructed system prompt, and the agent's terminal tool dumps the rewritten
- * prose + the `"rewritten"` status directly to the DB. On hard failure
- * (timeout/abort/network) or step exhaustion without a save, the row is marked
- * `"error"`. Returns the terminal status so the scheduler can branch without
- * touching the DB itself.
+ * `rewritten_chapters` row lifecycle end to end: marks `"rewriting"` up front,
+ * runs the agent under the constructed system prompt (whose output contract
+ * requires delivering the prose via `outputProcessedContent`, never as plain
+ * text), and the tool dumps the rewritten prose + the `"rewritten"` status to
+ * the DB. If the agent ignores the forced tool and stops on plain text, one
+ * retry runs with a reinforced prompt (`RETRY_SUFFIX`) explaining the failure.
+ * On a second failure or a hard error the row is marked `"error"`. Returns the
+ * terminal status so the scheduler can branch without touching the DB itself.
  *
  * The source text is re-read here (not passed in): on the internet path phase
  * 2's tool just wrote it during fetch, so the scheduler's in-memory copy would
@@ -83,40 +139,39 @@ export async function rewriteChapter(
 
   logger.info("rewriting", { threadId, chapterNumber, sourceLen: sourceText.length });
 
+  const basePrompt = buildRewriteSystemPrompt(options);
   try {
-    const result = streamText({
-      model: complexModel(),
-      system: buildRewriteSystemPrompt(options),
-      messages: [{ role: "user", content: sourceText }],
-      tools: {
-        saveRewrittenContent: saveRewrittenContentTool,
-      },
-      toolChoice: { type: "tool", toolName: "saveRewrittenContent" },
-      stopWhen: [hasSuccessfulToolResult("saveRewrittenContent"), stepCountIs(3)],
-      maxRetries: settingsService.settings.maxRetries,
-      timeout: TIMEOUTS.chat,
-      abortSignal: signal,
-      experimental_context: { threadId, chapterNumber },
-      experimental_telemetry: {
-        isEnabled: settingsService.settings.langfuse.enabled,
-        functionId: "entertainment-rewriter",
-        metadata: { threadId, chapterNumber },
-      },
-    });
-
-    const steps = await result.steps;
-    const saved = steps
-      .flatMap((s) => s.toolResults ?? [])
-      .some(
-        (tr) => tr.toolName === "saveRewrittenContent" && tr.type === "tool-result",
+    let saved = await runRewriteAgent(
+      basePrompt,
+      sourceText,
+      threadId,
+      chapterNumber,
+      signal,
+    );
+    if (!saved) {
+      // The agent stopped without calling the tool (typical: it streamed prose
+      // as plain text). Reinforce the ending condition and retry once.
+      logger.warn("rewrite stopped without outputProcessedContent; retrying once", {
+        threadId,
+        chapterNumber,
+      });
+      saved = await runRewriteAgent(
+        `${basePrompt}${RETRY_SUFFIX}`,
+        sourceText,
+        threadId,
+        chapterNumber,
+        signal,
       );
+    }
     if (saved) {
       entertainmentService.touchThread(threadId);
       logger.info("chapter rewritten", { threadId, chapterNumber });
       return "rewritten";
     }
-    // Step exhaustion without a save → terminal error.
-    logger.error("rewrite ended without saving", { threadId, chapterNumber });
+    logger.error("rewrite ended without calling outputProcessedContent", {
+      threadId,
+      chapterNumber,
+    });
     entertainmentService.updateRewrittenChapter(threadId, chapterNumber, {
       status: "error",
     });
@@ -341,13 +396,17 @@ export function buildRewriteSystemPrompt(
     );
   }
 
-  // Output contract (always on) — closes the brief.
+  // Output contract (always on) — closes the brief. Demands the result be
+  // delivered via the outputProcessedContent tool, never as plain text (plain
+  // text would conflict with the forced tool call and be discarded).
   sections.push(
     [
-      "输出要求：直接输出重写后的本章正文——",
-      "- 不要任何说明、旁注或前后缀，不要重复章节标题或原文；",
+      "输出要求：通过调用 outputProcessedContent 工具提交重写后的本章正文——",
+      "- 把完整的重写正文放在该工具的 content 参数中；",
+      "- content 只含正文本身：不要任何说明、旁注或前后缀，不要重复章节标题或原文；",
       "- 不要使用 Markdown 标题或代码块，保留合理的段落划分；",
-      "- 除明确要求翻译或本地化外，输出语言与原文保持一致。",
+      "- 除明确要求翻译或本地化外，输出语言与原文保持一致；",
+      "- 不要以普通文本形式输出正文——必须通过 outputProcessedContent 工具提交，这是交付结果的唯一方式。",
     ].join("\n"),
   );
 

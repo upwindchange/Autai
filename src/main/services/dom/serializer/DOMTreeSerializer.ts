@@ -432,9 +432,6 @@ export class DOMTreeSerializer implements IDOMTreeSerializer {
     }
 
     if (this._clickableCache.has(node.backendNodeId)) {
-      this.logger.debug(
-        `Cache HIT for interactive detection: backendNodeId=${node.backendNodeId}`,
-      );
       return this._clickableCache.get(node.backendNodeId)!;
     }
 

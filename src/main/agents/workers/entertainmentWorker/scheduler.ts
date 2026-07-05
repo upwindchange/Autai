@@ -8,8 +8,6 @@ const logger = log.scope("Dehydrate:Scheduler");
 
 /** Chapters kept ready ahead of the reader's current position (point 4/7). */
 const LOOKAHEAD = 10;
-/** Hard cap on a single chapter job — bounds stuck jobs so they self-heal. */
-const JOB_TIMEOUT_MS = 5 * 60_000;
 
 interface WorkerLiveness {
   active: boolean;
@@ -44,7 +42,7 @@ class DehydrateScheduler {
     let w = this.workers.get(threadId);
     if (!w) {
       w = {
-        queue: new PQueue({ concurrency: 1, timeout: JOB_TIMEOUT_MS }),
+        queue: new PQueue({ concurrency: 1 }),
         inFlight: new Set(),
         target: 1,
       };
@@ -137,7 +135,9 @@ class DehydrateScheduler {
     const w = this.workerFor(threadId);
     const failed = entertainmentService
       .listChapterProgress(threadId)
-      .filter((ch) => ch.sourceStatus === "error" || ch.rewriteStatus === "error");
+      .filter(
+        (ch) => ch.sourceStatus === "error" || ch.rewriteStatus === "error",
+      );
     let enqueued = 0;
     for (const ch of failed) {
       const n = ch.chapterNumber;

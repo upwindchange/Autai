@@ -6,7 +6,11 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { migrate } from "drizzle-orm/better-sqlite3/migrator";
 import log from "electron-log/main";
-import * as schema from "./schema";
+// Note: schema is not passed to `drizzle()` below. In drizzle-orm v1 the
+// better-sqlite3 config omits `schema` (relational config moved to a separate
+// `relations` field), and this project uses the regular query builder (tables
+// imported directly at each call site), not the `db.query.*` relational API —
+// so nothing here needs schema wiring.
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const logger = log.scope("Database");
@@ -25,7 +29,7 @@ export function initializeDatabase(): void {
   });
   sqlite.pragma("journal_mode = WAL");
 
-  db = drizzle({ client: sqlite, schema });
+  db = drizzle({ client: sqlite });
 
   // Run pending migrations (including FTS5 custom migration)
   migrate(db, { migrationsFolder: path.join(__dirname, "drizzle") });

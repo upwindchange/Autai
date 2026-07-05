@@ -1,11 +1,14 @@
 import { streamText, stepCountIs, tool } from "ai";
 import { z } from "zod";
-import { createIdGenerator } from "@ai-sdk/provider-utils";
 import log from "electron-log/main";
 import { complexModel } from "@agents/providers";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
-import { settingsService, entertainmentService, SessionTabService } from "@/services";
-import { navigateTool } from "@agents/tools/TabControlTools";
+import {
+  settingsService,
+  entertainmentService,
+  SessionTabService,
+  TabControlService,
+} from "@/services";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { clickElementTool } from "@agents/tools/InteractiveTools";
 import { executeSearchQueries } from "@agents/workers/browserWorker/browser-research/search-agent";
@@ -15,7 +18,6 @@ import type { FetchChapterOptions, InternetFetchContext } from "./index";
 import { FinalChapterError } from "./index";
 
 const logger = log.scope("Dehydrate:InternetFetch:Phase1");
-const generateId = createIdGenerator({ prefix: "call", size: 24 });
 
 // --- Terminal tools ---------------------------------------------------------
 
@@ -52,14 +54,25 @@ const landHereTool = tool({
 });
 
 /**
- * `abortChapter` — phase 1's failure terminal. Meaning depends on the path
- * (the orchestrator maps it): on the search path it is a generic "could not
- * land" error; on the advance path it means "no next chapter exists → the
- * previous chapter was the LAST one" (→ `FinalChapterError`).
+ * `rejectCandidate` — the search-path judge's "not this page" terminal. The
+ * orchestrator's candidate loop treats it as "try the next candidate". The
+ * agent never learns the candidate URL; it only sees the loaded page.
+ */
+const rejectCandidateTool = tool({
+  description:
+    "Call this if the current page is NOT the beginning of the target chapter (wrong page, login wall, paywall, recaptcha, age gate, 404/error, homepage, table of contents/index, or a DIFFERENT piece of content).",
+  inputSchema: z.object({ reason: z.string() }),
+  execute: async ({ reason }) => ({ rejected: true, reason }),
+});
+
+/**
+ * `abortChapter` — the advance-path failure terminal. An explicit, confident
+ * abort means no next-chapter link AND no TOC entry exist → the previous
+ * chapter was the LAST one (→ `FinalChapterError`).
  */
 const abortChapterTool = tool({
   description:
-    "Call this only per the prompt's exact abort condition (you could not reach the target chapter). Provide a short reason.",
+    "Call this only per the prompt's exact abort condition (you could not reach the target chapter and are confident no next-chapter link / TOC entry exists). Provide a short reason.",
   inputSchema: z.object({ reason: z.string() }),
   execute: async ({ reason }) => ({ aborted: true, reason }),
 });
@@ -73,6 +86,10 @@ function isAbsoluteUrl(value: string): boolean {
   } catch {
     return false;
   }
+}
+
+function contentLabel(nonNovelSource: boolean, chapterNumber: number): string {
+  return nonNovelSource ? "the post/article" : `chapter ${chapterNumber}`;
 }
 
 /**
@@ -107,11 +124,7 @@ function buildSearchPlan(
   };
 }
 
-function contentLabel(nonNovelSource: boolean, chapterNumber: number): string {
-  return nonNovelSource ? "the post/article" : `chapter ${chapterNumber}`;
-}
-
-function buildSearchSystemPrompt(
+function buildJudgeSystemPrompt(
   novel: InternetNovel,
   chapterNumber: number,
   nonNovelSource: boolean,
@@ -119,22 +132,15 @@ function buildSearchSystemPrompt(
   const label = contentLabel(nonNovelSource, chapterNumber);
   const titlePart = novel.title.trim() || "the requested novel";
   const authorPart = novel.author?.trim() ? ` by ${novel.author.trim()}` : "";
-  return `You are a web-navigation agent controlling a browser via tools. Your goal is to land on the page where a specific piece of content begins.
+  return `You are judging whether the page currently loaded in the browser is the beginning of a specific piece of content.
 
-Target content: ${label} of "${titlePart}"${authorPart}.
+Target: ${label} of "${titlePart}"${authorPart}.
 
-You will be given a list of candidate URLs from a web search. For EACH candidate, in order:
-1. Call navigate with the candidate URL to open it.
-2. Call getFlattenDOM to read the loaded page.
-3. Judge whether THIS page is the actual beginning of the target content's prose. It must be the real content — NOT a search engine, login wall, paywall, recaptcha, age gate, 404/error page, site homepage, table of contents/index, or a DIFFERENT piece of content.
+The page is ALREADY open — do NOT navigate anywhere. Read it with getFlattenDOM, then decide:
+- If the page IS the beginning of ${label}'s actual prose content, call landHere.
+- If it is NOT (a search engine, login wall, paywall, recaptcha, age gate, 404/error page, site homepage, table of contents / index, or a DIFFERENT piece of content), call rejectCandidate with a short reason.
 
-When the page is the beginning of ${label}, call landHere.
-
-If you have checked every candidate and NONE is the target content's beginning (all inaccessible, wrong, or non-content), call abortChapter with a short reason.
-
-Rules:
-- Call landHere ONLY when the page is actually showing the start of ${label}.
-- Use only the tools provided. Do not invent or guess URLs.`;
+Call landHere ONLY when the page is truly showing the start of ${label}'s prose.`;
 }
 
 function buildAdvanceSystemPrompt(
@@ -159,115 +165,190 @@ Rules:
 - Do not call landHere until you are certain you are on chapter ${chapterNumber}'s beginning.`;
 }
 
-// --- Phase 1 entry ----------------------------------------------------------
+// --- Search-path judge (one candidate) --------------------------------------
 
 /**
- * Phase 1 — land the crawl tab on the chapter's beginning + persist the URL +
- * detect finality. One agent loop (tools: navigate, getFlattenDOM, clickElement,
- * landHere, abortChapter). Two paths, picked by chapter number / `useSearch`:
- *   - search  (chapter 1 or a retried errored chapter): build candidates via
- *     `executeSearchQueries` (or `[novel.source]` when it's a URL), then let the
- *     agent probe them.
- *   - advance (normal N>1): from the carried-over tab, click next-chapter / TOC.
- *
- * Recovery: if the advance-path tab isn't on a real page (e.g. after restart),
- * re-navigate to `source_chapters(N-1).url` first — the sole DB-URL read.
- *
- * Outcome: `landHere` writes `url`; on success the tab is left on chapter N's
- * beginning for phase 2. Advance-path `abortChapter` → `FinalChapterError`
- * (N-1 was the last). Anything else throws a generic error.
+ * Run the minimal judge agent against the page already loaded in the crawl tab.
+ * The agent never sees the candidate URL — it only reads the DOM and decides
+ * landHere vs rejectCandidate. Bounded by `stepCountIs(4)` and the agent-level
+ * step timeout; on reject / timeout / exhaustion the caller moves to the next
+ * candidate. Returns true iff `landHere` fired (URL already written by it).
  */
-export async function landOnChapter(
+async function judgeCandidate(
+  novel: InternetNovel,
+  ctx: InternetFetchContext,
+  options: FetchChapterOptions,
+  candidateIndex: number,
+): Promise<boolean> {
+  const label = contentLabel(options.nonNovelSource, ctx.chapterNumber);
+  const result = streamText({
+    model: complexModel(),
+    system: buildJudgeSystemPrompt(
+      novel,
+      ctx.chapterNumber,
+      options.nonNovelSource,
+    ),
+    messages: [
+      {
+        role: "user",
+        content: `Is this page the beginning of ${label}? Read it with getFlattenDOM, then call landHere or rejectCandidate.`,
+      },
+    ],
+    tools: {
+      getFlattenDOM: getFlattenDOMTool,
+      landHere: landHereTool,
+      rejectCandidate: rejectCandidateTool,
+    },
+    stopWhen: [
+      hasSuccessfulToolResult("landHere"),
+      hasSuccessfulToolResult("rejectCandidate"),
+      stepCountIs(4),
+    ],
+    maxRetries: settingsService.settings.maxRetries,
+    timeout: TIMEOUTS.actionExecution,
+    abortSignal: ctx.abortSignal,
+    experimental_context: ctx,
+    experimental_telemetry: {
+      isEnabled: settingsService.settings.langfuse.enabled,
+      functionId: "entertainment-internet-judge",
+      metadata: {
+        threadId: ctx.threadId,
+        chapterNumber: ctx.chapterNumber,
+        candidateIndex,
+      },
+    },
+  });
+  const steps = await result.steps;
+  return steps
+    .flatMap((s) => s.toolResults ?? [])
+    .some((tr) => tr.toolName === "landHere" && tr.type === "tool-result");
+}
+
+/**
+ * Search path — deterministic candidate loop. The orchestrator navigates the
+ * crawl tab to each candidate URL (`TabControlService.navigateTo`), then runs
+ * a minimal judge agent that only reads the page and decides land/reject. This
+ * keeps the candidate URLs out of the agent's context (smaller prompt, faster
+ * convergence) and bounds each judgment to its own agent-level timeout instead
+ * of one giant multi-candidate agent. On `landHere` the loop exits early; on
+ * reject / navigate-failure / timeout it continues to the next candidate.
+ */
+async function landViaSearch(
   novel: InternetNovel,
   ctx: InternetFetchContext,
   options: FetchChapterOptions,
 ): Promise<void> {
-  const useSearch = ctx.chapterNumber === 1 || options.useSearch === true;
-
-  // Recovery (advance path): re-anchor on the previous chapter's URL if the
-  // crawl tab has no real page loaded.
-  if (!useSearch) {
+  // 1) Gather candidates (RAM-only). [novel.source] if it's already a URL;
+  //    otherwise one query via executeSearchQueries in a transient search session.
+  let candidates: string[];
+  if (isAbsoluteUrl(novel.source.trim())) {
+    candidates = [novel.source.trim()];
+  } else {
+    const plan = buildSearchPlan(novel, ctx.chapterNumber);
+    // executeSearchQueries creates/destroys its own tabs in this session, but
+    // SessionTabService only tracks tabs for a session that has been activated
+    // (createTab registers into `sessionStates[sessionId]` only if it exists).
+    // Without activateSession, getTabsForSession returns [] → 0 candidates.
+    const searchSessionId = `ent-search-${ctx.threadId}`;
     const sts = SessionTabService.getInstance();
-    const tab = sts.getTab(ctx.activeTabId);
-    const current =
-      tab?.webContents && !tab.webContents.isDestroyed() ?
-        tab.webContents.getURL()
-      : "";
-    if (!/^https?:\/\//i.test(current)) {
-      const prev = entertainmentService.getSourceChapter(
-        ctx.threadId,
-        ctx.chapterNumber - 1,
-      );
-      const prevUrl = prev?.url;
-      if (!prevUrl) {
-        throw new Error(
-          `No anchor URL for previous chapter ${ctx.chapterNumber - 1}`,
-        );
-      }
-      logger.info("recovery re-anchor", {
-        threadId: ctx.threadId,
-        chapterNumber: ctx.chapterNumber,
-        prevUrl,
-      });
-      await navigateTool.execute!(
-        { url: prevUrl },
-        {
-          toolCallId: generateId(),
-          messages: [],
-          experimental_context: ctx,
-        },
-      );
-    }
-  }
-
-  // Build candidates (search path) + the prompt pair.
-  let userMessage: string;
-  let system: string;
-  if (useSearch) {
-    let candidates: string[];
-    if (isAbsoluteUrl(novel.source.trim())) {
-      candidates = [novel.source.trim()];
-    } else {
-      const plan = buildSearchPlan(novel, ctx.chapterNumber);
+    await sts.activateSession(searchSessionId);
+    try {
       const results = await executeSearchQueries(
         plan,
-        `ent-search-${ctx.threadId}`,
+        searchSessionId,
         "",
         { write() {} },
         undefined,
         ctx.abortSignal,
       );
       candidates = results.map((r) => r.url).filter((u) => !!u);
+    } finally {
+      // Restore the crawl session as active so the crawl tab is visible again.
+      await sts.activateSession(ctx.sessionId);
     }
-    if (candidates.length === 0) {
-      throw new Error(
-        `No candidate URLs found for chapter ${ctx.chapterNumber}`,
-      );
-    }
-    logger.info("search candidates", {
+  }
+  if (candidates.length === 0) {
+    throw new Error(`No candidate URLs found for chapter ${ctx.chapterNumber}`);
+  }
+  logger.info("search candidates", {
+    threadId: ctx.threadId,
+    chapterNumber: ctx.chapterNumber,
+    count: candidates.length,
+  });
+
+  // 2) Probe each candidate deterministically: navigate, then ask the judge.
+  const tcs = TabControlService.getInstance();
+  for (let i = 0; i < candidates.length; i++) {
+    const candidateUrl = candidates[i];
+    logger.debug("probing candidate", {
       threadId: ctx.threadId,
       chapterNumber: ctx.chapterNumber,
-      count: candidates.length,
+      index: i,
+      url: candidateUrl,
     });
-    system = buildSearchSystemPrompt(
-      novel,
-      ctx.chapterNumber,
-      options.nonNovelSource,
+    try {
+      await tcs.navigateTo(ctx.activeTabId, candidateUrl);
+    } catch (err) {
+      logger.warn("navigate to candidate failed; trying next", {
+        index: i,
+        url: candidateUrl,
+        err,
+      });
+      continue;
+    }
+    if (await judgeCandidate(novel, ctx, options, i)) return; // landHere wrote the URL
+  }
+  throw new Error(
+    `Could not land on chapter ${ctx.chapterNumber} (no candidate matched)`,
+  );
+}
+
+/**
+ * Advance path — from the carried-over crawl tab, click next-chapter / TOC to
+ * reach chapter N. Recovery: if the tab isn't on a real page (e.g. after
+ * restart), re-navigate to `source_chapters(N-1).url` first — the sole DB-URL
+ * read. An explicit `abortChapter` → `FinalChapterError` (N-1 was the last);
+ * step exhaustion → generic error (transient, not finality).
+ */
+async function landViaAdvance(
+  novel: InternetNovel,
+  ctx: InternetFetchContext,
+): Promise<void> {
+  const sts = SessionTabService.getInstance();
+  const tab = sts.getTab(ctx.activeTabId);
+  const current =
+    tab?.webContents && !tab.webContents.isDestroyed() ?
+      tab.webContents.getURL()
+    : "";
+  if (!/^https?:\/\//i.test(current)) {
+    const prev = entertainmentService.getSourceChapter(
+      ctx.threadId,
+      ctx.chapterNumber - 1,
     );
-    userMessage = `Candidate URLs (probe them in order):\n${candidates
-      .map((u, i) => `${i + 1}. ${u}`)
-      .join("\n")}\n\nLand on the beginning of ${contentLabel(options.nonNovelSource, ctx.chapterNumber)}.`;
-  } else {
-    system = buildAdvanceSystemPrompt(novel, ctx.chapterNumber);
-    userMessage = `Reach the beginning of chapter ${ctx.chapterNumber} from the current page.`;
+    const prevUrl = prev?.url;
+    if (!prevUrl) {
+      throw new Error(
+        `No anchor URL for previous chapter ${ctx.chapterNumber - 1}`,
+      );
+    }
+    logger.info("recovery re-anchor", {
+      threadId: ctx.threadId,
+      chapterNumber: ctx.chapterNumber,
+      prevUrl,
+    });
+    await TabControlService.getInstance().navigateTo(ctx.activeTabId, prevUrl);
   }
 
   const result = streamText({
     model: complexModel(),
-    system,
-    messages: [{ role: "user", content: userMessage }],
+    system: buildAdvanceSystemPrompt(novel, ctx.chapterNumber),
+    messages: [
+      {
+        role: "user",
+        content: `Reach the beginning of chapter ${ctx.chapterNumber} from the current page.`,
+      },
+    ],
     tools: {
-      navigate: navigateTool,
       getFlattenDOM: getFlattenDOMTool,
       clickElement: clickElementTool,
       landHere: landHereTool,
@@ -276,7 +357,7 @@ export async function landOnChapter(
     stopWhen: [
       hasSuccessfulToolResult("landHere"),
       hasSuccessfulToolResult("abortChapter"),
-      stepCountIs(15),
+      stepCountIs(12),
     ],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.actionExecution,
@@ -285,29 +366,52 @@ export async function landOnChapter(
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "entertainment-internet-land",
-      metadata: {
-        threadId: ctx.threadId,
-        chapterNumber: ctx.chapterNumber,
-        path: useSearch ? "search" : "advance",
-      },
+      metadata: { threadId: ctx.threadId, chapterNumber: ctx.chapterNumber },
     },
   });
 
   const steps = await result.steps;
   const toolResults = steps.flatMap((s) => s.toolResults ?? []);
-  const landed = toolResults.some(
-    (tr) => tr.toolName === "landHere" && tr.type === "tool-result",
-  );
-  if (landed) return; // url already written by landHere
-
+  if (
+    toolResults.some(
+      (tr) => tr.toolName === "landHere" && tr.type === "tool-result",
+    )
+  ) {
+    return; // url already written by landHere
+  }
   const aborted = toolResults.some(
     (tr) => tr.toolName === "abortChapter" && tr.type === "tool-result",
   );
-  if (useSearch) {
-    throw new Error(`Could not land on chapter ${ctx.chapterNumber}`);
-  }
-  // advance path: an explicit, confident abort means N-1 was the last chapter;
-  // step exhaustion (no terminal tool) is a transient failure, not finality.
   if (aborted) throw new FinalChapterError();
   throw new Error(`Could not advance to chapter ${ctx.chapterNumber}`);
+}
+
+// --- Phase 1 entry ----------------------------------------------------------
+
+/**
+ * Phase 1 — land the crawl tab on the chapter's beginning + persist the URL +
+ * detect finality. Two paths, picked by chapter number / `useSearch`:
+ *   - search  (chapter 1 or a retried errored chapter): deterministic candidate
+ *     loop — the orchestrator navigates each candidate via
+ *     `TabControlService.navigateTo` and a minimal judge agent reads + decides
+ *     land/reject (candidates never enter the prompt).
+ *   - advance (normal N>1): one agent loop clicks next-chapter / TOC from the
+ *     carried-over tab.
+ *
+ * Outcome: `landHere` writes `url`; on success the tab is left on chapter N's
+ * beginning for phase 2. Advance-path `abortChapter` → `FinalChapterError`
+ * (N-1 was the last). Anything else throws a generic error. Timeouts live at
+ * the agent level (per `streamText` call), not the scheduler.
+ */
+export async function landOnChapter(
+  novel: InternetNovel,
+  ctx: InternetFetchContext,
+  options: FetchChapterOptions,
+): Promise<void> {
+  const useSearch = ctx.chapterNumber === 1 || options.useSearch === true;
+  if (useSearch) {
+    await landViaSearch(novel, ctx, options);
+  } else {
+    await landViaAdvance(novel, ctx);
+  }
 }

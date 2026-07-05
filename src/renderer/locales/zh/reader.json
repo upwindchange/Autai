@@ -40,6 +40,7 @@
   "reader.chapter.fetching": "正在获取章节…",
   "reader.chapter.rewriting": "正在重写…",
   "reader.chapter.error": "本章加载失败。",
+  "reader.fetch.error": "无法连接到服务。",
   "reader.toc.title": "目录",
   "reader.toc.empty": "暂无目录",
   "reader.bookmarks.title": "书签",

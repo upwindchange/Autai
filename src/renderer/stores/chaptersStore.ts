@@ -8,6 +8,11 @@ import type {
 } from "@shared";
 import { httpClient } from "@/lib/httpClient";
 
+// Pull a short message out of an unknown fetch failure so a failed load isn't
+// indistinguishable from "still processing". Used by both store loaders below.
+const fetchErrorMessage = (err: unknown, fallback: string): string =>
+  err instanceof Error && err.message ? err.message : fallback;
+
 /**
  * Entertainment reader store — the reader's source of truth.
  *
@@ -38,6 +43,10 @@ interface ChaptersState {
   novelType: "file" | "internet" | null;
   finalChapterNumber: number | null;
   loading: boolean;
+  /** Last chapter-list or chapter-detail fetch error, or null when the last
+   * fetch succeeded. Surfaced so a failed load isn't silent (and isn't
+   * misread by `useChapterReadiness` as "still processing"). */
+  error: string | null;
 
   /** Re-read the chapter list (statuses); preserves cached content. */
   loadChapters: (threadId: string) => Promise<void>;
@@ -80,6 +89,7 @@ export const useChaptersStore = create<ChaptersState>()(
     novelType: null,
     finalChapterNumber: null,
     loading: false,
+    error: null,
 
     loadChapters: async (threadId) => {
       set({ loading: true });
@@ -103,10 +113,14 @@ export const useChaptersStore = create<ChaptersState>()(
               return prev ? { ...c, content: prev.content } : { ...c };
             }),
             loading: false,
+            error: null,
           };
         });
-      } catch {
-        set({ loading: false });
+      } catch (err) {
+        set({
+          loading: false,
+          error: fetchErrorMessage(err, "Failed to load chapters"),
+        });
       }
     },
 
@@ -128,10 +142,11 @@ export const useChaptersStore = create<ChaptersState>()(
             : [...state.chapters, merged].sort(
                 (a, b) => a.chapterNumber - b.chapterNumber,
               );
-          return { chapters: next };
+          return { chapters: next, error: null };
         });
         return chapter;
-      } catch {
+      } catch (err) {
+        set({ error: fetchErrorMessage(err, "Failed to load chapter") });
         return undefined;
       }
     },

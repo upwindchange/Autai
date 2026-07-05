@@ -4,6 +4,8 @@
   "nav.back": "上一步",
   "nav.next": "下一步",
   "nav.start": "开始",
+  "wizard.error.emptyFile": "这个文件是空的。",
+  "wizard.error.failed": "无法开始，请重试。",
   "step.0.title": "玩法选择",
   "step.1.title": "提供故事",
   "step.2.title": "微调选项",
