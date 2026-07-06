@@ -1,8 +1,9 @@
 import PQueue from "p-queue";
 import log from "electron-log/main";
-import { entertainmentService } from "@/services";
+import { entertainmentService, threadPersistenceService } from "@/services";
 import { fetchInternetChapter } from "./internetFetch";
 import { rewriteChapter } from "./rewriter";
+import { generateOutlines, skipOutlines } from "./outliner";
 
 const logger = log.scope("Dehydrate:Scheduler");
 
@@ -153,6 +154,118 @@ class DehydrateScheduler {
     return enqueued;
   }
 
+  /**
+   * Build the per-chapter outline spine (章节并写 phase 1) for a file-uploaded
+   * novel, then let rewriting proceed chapter-by-chapter as each outline lands.
+   * This is a whole-book step (not a per-chapter queue job), so it runs OUTSIDE
+   * the thread's serial p-queue; its progress callback drives rewriting by
+   * calling `ensure` per chapter, which enqueues into that serial queue.
+   *
+   * Branches on availability:
+   *   - file novel + not `nonNovelSource` → run the outliner agent. Outlines are
+   *     generated in batches sized to the model's context window; each chapter's
+   *     outline landing fires `ensure(N)` so its rewrite is enqueued the moment
+   *     it's ready, without waiting for the whole book. `needsWork` holds any
+   *     chapter whose outline is still `"outlining"` back until its own outline
+   *     lands.
+   *   - otherwise (internet novel, or `nonNovelSource`) → mark every chapter's
+   *     outline row `"skipped"` and `ensure(1)` directly: there is no outline
+   *     step, so rewriting starts immediately and `needsWork` treats `"skipped"`
+   *     as "outline ready".
+   *
+   * Re-entrancy: a run completes only when EVERY source chapter has an
+   * `outlined` row. If so, bail out so a retried upload / a poll-triggered
+   * call / the startup recovery scan never launches a second run. If not
+   * (some chapters are `outlining`/`error`/`skipped`/missing), `generateOutlines`
+   * resumes from the first unfinished chapter — it skips already-`outlined`
+   * chapters and rebuilds the prior-outline context from them.
+   */
+  async buildOutlines(threadId: string): Promise<void> {
+    const config = entertainmentService.getParsedConfig(threadId);
+    if (!config || config.mode !== "dehydrate") return;
+    if (entertainmentService.isOutlineComplete(threadId)) {
+      logger.debug("outlines already complete; skipping", { threadId });
+      return;
+    }
+    const crossChapterAvailable =
+      config.novel.type === "file" && !config.options.nonNovelSource;
+    if (!crossChapterAvailable) {
+      // No outline step for this novel — mark every chapter skipped and let
+      // rewriting proceed ungated.
+      const sourceCount =
+        entertainmentService.listSourceChapters(threadId).length;
+      logger.info("outlines skipped (cross-chapter unavailable)", {
+        threadId,
+        novelType: config.novel.type,
+        nonNovelSource: config.options.nonNovelSource,
+        sourceCount,
+      });
+      skipOutlines(threadId);
+      this.ensure(threadId, 1);
+      return;
+    }
+    logger.info("starting outline generation", { threadId });
+    const { outlined, errored } = await generateOutlines(
+      threadId,
+      config.options.crossChapter,
+      (chapterNumber) => this.ensure(threadId, chapterNumber),
+    );
+    logger.info("outline generation complete", {
+      threadId,
+      outlined,
+      errored,
+    });
+  }
+
+  /**
+   * Startup recovery scan: resume outline generation for any entertainment
+   * thread whose outlines are incomplete (some source chapter lacks an
+   * `outlined` row). Called once after DB init so a crashed outline run is
+   * picked back up automatically on the next launch — without it, chapters
+   * stuck in `outlining`/missing would block rewriting forever (the scheduler's
+   * `needsWork` gates on outline readiness).
+   *
+   * Fire-and-forget per thread: each `buildOutlines` runs independently and
+   * asynchronously. Threads with complete outlines (or no source chapters) are
+   * skipped by `buildOutlines`'s own `isOutlineComplete` guard. Safe to call on
+   * a fresh install (no threads → no-op).
+   */
+  resumeOutlines(): void {
+    const allThreads = threadPersistenceService.listThreadsByMode("entertainment");
+    let resumed = 0;
+    let skipped = 0;
+    for (const t of allThreads) {
+      const threadId = t.id;
+      // Skip threads that are fully outlined or have no source chapters —
+      // buildOutlines would no-op anyway, but this avoids spawning promises +
+      // logs for the common case (most threads are either complete or not yet
+      // uploaded).
+      if (entertainmentService.isOutlineComplete(threadId)) {
+        skipped++;
+        continue;
+      }
+      const sourceCount =
+        entertainmentService.listSourceChapters(threadId).length;
+      if (sourceCount === 0) {
+        skipped++;
+        continue;
+      }
+      resumed++;
+      logger.info("resuming outline generation on startup", {
+        threadId,
+        title: t.title,
+      });
+      void this.buildOutlines(threadId).catch((err) =>
+        logger.error("startup outline resume failed", { threadId, err }),
+      );
+    }
+    logger.info("startup recovery scan complete", {
+      totalThreads: allThreads.length,
+      resumed,
+      skipped,
+    });
+  }
+
   // --- internals ---------------------------------------------------------
 
   private needsWork(threadId: string, c: number): boolean {
@@ -166,6 +279,32 @@ class DehydrateScheduler {
     // retryFailed() re-enqueues it.
     if (source.status === "error") return false;
     if (source.status !== "fetched") return type === "internet"; // re-acquire stuck fetching
+    // Outline readiness gate (章节并写 phase 1). A chapter may proceed to
+    // rewriting only once its own outline is in a terminal status. For file
+    // novels an outline row always exists once `buildOutlines` has started
+    // (it pre-inserts one per source chapter); `"outlining"` holds the chapter
+    // back until its outline lands, and a missing row means the outline run
+    // hasn't begun yet (also hold back, so rewriting can't race ahead of it).
+    // Internet novels have no outline step (acquired one at a time), so a
+    // missing row there means "no gate" — proceed.
+    const outline = entertainmentService.getOutline(threadId, c);
+    if (outline) {
+      if (outline.status === "outlining") {
+        logger.debug("needsWork: chapter held back — outline in progress", {
+          threadId,
+          chapterNumber: c,
+        });
+        return false; // wait for this chapter's outline
+      }
+      // "outlined" | "skipped" | "error" → outline ready (error degrades to a
+      // no-outline rewrite rather than blocking forever).
+    } else if (type === "file") {
+      logger.debug("needsWork: chapter held back — outline not started", {
+        threadId,
+        chapterNumber: c,
+      });
+      return false; // outline run not started yet — don't race ahead
+    }
     const rewrite = entertainmentService.getRewrittenChapter(threadId, c);
     if (rewrite?.status === "error") return false; // terminal — see above
     return !rewrite || rewrite.status !== "rewritten"; // need rewrite

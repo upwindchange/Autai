@@ -147,8 +147,18 @@ entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
       logger.info("file uploaded + ingested", { threadId, count });
     }
 
-    // Start rewriting the first window (file chapters are already sourced).
-    dehydrateScheduler.ensure(threadId, 1);
+    // Kick off the whole-book pipeline: outline generation (章节并写 phase 1),
+    // which in turn drives rewriting chapter-by-chapter as each outline lands.
+    // For novels where cross-chapter is unavailable (nonNovelSource), the
+    // outliner marks every chapter "skipped" and starts rewriting immediately.
+    // Fire-and-forget so the upload response returns at once; failures land in
+    // the catch below's logger only if buildOutlines itself rejects (its inner
+    // per-chapter errors are already persisted as outline status="error").
+    void dehydrateScheduler
+      .buildOutlines(threadId)
+      .catch((err) =>
+        logger.error("outline generation failed", { threadId, err }),
+      );
     return c.json({ ok: true }, 202);
   } catch (error) {
     logger.error("Error in upload:", error);

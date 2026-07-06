@@ -798,6 +798,16 @@ export type SourceChapterStatus = "fetching" | "fetched" | "error";
 export type RewrittenChapterStatus = "rewriting" | "rewritten" | "error";
 
 /**
+ * Lifecycle of a `chapter_outlines` row (大纲 generation). The outline step is
+ * the first phase of 章节并写: it summarises each chapter into a brief outline,
+ * extracts foreshadowing/clue keywords, and flags whether the chapter needs
+ * cross-chapter co-writing. The scheduler's `needsWork` treats `outlined`,
+ * `error`, and `skipped` as "outline ready" (the chapter may proceed to
+ * rewriting), while `outlining` holds the chapter back until its outline lands.
+ */
+export type OutlineStatus = "outlining" | "outlined" | "error" | "skipped";
+
+/**
  * Per-chapter pipeline progress — the reader's list/TOC view, merging the two
  * tables by chapterNumber. A `null` status means no row for that table yet
  * (the chapter hasn't been acquired/rewritten). No prose here; see ChapterDetail.

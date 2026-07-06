@@ -19,6 +19,7 @@ import { getDb } from "@/db";
 import { settings, userProviders, modelAssignments } from "@/db/schema";
 import type { UserProviderRow } from "@/db/types";
 import { Provider } from "./provider";
+import { getModels } from "./registry";
 import { sendAlert } from "@/utils/messageUtils";
 import { i18n } from "@/i18n";
 
@@ -135,5 +136,42 @@ export function chatModel(selection?: {
 
 export const simpleModel = (): LanguageModel => createModel("simple");
 export const complexModel = (): LanguageModel => createModel("complex");
+
+/**
+ * Resolve the complex role's max context window (in tokens) from the model
+ * catalog TOML. Returns `undefined` when the assignment is missing or the
+ * catalog has no `limit.context` for the model (e.g. openai-compatible, which
+ * has no TOML). Callers should fall back to a conservative constant.
+ *
+ * Used by the outliner to size its batch loop (how many chapters fit in ~50% of
+ * the context window). The AI SDK's `LanguageModel` interface does not expose a
+ * context-window property, so this is the only way to read it short of a network
+ * round-trip.
+ */
+export function complexModelContextWindow(): number | undefined {
+  const db = getDb();
+  const sameModelRow = db
+    .select()
+    .from(settings)
+    .where(eq(settings.key, "use_same_model_for_agents"))
+    .get();
+  const useSame = sameModelRow?.value !== "false";
+  const effectiveRole: ModelRole = useSame ? "chat" : "complex";
+  const assignment = db
+    .select()
+    .from(modelAssignments)
+    .where(eq(modelAssignments.role, effectiveRole))
+    .get();
+  if (!assignment?.providerId || !assignment.modelId) return undefined;
+  const providerRow = db
+    .select()
+    .from(userProviders)
+    .where(eq(userProviders.id, assignment.providerId))
+    .get();
+  if (!providerRow) return undefined;
+  return getModels(providerRow.providerDir).find(
+    (m) => m.file === assignment.modelId,
+  )?.limit?.context;
+}
 
 export { Provider } from "./provider";

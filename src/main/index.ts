@@ -24,6 +24,7 @@ import { eventBus } from "@/utils/eventBus";
 import { searchService } from "@/services/searchService";
 import { initializeDatabase, closeDatabase } from "@/db";
 import { initI18n, i18n } from "@/i18n";
+import { dehydrateScheduler } from "@agents/workers/entertainmentWorker/scheduler";
 
 // const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -299,6 +300,12 @@ app.whenReady().then(async () => {
   // Start window
   updateSplashStatus("Loading interface...");
   createWindow(splash);
+
+  // Resume any outline generation that was interrupted by a previous shutdown.
+  // Scans every entertainment thread for incomplete outlines (source chapters
+  // without an `outlined` row) and restarts the outliner for them in the
+  // background. No-op when all threads are complete or on a fresh install.
+  dehydrateScheduler.resumeOutlines();
 });
 
 app.on("window-all-closed", () => {
