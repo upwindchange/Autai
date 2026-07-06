@@ -38,7 +38,7 @@ export const StepMode: FC<StepModeProps> = ({ config, setConfig }) => {
     <RadioGroup
       value={config.mode}
       onValueChange={(v) => setConfig(swapMode(config, v as EntertainmentMode))}
-      className="gap-3"
+      className="mx-auto grid w-full max-w-4xl grid-cols-1 gap-3 sm:grid-cols-2"
     >
       {MODES.map((opt) => (
         <div

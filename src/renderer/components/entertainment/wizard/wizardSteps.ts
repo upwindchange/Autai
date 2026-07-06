@@ -1,4 +1,6 @@
 import type {
+  CrossChapterDehydrate,
+  CrossChapterTactics,
   DehydrateBasic,
   DehydrateConfig,
   DehydrateDepth,
@@ -6,7 +8,10 @@ import type {
   EntertainmentMode,
   InteractiveConfig,
   LanguageAdaptation,
+  SituationDehydrate,
+  SituationTactics,
 } from "@shared";
+import { fillCrossChapterTactics, fillSituationTactics } from "@shared";
 
 /**
  * Pure helpers for the entertainment wizard: initial configs, mode/novel
@@ -20,17 +25,30 @@ import type {
 export const DEFAULT_BASIC: DehydrateBasic = {
   grammarFix: true,
   webSlangFilter: true,
-  preachRemoval: false,
 };
 
-// 1 = light · 2 = medium · 3 = heavy — default to a balanced medium pass, all on.
+// 情境脱水 ships active: medium strength, every tactic on (opt-OUT per tactic).
+export const DEFAULT_SITUATION: SituationDehydrate = {
+  strength: 2,
+  tactics: fillSituationTactics(true),
+};
+
+// 章节并写 ships active too (medium strength, all tactics on), mirroring 情境脱水.
+// The backend accepts this but does not yet act on it — see
+// `CrossChapterTacticsSchema` in the shared schema.
+export const DEFAULT_CROSS_CHAPTER: CrossChapterDehydrate = {
+  strength: 2,
+  tactics: fillCrossChapterTactics(true),
+};
+
+// Rewrite-intensity aspects default OFF — the user opts into each enhancement.
+// (脱水提速 is not here; it's the situational block's `strength` dial.)
 export const DEFAULT_DEPTH: DehydrateDepth = {
-  dialoguePacing: { enabled: true, level: 2 },
-  dehydrate: { enabled: true, level: 2 },
-  sceneEnhance: { enabled: true, level: 2 },
-  combatEnhance: { enabled: true, level: 2 },
-  emotionEnhance: { enabled: true, level: 2 },
-  literaryEnhance: { enabled: true, level: 2 },
+  dialoguePacing: { enabled: false, level: 2 },
+  sceneEnhance: { enabled: false, level: 2 },
+  combatEnhance: { enabled: false, level: 2 },
+  emotionEnhance: { enabled: false, level: 2 },
+  literaryEnhance: { enabled: false, level: 2 },
 };
 
 // Language adaptation defaults to all-off; translation is rarely wanted.
@@ -46,6 +64,8 @@ export const INITIAL_DEHYDRATE: DehydrateConfig = {
   novel: { type: "internet", title: "", source: "" },
   options: {
     basic: { ...DEFAULT_BASIC },
+    situation: structuredClone(DEFAULT_SITUATION),
+    crossChapter: structuredClone(DEFAULT_CROSS_CHAPTER),
     depth: structuredClone(DEFAULT_DEPTH),
     language: structuredClone(DEFAULT_LANGUAGE),
     nonNovelSource: false,
@@ -60,6 +80,8 @@ export const INITIAL_INTERACTIVE: InteractiveConfig = {
   options: {
     interactionFrequency: 2,
     basic: { ...DEFAULT_BASIC },
+    situation: structuredClone(DEFAULT_SITUATION),
+    crossChapter: structuredClone(DEFAULT_CROSS_CHAPTER),
     depth: structuredClone(DEFAULT_DEPTH),
     language: structuredClone(DEFAULT_LANGUAGE),
     nonNovelSource: false,
@@ -68,19 +90,21 @@ export const INITIAL_INTERACTIVE: InteractiveConfig = {
 };
 
 /**
- * Switch the top-level mode. Carries the shared `basic` + `depth` + `language` +
- * `customInstruction` options over (all modes have them) and resets `novel` to a
- * valid shape for the new mode: interactive ⇒ text file only; dehydrate ⇒
- * internet form.
+ * Switch the top-level mode. Carries the shared `basic` + `situation` +
+ * `crossChapter` + `depth` + `language` + `customInstruction` options over (all
+ * modes have them) and resets `novel` to a valid shape for the new mode:
+ * interactive ⇒ text file only; dehydrate ⇒ internet form.
  */
 export function swapMode(
   config: EntertainmentConfig,
   mode: EntertainmentMode,
 ): EntertainmentConfig {
   if (config.mode === mode) return config;
-  // All modes share basic + depth + language + nonNovelSource +
-  // customInstruction, so they survive the swap unchanged.
+  // All modes share basic + situation + crossChapter + depth + language +
+  // nonNovelSource + customInstruction, so they survive the swap unchanged.
   const basic = config.options.basic;
+  const situation = config.options.situation;
+  const crossChapter = config.options.crossChapter;
   const depth = config.options.depth;
   const language = config.options.language;
   const nonNovelSource = config.options.nonNovelSource;
@@ -93,6 +117,8 @@ export function swapMode(
         options: {
           interactionFrequency: 2,
           basic,
+          situation,
+          crossChapter,
           depth,
           language,
           nonNovelSource,
@@ -103,7 +129,15 @@ export function swapMode(
       return {
         mode: "dehydrate",
         novel: { type: "internet", title: "", source: "" },
-        options: { basic, depth, language, nonNovelSource, customInstruction },
+        options: {
+          basic,
+          situation,
+          crossChapter,
+          depth,
+          language,
+          nonNovelSource,
+          customInstruction,
+        },
       };
     // Future modes fall through unchanged rather than producing an invalid
     // config; the caller can add a dedicated case when a new mode lands.
@@ -127,9 +161,50 @@ type LanguagePatch = {
 };
 
 /**
- * Patch the shared Module-1 (basic) / Module-2 (depth) / Module-3 (language)
- * options, plus the free-form `customInstruction`. Mode is narrowed per branch
- * so the spread keeps the `mode` discriminant literal. Any subset may be passed.
+ * Patch for a `{ strength, tactics }` dehydration block (情境脱水 / 章节并写):
+ * the strength dial and/or a per-tactic merge. `strength` replaces outright;
+ * `tactics` is merged per key so toggling one tactic can't drop the others (and
+ * the master switch passes every tactic key at once).
+ */
+interface DehydrateBlockPatch<Tactics> {
+  strength?: number;
+  tactics?: Partial<Tactics>;
+}
+
+type SituationPatch = DehydrateBlockPatch<SituationTactics>;
+type CrossChapterPatch = DehydrateBlockPatch<CrossChapterTactics>;
+
+/**
+ * Merge a `{ strength, tactics }` dehydration block. Shared by 情境脱水 and
+ * 章节并写 (identical shape, different tactic sets). Tactics are merged per key
+ * so each stays `boolean`, not `boolean | undefined`.
+ */
+function mergeDehydrateBlock<T extends { strength: number; tactics: Record<string, boolean> }>(
+  base: T,
+  blockPatch: DehydrateBlockPatch<T["tactics"]>,
+): T {
+  // Spread + cast preserves the concrete `T["tactics"]` (e.g. SituationTactics)
+  // so per-key writes stay type-safe rather than widening to Record<string, boolean>.
+  const tactics = { ...base.tactics } as T["tactics"];
+  if (blockPatch.tactics) {
+    for (const key of Object.keys(blockPatch.tactics) as (keyof T["tactics"])[]) {
+      const v = blockPatch.tactics[key];
+      if (v !== undefined) tactics[key] = v;
+    }
+  }
+  return {
+    ...base,
+    strength:
+      blockPatch.strength !== undefined ? blockPatch.strength : base.strength,
+    tactics,
+  };
+}
+
+/**
+ * Patch the shared Module-1 (basic) / Module-1b (situation) / Module-1c
+ * (crossChapter) / Module-2 (depth) / Module-3 (language) options, plus the
+ * free-form `customInstruction`. Mode is narrowed per branch so the spread
+ * keeps the `mode` discriminant literal. Any subset may be passed.
  *
  * Depth and language are merged per key: a depth patch of `{ enabled }` must not
  * clobber the existing `level`, and a language toggle patch of `{ enabled }`
@@ -139,6 +214,8 @@ export function patchSharedOptions(
   prev: EntertainmentConfig,
   patch: {
     basic?: Partial<DehydrateBasic>;
+    situation?: SituationPatch;
+    crossChapter?: CrossChapterPatch;
     depth?: DepthPatch;
     language?: LanguagePatch;
     nonNovelSource?: boolean;
@@ -184,6 +261,19 @@ export function patchSharedOptions(
         ...(patch.basic ?
           { basic: { ...prev.options.basic, ...patch.basic } }
         : {}),
+        ...(patch.situation ?
+          {
+            situation: mergeDehydrateBlock(prev.options.situation, patch.situation),
+          }
+        : {}),
+        ...(patch.crossChapter ?
+          {
+            crossChapter: mergeDehydrateBlock(
+              prev.options.crossChapter,
+              patch.crossChapter,
+            ),
+          }
+        : {}),
         ...(patch.depth ?
           { depth: mergeDepth(prev.options.depth, patch.depth) }
         : {}),
@@ -205,6 +295,19 @@ export function patchSharedOptions(
       ...prev.options,
       ...(patch.basic ?
         { basic: { ...prev.options.basic, ...patch.basic } }
+      : {}),
+      ...(patch.situation ?
+        {
+          situation: mergeDehydrateBlock(prev.options.situation, patch.situation),
+        }
+      : {}),
+      ...(patch.crossChapter ?
+        {
+          crossChapter: mergeDehydrateBlock(
+            prev.options.crossChapter,
+            patch.crossChapter,
+          ),
+        }
       : {}),
       ...(patch.depth ?
         { depth: mergeDepth(prev.options.depth, patch.depth) }
@@ -249,4 +352,19 @@ export function isStepValid(
     default:
       return false;
   }
+}
+
+/**
+ * Whether 章节并写 (cross-chapter processing) is available for this config.
+ * Cross-chapter awareness needs fast random access to ALL chapters' content at
+ * rewrite time — only a locally uploaded text file gives the agent that. The
+ * internet-fetch path streams one chapter at a time over the network (no
+ * cross-chapter context), and a non-chaptered source (`nonNovelSource`) is a
+ * single continuous text with no chapters to be aware of in the first place.
+ * The UI uses this to grey out the 章节并写 block and show an explanation.
+ */
+export function isCrossChapterAvailable(
+  config: EntertainmentConfig,
+): boolean {
+  return config.novel.type === "file" && !config.options.nonNovelSource;
 }

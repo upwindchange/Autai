@@ -102,8 +102,14 @@ export const StepNovel: FC<StepNovelProps> = ({
     );
   };
 
+  // This step is a small form (a checkbox, a source toggle, a few inputs +
+  // one textarea). Unlike the options step — which has ~85 toggles and earns a
+  // wide layout — stretching this across the full wizard width leaves huge
+  // empty whitespace and tiny content. Cap it to a comfortable form column and
+  // center it; on narrow screens max-w-3xl doesn't engage, so it stays
+  // full-width there.
   return (
-    <div className="flex flex-col gap-4">
+    <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       {/* Not a chaptered novel — the most consequential choice on this step:
           it switches the reader from per-chapter parsing to building organic
           chapters from a single storyline. Explanation is in the body (not a
@@ -134,22 +140,36 @@ export const StepNovel: FC<StepNovelProps> = ({
 
       {/* Source-type toggle — dehydrate only. Interactive is file-only. */}
       {!isInteractive && (
-        <RadioGroup
-          value={config.novel.type}
-          onValueChange={(v) => switchNovelType(v as "file" | "internet")}
-          className="flex flex-row gap-6"
-        >
-          <div className="flex items-center gap-2">
-            <RadioGroupItem value="file" id="ent-novel-file" />
-            <Label htmlFor="ent-novel-file">{t("novel.file.label")}</Label>
-          </div>
-          <div className="flex items-center gap-2">
-            <RadioGroupItem value="internet" id="ent-novel-internet" />
-            <Label htmlFor="ent-novel-internet">
-              {t("novel.internet.label")}
-            </Label>
-          </div>
-        </RadioGroup>
+        <>
+          <RadioGroup
+            value={config.novel.type}
+            onValueChange={(v) => switchNovelType(v as "file" | "internet")}
+            className="flex flex-row gap-6"
+          >
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="file" id="ent-novel-file" />
+              <Label htmlFor="ent-novel-file">{t("novel.file.label")}</Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="internet" id="ent-novel-internet" />
+              <Label htmlFor="ent-novel-internet">
+                {t("novel.internet.label")}
+              </Label>
+            </div>
+          </RadioGroup>
+
+          {/* Why file upload is the recommended path: it's faster (no per-chapter
+              web fetch) and unlocks the file-only features — table of contents,
+              章节并写 (cross-chapter awareness). Surfaced as a visible note, not a
+              tooltip, since it's a real tradeoff the user is choosing between. */}
+          <Field>
+            <FieldContent>
+              <FieldDescription>
+                {t("novel.source.recommendFile.note")}
+              </FieldDescription>
+            </FieldContent>
+          </Field>
+        </>
       )}
 
       {config.novel.type === "file" ?
@@ -179,35 +199,39 @@ export const StepNovel: FC<StepNovelProps> = ({
           )}
         </div>
       : <>
-          {/* Title — required only when it's a chaptered novel; disabled (greyed)
-              when the source isn't a novel. */}
-          <Field data-disabled={nonNovel}>
-            <FieldLabel htmlFor="ent-novel-title">
-              <span>{t("novel.internet.title.label")}</span>
-              {!nonNovel && <span className="text-destructive">*</span>}
-            </FieldLabel>
-            <Input
-              id="ent-novel-title"
-              value={config.novel.title}
-              onChange={(e) => setInternetField("title", e.target.value)}
-              placeholder={t("novel.internet.title.placeholder")}
-              disabled={nonNovel}
-            />
-          </Field>
+          {/* Title + author pair on wide screens — both single-line inputs, so
+              they read naturally side-by-side once the wizard is wide enough. */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            {/* Title — required only when it's a chaptered novel; disabled (greyed)
+                when the source isn't a novel. */}
+            <Field data-disabled={nonNovel}>
+              <FieldLabel htmlFor="ent-novel-title">
+                <span>{t("novel.internet.title.label")}</span>
+                {!nonNovel && <span className="text-destructive">*</span>}
+              </FieldLabel>
+              <Input
+                id="ent-novel-title"
+                value={config.novel.title}
+                onChange={(e) => setInternetField("title", e.target.value)}
+                placeholder={t("novel.internet.title.placeholder")}
+                disabled={nonNovel}
+              />
+            </Field>
 
-          {/* Author — never required; disabled alongside the title. */}
-          <Field data-disabled={nonNovel}>
-            <FieldLabel htmlFor="ent-novel-author">
-              <span>{t("novel.internet.author.label")}</span>
-            </FieldLabel>
-            <Input
-              id="ent-novel-author"
-              value={config.novel.author ?? ""}
-              onChange={(e) => setInternetField("author", e.target.value)}
-              placeholder={t("novel.internet.author.placeholder")}
-              disabled={nonNovel}
-            />
-          </Field>
+            {/* Author — never required; disabled alongside the title. */}
+            <Field data-disabled={nonNovel}>
+              <FieldLabel htmlFor="ent-novel-author">
+                <span>{t("novel.internet.author.label")}</span>
+              </FieldLabel>
+              <Input
+                id="ent-novel-author"
+                value={config.novel.author ?? ""}
+                onChange={(e) => setInternetField("author", e.target.value)}
+                placeholder={t("novel.internet.author.placeholder")}
+                disabled={nonNovel}
+              />
+            </Field>
+          </div>
 
           {/* Source — always required (where to read it), never disabled. */}
           <Field>

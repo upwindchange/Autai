@@ -135,9 +135,14 @@ export const EntertainmentWizard: FC = () => {
 
   const valid = isStepValid(step, config);
 
+  // Width scales up across breakpoints so the wizard fills desktop screens
+  // instead of collapsing to a narrow strip. Caps at 96rem (1536px) on very
+  // wide displays — wide enough for the dense situational-tactics grid to
+  // spread out, while section cards stay at a readable column width. This
+  // container wraps every step, so all three benefit from the same scale.
   return (
-    <div className="my-auto mx-auto flex w-full flex-col gap-4 px-4 pb-10 sm:max-w-2xl sm:gap-6">
-      <div className="flex flex-col gap-1">
+    <div className="my-auto mx-auto flex w-full flex-col gap-4 px-4 pb-10 sm:max-w-2xl sm:gap-6 lg:max-w-5xl xl:max-w-7xl 2xl:max-w-[96rem]">
+      <div className="flex flex-col gap-1 xl:max-w-5xl">
         <h1 className="fade-in slide-in-from-bottom-1 animate-in fill-mode-both font-semibold text-2xl duration-200">
           {t("title")}
         </h1>
@@ -146,6 +151,9 @@ export const EntertainmentWizard: FC = () => {
         </p>
       </div>
 
+      {/* The stepper spans the full wizard width (it's a graphical track, not
+          prose) so it stays consistent with the step body below instead of
+          floating as a narrow strip over wide content. */}
       <ProgressBar
         step={step}
         labels={[t("step.0.title"), t("step.1.title"), t("step.2.title")]}
@@ -163,8 +171,9 @@ export const EntertainmentWizard: FC = () => {
       {step === 2 && <StepOptions config={config} setConfig={setConfig} />}
 
       {/* Legal acknowledgment — required to advance. UI-only: not sent to the
-          backend or persisted. Gates forward navigation on every step. */}
-      <div className="rounded-lg border bg-card px-4 py-3">
+          backend or persisted. Gates forward navigation on every step. Capped
+          narrower than the step body so the lone checkbox isn't stretched. */}
+      <div className="rounded-lg border bg-card px-4 py-3 xl:max-w-5xl">
         <Field orientation="horizontal">
           <Checkbox
             id="ent-terms"

@@ -15,11 +15,16 @@ import { z } from "zod";
  *     placeholder with no backend yet.
  *   - `novel` is mode-dependent: `dehydrate` accepts file OR internet;
  *     `interactive` accepts a text file ONLY.
- *   - Both modes share Module 1 (basic toggles) + Module 2 (depth intensity,
- *     each `{ enabled, level }`) + Module 3 (language adaptation) + a
- *     `nonNovelSource` flag (single-source storyline vs. chaptered novel) + a
- *     free-form `customInstruction` (user guidance applied on top of all three).
- *     `interactive` additionally carries `interactionFrequency`.
+ *   - Both modes share Module 1 (basic toggles) + Module 1b (情境脱水 — a
+ *     `strength` dial that gates the whole feature, plus 65 per-tactic toggles
+ *     selecting which single-chapter padding patterns to strip) + Module 1c
+ *     (章节并写 — same shape, over the 20 padding patterns whose rule needs
+ *     cross-chapter context; accepted by the backend but not yet acted on) +
+ *     each `{ enabled, level }`, defaulting off) + Module 3 (language
+ *     adaptation) + a `nonNovelSource` flag (single-source storyline vs.
+ *     chaptered novel) + a free-form `customInstruction` (user guidance applied
+ *     on top of all three). `interactive` additionally carries
+ *     `interactionFrequency`.
  */
 
 // --- Novel inputs ----------------------------------------------------------
@@ -54,8 +59,602 @@ export const NovelInputSchema = z.discriminatedUnion("type", [
 const DehydrateBasicSchema = z.object({
   grammarFix: z.boolean().default(true),
   webSlangFilter: z.boolean().default(true),
-  preachRemoval: z.boolean().default(false),
 });
+
+/**
+ * The 85 网文 "水字数" tactics from `situation.md`, partitioned by where they
+ * typically appear. The partition (see `TACTIC_SCOPE`) drives which blocks a
+ * tactic shows up in:
+ *
+ *   - `single` (36 tactics) — local fillers expanded by description /
+ *     explanation / reaction / dialogue / formatted text WITHIN one chapter.
+ *     Live in `SituationTactics` only.
+ *   - `cross` (34 tactics) — need a process or a loop to "water up"; they only
+ *     truly drag across multiple chapters (tournaments, secret realms, harem
+ *     rotation, crisis chains, palace/household long arcs). Live in
+ *     `CrossChapterTactics` only.
+ *   - `both` (15 tactics) — scene-modules that work either as a one-chapter
+ *     scene OR a multi-chapter arc (banquet, trial, travel, training, hidden
+ *     power, treasure appraisal, …). Live in BOTH tactic sets, so the user can
+ *     toggle them independently under 脱水提速 and 章节并写.
+ *
+ * Net: SituationTactics has 51 keys (36 single + 15 both); CrossChapterTactics
+ * has 49 keys (34 cross + 15 both). 15 keys are shared between the two.
+ */
+const TACTIC_SCOPE = {
+  // 一、战斗/竞技类
+  tournamentLoop: "cross",
+  mobGrinding: "both",
+  combatFrameByFrame: "single",
+  skillNameSpam: "single",
+  powerLevelLecture: "single",
+  fakeDisadvantage: "both",
+  escalatingElders: "cross",
+  // 二、群众反应类
+  crowdShock: "single",
+  bystanderExposition: "single",
+  groupPsychology: "single",
+  danmakuSpam: "single",
+  mediaReports: "single",
+  // 三、设定解释类
+  worldbuildingEncyclopedia: "single",
+  itemProfiles: "single",
+  mapTours: "single",
+  genealogy: "single",
+  cultivationRoutine: "single",
+  systemPanels: "single",
+  gachaCheckin: "single",
+  // 四、情感/言情类
+  misunderstandings: "cross",
+  innerMonologueLoop: "single",
+  jealousyCycles: "cross",
+  outfitDescriptions: "single",
+  banquetFiller: "both",
+  familyGossip: "cross",
+  appearanceRedescription: "single",
+  // 五、反派/打脸类
+  villainMockery: "single",
+  braindeadVillains: "cross",
+  narratedConspiracy: "single",
+  trialReveal: "both",
+  // 六、日常生活类
+  mealDescriptions: "single",
+  travelFiller: "both",
+  shoppingFiller: "both",
+  questDungeon: "cross",
+  trainingStudy: "both",
+  // 七、对话类
+  circularArguments: "single",
+  leadingQuestions: "single",
+  rollCallStatements: "single",
+  repeatedConfirmations: "single",
+  // 八、结构性拖延类
+  climaxPovSwitch: "cross",
+  multiPovReplay: "cross",
+  flashbacks: "both",
+  dreamIllusionTrial: "cross",
+  secretRealm: "cross",
+  auction: "cross",
+  entranceExam: "cross",
+  // 九、爽点循环类
+  hiddenPowerLoops: "both",
+  identityReveals: "cross",
+  nobodyKnowsMc: "cross",
+  rankingBoards: "single",
+  rewardSettlement: "single",
+  // 十、女频/关系流
+  heiressDrama: "cross",
+  evilSidekick: "cross",
+  ceoControlMinutiae: "both",
+  cuteBabyAssist: "both",
+  varietyLivestream: "cross",
+  // 十一、男频常见
+  engagementHumiliation: "cross",
+  recruitingMinions: "cross",
+  haremRotation: "cross",
+  treasureAppraisal: "both",
+  medicalRescue: "both",
+  // 十二、科幻/末世/无限流
+  techSpecs: "single",
+  apocalypseSupplies: "single",
+  baseBuilding: "cross",
+  instanceRules: "single",
+  puzzleTrialError: "cross",
+  // 十三、商业/职场/娱乐圈
+  corporateMeetings: "cross",
+  projectCompetition: "cross",
+  actingAudition: "both",
+  fandomWars: "cross",
+  // 十四、形式上的
+  chapterRecap: "single",
+  forcedCliffhanger: "single",
+  synonymStacking: "single",
+  adjectivePiling: "single",
+  atmosphereRedressing: "single",
+  numberPiling: "single",
+  // 十五、剧情循环类
+  mapProgressionTemplate: "cross",
+  escalatingCrisis: "cross",
+  infinitePrep: "cross",
+  waitingForResults: "both",
+  // 十六、特殊题材专属
+  palaceEtiquette: "cross",
+  householdAccounts: "cross",
+  farmingRoutine: "cross",
+  eraFictionCoupons: "cross",
+  cthulhuDelaying: "cross",
+} as const satisfies Record<string, "single" | "cross" | "both">;
+
+/** All 85 tactic keys, in `situation.md` order. */
+export const ALL_TACTIC_KEYS = Object.keys(TACTIC_SCOPE) as (keyof typeof TACTIC_SCOPE)[];
+/** Union of all 85 tactic keys. The concrete `SituationTactics`/`CrossChapterTactics` types each narrow this. */
+export type TacticKey = keyof typeof TACTIC_SCOPE;
+
+/**
+ * The 16 content-genre categories from `situation.md`, in order. Shared by both
+ * the 脱水提速 and 章节并写 blocks (the renderer + the rewriter present the same
+ * grouping), so a tactic keeps its content-genre no matter which block it's in.
+ * Category keys map to `options.category.<key>`; tactic labels/tooltips live at
+ * `options.tactic.<tacticKey>.{label,tooltip}` (shared across both blocks).
+ */
+export const CATEGORY_KEYS = [
+  "combatCompetition",
+  "crowdReaction",
+  "loreDump",
+  "romanceDrag",
+  "villainFaceSlap",
+  "dailyLife",
+  "dialogueFiller",
+  "structuralDelay",
+  "thrillLoop",
+  "femaleAudience",
+  "maleAudience",
+  "sciFiApocalypse",
+  "workplaceIndustry",
+  "prosePadding",
+  "plotLoop",
+  "genreSpecific",
+] as const;
+export type TacticCategory = (typeof CATEGORY_KEYS)[number];
+
+/**
+ * The 16 content-genre categories with their full tactic rosters (all 85, in
+ * `situation.md` order). The脱水 / 章节并写 views are derived from this by
+ * filtering on `TACTIC_SCOPE`, so the canonical tactic→category mapping lives
+ * in exactly one place. Tactic keys are typed as `TacticKey`, so a typo surfaces
+ * as a type error; the rewriter's `Record<keyof SituationTactics, ...>` and the
+ * renderer's `keyof CrossChapterTactics` backstop any key missing from a view.
+ */
+export const TACTIC_CATEGORIES: readonly {
+  key: TacticCategory;
+  tactics: readonly TacticKey[];
+}[] = [
+  {
+    key: "combatCompetition",
+    tactics: [
+      "tournamentLoop",
+      "mobGrinding",
+      "combatFrameByFrame",
+      "skillNameSpam",
+      "powerLevelLecture",
+      "fakeDisadvantage",
+      "escalatingElders",
+    ],
+  },
+  {
+    key: "crowdReaction",
+    tactics: [
+      "crowdShock",
+      "bystanderExposition",
+      "groupPsychology",
+      "danmakuSpam",
+      "mediaReports",
+    ],
+  },
+  {
+    key: "loreDump",
+    tactics: [
+      "worldbuildingEncyclopedia",
+      "itemProfiles",
+      "mapTours",
+      "genealogy",
+      "cultivationRoutine",
+      "systemPanels",
+      "gachaCheckin",
+    ],
+  },
+  {
+    key: "romanceDrag",
+    tactics: [
+      "misunderstandings",
+      "innerMonologueLoop",
+      "jealousyCycles",
+      "outfitDescriptions",
+      "banquetFiller",
+      "familyGossip",
+      "appearanceRedescription",
+    ],
+  },
+  {
+    key: "villainFaceSlap",
+    tactics: ["villainMockery", "braindeadVillains", "narratedConspiracy", "trialReveal"],
+  },
+  {
+    key: "dailyLife",
+    tactics: [
+      "mealDescriptions",
+      "travelFiller",
+      "shoppingFiller",
+      "questDungeon",
+      "trainingStudy",
+    ],
+  },
+  {
+    key: "dialogueFiller",
+    tactics: [
+      "circularArguments",
+      "leadingQuestions",
+      "rollCallStatements",
+      "repeatedConfirmations",
+    ],
+  },
+  {
+    key: "structuralDelay",
+    tactics: [
+      "climaxPovSwitch",
+      "multiPovReplay",
+      "flashbacks",
+      "dreamIllusionTrial",
+      "secretRealm",
+      "auction",
+      "entranceExam",
+    ],
+  },
+  {
+    key: "thrillLoop",
+    tactics: [
+      "hiddenPowerLoops",
+      "identityReveals",
+      "nobodyKnowsMc",
+      "rankingBoards",
+      "rewardSettlement",
+    ],
+  },
+  {
+    key: "femaleAudience",
+    tactics: [
+      "heiressDrama",
+      "evilSidekick",
+      "ceoControlMinutiae",
+      "cuteBabyAssist",
+      "varietyLivestream",
+    ],
+  },
+  {
+    key: "maleAudience",
+    tactics: [
+      "engagementHumiliation",
+      "recruitingMinions",
+      "haremRotation",
+      "treasureAppraisal",
+      "medicalRescue",
+    ],
+  },
+  {
+    key: "sciFiApocalypse",
+    tactics: [
+      "techSpecs",
+      "apocalypseSupplies",
+      "baseBuilding",
+      "instanceRules",
+      "puzzleTrialError",
+    ],
+  },
+  {
+    key: "workplaceIndustry",
+    tactics: [
+      "corporateMeetings",
+      "projectCompetition",
+      "actingAudition",
+      "fandomWars",
+    ],
+  },
+  {
+    key: "prosePadding",
+    tactics: [
+      "chapterRecap",
+      "forcedCliffhanger",
+      "synonymStacking",
+      "adjectivePiling",
+      "atmosphereRedressing",
+      "numberPiling",
+    ],
+  },
+  {
+    key: "plotLoop",
+    tactics: [
+      "mapProgressionTemplate",
+      "escalatingCrisis",
+      "infinitePrep",
+      "waitingForResults",
+    ],
+  },
+  {
+    key: "genreSpecific",
+    tactics: [
+      "palaceEtiquette",
+      "householdAccounts",
+      "farmingRoutine",
+      "eraFictionCoupons",
+      "cthulhuDelaying",
+    ],
+  },
+];
+
+/**
+ * All tactic keys that appear in the脱水提速 (single-chapter) view: the 36
+ * `single` tactics plus the 15 `both` tactics (51 total). A tactic keyed `both`
+ * appears here AND in `CROSS_CHAPTER_TACTIC_KEYS`, so the user can toggle its
+ * single-chapter and cross-chapter stripping independently.
+ */
+export const SITUATION_TACTIC_KEYS = TACTIC_CATEGORIES.flatMap((c) =>
+  c.tactics.filter((k) => TACTIC_SCOPE[k] !== "cross"),
+) as TacticKey[];
+
+/**
+ * All tactic keys that appear in the 章节并写 (cross-chapter) view: the 34
+ * `cross` tactics plus the 15 `both` tactics (49 total). See
+ * `SITUATION_TACTIC_KEYS` for the shared-key rationale.
+ */
+export const CROSS_CHAPTER_TACTIC_KEYS = TACTIC_CATEGORIES.flatMap((c) =>
+  c.tactics.filter((k) => TACTIC_SCOPE[k] !== "single"),
+) as TacticKey[];
+
+/** The 脱水提速 view of the 16 content-genre categories (empty categories dropped). */
+export const SITUATION_CATEGORIES = TACTIC_CATEGORIES.map((c) => ({
+  key: c.key,
+  tactics: c.tactics.filter((k) => TACTIC_SCOPE[k] !== "cross"),
+})).filter((c) => c.tactics.length > 0);
+
+/** The 章节并写 view of the 16 content-genre categories (empty categories dropped). */
+export const CROSS_CHAPTER_CATEGORIES = TACTIC_CATEGORIES.map((c) => ({
+  key: c.key,
+  tactics: c.tactics.filter((k) => TACTIC_SCOPE[k] !== "single"),
+})).filter((c) => c.tactics.length > 0);
+
+// Kept for back-compat with the old per-block category-key tuples — the two
+// views now share the same `CATEGORY_KEYS` (a category appears in a block iff it
+// has tactics there). New code should use `CATEGORY_KEYS` / `TACTIC_CATEGORIES`.
+export const SITUATION_CATEGORY_KEYS = CATEGORY_KEYS;
+export type SituationCategory = TacticCategory;
+export const CROSS_CHAPTER_CATEGORY_KEYS = CATEGORY_KEYS;
+export type CrossChapterCategory = TacticCategory;
+
+/**
+ * The tactics table for 脱水提速 (single-chapter filler stripping) — one
+ * boolean per tactic that can be correctly applied WITHIN a single chapter
+ * (51 keys: 36 `single` + 15 `both`). The 15 `both` tactics also appear in
+ * `CrossChapterTacticsSchema`, so the user controls their single-chapter and
+ * cross-chapter stripping independently. All default ON — the脱水 feature is
+ * opt-OUT by tactic. The rewriter only consumes a tactic when the enclosing
+ * `strength` is non-zero (see `SituationDehydrateSchema`).
+ *
+ * Keys are listed explicitly (not derived from `TACTIC_SCOPE`) so the inferred
+ * `SituationTactics` type stays a precise 51-key object — the rewriter's
+ * `Record<keyof SituationTactics, ...>` and the wizard's handlers rely on that.
+ * `TACTIC_SCOPE` is the source of truth for which view each key belongs to;
+ * any drift surfaces as a `pnpm tsc` error here.
+ */
+const SituationTacticsSchema = z.object({
+  // combatCompetition
+  mobGrinding: z.boolean().default(true),
+  combatFrameByFrame: z.boolean().default(true),
+  skillNameSpam: z.boolean().default(true),
+  powerLevelLecture: z.boolean().default(true),
+  fakeDisadvantage: z.boolean().default(true),
+  // crowdReaction
+  crowdShock: z.boolean().default(true),
+  bystanderExposition: z.boolean().default(true),
+  groupPsychology: z.boolean().default(true),
+  danmakuSpam: z.boolean().default(true),
+  mediaReports: z.boolean().default(true),
+  // loreDump
+  worldbuildingEncyclopedia: z.boolean().default(true),
+  itemProfiles: z.boolean().default(true),
+  mapTours: z.boolean().default(true),
+  genealogy: z.boolean().default(true),
+  cultivationRoutine: z.boolean().default(true),
+  systemPanels: z.boolean().default(true),
+  gachaCheckin: z.boolean().default(true),
+  // romanceDrag
+  innerMonologueLoop: z.boolean().default(true),
+  outfitDescriptions: z.boolean().default(true),
+  banquetFiller: z.boolean().default(true),
+  appearanceRedescription: z.boolean().default(true),
+  // villainFaceSlap
+  villainMockery: z.boolean().default(true),
+  narratedConspiracy: z.boolean().default(true),
+  trialReveal: z.boolean().default(true),
+  // dailyLife
+  mealDescriptions: z.boolean().default(true),
+  travelFiller: z.boolean().default(true),
+  shoppingFiller: z.boolean().default(true),
+  trainingStudy: z.boolean().default(true),
+  // dialogueFiller
+  circularArguments: z.boolean().default(true),
+  leadingQuestions: z.boolean().default(true),
+  rollCallStatements: z.boolean().default(true),
+  repeatedConfirmations: z.boolean().default(true),
+  // structuralDelay
+  flashbacks: z.boolean().default(true),
+  // thrillLoop
+  hiddenPowerLoops: z.boolean().default(true),
+  rankingBoards: z.boolean().default(true),
+  rewardSettlement: z.boolean().default(true),
+  // femaleAudience
+  ceoControlMinutiae: z.boolean().default(true),
+  cuteBabyAssist: z.boolean().default(true),
+  // maleAudience
+  treasureAppraisal: z.boolean().default(true),
+  medicalRescue: z.boolean().default(true),
+  // sciFiApocalypse
+  techSpecs: z.boolean().default(true),
+  apocalypseSupplies: z.boolean().default(true),
+  instanceRules: z.boolean().default(true),
+  // workplaceIndustry
+  actingAudition: z.boolean().default(true),
+  // prosePadding
+  chapterRecap: z.boolean().default(true),
+  forcedCliffhanger: z.boolean().default(true),
+  synonymStacking: z.boolean().default(true),
+  adjectivePiling: z.boolean().default(true),
+  atmosphereRedressing: z.boolean().default(true),
+  numberPiling: z.boolean().default(true),
+  // plotLoop
+  waitingForResults: z.boolean().default(true),
+});
+
+/**
+ * The tactics table for 章节并写 (cross-chapter filler stripping) — one boolean
+ * per tactic that needs cross-chapter context to apply (49 keys: 34 `cross` +
+ * 15 `both`). The wizard surfaces these under a dedicated 章节并写 block with
+ * the same strength-dial + master-switch + grouped-checkbox UX as 脱水提速. The
+ * backend ACCEPTS this config (it round-trips through the `options` JSON blob)
+ * but the current rewriter does NOT yet act on it — a real cross-chapter context
+ * mechanism is the intended follow-up. Defaults to on so the UI presents the
+ * feature as implemented; it ships as a no-op until that mechanism exists.
+ */
+const CrossChapterTacticsSchema = z.object({
+  // combatCompetition
+  tournamentLoop: z.boolean().default(true),
+  mobGrinding: z.boolean().default(true),
+  fakeDisadvantage: z.boolean().default(true),
+  escalatingElders: z.boolean().default(true),
+  // romanceDrag
+  misunderstandings: z.boolean().default(true),
+  jealousyCycles: z.boolean().default(true),
+  banquetFiller: z.boolean().default(true),
+  familyGossip: z.boolean().default(true),
+  // villainFaceSlap
+  braindeadVillains: z.boolean().default(true),
+  trialReveal: z.boolean().default(true),
+  // dailyLife
+  travelFiller: z.boolean().default(true),
+  shoppingFiller: z.boolean().default(true),
+  questDungeon: z.boolean().default(true),
+  trainingStudy: z.boolean().default(true),
+  // structuralDelay
+  climaxPovSwitch: z.boolean().default(true),
+  multiPovReplay: z.boolean().default(true),
+  flashbacks: z.boolean().default(true),
+  dreamIllusionTrial: z.boolean().default(true),
+  secretRealm: z.boolean().default(true),
+  auction: z.boolean().default(true),
+  entranceExam: z.boolean().default(true),
+  // thrillLoop
+  hiddenPowerLoops: z.boolean().default(true),
+  identityReveals: z.boolean().default(true),
+  nobodyKnowsMc: z.boolean().default(true),
+  // femaleAudience
+  heiressDrama: z.boolean().default(true),
+  evilSidekick: z.boolean().default(true),
+  ceoControlMinutiae: z.boolean().default(true),
+  cuteBabyAssist: z.boolean().default(true),
+  varietyLivestream: z.boolean().default(true),
+  // maleAudience
+  engagementHumiliation: z.boolean().default(true),
+  recruitingMinions: z.boolean().default(true),
+  haremRotation: z.boolean().default(true),
+  treasureAppraisal: z.boolean().default(true),
+  medicalRescue: z.boolean().default(true),
+  // sciFiApocalypse
+  baseBuilding: z.boolean().default(true),
+  puzzleTrialError: z.boolean().default(true),
+  // workplaceIndustry
+  corporateMeetings: z.boolean().default(true),
+  projectCompetition: z.boolean().default(true),
+  actingAudition: z.boolean().default(true),
+  fandomWars: z.boolean().default(true),
+  // plotLoop
+  mapProgressionTemplate: z.boolean().default(true),
+  escalatingCrisis: z.boolean().default(true),
+  infinitePrep: z.boolean().default(true),
+  waitingForResults: z.boolean().default(true),
+  // genreSpecific
+  palaceEtiquette: z.boolean().default(true),
+  householdAccounts: z.boolean().default(true),
+  farmingRoutine: z.boolean().default(true),
+  eraFictionCoupons: z.boolean().default(true),
+  cthulhuDelaying: z.boolean().default(true),
+});
+
+/** Build a `SituationTactics` with every tactic set to `value` (master switch). */
+export function fillSituationTactics(value: boolean): SituationTactics {
+  return SITUATION_TACTIC_KEYS.reduce(
+    (acc, key) => {
+      acc[key] = value;
+      return acc;
+    },
+    {} as Record<keyof SituationTactics, boolean>,
+  );
+}
+
+/** Build a `CrossChapterTactics` with every tactic set to `value`. */
+export function fillCrossChapterTactics(value: boolean): CrossChapterTactics {
+  return CROSS_CHAPTER_TACTIC_KEYS.reduce(
+    (acc, key) => {
+      acc[key] = value;
+      return acc;
+    },
+    {} as Record<keyof CrossChapterTactics, boolean>,
+  );
+}
+
+/**
+ * 情境脱水 (situational dehydration) — the dedicated structure modelling the
+ * concept: a single `strength` dial that gates the whole feature, plus the 85
+ * tactic toggles that select WHICH padding patterns to strip.
+ *
+ * `strength` is the on/off + intensity control in one field:
+ *   - 0 = off. The whole feature is disabled — NO situational dehydration
+ *     happens, and NO situational block (not even the脱水提速 framing) appears
+ *     in the rewrite prompt, regardless of which tactics are checked.
+ *   - 1 / 2 / 3 = light / medium / heavy. The checked tactics are stripped at
+ *     that intensity.
+ *
+ * Defaults to strength 2 (medium) with all tactics on — the脱水 feature is the
+ * app's headline capability, so it ships active and opt-OUT per tactic. The
+ * depth-style `{ enabled, level }` shape is deliberately NOT reused: this is a
+ * 4-state selector (off/light/medium/heavy), modelled as one scalar.
+ *
+ * Persisted in the `options` JSON blob, so no DB migration: `.default(...)`
+ * heals older configs. Legacy shapes heal safely — a pre-restructure flat
+ * tactics object or a 16-category object is missing the `strength`/`tactics`
+ * keys, both of which carry defaults, so it parses to the all-on medium default
+ * (unknown keys stripped); the dropped `depth.dehydrate` is simply stripped.
+ * Stored configs that predate the 情境脱水/章节并写 split carry 20 tactic keys
+ * here that have since moved to `CrossChapterTacticsSchema` — Zod strips them
+ * (unknown keys), and the missing `crossChapter` field heals to its default.
+ */
+const SituationDehydrateSchema = z
+  .object({
+    strength: z.number().int().min(0).max(3).default(2),
+    tactics: SituationTacticsSchema,
+  })
+  .default({ strength: 2, tactics: fillSituationTactics(true) });
+
+/**
+ * 章节并写 (cross-chapter filler stripping) — same `{ strength, tactics }`
+ * shape and same defaults as `SituationDehydrateSchema`, but over the 20
+ * cross-chapter tactics. The wizard renders it as a parallel block; the backend
+ * accepts it but does not yet act on it (see `CrossChapterTacticsSchema`).
+ */
+const CrossChapterDehydrateSchema = z
+  .object({
+    strength: z.number().int().min(0).max(3).default(2),
+    tactics: CrossChapterTacticsSchema,
+  })
+  .default({ strength: 2, tactics: fillCrossChapterTactics(true) });
 
 /**
  * Module 2 — 深度重写. Each aspect is independently enabled with a 1–3
@@ -72,7 +671,7 @@ const DepthLevelSchema = z.number().int().min(1).max(3);
 const DepthFieldSchema = z
   .union([
     z.object({
-      enabled: z.boolean().default(true),
+      enabled: z.boolean().default(false),
       level: DepthLevelSchema.default(2),
     }),
     DepthLevelSchema, // legacy bare number
@@ -83,11 +682,12 @@ const DepthFieldSchema = z
         { enabled: true, level: v }
       : { enabled: v.enabled, level: v.level },
   )
-  .default({ enabled: true, level: 2 });
+  .default({ enabled: false, level: 2 });
 
+// `dehydrate` (脱水提速) is intentionally NOT a depth aspect — it lives on the
+// situational block as the strength dial for 情境脱水 (see SituationDehydrateSchema).
 const DehydrateDepthSchema = z.object({
   dialoguePacing: DepthFieldSchema,
-  dehydrate: DepthFieldSchema,
   sceneEnhance: DepthFieldSchema,
   combatEnhance: DepthFieldSchema,
   emotionEnhance: DepthFieldSchema,
@@ -134,6 +734,8 @@ export const DehydrateConfigSchema = z.object({
   novel: NovelInputSchema, // file | internet
   options: z.object({
     basic: DehydrateBasicSchema,
+    situation: SituationDehydrateSchema,
+    crossChapter: CrossChapterDehydrateSchema,
     depth: DehydrateDepthSchema,
     language: LanguageAdaptationSchema,
     // true = the source is one continuous text (a post, an email thread, …),
@@ -150,6 +752,8 @@ export const InteractiveConfigSchema = z.object({
   // Composes all five: interactionFrequency + Module 1/2/3 + nonNovelSource + custom.
   options: InteractiveOptionsSchema.extend({
     basic: DehydrateBasicSchema,
+    situation: SituationDehydrateSchema,
+    crossChapter: CrossChapterDehydrateSchema,
     depth: DehydrateDepthSchema,
     language: LanguageAdaptationSchema,
     nonNovelSource: z.boolean().default(false),
@@ -172,6 +776,10 @@ export type InternetNovel = z.infer<typeof InternetNovelSchema>;
 export type DehydrateBasic = z.infer<typeof DehydrateBasicSchema>;
 export type DehydrateDepth = z.infer<typeof DehydrateDepthSchema>;
 export type LanguageAdaptation = z.infer<typeof LanguageAdaptationSchema>;
+export type SituationTactics = z.infer<typeof SituationTacticsSchema>;
+export type SituationDehydrate = z.infer<typeof SituationDehydrateSchema>;
+export type CrossChapterTactics = z.infer<typeof CrossChapterTacticsSchema>;
+export type CrossChapterDehydrate = z.infer<typeof CrossChapterDehydrateSchema>;
 
 // ---------------------------------------------------------------------------
 // Database-contract types (entertainment persistence layer).
