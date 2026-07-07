@@ -314,7 +314,7 @@ class EntertainmentService {
 
   // --- merged reader view -------------------------------------------------
 
-  /** Per-chapter pipeline progress (source + rewrite merged), ordered. */
+  /** Per-chapter pipeline progress (source + rewrite + outline merged), ordered. */
   listChapterProgress(threadId: string): ChapterProgress[] {
     const sources = this.listSourceChapters(threadId);
     const db = getDb();
@@ -323,12 +323,19 @@ class EntertainmentService {
       .from(rewrittenChapters)
       .where(eq(rewrittenChapters.threadId, threadId))
       .all();
+    const outlines = db
+      .select()
+      .from(chapterOutlines)
+      .where(eq(chapterOutlines.threadId, threadId))
+      .all();
     const rewriteByNum = new Map(rewrites.map((r) => [r.chapterNumber, r]));
+    const outlineByNum = new Map(outlines.map((o) => [o.chapterNumber, o]));
     return sources.map((s) => ({
       chapterNumber: s.chapterNumber,
       title: s.title,
       sourceStatus: s.status,
       rewriteStatus: rewriteByNum.get(s.chapterNumber)?.status ?? null,
+      outlineStatus: outlineByNum.get(s.chapterNumber)?.status ?? null,
     }));
   }
 
@@ -336,11 +343,13 @@ class EntertainmentService {
   getChapterDetail(threadId: string, chapterNumber: number): ChapterDetail {
     const s = this.getSourceChapter(threadId, chapterNumber);
     const r = this.getRewrittenChapter(threadId, chapterNumber);
+    const o = this.getOutline(threadId, chapterNumber);
     return {
       chapterNumber,
       title: s?.title ?? null,
       sourceStatus: s?.status ?? null,
       rewriteStatus: r?.status ?? null,
+      outlineStatus: o?.status ?? null,
       // Only expose rewritten prose to the reader (never 原文).
       content: r?.status === "rewritten" ? r.content : null,
     };

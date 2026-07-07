@@ -9,7 +9,10 @@ import {
 } from "react";
 import { ThreadPrimitive, useAuiState } from "@assistant-ui/react";
 import { useTranslation } from "react-i18next";
-import { DotMatrix, type DotMatrixState } from "@/components/assistant-ui/dot-matrix";
+import {
+  DotMatrix,
+  type DotMatrixState,
+} from "@/components/assistant-ui/dot-matrix";
 import { useUiStore } from "@/stores/uiStore";
 import { useReaderSettings } from "@/stores/readerSettingsStore";
 import { useChaptersStore, type ChapterView } from "@/stores/chaptersStore";
@@ -76,7 +79,10 @@ export const EntertainmentThread: FC = () => {
   // is measurable. Scoped to the target chapter: if the user navigates elsewhere
   // (or the chapter never becomes ready) the pending entry is discarded and
   // never scrolls an unrelated chapter.
-  const pendingJumpRef = useRef<{ chapterNumber: number; percentile: number } | null>(null);
+  const pendingJumpRef = useRef<{
+    chapterNumber: number;
+    percentile: number;
+  } | null>(null);
   // Pinned open by a tap/click on the reading surface (mobile + desktop); the
   // footer also reveals on desktop hover. See ReaderFooter.
   const [footerPinned, setFooterPinned] = useState(false);
@@ -99,7 +105,13 @@ export const EntertainmentThread: FC = () => {
       setCurrentChapter(start);
       void ensureWorker(mainThreadId, start);
     })();
-  }, [mainThreadId, loadChapters, getPosition, ensureWorker, setCurrentChapter]);
+  }, [
+    mainThreadId,
+    loadChapters,
+    getPosition,
+    ensureWorker,
+    setCurrentChapter,
+  ]);
 
   // Drive the current chapter to readiness (poll + worker liveness).
   useChapterReadiness(mainThreadId, currentChapterNumber);
@@ -116,10 +128,10 @@ export const EntertainmentThread: FC = () => {
   const canGoPrev = (currentChapterNumber ?? 1) > 1;
   const canGoNext =
     currentChapterNumber != null &&
-    (finalChapterNumber != null
-      ? currentChapterNumber < finalChapterNumber // known end → stop there
-      : novelType === "internet" || // absent → assume next exists
-        currentChapterNumber < maxChapterNumber);
+    (finalChapterNumber != null ?
+      currentChapterNumber < finalChapterNumber // known end → stop there
+    : novelType === "internet" || // absent → assume next exists
+      currentChapterNumber < maxChapterNumber);
 
   // Scroll the reader viewport to a within-chapter percentile (0 = top, 100 =
   // bottom). Instant (not smooth) so it can't race with a reader hotkey fired
@@ -283,14 +295,13 @@ export const EntertainmentThread: FC = () => {
             : undefined,
         }}
       >
-        {showWizard ? (
+        {showWizard ?
           // The wizard is a setup surface, not reading prose, so it's rendered
           // as a direct child of the viewport — it does NOT inherit the prose
           // column's --reader-margin (which would crush it on mobile). Its own
           // container handles width + centering.
           <EntertainmentWizard />
-        ) : (
-          <div
+        : <div
             onClick={handleReadingClick}
             className="flex w-full flex-1 flex-col pt-4 pb-24"
             // Width is controlled purely by side margin: the prose column fills
@@ -317,7 +328,7 @@ export const EntertainmentThread: FC = () => {
               </div>
             )}
           </div>
-        )}
+        }
       </ThreadPrimitive.Viewport>
       {currentChapterNumber != null && (
         <ReaderFooter
@@ -349,11 +360,33 @@ const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
     return <ChapterState state="loading" keyLabel="reader.chapter.fetching" />;
   }
   if (chapter.sourceStatus === "error" || chapter.rewriteStatus === "error") {
-    return <ChapterState textLabel="reader.chapter.error" />;
+    return <ChapterState state="error" textLabel="reader.chapter.error" />;
+  }
+  // Outline in progress — only for file-uploaded novels where the outliner is
+  // generating. Checked before the rewrite branches because the rewrite
+  // branches (syncing/success) take priority once they apply — but a chapter
+  // whose outline is still being generated won't have a rewriteStatus yet, so
+  // it reaches here. Uses the DotMatrix "connecting" animation.
+  if (chapter.outlineStatus === "outlining") {
+    return (
+      <ChapterState state="connecting" keyLabel="reader.chapter.outlining" />
+    );
+  }
+  if (chapter.rewriteStatus === "rewriting") {
+    return <ChapterState state="syncing" keyLabel="reader.chapter.rewriting" />;
   }
   if (chapter.rewriteStatus !== "rewritten") {
+    // Not rewriting and not done — either queued (paused) or not yet scheduled
+    // (stopped). Distinguish via the backend-derived `phase` field.
     return (
-      <ChapterState state="syncing" keyLabel="reader.chapter.rewriting" />
+      <ChapterState
+        state={chapter.phase === "paused" ? "paused" : "stopped"}
+        keyLabel={
+          chapter.phase === "paused" ?
+            "reader.chapter.queued"
+          : "reader.chapter.stopped"
+        }
+      />
     );
   }
   // Split on newline (handles CRLF); blank lines add no node. Each <p> gets the
