@@ -37,9 +37,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { ComposerAddAttachment } from "@/components/ai-chat/attachment";
 import { ThreadChatSettings } from "@/components/ai-chat/thread-chat-settings";
+import { ComposerToolsMobile } from "@/components/ai-chat/composer-tools-mobile";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { ContextDisplayRing } from "@/components/ai-chat/context-display";
 import { useThreadModelContextWindow } from "@/hooks/useThreadModelContextWindow";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export const ComposerAction: FC = () => {
   const {
@@ -105,12 +107,43 @@ export const ComposerAction: FC = () => {
   const showContextDisplay =
     !isMultiAgentMode && contextWindow !== undefined;
 
+  const isMobile = useIsMobile();
+  // Controlled open state for the mobile tools drawer (desktop DropdownMenu
+  // manages its own root open state internally).
+  const [toolsOpen, setToolsOpen] = useState(false);
+
+  // Shared tools-menu trigger (desktop DropdownMenuTrigger + mobile DrawerTrigger).
+  const toolsTrigger = (
+    <Button
+      variant="ghost"
+      size="icon"
+      type="button"
+      className={cn(
+        "aui-button-icon size-8.5 p-1",
+        (useBrowser || hasActiveMcpServers || webSearch) &&
+          "bg-muted hover:bg-muted",
+      )}
+    >
+      <ToolCase className="size-5" />
+    </Button>
+  );
+
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
       <div className="flex items-center gap-1">
-        <ThreadChatSettings />
         <ComposerAddAttachment />
-        {/* --- custom: unified tools menu (browser use + extensions + web search) --- */}
+        {/* --- custom: unified tools menu (browser use + extensions + web search).
+            Nested DropdownMenu on desktop; flattened bottom-sheet Drawer on
+            mobile (see ComposerToolsMobile). --- */}
+        {isMobile ? (
+          <ComposerToolsMobile
+            open={toolsOpen}
+            onOpenChange={setToolsOpen}
+            trigger={toolsTrigger}
+            mcpServers={mcpServers}
+            isNative={isNativeRenderer()}
+          />
+        ) : (
         <DropdownMenu
           onOpenChange={(open) => {
             if (!open) {
@@ -120,18 +153,7 @@ export const ComposerAction: FC = () => {
           }}
         >
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              type="button"
-              className={cn(
-                "aui-button-icon size-8.5 p-1",
-                (useBrowser || hasActiveMcpServers || webSearch) &&
-                  "bg-muted hover:bg-muted",
-              )}
-            >
-              <ToolCase className="size-5" />
-            </Button>
+            {toolsTrigger}
           </DropdownMenuTrigger>
           <DropdownMenuContent side="top" align="start">
             {isNativeRenderer() && (
@@ -352,13 +374,15 @@ export const ComposerAction: FC = () => {
             </DropdownMenuGroup>
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </div>
 
-      <AuiIf condition={(s) => !s.thread.isRunning}>
-        <div className="flex items-center gap-1">
-          {showContextDisplay && (
-            <ContextDisplayRing modelContextWindow={contextWindow!} side="top" />
-          )}
+      <div className="flex items-center gap-1">
+        {showContextDisplay && (
+          <ContextDisplayRing modelContextWindow={contextWindow!} side="top" />
+        )}
+        <ThreadChatSettings />
+        <AuiIf condition={(s) => !s.thread.isRunning}>
           <ComposerPrimitive.Send asChild>
             <TooltipIconButton
               tooltip={t("composer.sendMessage")}
@@ -372,13 +396,8 @@ export const ComposerAction: FC = () => {
               <ArrowUpIcon className="aui-composer-send-icon size-4" />
             </TooltipIconButton>
           </ComposerPrimitive.Send>
-        </div>
-      </AuiIf>
-      <AuiIf condition={(s) => s.thread.isRunning}>
-        <div className="flex items-center gap-1">
-          {showContextDisplay && (
-            <ContextDisplayRing modelContextWindow={contextWindow!} side="top" />
-          )}
+        </AuiIf>
+        <AuiIf condition={(s) => s.thread.isRunning}>
           <ComposerPrimitive.Cancel asChild>
             <Button
               type="button"
@@ -390,8 +409,8 @@ export const ComposerAction: FC = () => {
               <SquareIcon className="aui-composer-cancel-icon size-3 fill-current" />
             </Button>
           </ComposerPrimitive.Cancel>
-        </div>
-      </AuiIf>
+        </AuiIf>
+      </div>
     </div>
   );
 };

@@ -43,6 +43,16 @@ import { i18n } from "@/i18n";
 export const FALLBACK_CONTEXT_TOKENS = 128_000;
 
 /**
+ * Models are resolved on every chat turn, title/tag generation, and agent
+ * step — so a model lacking a context-window limit would otherwise trigger the
+ * "context window unknown" warning dozens of times per session. Each unique
+ * `provider:model` gap is one distinct issue, so dedupe to the first occurrence
+ * per process lifetime. (If the user later adds an override, the guard itself
+ * goes false and nothing fires.)
+ */
+const warnedUnknownContext = new Set<string>();
+
+/**
  * A fully resolved model: the runnable SDK object plus its catalog/override
  * limits. `contextWindow` is always a concrete number (backend fallback only
  * for a TOML model lacking `limit`); `maxOutputTokens` is optional because not
@@ -105,14 +115,18 @@ function modelFromProviderRow(
     // The openai-compatible case is expected to carry an override (the frontend
     // persists 128k by default), so reaching here most likely means a TOML
     // provider shipped a model file without a [limit] block.
-    sendWarning(
-      i18n.t("agents.contextWindowUnknownTitle"),
-      i18n.t("agents.contextWindowUnknownBody", {
-        provider: providerRow.providerDir,
-        model: modelId,
-        fallback: String(FALLBACK_CONTEXT_TOKENS),
-      }),
-    );
+    const warnKey = `${providerRow.providerDir}:${modelId}`;
+    if (!warnedUnknownContext.has(warnKey)) {
+      warnedUnknownContext.add(warnKey);
+      sendWarning(
+        i18n.t("agents.contextWindowUnknownTitle"),
+        i18n.t("agents.contextWindowUnknownBody", {
+          provider: providerRow.providerDir,
+          model: modelId,
+          fallback: String(FALLBACK_CONTEXT_TOKENS),
+        }),
+      );
+    }
   }
 
   const maxOutputTokens = tomlLimit?.output ?? override?.maxOutputTokens;

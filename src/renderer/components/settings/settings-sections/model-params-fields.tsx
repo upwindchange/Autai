@@ -5,15 +5,14 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Field, FieldContent, FieldLabel } from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
 import { Textarea } from "@/components/ui/textarea";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { ChevronDown } from "lucide-react";
 import type { ModelParameters } from "@shared";
-import { cn } from "@/lib/utils";
 
 /**
  * Shared editor for the model-parameters subset of ModelParameters + an
@@ -73,65 +72,66 @@ export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* System prompt */}
-      <Field>
-        <FieldLabel className="flex items-center gap-1.5">
+      <div className="space-y-2">
+        <Label className="flex items-center gap-1.5 text-sm">
           {t(k("systemPrompt"))}
           <HelpTooltip content={t(k("systemPromptHint"))} maxWidth={240} />
-        </FieldLabel>
+        </Label>
         <Textarea
           value={value.systemPrompt ?? ""}
           onChange={(e) => setSystemPrompt(e.target.value)}
           placeholder={systemPromptPlaceholder}
-          rows={6}
+          rows={4}
           className="resize-y text-sm"
         />
-      </Field>
+      </div>
 
-      {/* Core numeric params */}
-      <SliderField
-        label={t(k("temperature"))}
-        hint={t(k("temperatureHint"))}
-        value={p.temperature}
-        min={0}
-        max={2}
-        step={0.1}
-        format={(v) => v.toFixed(1)}
-        onChange={(v) => setParam("temperature", v)}
-      />
-      <NumberField
-        label={t(k("maxTokens"))}
-        hint={t(k("maxTokensHint"))}
-        value={p.maxTokens}
-        placeholder="auto"
-        min={1}
-        onChange={(v) => setParam("maxTokens", v)}
-      />
-      <SliderField
-        label={t(k("topP"))}
-        hint={t(k("topPHint"))}
-        value={p.topP}
-        min={0}
-        max={1}
-        step={0.05}
-        format={(v) => v.toFixed(2)}
-        onChange={(v) => setParam("topP", v)}
-      />
+      <Separator />
+
+      {/* Core sampling + output-limit params. Rows are `items-center` so the
+          number inputs sit vertically centered with their labels (the prior
+          Field-based rows forced top alignment). */}
+      <div className="space-y-4">
+        <SliderParam
+          label={t(k("temperature"))}
+          hint={t(k("temperatureHint"))}
+          value={p.temperature}
+          min={0}
+          max={2}
+          step={0.1}
+          format={(v) => v.toFixed(1)}
+          onChange={(v) => setParam("temperature", v)}
+        />
+        <SliderParam
+          label={t(k("topP"))}
+          hint={t(k("topPHint"))}
+          value={p.topP}
+          min={0}
+          max={1}
+          step={0.05}
+          format={(v) => v.toFixed(2)}
+          onChange={(v) => setParam("topP", v)}
+        />
+        <NumberParam
+          label={t(k("maxTokens"))}
+          hint={t(k("maxTokensHint"))}
+          value={p.maxTokens}
+          placeholder="auto"
+          min={1}
+          onChange={(v) => setParam("maxTokens", v)}
+        />
+      </div>
 
       {/* Advanced (collapsed by default) */}
       <Collapsible>
-        <CollapsibleTrigger
-          className={cn(
-            "flex w-full items-center justify-between rounded-md px-2 py-1.5",
-            "text-xs font-medium text-muted-foreground hover:bg-muted",
-          )}
-        >
+        <CollapsibleTrigger className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted">
           {t(k("advanced"))}
           <ChevronDown className="size-3.5 transition-transform [[data-state=open]>&]:rotate-180" />
         </CollapsibleTrigger>
         <CollapsibleContent className="space-y-4 pt-3">
-          <SliderField
+          <SliderParam
             label={t(k("frequencyPenalty"))}
             hint={t(k("frequencyPenaltyHint"))}
             value={p.frequencyPenalty}
@@ -141,7 +141,7 @@ export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
             format={(v) => v.toFixed(1)}
             onChange={(v) => setParam("frequencyPenalty", v)}
           />
-          <SliderField
+          <SliderParam
             label={t(k("presencePenalty"))}
             hint={t(k("presencePenaltyHint"))}
             value={p.presencePenalty}
@@ -151,7 +151,7 @@ export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
             format={(v) => v.toFixed(1)}
             onChange={(v) => setParam("presencePenalty", v)}
           />
-          <NumberField
+          <NumberParam
             label={t(k("topK"))}
             hint={t(k("topKHint"))}
             value={p.topK}
@@ -159,34 +159,33 @@ export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
             min={1}
             onChange={(v) => setParam("topK", v)}
           />
-          {/* stopSequences: comma-separated input, max 4 */}
-          <Field>
-            <FieldLabel className="flex items-center gap-1.5">
-              {t(k("stopSequences"))}
-              <HelpTooltip content={t(k("stopSequencesHint"))} maxWidth={240} />
-            </FieldLabel>
-            <Input
-              type="text"
-              value={p.stopSequences?.join(", ") ?? ""}
-              onChange={(e) => {
-                const parts = e.target.value
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter(Boolean)
-                  .slice(0, 4);
-                setParam("stopSequences", parts.length > 0 ? parts : undefined);
-              }}
-              placeholder={t(k("stopSequencesPlaceholder"))}
-              className="text-sm"
-            />
-          </Field>
         </CollapsibleContent>
       </Collapsible>
     </div>
   );
 };
 
-interface SliderFieldProps {
+/** Compact readout of a param's current value, with a reset affordance when set. */
+const ValueBadge: FC<{ text: string; onReset?: () => void }> = ({
+  text,
+  onReset,
+}) => (
+  <span className="flex items-center justify-end gap-1 text-xs tabular-nums text-muted-foreground">
+    <span>{text}</span>
+    {onReset && (
+      <button
+        type="button"
+        onClick={onReset}
+        className="text-muted-foreground/60 transition-colors hover:text-foreground"
+        aria-label="reset"
+      >
+        ×
+      </button>
+    )}
+  </span>
+);
+
+interface SliderParamProps {
   label: string;
   hint?: string;
   value: number | undefined;
@@ -197,7 +196,7 @@ interface SliderFieldProps {
   onChange: (v: number | undefined) => void;
 }
 
-const SliderField: FC<SliderFieldProps> = ({
+const SliderParam: FC<SliderParamProps> = ({
   label,
   hint,
   value,
@@ -207,40 +206,29 @@ const SliderField: FC<SliderFieldProps> = ({
   format,
   onChange,
 }) => (
-  <Field orientation="horizontal">
-    <FieldContent className="flex-1">
-      <FieldLabel className="flex items-center gap-1.5 text-sm">
+  <div className="space-y-2">
+    <div className="flex items-center justify-between gap-3">
+      <Label className="flex items-center gap-1.5 text-sm">
         {label}
         {hint && <HelpTooltip content={hint} maxWidth={240} />}
-      </FieldLabel>
-    </FieldContent>
-    <div className="flex flex-1 items-center gap-3">
-      <Slider
-        value={value !== undefined ? [value] : [min]}
-        min={min}
-        max={max}
-        step={step}
-        onValueChange={(arr) => onChange(arr[0])}
-        className="flex-1"
+      </Label>
+      <ValueBadge
+        text={value !== undefined ? format(value) : "auto"}
+        onReset={value !== undefined ? () => onChange(undefined) : undefined}
       />
-      <span className="w-10 shrink-0 text-right text-xs tabular-nums text-muted-foreground">
-        {value !== undefined ? format(value) : "auto"}
-      </span>
-      {value !== undefined && (
-        <button
-          type="button"
-          onClick={() => onChange(undefined)}
-          className="text-xs text-muted-foreground hover:text-foreground"
-          aria-label="reset"
-        >
-          ×
-        </button>
-      )}
     </div>
-  </Field>
+    <Slider
+      value={value !== undefined ? [value] : [min]}
+      min={min}
+      max={max}
+      step={step}
+      onValueChange={(arr) => onChange(arr[0])}
+      className="w-full"
+    />
+  </div>
 );
 
-interface NumberFieldProps {
+interface NumberParamProps {
   label: string;
   hint?: string;
   value: number | undefined;
@@ -249,7 +237,7 @@ interface NumberFieldProps {
   onChange: (v: number | undefined) => void;
 }
 
-const NumberField: FC<NumberFieldProps> = ({
+const NumberParam: FC<NumberParamProps> = ({
   label,
   hint,
   value,
@@ -257,13 +245,11 @@ const NumberField: FC<NumberFieldProps> = ({
   min,
   onChange,
 }) => (
-  <Field orientation="horizontal">
-    <FieldContent className="flex-1">
-      <Label className="flex items-center gap-1.5 text-sm">
-        {label}
-        {hint && <HelpTooltip content={hint} maxWidth={240} />}
-      </Label>
-    </FieldContent>
+  <div className="flex items-center justify-between gap-3">
+    <Label className="flex items-center gap-1.5 text-sm">
+      {label}
+      {hint && <HelpTooltip content={hint} maxWidth={240} />}
+    </Label>
     <Input
       type="number"
       value={value ?? ""}
@@ -281,5 +267,5 @@ const NumberField: FC<NumberFieldProps> = ({
       }}
       className="h-8 w-24 text-sm"
     />
-  </Field>
+  </div>
 );

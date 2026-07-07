@@ -19,11 +19,11 @@
   "defaultChatParams.description": "System-wide defaults for system prompt and model parameters. Conversations without a per-thread override fall back to these.",
   "defaultChatParams.save": "Save",
   "defaultChatParams.systemPrompt": "System prompt",
-  "defaultChatParams.systemPromptHint": "Default instructions prepended to every conversation. Appended before the built-in charting/math guidance.",
+  "defaultChatParams.systemPromptHint": "Default instructions added to the start of every conversation.",
   "defaultChatParams.systemPromptEmpty": "No system default set",
   "defaultChatParams.temperature": "Temperature",
   "defaultChatParams.temperatureHint": "Higher values make output more random, lower values more focused. Range 0–2.",
-  "defaultChatParams.maxTokens": "Max tokens",
+  "defaultChatParams.maxTokens": "Max output tokens",
   "defaultChatParams.maxTokensHint": "Maximum number of tokens to generate in the response. Leave empty for the model default.",
   "defaultChatParams.topP": "Top P",
   "defaultChatParams.topPHint": "Nucleus sampling: consider tokens comprising this probability mass. Range 0–1.",
@@ -33,8 +33,5 @@
   "defaultChatParams.presencePenalty": "Presence penalty",
   "defaultChatParams.presencePenaltyHint": "Penalize tokens that have appeared at least once. Range -2 to 2.",
   "defaultChatParams.topK": "Top K",
-  "defaultChatParams.topKHint": "Only consider the top K tokens at each step. Leave empty for the model default.",
-  "defaultChatParams.stopSequences": "Stop sequences",
-  "defaultChatParams.stopSequencesHint": "Comma-separated strings that stop generation. Maximum 4.",
-  "defaultChatParams.stopSequencesPlaceholder": "e.g. END, ###"
+  "defaultChatParams.topKHint": "Only consider the top K tokens at each step. Leave empty for the model default."
 }

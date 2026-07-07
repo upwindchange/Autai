@@ -245,6 +245,10 @@ function AppContent() {
     showSettings ?
       t("header.settings")
     : (threadTitle ?? `${t("app.title")} ${t("header.aiAssistant")}`);
+  // Compact form for medium header widths: drop the " AI Assistant" suffix from
+  // the default title (thread/settings titles have no shorter form).
+  const headerTitleShort =
+    showSettings ? t("header.settings") : (threadTitle ?? t("app.title"));
 
   // Effective zen: hide sidebar + header so the reader fills the window. Only
   // in entertainment mode without settings open.
@@ -262,7 +266,7 @@ function AppContent() {
               <ResizablePanelGroup orientation="horizontal" className="flex-1">
                 <ResizablePanel defaultSize={50} minSize={30}>
                   <div className="flex h-full flex-col overflow-hidden">
-                    <AppHeader title={headerTitle} />
+                    <AppHeader title={headerTitle} shortTitle={headerTitleShort} />
                     <div className="relative flex flex-1 flex-col overflow-hidden min-h-0">
                       {showSettings ?
                         <SettingsView />
@@ -279,7 +283,9 @@ function AppContent() {
                 </ResizablePanel>
               </ResizablePanelGroup>
             : <>
-                {zen ? null : <AppHeader title={headerTitle} />}
+                {zen ? null : (
+                  <AppHeader title={headerTitle} shortTitle={headerTitleShort} />
+                )}
                 <div className="relative flex flex-1 flex-col overflow-hidden h-full">
                   {showSettings ?
                     <SettingsView />

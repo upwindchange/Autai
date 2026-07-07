@@ -1,26 +1,14 @@
-import { type FC, type ReactNode, useEffect, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Bookmark, Download, List, Maximize2, Minimize2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Drawer,
-  DrawerContent,
-  DrawerHeader,
-  DrawerTitle,
-  DrawerTrigger,
-} from "@/components/ui/drawer";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { ResponsivePanel } from "@/components/responsive-panel";
 import { DotMatrix } from "@/components/assistant-ui/dot-matrix";
 import { useChaptersStore } from "@/stores/chaptersStore";
 import { useBookmarksStore } from "@/stores/bookmarksStore";
@@ -81,7 +69,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   onJumpTo,
 }) => {
   const { t } = useTranslation("reader");
-  const isMobile = useIsMobile();
   const zenMode = useUiStore((s) => s.zenMode);
   const toggleZenMode = useUiStore((s) => s.toggleZenMode);
 
@@ -321,7 +308,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
         >
           {/* Settings (left) */}
           <ResponsivePanel
-            isMobile={isMobile}
             title={t("reader.title")}
             tooltip={t("reader.openSettings")}
             open={settingsOpen}
@@ -335,7 +321,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
               responsive shell as the other reader panels: Popover on desktop,
               bottom-sheet Drawer on mobile. */}
           <ResponsivePanel
-            isMobile={isMobile}
             title={t("reader.download.title")}
             tooltip={t("reader.download.title")}
             open={downloadOpen}
@@ -364,7 +349,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
 
           {/* Process next N / all (left) */}
           <ResponsivePanel
-            isMobile={isMobile}
             title={t("reader.process.title")}
             tooltip={t("reader.process.title")}
             open={processOpen}
@@ -453,7 +437,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
 
           {/* TOC (right) */}
           <ResponsivePanel
-            isMobile={isMobile}
             title={t("reader.toc.title")}
             tooltip={t("reader.toc.title")}
             open={tocOpen}
@@ -469,7 +452,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
 
           {/* Bookmarks (right) */}
           <ResponsivePanel
-            isMobile={isMobile}
             title={t("reader.bookmarks.title")}
             tooltip={t("reader.bookmarks.open")}
             open={bookmarksOpen}
@@ -516,84 +498,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
         </div>
       </TooltipProvider>
     </div>
-  );
-};
-
-interface ResponsivePanelProps {
-  isMobile: boolean;
-  title: string;
-  tooltip: string;
-  trigger: ReactNode;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  children: ReactNode;
-}
-
-/**
- * Wraps a trigger + panel content in a Popover (desktop) or bottom-sheet Drawer
- * (mobile), with a tooltip on the trigger. `open`/`onOpenChange` are owned by
- * the caller so the footer can stay visible while a panel is open; the tooltip
- * is forced closed while its own panel is open. The Popover opens upward
- * (side="top") so it clears the bottom edge, and both scroll viewports are
- * `relative` so the TOC can resolve its scroll offsets transform-independently
- * via offsetParent.
- */
-const ResponsivePanel: FC<ResponsivePanelProps> = ({
-  isMobile,
-  title,
-  tooltip,
-  trigger,
-  open,
-  onOpenChange,
-  children,
-}) => {
-  // Tooltip is ALWAYS controlled: `false` while its panel is open, otherwise the
-  // hover state Radix reports via onOpenChange. Keeping it a stable boolean (never
-  // undefined) avoids the Radix "switching from controlled to uncontrolled"
-  // warning, which — because the trigger is also the Popover/Drawer trigger —
-  // could destabilize pointer handling on the trigger.
-  const [tooltipOpen, setTooltipOpen] = useState(false);
-  const tooltipProps = {
-    open: open ? false : tooltipOpen,
-    onOpenChange: setTooltipOpen,
-  };
-
-  if (isMobile) {
-    return (
-      <Drawer open={open} onOpenChange={onOpenChange}>
-        <Tooltip {...tooltipProps}>
-          <TooltipTrigger asChild>
-            <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-          </TooltipTrigger>
-          <TooltipContent side="top">{tooltip}</TooltipContent>
-        </Tooltip>
-        <DrawerContent className="max-h-[85vh]">
-          <DrawerHeader className="text-left">
-            <DrawerTitle>{title}</DrawerTitle>
-          </DrawerHeader>
-          <div className="relative overflow-y-auto px-4 pb-6">{children}</div>
-        </DrawerContent>
-      </Drawer>
-    );
-  }
-  return (
-    <Popover open={open} onOpenChange={onOpenChange}>
-      <Tooltip {...tooltipProps}>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="top">{tooltip}</TooltipContent>
-      </Tooltip>
-      <PopoverContent
-        side="top"
-        align="center"
-        sideOffset={8}
-        className="relative max-h-[80vh] w-80 overflow-y-auto p-4"
-      >
-        <div className="mb-3 text-sm font-medium">{title}</div>
-        {children}
-      </PopoverContent>
-    </Popover>
   );
 };
 

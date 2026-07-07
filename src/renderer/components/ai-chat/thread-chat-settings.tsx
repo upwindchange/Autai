@@ -4,16 +4,13 @@ import { useAuiState } from "@assistant-ui/react";
 import { SlidersHorizontal } from "lucide-react";
 import log from "electron-log/renderer";
 import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 import { Loader2 } from "lucide-react";
 import { useThreadModelStore } from "@/stores/threadModelStore";
 import { setThreadChatOverride } from "@/lib/tagApi";
 import { useSettings } from "@/components/settings";
 import { cn } from "@/lib/utils";
+import { ResponsivePanel } from "@/components/responsive-panel";
 import {
   ModelParamsFields,
   type ModelParamsValue,
@@ -22,16 +19,21 @@ import {
 const logger = log.scope("ThreadChatSettings");
 
 /**
- * Thread-level chat settings: a popover opened from the composer toolbar that
- * lets the active thread override the system-default system prompt + model
- * parameters. The override lives in RAM (threadModelStore) — so the next send
- * picks it up instantly via the transport — and is PATCHed to the backend for
- * the next reload. Backend resolves the system-default fallback, so this UI
- * only ever carries the raw thread-level override (null = use default).
+ * Thread-level chat settings: a panel opened from the composer that lets the
+ * active thread override the system-default system prompt + model parameters.
+ * The override lives in RAM (threadModelStore) — so the next send picks it up
+ * instantly via the transport — and is PATCHed to the backend for the next
+ * reload. Backend resolves the system-default fallback, so this UI only ever
+ * carries the raw thread-level override (null = use default).
  *
  * draft + apply UX (mirrors configured-provider-card): edits accumulate in a
  * local draft; Apply commits to store + backend + closes; Reset to Default
  * clears the draft; dismissing without Apply discards.
+ *
+ * Surfaced via `ResponsivePanel` so it's a Popover on desktop (anchored at the
+ * composer, opens upward) and a bottom-sheet Drawer on mobile. Apply/Reset live
+ * in a pinned footer (ResponsivePanel's `footer` slot, rendered outside the
+ * scroll area) so they stay reachable and opaque while the parameters scroll.
  */
 export const ThreadChatSettings: FC = () => {
   const { t } = useTranslation("common");
@@ -45,7 +47,7 @@ export const ThreadChatSettings: FC = () => {
   const [draft, setDraft] = useState<ModelParamsValue>({});
   const [saving, setSaving] = useState(false);
 
-  // Seed the draft from the current store selection when the popover opens.
+  // Seed the draft from the current store selection when the panel opens.
   useEffect(() => {
     if (open) {
       setDraft({
@@ -56,8 +58,7 @@ export const ThreadChatSettings: FC = () => {
   }, [open, selection]);
 
   // "Customized" badge: thread has any non-null override.
-  const hasOverride =
-    !!selection?.systemPrompt || !!selection?.params;
+  const hasOverride = !!selection?.systemPrompt || !!selection?.params;
 
   const handleApply = async () => {
     if (!threadId) return;
@@ -101,15 +102,31 @@ export const ThreadChatSettings: FC = () => {
     settings.systemPrompt || t("threadSettings.systemPromptEmptyDefault");
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+    <ResponsivePanel
+      anchor="bottom"
+      align="end"
+      title={
+        <span className="flex items-center gap-2">
+          {t("threadSettings.title")}
+          {hasOverride && (
+            <Badge
+              variant="secondary"
+              className="bg-primary/10 text-primary opacity-100"
+            >
+              {t("threadSettings.customized")}
+            </Badge>
+          )}
+        </span>
+      }
+      tooltip={t("threadSettings.title")}
+      open={open}
+      onOpenChange={setOpen}
+      trigger={
         <Button
           variant="ghost"
           size="icon"
-          className={cn(
-            "relative h-8 w-8",
-            hasOverride && "text-primary",
-          )}
+          type="button"
+          className={cn("relative h-8 w-8", hasOverride && "text-primary")}
           aria-label={t("threadSettings.title")}
         >
           <SlidersHorizontal className="size-4" />
@@ -117,61 +134,45 @@ export const ThreadChatSettings: FC = () => {
             <span className="absolute right-1 top-1 size-1.5 rounded-full bg-primary" />
           )}
         </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-80 p-4"
-        align="start"
-        sideOffset={8}
-      >
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-semibold">
-              {t("threadSettings.title")}
-            </h3>
-            {hasOverride && (
-              <span className="text-xs text-primary">
-                {t("threadSettings.customized")}
-              </span>
+      }
+      contentClassName="w-[22rem]"
+      footer={
+        <div className="flex items-center justify-between gap-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleReset}
+            disabled={
+              (draft.systemPrompt ?? null) === null &&
+              (draft.params ?? null) === null
+            }
+          >
+            {t("threadSettings.resetToDefault")}
+          </Button>
+          <Button size="sm" onClick={handleApply} disabled={saving || !threadId}>
+            {saving ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              t("threadSettings.apply")
             )}
-          </div>
-          {!hasOverride && (
-            <p className="text-xs text-muted-foreground">
-              {t("threadSettings.usingDefault")}
-            </p>
-          )}
-          <ModelParamsFields
-            value={draft}
-            onChange={setDraft}
-            systemPromptPlaceholder={defaultPromptPlaceholder}
-            i18nNamespace="common"
-            keyPrefix="threadSettings"
-          />
-          <div className="flex items-center justify-between gap-2 pt-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleReset}
-              disabled={
-                (draft.systemPrompt ?? null) === null &&
-                (draft.params ?? null) === null
-              }
-            >
-              {t("threadSettings.resetToDefault")}
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleApply}
-              disabled={saving || !threadId}
-            >
-              {saving ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                t("threadSettings.apply")
-              )}
-            </Button>
-          </div>
+          </Button>
         </div>
-      </PopoverContent>
-    </Popover>
+      }
+    >
+      <div className="space-y-4">
+        {!hasOverride && (
+          <p className="text-xs text-muted-foreground">
+            {t("threadSettings.usingDefault")}
+          </p>
+        )}
+        <ModelParamsFields
+          value={draft}
+          onChange={setDraft}
+          systemPromptPlaceholder={defaultPromptPlaceholder}
+          i18nNamespace="common"
+          keyPrefix="threadSettings"
+        />
+      </div>
+    </ResponsivePanel>
   );
 };

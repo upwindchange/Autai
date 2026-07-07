@@ -1,6 +1,7 @@
-import { useMemo } from "react";
+import { useMemo, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useAuiState } from "@assistant-ui/react";
+import { Check, ChevronDown, Cpu } from "lucide-react";
 import {
   ModelSelectorRoot,
   ModelSelectorTrigger,
@@ -12,9 +13,22 @@ import { useConfiguredModels } from "@/hooks/useConfiguredModels";
 import { useSettings } from "@/components/settings";
 import { useThreadModelStore } from "@/stores/threadModelStore";
 import { setThreadChatOverride } from "@/lib/tagApi";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Button } from "@/components/ui/button";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
+import { cn } from "@/lib/utils";
 
 // Pseudo-option id that clears a thread's override (revert to the global default).
 const USE_DEFAULT_ID = "__default__";
+
+// Fallback icon for the "Use default" option (no provider logo of its own).
+const DEFAULT_ICON = <Cpu className="size-4 text-muted-foreground" />;
 
 /**
  * Header model selector: lets the active thread pick its own chat model from
@@ -25,15 +39,24 @@ const USE_DEFAULT_ID = "__default__";
  *
  * Keyed by `threads.mainThreadId` (the active thread id) — the same value the
  * transport sends as `sessionId` at send time, so store key and request key match.
+ *
+ * Responsive: the trigger keeps its logo + model name at all header widths
+ * (truncating if needed); the narrow-layout disclosure is handled by the
+ * title/theme/split controls in the header, not here. Desktop opens the cmdk
+ * Popover (downward); mobile opens a top-anchored Drawer ("topdown" sheet)
+ * since the selector sits in the header.
  */
 export function HeaderModelSelector() {
   const { t } = useTranslation("common");
+  const isMobile = useIsMobile();
   const currentRemoteId = useAuiState((s) => s.threads.mainThreadId);
   const selection = useThreadModelStore((s) =>
     currentRemoteId ? s.map[currentRemoteId] : undefined,
   );
   const { settings } = useSettings();
   const { models } = useConfiguredModels();
+
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const options = useMemo<ModelOption[]>(() => {
     const modelOptions: ModelOption[] = models.map((m) => ({
@@ -107,13 +130,80 @@ export function HeaderModelSelector() {
 
   if (models.length === 0) return null;
 
+  const selected = options.find((o) => o.id === value);
+
+  // Trigger body shared by desktop + mobile: provider logo + model name, always
+  // shown (the name truncates if the header is tight). The header's progressive
+  // disclosure does not touch the model selector.
+  const triggerBody: ReactNode = (
+    <>
+      <span className="flex size-4 shrink-0 items-center justify-center [&_svg]:size-4">
+        {selected?.icon ?? DEFAULT_ICON}
+      </span>
+      <span className="max-w-40 truncate font-medium">
+        {selected?.name ?? t("header.modelSelector.useDefault")}
+      </span>
+    </>
+  );
+
+  if (isMobile) {
+    return (
+      <Drawer open={mobileOpen} onOpenChange={setMobileOpen} direction="top">
+        <DrawerTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-2 px-2.5 py-1.5 text-xs"
+          >
+            {triggerBody}
+            <ChevronDown className="size-4 opacity-50" />
+          </Button>
+        </DrawerTrigger>
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerHeader className="text-left">
+            <DrawerTitle>{t("header.modelSelector.title")}</DrawerTitle>
+          </DrawerHeader>
+          <div className="relative overflow-y-auto px-2 pb-4">
+            {options.map((opt) => {
+              const isActive = opt.id === value;
+              return (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => {
+                    handleSelect(opt.id);
+                    setMobileOpen(false);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm transition-colors",
+                    isActive ?
+                      "bg-accent text-accent-foreground"
+                    : "hover:bg-accent/50",
+                  )}
+                >
+                  <span className="flex size-4 shrink-0 items-center justify-center [&_svg]:size-4">
+                    {opt.icon ?? DEFAULT_ICON}
+                  </span>
+                  <span className="flex-1 truncate">{opt.name}</span>
+                  {isActive && <Check className="size-4 text-primary" />}
+                </button>
+              );
+            })}
+          </div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
   return (
     <ModelSelectorRoot
       models={options}
       value={value}
       onValueChange={handleSelect}
     >
-      <ModelSelectorTrigger variant="outline" size="sm" />
+      <ModelSelectorTrigger variant="outline" size="sm">
+        {triggerBody}
+      </ModelSelectorTrigger>
       <ModelSelectorContent />
     </ModelSelectorRoot>
   );
