@@ -361,8 +361,25 @@ function App() {
             trigger,
             messageId,
           }) => {
+            // Inject per-thread system prompt + model params ONLY when the
+            // thread carries an override. Absent ⇒ backend falls back to the
+            // system-level default (resolved server-side, not here).
+            const threadSel = useThreadModelStore.getState().get(id);
+            logger.debug("prepareSendMessagesRequest", {
+              threadId: id,
+              injectedSystemPrompt: !!threadSel?.systemPrompt,
+              injectedModelParams: !!threadSel?.params,
+            });
             return {
-              body: { ...body, id, messages, trigger, messageId },
+              body: {
+                ...body,
+                id,
+                messages,
+                trigger,
+                messageId,
+                ...(threadSel?.systemPrompt && { system: threadSel.systemPrompt }),
+                ...(threadSel?.params && { modelParams: threadSel.params }),
+              },
               headers,
               credentials,
               api: `${getApiBase()}/chat`,

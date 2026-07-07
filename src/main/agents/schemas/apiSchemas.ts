@@ -1,11 +1,18 @@
 import { z } from "zod";
-import { SettingsStateSchema, TestConnectionConfigSchema } from "@shared";
+import {
+  SettingsStateSchema,
+  TestConnectionConfigSchema,
+  ModelParametersSchema,
+} from "@shared";
 
 // Chat request body schema
 export const ChatRequestSchema = z.object({
   id: z.string().optional(),
   messages: z.array(z.any()), // UIMessage[] - structurally validated by AI SDK
   system: z.string().optional(),
+  // Per-thread model parameters override. Absent ⇒ backend falls back to the
+  // system-level defaultModelParams from settings.
+  modelParams: ModelParametersSchema.optional(),
   tools: z.any().optional(), // ToolSet[] - complex, validated at runtime
 });
 
@@ -15,10 +22,15 @@ export const CreateThreadSchema = z.object({
   mode: z.enum(["chat", "entertainment"]).optional(),
 });
 
-// Per-thread chat model override (null providerId/modelId = use the global default)
+// Per-thread chat model override (null providerId/modelId/params/systemPrompt =
+// use the global default). params is stored as JSON TEXT in chat_model_params;
+// systemPrompt as plain TEXT in chat_system_prompt. params/systemPrompt are
+// optional so a model-only PATCH (header picker) doesn't get rejected.
 export const ThreadChatOverrideSchema = z.object({
   providerId: z.string().min(1).nullable(),
   modelId: z.string().min(1).nullable(),
+  params: ModelParametersSchema.nullable().optional(),
+  systemPrompt: z.string().nullable().optional(),
 });
 
 // Thread update schema

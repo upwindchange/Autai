@@ -7,6 +7,7 @@ import {
   SessionTabService,
   threadPersistenceService,
   threadIntelligenceService,
+  settingsService,
 } from "@/services";
 import { sendAlert } from "@/utils";
 import { ChatRequestSchema } from "../schemas/apiSchemas";
@@ -28,7 +29,7 @@ chatRoutes.post("/", async (c) => {
       );
     }
 
-    const { messages, system, tools } = parsed.data;
+    const { messages, system, modelParams, tools } = parsed.data;
 
     // Read metadata from headers
     const useBrowser = c.req.header("x-use-browser") === "true";
@@ -56,6 +57,14 @@ chatRoutes.post("/", async (c) => {
       : undefined;
     const chatLanguageModel = chatModel(chatSelection).model;
 
+    // Resolve effective model settings: thread-level override wins, else fall
+    // back to the system-level defaults (settingsService is the single source
+    // of truth — keeps fallback logic out of the renderer). The raw thread
+    // override (not the resolved fallback) is what gets persisted on finish.
+    const sysDefault = settingsService.settings;
+    const effectiveSystem = system ?? (sysDefault.systemPrompt || undefined);
+    const effectiveParams = modelParams ?? sysDefault.defaultModelParams;
+
     logger.info("Chat request received", {
       messagesCount: messages?.length,
       hasSystem: !!system,
@@ -64,6 +73,20 @@ chatRoutes.post("/", async (c) => {
       webSearch,
       mcpServerIds: mcpServerIds.length,
       sessionId,
+      // Effective settings after thread-override → system-default resolution.
+      // Logs the *source* of each setting so "why did temperature apply?" is
+      // diagnosable without re-deriving the fallback chain from the request.
+      chatModel: chatSelection,
+      systemPromptSource:
+        system ? "thread"
+        : sysDefault.systemPrompt ? "system-default"
+        : "none",
+      systemPromptLength: effectiveSystem?.length ?? 0,
+      modelParamsSource:
+        modelParams ? "thread"
+        : sysDefault.defaultModelParams ? "system-default"
+        : "none",
+      effectiveParams,
     });
 
     if (!sessionId) {
@@ -153,10 +176,11 @@ chatRoutes.post("/", async (c) => {
         messages,
         sessionId,
         chatLanguageModel,
-        system,
+        effectiveSystem,
         tools as ToolSet | undefined,
         abortController.signal,
         mcpServerIds,
+        effectiveParams,
       );
       return result.toUIMessageStreamResponse({
         originalMessages: messages,
@@ -185,10 +209,30 @@ chatRoutes.post("/", async (c) => {
             sessionId,
             messageCount: finalMessages.length,
           });
+          // Persist the raw thread-level override (not the resolved fallback) —
+          // system-default values belong to settings, not the thread row.
+          // providerId/modelId are only written when the request carried an
+          // explicit selection (matches the pre-existing pattern); params and
+          // systemPrompt are written whenever the request carried them.
+          const hasOverride =
+            !!chatSelection || system !== undefined || modelParams !== undefined;
+          logger.debug("Persisting thread chat override on chat finish", {
+            sessionId,
+            hasOverride,
+            persistedSystemPrompt: system ?? null,
+            persistedParams: modelParams ?? null,
+          });
           threadPersistenceService.saveMessages(
             sessionId,
             finalMessages,
-            chatSelection,
+            hasOverride ?
+              {
+                providerId: chatSelection?.providerId ?? "",
+                modelId: chatSelection?.modelId ?? "",
+                ...(system !== undefined && { systemPrompt: system }),
+                ...(modelParams !== undefined && { params: modelParams }),
+              }
+            : undefined,
           );
           threadIntelligenceService
             .generateSuggestions(sessionId, finalMessages)

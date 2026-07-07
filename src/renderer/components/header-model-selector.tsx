@@ -66,15 +66,23 @@ export function HeaderModelSelector() {
 
   const handleSelect = (compositeId: string) => {
     if (!currentRemoteId) return;
+    // Preserve the existing params/systemPrompt so picking a model doesn't
+    // silently wipe an unrelated thread-level override.
+    const prev = useThreadModelStore.getState().get(currentRemoteId);
 
     if (compositeId === USE_DEFAULT_ID) {
       // Instant UI first, then persist.
-      useThreadModelStore
-        .getState()
-        .set(currentRemoteId, { providerId: null, modelId: null });
+      useThreadModelStore.getState().set(currentRemoteId, {
+        providerId: null,
+        modelId: null,
+        params: prev?.params ?? null,
+        systemPrompt: prev?.systemPrompt ?? null,
+      });
       void setThreadChatOverride(currentRemoteId, {
         providerId: null,
         modelId: null,
+        params: prev?.params ?? null,
+        systemPrompt: prev?.systemPrompt ?? null,
       }).catch(() => {});
       return;
     }
@@ -83,12 +91,17 @@ export function HeaderModelSelector() {
     if (sepIdx < 0) return;
     const providerId = compositeId.slice(0, sepIdx);
     const modelId = compositeId.slice(sepIdx + 2);
-    useThreadModelStore
-      .getState()
-      .set(currentRemoteId, { providerId, modelId });
+    useThreadModelStore.getState().set(currentRemoteId, {
+      providerId,
+      modelId,
+      params: prev?.params ?? null,
+      systemPrompt: prev?.systemPrompt ?? null,
+    });
     void setThreadChatOverride(currentRemoteId, {
       providerId,
       modelId,
+      params: prev?.params ?? null,
+      systemPrompt: prev?.systemPrompt ?? null,
     }).catch(() => {});
   };
 

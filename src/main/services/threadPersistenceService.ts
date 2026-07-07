@@ -5,6 +5,7 @@ import type { UIMessage } from "ai";
 import log from "electron-log/main";
 import type { ThreadRow, TagRow, ThreadWithTags } from "@/db/types";
 import type { ThreadMode } from "@shared/tag";
+import type { ModelParameters } from "@shared";
 
 const logger = log.scope("ThreadPersistenceService");
 
@@ -99,13 +100,33 @@ class ThreadPersistenceService {
 
   setThreadChatOverride(
     id: string,
-    override: { providerId: string | null; modelId: string | null },
+    override: {
+      providerId: string | null;
+      modelId: string | null;
+      params?: ModelParameters | null;
+      systemPrompt?: string | null;
+    },
   ): void {
+    logger.debug("setThreadChatOverride", {
+      id,
+      providerId: override.providerId,
+      modelId: override.modelId,
+      hasParams: override.params !== undefined,
+      hasSystemPrompt: override.systemPrompt !== undefined,
+    });
     const db = getDb();
     db.update(threads)
       .set({
         chatProviderId: override.providerId,
         chatModelId: override.modelId,
+        // Persist per-thread params (JSON) + system prompt (plain text). null
+        // means "explicitly cleared → use the global default".
+        ...(override.params !== undefined && {
+          chatModelParams: override.params ? JSON.stringify(override.params) : null,
+        }),
+        ...(override.systemPrompt !== undefined && {
+          chatSystemPrompt: override.systemPrompt,
+        }),
         updatedAt: sql`(datetime('now'))`,
       })
       .where(eq(threads.id, id))
@@ -136,19 +157,34 @@ class ThreadPersistenceService {
   saveMessages(
     threadId: string,
     msgs: UIMessage[],
-    selection?: { providerId: string; modelId: string },
+    selection?: {
+      providerId: string;
+      modelId: string;
+      params?: ModelParameters | null;
+      systemPrompt?: string | null;
+    },
   ): void {
     const db = getDb();
     db.transaction((tx) => {
       tx.update(threads)
         .set({
           updatedAt: sql`(datetime('now'))`,
-          // Persist the per-thread chat model on every save (covers a new
-          // conversation's first save + reaffirms existing threads). Only
-          // written when the request carried an explicit selection.
+          // Persist the per-thread chat model + params + system prompt on every
+          // save (covers a new conversation's first save + reaffirms existing
+          // threads). Only written when the request carried an explicit
+          // selection — the raw thread-level override, never a resolved
+          // system-default fallback.
           ...(selection && {
-            chatProviderId: selection.providerId,
-            chatModelId: selection.modelId,
+            // Only overwrite provider/model when the request carried a real
+            // selection — an empty string would wipe an existing override.
+            ...(selection.providerId && { chatProviderId: selection.providerId }),
+            ...(selection.modelId && { chatModelId: selection.modelId }),
+            ...(selection.params !== undefined && {
+              chatModelParams: selection.params ? JSON.stringify(selection.params) : null,
+            }),
+            ...(selection.systemPrompt !== undefined && {
+              chatSystemPrompt: selection.systemPrompt,
+            }),
           }),
         })
         .where(eq(threads.id, threadId))

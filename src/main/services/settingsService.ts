@@ -115,6 +115,10 @@ class SettingsService {
       autoTagCreationEnabled:
         settingsMap.get("auto_tag_creation_enabled") !== "false",
       systemPrompt: settingsMap.get("system_prompt") || defaults.systemPrompt,
+      defaultModelParams:
+        settingsMap.get("default_model_params") ?
+          JSON.parse(settingsMap.get("default_model_params")!)
+        : undefined,
       language: settingsMap.get("language") || defaults.language,
       modelOverrides: settingsMap.get("model_overrides") ?
         JSON.parse(settingsMap.get("model_overrides")!)
@@ -193,6 +197,12 @@ class SettingsService {
           String(settingsState.autoTagCreationEnabled),
         ],
         ["system_prompt", settingsState.systemPrompt || ""],
+        [
+          "default_model_params",
+          settingsState.defaultModelParams ?
+            JSON.stringify(settingsState.defaultModelParams)
+          : "",
+        ],
         ["language", settingsState.language || "en"],
         [
           "model_overrides",

@@ -8,6 +8,7 @@ import {
   UserProviderConfigSchema,
   ModelRoleAssignmentSchema,
   ModelOverrideSchema,
+  ModelParametersSchema,
 } from "./providers";
 
 export type { UserProviderConfig, ModelRoleAssignment } from "./providers";
@@ -16,6 +17,7 @@ export type {
   ModelDefinition,
   ModelRole,
   ModelOverride,
+  ModelParameters,
 } from "./providers";
 
 // Re-export provider schemas for convenience
@@ -23,6 +25,7 @@ export {
   UserProviderConfigSchema,
   ModelRoleAssignmentSchema,
   ModelOverrideSchema,
+  ModelParametersSchema,
   ProviderDefinitionSchema,
   ModelDefinitionSchema,
   TestConnectionConfigSchema,
@@ -119,6 +122,9 @@ const DEFAULT_SETTINGS = {
   autoTagEnabled: true,
   autoTagCreationEnabled: true,
   systemPrompt: "",
+  // System-level default model parameters — threads without a per-thread
+  // override fall back to these. undefined ⇒ model/provider defaults apply.
+  defaultModelParams: undefined as z.infer<typeof ModelParametersSchema> | undefined,
   language: "system" as const,
   // Which top-level mode (chat | entertainment) the app opens in on boot.
   defaultAppMode: "chat" as const,
@@ -160,6 +166,7 @@ export const SettingsStateSchema = z
       .boolean()
       .default(DEFAULT_SETTINGS.autoTagCreationEnabled),
     systemPrompt: z.string().default(DEFAULT_SETTINGS.systemPrompt),
+    defaultModelParams: ModelParametersSchema.optional(),
     language: z.enum(["system", "en", "zh"]).default(DEFAULT_SETTINGS.language),
     defaultAppMode: z
       .enum(["chat", "entertainment"])

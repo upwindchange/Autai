@@ -246,12 +246,16 @@ threadRoutes.get("/:id/messages", (c) => {
 // GET /threads/:id/model — read-once-on-load: returns the per-thread chat
 // override, validated. If the saved provider/model no longer exists, purges
 // the override (writes null/null), notifies the user, and returns default.
+// Also returns the per-thread model params + system prompt override
+// (chat_model_params JSON, chat_system_prompt text), so the renderer can
+// repopulate the thread-level settings panel on load.
 threadRoutes.get("/:id/model", (c) => {
+  const empty = { providerId: null, modelId: null, params: null, systemPrompt: null };
   try {
     const id = c.req.param("id");
     const thread = threadPersistenceService.getThread(id);
     if (!thread || !thread.chatProviderId || !thread.chatModelId) {
-      return c.json({ providerId: null, modelId: null });
+      return c.json(empty);
     }
 
     const db = getDb();
@@ -266,25 +270,50 @@ threadRoutes.get("/:id/model", (c) => {
         .getModels(providerRow.providerDir)
         .some((m) => m.file === thread.chatModelId);
 
+    const params =
+      thread.chatModelParams ?
+        (() => {
+          try {
+            return JSON.parse(thread.chatModelParams);
+          } catch {
+            return null;
+          }
+        })()
+      : null;
+    const systemPrompt = thread.chatSystemPrompt;
+
     if (!valid) {
       sendInfo(
         i18n.t("agents.modelUnavailableTitle"),
         i18n.t("agents.modelUnavailableBody"),
       );
+      // Purge the invalid provider/model but keep params/systemPrompt — they're
+      // independent of the model identity and the user may re-pick a model.
       threadPersistenceService.setThreadChatOverride(id, {
         providerId: null,
         modelId: null,
+        params,
+        systemPrompt,
       });
-      return c.json({ providerId: null, modelId: null });
+      return c.json({ providerId: null, modelId: null, params, systemPrompt });
     }
 
+    logger.debug("Thread model override loaded", {
+      id,
+      providerId: thread.chatProviderId,
+      modelId: thread.chatModelId,
+      hasParams: !!params,
+      hasSystemPrompt: !!systemPrompt,
+    });
     return c.json({
       providerId: thread.chatProviderId,
       modelId: thread.chatModelId,
+      params,
+      systemPrompt,
     });
   } catch (error) {
     logger.error("Error loading thread model:", error);
-    return c.json({ providerId: null, modelId: null });
+    return c.json(empty);
   }
 });
 

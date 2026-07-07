@@ -1,4 +1,5 @@
 import type { TagRow, ThreadMode } from "@shared/tag";
+import type { ModelParameters } from "@shared";
 import { getApiBase } from "@/lib/api";
 
 export async function fetchTags(mode?: ThreadMode): Promise<TagRow[]> {
@@ -81,11 +82,18 @@ export async function renameThread(
 
 /**
  * Set or clear a thread's per-thread chat model override.
- * Pass null providerId/modelId to revert to the global default.
+ * Pass null providerId/modelId/params/systemPrompt to revert that field to the
+ * global default. params/systemPrompt are optional for backward compatibility
+ * with callers that only touch the model identity.
  */
 export async function setThreadChatOverride(
   threadId: string,
-  override: { providerId: string | null; modelId: string | null },
+  override: {
+    providerId: string | null;
+    modelId: string | null;
+    params?: ModelParameters | null;
+    systemPrompt?: string | null;
+  },
 ): Promise<void> {
   await fetch(`${getApiBase()}/threads/${threadId}`, {
     method: "PATCH",

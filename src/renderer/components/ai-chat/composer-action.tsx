@@ -36,6 +36,7 @@ import {
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { ComposerAddAttachment } from "@/components/ai-chat/attachment";
+import { ThreadChatSettings } from "@/components/ai-chat/thread-chat-settings";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { ContextDisplayRing } from "@/components/ai-chat/context-display";
 import { useThreadModelContextWindow } from "@/hooks/useThreadModelContextWindow";
@@ -107,6 +108,7 @@ export const ComposerAction: FC = () => {
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
       <div className="flex items-center gap-1">
+        <ThreadChatSettings />
         <ComposerAddAttachment />
         {/* --- custom: unified tools menu (browser use + extensions + web search) --- */}
         <DropdownMenu
