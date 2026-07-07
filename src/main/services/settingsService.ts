@@ -16,6 +16,7 @@ import type {
   TestConnectionConfig,
   UserProviderConfig,
   ModelRoleAssignment,
+  ModelOverride,
   ProviderRuntimeConfig,
 } from "@shared";
 import { SettingsStateSchema } from "@shared";
@@ -45,6 +46,18 @@ class SettingsService {
 
   private set settings(value: SettingsState) {
     this._settings = value;
+  }
+
+  /**
+   * Look up a manual capability override for a (provider, model) pair — used by
+   * the model factory for openai-compatible models that have no TOML `limit`.
+   * Reads `_settings` directly (not the role-mirroring `settings` getter):
+   * overrides are raw per-model user data, independent of `useSameModelForAgents`.
+   */
+  getModelOverride(providerId: string, modelId: string): ModelOverride | undefined {
+    return this._settings.modelOverrides.find(
+      (o) => o.providerId === providerId && o.modelId === modelId,
+    );
   }
 
   initialize(): void {
@@ -103,6 +116,9 @@ class SettingsService {
         settingsMap.get("auto_tag_creation_enabled") !== "false",
       systemPrompt: settingsMap.get("system_prompt") || defaults.systemPrompt,
       language: settingsMap.get("language") || defaults.language,
+      modelOverrides: settingsMap.get("model_overrides") ?
+        JSON.parse(settingsMap.get("model_overrides")!)
+      : [],
       defaultAppMode:
         settingsMap.get("default_app_mode") === "entertainment" ?
           "entertainment"
@@ -178,6 +194,12 @@ class SettingsService {
         ],
         ["system_prompt", settingsState.systemPrompt || ""],
         ["language", settingsState.language || "en"],
+        [
+          "model_overrides",
+          settingsState.modelOverrides ?
+            JSON.stringify(settingsState.modelOverrides)
+          : "[]",
+        ],
         ["default_app_mode", settingsState.defaultAppMode],
         ["max_parallel_agents", String(settingsState.maxParallelAgents)],
         ["max_retries", String(settingsState.maxRetries)],

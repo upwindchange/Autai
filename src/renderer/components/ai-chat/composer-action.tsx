@@ -37,6 +37,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { ComposerAddAttachment } from "@/components/ai-chat/attachment";
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
+import { ContextDisplayRing } from "@/components/ai-chat/context-display";
+import { useThreadModelContextWindow } from "@/hooks/useThreadModelContextWindow";
 
 export const ComposerAction: FC = () => {
   const {
@@ -93,6 +95,14 @@ export const ComposerAction: FC = () => {
     setActiveSettingsSection("mcpServers");
     setShowSettings(true);
   };
+
+  // ContextDisplay fits plain chat only (single accumulating usage ÷ one window).
+  // In any multi-agent mode the summed sub-agent usage ÷ one window is
+  // meaningless, so the ring is hidden.
+  const contextWindow = useThreadModelContextWindow();
+  const isMultiAgentMode = useBrowser || webSearch || deepResearch || quickSearch;
+  const showContextDisplay =
+    !isMultiAgentMode && contextWindow !== undefined;
 
   return (
     <div className="aui-composer-action-wrapper relative flex items-center justify-between">
@@ -343,32 +353,42 @@ export const ComposerAction: FC = () => {
       </div>
 
       <AuiIf condition={(s) => !s.thread.isRunning}>
-        <ComposerPrimitive.Send asChild>
-          <TooltipIconButton
-            tooltip={t("composer.sendMessage")}
-            side="bottom"
-            type="button"
-            variant="default"
-            size="icon"
-            className="aui-composer-send size-8 rounded-full"
-            aria-label={t("composer.sendMessage")}
-          >
-            <ArrowUpIcon className="aui-composer-send-icon size-4" />
-          </TooltipIconButton>
-        </ComposerPrimitive.Send>
+        <div className="flex items-center gap-1">
+          {showContextDisplay && (
+            <ContextDisplayRing modelContextWindow={contextWindow!} side="top" />
+          )}
+          <ComposerPrimitive.Send asChild>
+            <TooltipIconButton
+              tooltip={t("composer.sendMessage")}
+              side="bottom"
+              type="button"
+              variant="default"
+              size="icon"
+              className="aui-composer-send size-8 rounded-full"
+              aria-label={t("composer.sendMessage")}
+            >
+              <ArrowUpIcon className="aui-composer-send-icon size-4" />
+            </TooltipIconButton>
+          </ComposerPrimitive.Send>
+        </div>
       </AuiIf>
       <AuiIf condition={(s) => s.thread.isRunning}>
-        <ComposerPrimitive.Cancel asChild>
-          <Button
-            type="button"
-            variant="default"
-            size="icon"
-            className="aui-composer-cancel size-8 rounded-full"
-            aria-label={t("composer.stopGenerating")}
-          >
-            <SquareIcon className="aui-composer-cancel-icon size-3 fill-current" />
-          </Button>
-        </ComposerPrimitive.Cancel>
+        <div className="flex items-center gap-1">
+          {showContextDisplay && (
+            <ContextDisplayRing modelContextWindow={contextWindow!} side="top" />
+          )}
+          <ComposerPrimitive.Cancel asChild>
+            <Button
+              type="button"
+              variant="default"
+              size="icon"
+              className="aui-composer-cancel size-8 rounded-full"
+              aria-label={t("composer.stopGenerating")}
+            >
+              <SquareIcon className="aui-composer-cancel-icon size-3 fill-current" />
+            </Button>
+          </ComposerPrimitive.Cancel>
+        </div>
       </AuiIf>
     </div>
   );

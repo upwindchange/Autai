@@ -157,7 +157,7 @@ export async function browserUsePlanner(
   };
 
   const result = streamText({
-    model: complexModel(),
+    model: complexModel().model,
     messages,
     system: plannerSystemPrompt,
     tools: {
@@ -311,7 +311,7 @@ export async function browserUseReplanner(
   );
 
   const result = streamText({
-    model: complexModel(),
+    model: complexModel().model,
     messages: [
       {
         role: "user",

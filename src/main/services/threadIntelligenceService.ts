@@ -238,7 +238,7 @@ INSTRUCTIONS:
 - Always respond by calling the setThreadMeta tool`;
 
       const result = await generateText({
-        model: simpleModel(),
+        model: simpleModel().model,
         system: systemPrompt,
         prompt: `First user message: "${firstUserMessage}"`,
         toolChoice: "required",
@@ -339,7 +339,7 @@ INSTRUCTIONS:
       );
 
       const result = await generateText({
-        model: simpleModel(),
+        model: simpleModel().model,
         system: `You are a follow-up suggestion generator. Given the conversation so far, generate exactly 3 concise follow-up prompts the user might want to ask next. Each prompt should be a short, natural question or request (under 15 words). Make the suggestions diverse — cover different angles of the topic. Always respond by calling the setFollowUpSuggestions tool.`,
         prompt: `Last user message: "${userText}"\n\nLast assistant response: "${assistantText}"`,
         toolChoice: "required",

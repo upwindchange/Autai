@@ -96,7 +96,7 @@ export async function researchPlanner(
   });
 
   const result = streamText({
-    model: complexModel(),
+    model: complexModel().model,
     messages,
     system: plannerSystemPrompt,
     tools: {

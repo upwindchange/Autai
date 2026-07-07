@@ -182,7 +182,7 @@ async function judgeCandidate(
 ): Promise<boolean> {
   const label = contentLabel(options.nonNovelSource, ctx.chapterNumber);
   const result = streamText({
-    model: complexModel(),
+    model: complexModel().model,
     system: buildJudgeSystemPrompt(
       novel,
       ctx.chapterNumber,
@@ -340,7 +340,7 @@ async function landViaAdvance(
   }
 
   const result = streamText({
-    model: complexModel(),
+    model: complexModel().model,
     system: buildAdvanceSystemPrompt(novel, ctx.chapterNumber),
     messages: [
       {

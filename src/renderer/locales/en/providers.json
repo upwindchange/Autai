@@ -33,5 +33,9 @@
   "modelList.loading": "Loading...",
   "modelList.empty": "No models found. Enter a model name manually.",
   "modelList.manual": "Or type a model name manually:",
-  "modelList.modelName": "Model Name"
+  "modelList.modelName": "Model Name",
+  "modelList.override.title": "Model capabilities (manual)",
+  "modelList.override.hint": "This model has no catalog metadata. Enter its limits so the app can size requests. Defaults to 128k context if left blank.",
+  "modelList.override.context": "Context window (tokens)",
+  "modelList.override.output": "Max output (tokens)"
 }

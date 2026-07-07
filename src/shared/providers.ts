@@ -111,6 +111,28 @@ export const ModelRoleAssignmentSchema = z.object({
 });
 export type ModelRoleAssignment = z.infer<typeof ModelRoleAssignmentSchema>;
 
+/**
+ * Manual capability override for a (provider, model) pair whose catalog has no
+ * `limit` — the openai-compatible case (no TOML on disk; the model list is
+ * fetched live from the user's endpoint with no context/output metadata).
+ *
+ * The frontend owns the 128k default: it persists a concrete value before the
+ * number ever reaches the backend, so `contextWindow` reaching the model
+ * factory is always defined for openai-compatible models. A TOML provider whose
+ * model file is *itself* missing `limit` is the one and only backend fallback
+ * (to FALLBACK_CONTEXT_TOKENS, with a warning) — see providers/index.ts.
+ *
+ * Keyed by (providerId, modelId) rather than role: a capability fact belongs to
+ * the model, and the same model may serve multiple roles.
+ */
+export const ModelOverrideSchema = z.object({
+  providerId: z.string(),
+  modelId: z.string(),
+  contextWindow: z.number().int().min(1).optional(),
+  maxOutputTokens: z.number().int().min(1).optional(),
+});
+export type ModelOverride = z.infer<typeof ModelOverrideSchema>;
+
 // ──────────────────────────────────────────────
 // Test connection config (flat, no discriminated union)
 // ──────────────────────────────────────────────

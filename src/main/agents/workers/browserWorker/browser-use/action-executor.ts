@@ -310,7 +310,7 @@ export async function executeSubtasks(
           // EXECUTE ACTIONS FOR THIS SUBTASK USING streamText
           // ============================================================
           const result = streamText({
-            model: complexModel(),
+            model: complexModel().model,
             messages: [{ role: "user", content: subtaskContext }],
             system: ACTION_EXECUTOR_PROMPT,
             tools: {

@@ -79,6 +79,9 @@ const en = {
     modelUnavailableTitle: "Saved Model No Longer Available",
     modelUnavailableBody:
       "The chat model saved for this thread is no longer configured. Falling back to your default model.",
+    contextWindowUnknownTitle: "Model Context Window Unknown",
+    contextWindowUnknownBody:
+      'No context-window limit found for "{{provider}} / {{model}}" (neither in the catalog nor a manual override). Batching will assume {{fallback}} tokens. For openai-compatible providers, set a context window in Settings → Providers & Models.',
     searchErrorTitle: "Search Error",
     searchErrorBody:
       'Query "{{query}}" was skipped due to a service error (e.g. rate limit): {{error}}',

@@ -86,7 +86,7 @@ export async function extractChapter(
     "the post/article"
   : `chapter ${ctx.chapterNumber}`;
   const result = streamText({
-    model: complexModel(),
+    model: complexModel().model,
     system: buildExtractSystemPrompt(
       novel,
       ctx.chapterNumber,

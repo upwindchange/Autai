@@ -88,6 +88,7 @@ export function ModelRoleSelector({
       {selectedProvider && (
         <TomlModelList
           providerDir={selectedProvider.providerDir}
+          providerId={selectedProvider.id}
           selectedModel={value.modelId}
           onModelSelect={handleModelSelect}
         />

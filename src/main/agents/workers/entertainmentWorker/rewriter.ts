@@ -96,7 +96,7 @@ async function runRewriteAgent(
   signal?: AbortSignal,
 ): Promise<boolean> {
   const result = streamText({
-    model: complexModel(),
+    model: complexModel().model,
     system: systemPrompt,
     messages: [{ role: "user", content: sourceText }],
     tools: {

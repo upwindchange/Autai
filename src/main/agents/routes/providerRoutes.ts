@@ -18,6 +18,8 @@ providerRoutes.get("/", (c) => {
 // GET /providers/configured/models — flat list of all models across the user's
 // CONFIGURED providers. Each entry carries the userProviders.id needed to
 // persist a per-thread model override, plus the provider's logo for display.
+// `limit` is the resolved context/output caps: TOML catalog `limit` if present,
+// else the user-entered manual override (for no-TOML openai-compatible models).
 // Registered before /:dir/models so Hono doesn't capture "configured" as a dir.
 providerRoutes.get("/configured/models", async (c) => {
   const providers = settingsService.settings.providers;
@@ -28,6 +30,7 @@ providerRoutes.get("/configured/models", async (c) => {
     logo?: string;
     modelId: string;
     modelName: string;
+    limit?: { context: number; output?: number };
   }[] = [];
 
   for (const p of providers) {
@@ -39,6 +42,16 @@ providerRoutes.get("/configured/models", async (c) => {
     });
     for (const m of models) {
       if (!m.name) continue; // skip malformed/unnamed entries (defense in depth)
+      // TOML limit wins; otherwise fall back to a manual override (openai-compat).
+      // The override may carry only one of context/output, but the response type
+      // requires both — synthesize the missing one as undefined-free by only
+      // emitting `limit` when at least the context is known (the denominator the
+      // UI actually needs); output is included when present.
+      const override = settingsService.getModelOverride(p.id, m.file);
+      const ctx = m.limit?.context ?? override?.contextWindow;
+      const out = m.limit?.output ?? override?.maxOutputTokens;
+      const limit =
+        ctx !== undefined ? { context: ctx, ...(out && { output: out }) } : undefined;
       result.push({
         providerId: p.id,
         providerDir: p.providerDir,
@@ -46,6 +59,7 @@ providerRoutes.get("/configured/models", async (c) => {
         ...(def?.logo && { logo: def.logo }),
         modelId: m.file,
         modelName: m.name,
+        ...(limit && { limit }),
       });
     }
   }

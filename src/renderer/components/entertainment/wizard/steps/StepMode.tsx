@@ -6,6 +6,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 import type { EntertainmentConfig, EntertainmentMode } from "@shared";
 import { swapMode } from "../wizardSteps";
+import { ModelCapabilityCard } from "../ModelCapabilityCard";
 
 interface StepModeProps {
   config: EntertainmentConfig;
@@ -35,11 +36,13 @@ const MODES: {
 export const StepMode: FC<StepModeProps> = ({ config, setConfig }) => {
   const { t } = useTranslation("entertainment");
   return (
-    <RadioGroup
-      value={config.mode}
-      onValueChange={(v) => setConfig(swapMode(config, v as EntertainmentMode))}
-      className="mx-auto grid w-full max-w-4xl grid-cols-1 gap-3 sm:grid-cols-2"
-    >
+    <div className="space-y-4">
+      <ModelCapabilityCard />
+      <RadioGroup
+        value={config.mode}
+        onValueChange={(v) => setConfig(swapMode(config, v as EntertainmentMode))}
+        className="mx-auto grid w-full max-w-4xl grid-cols-1 gap-3 sm:grid-cols-2"
+      >
       {MODES.map((opt) => (
         <div
           key={opt.value}
@@ -75,6 +78,7 @@ export const StepMode: FC<StepModeProps> = ({ config, setConfig }) => {
           </div>
         </div>
       ))}
-    </RadioGroup>
+      </RadioGroup>
+    </div>
   );
 };

@@ -115,5 +115,12 @@
   "optionList.otherPlaceholder": "输入你自己的回答...",
   "optionList.skip": "跳过",
   "optionList.cancelled": "已取消",
-  "optionList.submit": "提交"
+  "optionList.submit": "提交",
+  "contextDisplay.ariaLabel": "上下文用量",
+  "contextDisplay.usage": "用量",
+  "contextDisplay.input": "输入",
+  "contextDisplay.cached": "缓存",
+  "contextDisplay.output": "输出",
+  "contextDisplay.reasoning": "推理",
+  "contextDisplay.total": "合计"
 }

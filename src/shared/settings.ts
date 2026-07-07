@@ -7,6 +7,7 @@ import { z } from "zod";
 import {
   UserProviderConfigSchema,
   ModelRoleAssignmentSchema,
+  ModelOverrideSchema,
 } from "./providers";
 
 export type { UserProviderConfig, ModelRoleAssignment } from "./providers";
@@ -14,12 +15,14 @@ export type {
   ProviderDefinition,
   ModelDefinition,
   ModelRole,
+  ModelOverride,
 } from "./providers";
 
 // Re-export provider schemas for convenience
 export {
   UserProviderConfigSchema,
   ModelRoleAssignmentSchema,
+  ModelOverrideSchema,
   ProviderDefinitionSchema,
   ModelDefinitionSchema,
   TestConnectionConfigSchema,
@@ -106,6 +109,10 @@ const DEFAULT_SETTINGS = {
     simple: { ...DEFAULT_MODEL_ASSIGNMENT, role: "simple" as const },
     complex: { ...DEFAULT_MODEL_ASSIGNMENT, role: "complex" as const },
   },
+  // Manual capability overrides for openai-compatible (no-TOML) models — see
+  // ModelOverrideSchema. The frontend owns the 128k default; the backend only
+  // falls back for a TOML provider whose model file itself lacks `limit`.
+  modelOverrides: [] as z.infer<typeof ModelOverrideSchema>[],
   useSameModelForAgents: true,
   logLevel: "info" as const,
   langfuse: LangfuseConfigSchema.parse({}),
@@ -142,6 +149,7 @@ export const SettingsStateSchema = z
         complex: ModelRoleAssignmentSchema,
       })
       .default(DEFAULT_SETTINGS.modelAssignments),
+    modelOverrides: z.array(ModelOverrideSchema).default(DEFAULT_SETTINGS.modelOverrides),
     useSameModelForAgents: z
       .boolean()
       .default(DEFAULT_SETTINGS.useSameModelForAgents),

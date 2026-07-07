@@ -110,7 +110,7 @@ export async function executeSimpleBrowserTask(
   return createUIMessageStream({
     execute: async ({ writer }) => {
       const result = streamText({
-        model: complexModel(),
+        model: complexModel().model,
         messages,
         system: SIMPLE_EXECUTOR_PROMPT,
         tools: {

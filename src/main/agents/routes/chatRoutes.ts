@@ -54,7 +54,7 @@ chatRoutes.post("/", async (c) => {
       chatProviderId && chatModelId ?
         { providerId: chatProviderId, modelId: chatModelId }
       : undefined;
-    const chatLanguageModel = chatModel(chatSelection);
+    const chatLanguageModel = chatModel(chatSelection).model;
 
     logger.info("Chat request received", {
       messagesCount: messages?.length,
@@ -161,6 +161,25 @@ chatRoutes.post("/", async (c) => {
       return result.toUIMessageStreamResponse({
         originalMessages: messages,
         generateMessageId: () => crypto.randomUUID(),
+        // Forward token usage into message metadata so the renderer's
+        // ContextDisplay (useThreadTokenUsage) can show the input/output
+        // breakdown and total-÷context-window ratio. Only the chat branch —
+        // multi-agent modes stream via a raw ReadableStream with no single
+        // result.totalUsage to forward.
+        // Forward token usage into message metadata so the renderer's
+        // ContextDisplay (useThreadTokenUsage) can show the input/output
+        // breakdown and total÷context-window ratio. The usage is nested under
+        // `custom.usage` because the assistant-ui message conversion preserves
+        // the `custom` namespace (while stripping a top-level `usage` key);
+        // useThreadTokenUsage reads metadata.custom.usage as its fallback path.
+        // Only the chat branch — multi-agent modes stream via a raw
+        // ReadableStream with no single result.totalUsage to forward.
+        messageMetadata: ({ part }) => {
+          if (part.type === "finish") {
+            return { custom: { usage: part.totalUsage } };
+          }
+          return undefined;
+        },
         onFinish: async ({ messages: finalMessages }) => {
           logger.info("Chat onFinish fired", {
             sessionId,

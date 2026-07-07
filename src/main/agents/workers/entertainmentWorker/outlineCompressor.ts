@@ -47,7 +47,7 @@ export async function compressPriorOutline(
 
   try {
     const result = await generateText({
-      model: simpleModel(),
+      model: simpleModel().model,
       system: systemPrompt,
       messages: [{ role: "user", content: input }],
       maxRetries: settingsService.settings.maxRetries,

@@ -4,7 +4,9 @@ import { getApiBase } from "@/lib/api";
 /**
  * One model entry per (configured provider, model) pair.
  * `providerId` is the userProviders.id needed to persist a per-thread override;
- * `logo` is the inline provider SVG for display.
+ * `logo` is the inline provider SVG for display. `limit` is the resolved
+ * context/output caps — from the TOML catalog, or a manual override for
+ * openai-compatible models that have no TOML.
  */
 export type ConfiguredModelOption = {
   providerId: string;
@@ -13,6 +15,7 @@ export type ConfiguredModelOption = {
   logo?: string;
   modelId: string;
   modelName: string;
+  limit?: { context: number; output?: number };
 };
 
 /**

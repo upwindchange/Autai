@@ -75,6 +75,9 @@ const zh = {
     providerNotFoundBody: "找不到{{providerId}}，请检查设置。",
     modelUnavailableTitle: "保存的模型已不可用",
     modelUnavailableBody: "该会话保存的聊天模型已不再配置，将回退到默认模型。",
+    contextWindowUnknownTitle: "模型上下文窗口未知",
+    contextWindowUnknownBody:
+      "未找到「{{provider}} / {{model}}」的上下文窗口大小（目录与手动覆盖中都没有）。分批将按 {{fallback}} tokens 估算。对于 openai-compatible 服务商，请在“设置 → 提供商与模型”中填写上下文窗口。",
     searchErrorTitle: "搜索错误",
     searchErrorBody:
       '查询"{{query}}"因服务商错误（如频率限制）被跳过：{{error}}',

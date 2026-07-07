@@ -76,7 +76,7 @@ export const askUserTool = tool({
       context ? `## Request\n${request}\n\n## Context\n${context}` : request;
 
     const result = streamText({
-      model: ctx.chatModel ?? chatModel(),
+      model: ctx.chatModel ?? chatModel().model,
       messages: [{ role: "user", content: userMessage }],
       system: HITL_AGENT_PROMPT,
       tools: hitlTools,

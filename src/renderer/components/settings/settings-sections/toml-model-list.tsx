@@ -13,16 +13,24 @@ import {
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
 import { useProviderModels } from "@/hooks/useProviderModels";
-import type { ModelDefinition } from "@shared";
+import { useSettings } from "@/components/settings";
+import type { ModelDefinition, ModelOverride } from "@shared";
 
 interface TomlModelListProps {
   providerDir: string;
+  /**
+   * The userProviders.id for the provider being configured. Required for the
+   * manual-capability override inputs shown when a model has no TOML `limit`
+   * (the openai-compatible case). Omitted => override editing is unavailable.
+   */
+  providerId?: string;
   selectedModel: string;
   onModelSelect: (modelFile: string) => void;
 }
 
 export function TomlModelList({
   providerDir,
+  providerId,
   selectedModel,
   onModelSelect,
 }: TomlModelListProps) {
@@ -65,9 +73,19 @@ export function TomlModelList({
             {t("modelList.empty")}
           </p>
         )}
+        {/* For the no-TOML (openai-compatible) case, surface the override
+            inputs even when the model list is empty — the user types a model
+            id manually above and may still need to declare its caps. */}
+        {providerId && selectedModel && (
+          <ModelOverrideInputs providerId={providerId} modelId={selectedModel} />
+        )}
       </div>
     );
   }
+
+  // The selected model, if it has no catalog `limit`, gets editable override
+  // inputs below the list (openai-compatible models fetched from /models).
+  const selected = models.find((m) => m.file === selectedModel);
 
   return (
     <div className="space-y-3">
@@ -128,6 +146,103 @@ export function TomlModelList({
           onChange={(e) => onModelSelect(e.target.value)}
           placeholder="e.g., claude-sonnet-4-6"
         />
+      </div>
+
+      {/* Manual capability override for a model with no catalog limit. The
+          frontend owns the 128k default — the user is told to enter a value,
+          and what reaches the backend is always a concrete number. */}
+      {providerId && selectedModel && selected && !selected.limit && (
+        <ModelOverrideInputs providerId={providerId} modelId={selectedModel} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Editable context-window / max-output inputs for a model whose catalog has no
+ * `limit` (openai-compatible). Persists into settings.modelOverrides keyed by
+ * (providerId, modelId). The hint states the 128k default so the user knows
+ * what happens if they leave a field blank — the frontend default that keeps
+ * the backend from ever seeing "no value" for an openai-compatible model.
+ */
+function ModelOverrideInputs({
+  providerId,
+  modelId,
+}: {
+  providerId: string;
+  modelId: string;
+}) {
+  const { t } = useTranslation("providers");
+  const { settings, updateSettings } = useSettings();
+
+  const existing = settings.modelOverrides.find(
+    (o) => o.providerId === providerId && o.modelId === modelId,
+  );
+
+  const writeOverride = (patch: Partial<ModelOverride>) => {
+    const base: ModelOverride = existing ?? {
+      providerId,
+      modelId,
+    };
+    const next: ModelOverride = { ...base, ...patch };
+    // Drop the entry entirely if both fields are cleared.
+    const others = settings.modelOverrides.filter(
+      (o) => !(o.providerId === providerId && o.modelId === modelId),
+    );
+    const merged =
+      next.contextWindow || next.maxOutputTokens ?
+        [...others, next]
+      : others;
+    void updateSettings({ ...settings, modelOverrides: merged });
+  };
+
+  return (
+    <div className="space-y-1.5 rounded-md border border-dashed p-3">
+      <Label className="text-xs font-medium">
+        {t("modelList.override.title")}
+      </Label>
+      <p className="text-[11px] text-muted-foreground">
+        {t("modelList.override.hint")}
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label className="text-[11px] text-muted-foreground">
+            {t("modelList.override.context")}
+          </Label>
+          <Input
+            type="number"
+            min={1}
+            inputMode="numeric"
+            value={existing?.contextWindow ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              writeOverride({
+                contextWindow: v ? Number(v) : undefined,
+              });
+            }}
+            placeholder="128000"
+            className="h-8 text-xs"
+          />
+        </div>
+        <div className="space-y-1">
+          <Label className="text-[11px] text-muted-foreground">
+            {t("modelList.override.output")}
+          </Label>
+          <Input
+            type="number"
+            min={1}
+            inputMode="numeric"
+            value={existing?.maxOutputTokens ?? ""}
+            onChange={(e) => {
+              const v = e.target.value;
+              writeOverride({
+                maxOutputTokens: v ? Number(v) : undefined,
+              });
+            }}
+            placeholder="—"
+            className="h-8 text-xs"
+          />
+        </div>
       </div>
     </div>
   );

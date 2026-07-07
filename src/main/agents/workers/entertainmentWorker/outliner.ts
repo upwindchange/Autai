@@ -1,7 +1,8 @@
 import { streamText, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import log from "electron-log/main";
-import { complexModel, complexModelContextWindow } from "@agents/providers";
+import { complexModel } from "@agents/providers";
+import type { LanguageModel } from "ai";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
 import { settingsService, entertainmentService } from "@/services";
 import type {
@@ -650,6 +651,7 @@ function buildOutlineSystemPrompt(crossChapter: CrossChapterDehydrate): string {
  * (cumulative context) + this batch's chapter原文, formatted as one message.
  */
 async function runOutlineAgent(
+  model: LanguageModel,
   systemPrompt: string,
   userContent: string,
   threadId: string,
@@ -659,7 +661,7 @@ async function runOutlineAgent(
     userContentLen: userContent.length,
   });
   const result = streamText({
-    model: complexModel(),
+    model,
     system: systemPrompt,
     messages: [{ role: "user", content: userContent }],
     tools: {
@@ -695,12 +697,11 @@ async function runOutlineAgent(
 
 // --- batch budgeting -------------------------------------------------------
 
-/**
- * Conservative fallback when the model's context window can't be read from the
- * catalog (e.g. openai-compatible has no TOML). 128k matches a modern default
- * and keeps batches safe; callers that need more can configure the model.
- */
-const FALLBACK_CONTEXT_TOKENS = 128_000;
+// The complex model's context window is resolved once (see generateOutlines)
+// and threaded down as `maxContext`. There is no local fallback: the model
+// factory guarantees a concrete contextWindow (catalog limit, else a
+// user-entered override, else FALLBACK_CONTEXT_TOKENS with a warning — see
+// providers/index.ts).
 
 // --- the public entry ------------------------------------------------------
 
@@ -830,7 +831,14 @@ export async function generateOutlines(
   //    measured via gpt-tokenizer), and compresses the cumulative prior
   //    outline after each batch so it doesn't grow linearly. The loop itself
   //    stays linear: plan → run → absorb. Only pending chapters are fed.
-  const maxContext = complexModelContextWindow() ?? FALLBACK_CONTEXT_TOKENS;
+  //
+  //    Resolve the complex model ONCE: its SDK object is threaded into each
+  //    batch's streamText call (runOutlineAgent), and its contextWindow drives
+  //    the planner. `contextWindow` is always a concrete number — the factory
+  //    guarantees it (catalog limit, else a user override, else a warned
+  //    128k fallback) — so there is no local fallback here.
+  const complex = complexModel();
+  const maxContext = complex.contextWindow;
   const planner = await OutlineBatchPlanner.create({
     maxContext,
     systemPrompt,
@@ -859,7 +867,7 @@ export async function generateOutlines(
     let saved = false;
     let retried = false;
     try {
-      saved = await runOutlineAgent(systemPrompt, userContent, threadId);
+      saved = await runOutlineAgent(complex.model, systemPrompt, userContent, threadId);
       if (!saved) {
         retried = true;
         logger.warn("outliner did not call tool; retrying", {
@@ -868,6 +876,7 @@ export async function generateOutlines(
           userContentLen: userContent.length,
         });
         saved = await runOutlineAgent(
+          complex.model,
           systemPrompt + RETRY_SUFFIX,
           userContent,
           threadId,

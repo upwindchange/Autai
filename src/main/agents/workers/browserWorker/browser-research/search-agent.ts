@@ -376,7 +376,7 @@ async function executeSingleSearchQuery(
     });
 
     const analysisResult = streamText({
-      model: complexModel(),
+      model: complexModel().model,
       messages: [
         {
           role: "user",

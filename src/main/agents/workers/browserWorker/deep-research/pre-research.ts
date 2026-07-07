@@ -125,7 +125,7 @@ export async function runPreResearch(
     const broadQueries = await retryStreamTextForTool(
       () =>
         streamText({
-          model: complexModel(),
+          model: complexModel().model,
           prompt: userQuestion,
           system: PRE_RESEARCH_QUERY_PROMPT,
           tools: {

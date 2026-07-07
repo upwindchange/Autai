@@ -115,5 +115,12 @@
   "optionList.otherPlaceholder": "Type your own answer...",
   "optionList.skip": "Skip",
   "optionList.cancelled": "Cancelled",
-  "optionList.submit": "Submit"
+  "optionList.submit": "Submit",
+  "contextDisplay.ariaLabel": "Context usage",
+  "contextDisplay.usage": "Usage",
+  "contextDisplay.input": "Input",
+  "contextDisplay.cached": "Cached",
+  "contextDisplay.output": "Output",
+  "contextDisplay.reasoning": "Reasoning",
+  "contextDisplay.total": "Total"
 }

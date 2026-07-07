@@ -33,5 +33,9 @@
   "modelList.loading": "加载中...",
   "modelList.empty": "未找到模型，请手动输入模型名称。",
   "modelList.manual": "或手动输入模型名称：",
-  "modelList.modelName": "模型名称"
+  "modelList.modelName": "模型名称",
+  "modelList.override.title": "模型能力（手动填写）",
+  "modelList.override.hint": "该模型没有目录元数据，请填写其上限，以便应用据此规划请求。留空时上下文窗口默认为 128k。",
+  "modelList.override.context": "上下文窗口（tokens）",
+  "modelList.override.output": "最大输出（tokens）"
 }

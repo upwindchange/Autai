@@ -95,7 +95,7 @@ export async function deepResearchPlanner(
   });
 
   const result = streamText({
-    model: complexModel(),
+    model: complexModel().model,
     messages,
     system: deepPlannerSystemPrompt,
     tools: {

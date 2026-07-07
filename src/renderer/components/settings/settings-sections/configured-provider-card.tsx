@@ -194,6 +194,7 @@ export function ConfiguredProviderCard({
                 <CollapsibleContent className="space-y-4 pt-3">
                   <TomlModelList
                     providerDir={editState.providerDir}
+                    providerId={editState.id}
                     selectedModel={selectedModel}
                     onModelSelect={setSelectedModel}
                   />
