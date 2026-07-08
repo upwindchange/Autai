@@ -102,7 +102,7 @@
     "devtools-protocol": "^0.0.1637485",
     "diff": "^9.0.0",
     "dmg-license": "^1.0.11",
-    "drizzle-kit": "1.0.0-beta.22",
+    "drizzle-kit": "1.0.0-rc.4-273829f",
     "drizzle-orm": "1.0.0-beta.22",
     "electron": "^41.7.1",
     "electron-builder": "^26.8.1",
