@@ -1,6 +1,13 @@
 import { type Dispatch, type FC, type SetStateAction } from "react";
 import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
@@ -11,6 +18,8 @@ import { ModelCapabilityCard } from "../ModelCapabilityCard";
 interface StepModeProps {
   config: EntertainmentConfig;
   setConfig: Dispatch<SetStateAction<EntertainmentConfig>>;
+  agreed: boolean;
+  setAgreed: Dispatch<SetStateAction<boolean>>;
 }
 
 const MODES: {
@@ -33,7 +42,12 @@ const MODES: {
   },
 ];
 
-export const StepMode: FC<StepModeProps> = ({ config, setConfig }) => {
+export const StepMode: FC<StepModeProps> = ({
+  config,
+  setConfig,
+  agreed,
+  setAgreed,
+}) => {
   const { t } = useTranslation("entertainment");
   return (
     <div className="space-y-4">
@@ -79,6 +93,29 @@ export const StepMode: FC<StepModeProps> = ({ config, setConfig }) => {
         </div>
       ))}
       </RadioGroup>
+
+      {/* Legal acknowledgment — required to advance. UI-only: not sent to the
+          backend or persisted. The `agreed` state lives in the wizard so it can
+          keep gating forward navigation (and the final submit) on later steps. */}
+      <div className="rounded-lg border bg-card px-4 py-3">
+        <Field orientation="horizontal">
+          <Checkbox
+            id="ent-terms"
+            checked={agreed}
+            onCheckedChange={(v) => setAgreed(v === true)}
+          />
+          <FieldContent>
+            <FieldLabel
+              htmlFor="ent-terms"
+              className="cursor-pointer text-sm font-medium"
+            >
+              <span>{t("terms.label")}</span>
+              <span className="text-destructive">*</span>
+            </FieldLabel>
+            <FieldDescription>{t("terms.body")}</FieldDescription>
+          </FieldContent>
+        </Field>
+      </div>
     </div>
   );
 };
