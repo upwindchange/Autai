@@ -127,7 +127,7 @@
     "prettier": "^3.8.3",
     "radix-ui": "^1.4.3",
     "react": "^19.2.6",
-    "react-day-picker": "^9.14.0",
+    "react-day-picker": "^10.0.1",
     "react-dom": "^19.2.6",
     "react-file-icon": "^1.6.0",
     "react-hook-form": "^7.76.1",
