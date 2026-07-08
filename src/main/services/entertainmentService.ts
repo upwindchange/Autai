@@ -594,6 +594,94 @@ class EntertainmentService {
       .run();
   }
 
+  /**
+   * Highest committed source chapterNumber for the thread, or 0 if none. The
+   * outliner derives `nextChapterNumber = maxSourceChapterNumber + 1` from this
+   * (read-time derivation, no counter column) so chapter numbering is gap-free
+   * and survives crash-resume: whatever chapters already landed in
+   * `source_chapters` define where the next one continues.
+   */
+  maxSourceChapterNumber(threadId: string): number {
+    const db = getDb();
+    const row = db
+      .select({ max: sql<number>`max(${sourceChapters.chapterNumber})::int` })
+      .from(sourceChapters)
+      .where(eq(sourceChapters.threadId, threadId))
+      .get();
+    return row?.max ?? 0;
+  }
+
+  // --- raw novel text (file-upload only) -----------------------------------
+  // The full decoded novel text for a file upload, held ONLY for the duration of
+  // the outline run so the chunk loop can re-read it on crash-resume without
+  // touching the (possibly moved/deleted) source file. Each accessor selects a
+  // single column so the multi-MB blob never loads on hot config reads.
+
+  /** The persisted raw novel text (null if none / already cleared). */
+  getRawNovelText(threadId: string): string | null {
+    const db = getDb();
+    const row = db
+      .select({ rawText: entertainmentConfigs.rawText })
+      .from(entertainmentConfigs)
+      .where(eq(entertainmentConfigs.threadId, threadId))
+      .get();
+    return row?.rawText ?? null;
+  }
+
+  /** Persist the decoded raw novel text (called once at upload). */
+  setRawNovelText(threadId: string, rawText: string): void {
+    const db = getDb();
+    db.update(entertainmentConfigs)
+      .set({
+        rawText,
+        rawConsumedOffset: 0,
+        updatedAt: sql`(datetime('now'))`,
+      })
+      .where(eq(entertainmentConfigs.threadId, threadId))
+      .run();
+  }
+
+  /** Drop the raw blob (frees DB space once the outline run is complete). */
+  clearRawNovelText(threadId: string): void {
+    const db = getDb();
+    db.update(entertainmentConfigs)
+      .set({
+        rawText: null,
+        updatedAt: sql`(datetime('now'))`,
+      })
+      .where(eq(entertainmentConfigs.threadId, threadId))
+      .run();
+  }
+
+  /**
+   * How far the outliner has consumed `rawText` (character offset). Persisted
+   * inside the `outputChapters` tool's execute after each round, so every round
+   * boundary is a recovery point. 0 on a fresh upload.
+   */
+  getConsumedOffset(threadId: string): number {
+    const db = getDb();
+    const row = db
+      .select({
+        rawConsumedOffset: entertainmentConfigs.rawConsumedOffset,
+      })
+      .from(entertainmentConfigs)
+      .where(eq(entertainmentConfigs.threadId, threadId))
+      .get();
+    return row?.rawConsumedOffset ?? 0;
+  }
+
+  /** Persist the consumed offset (recovery checkpoint after each round). */
+  setConsumedOffset(threadId: string, offset: number): void {
+    const db = getDb();
+    db.update(entertainmentConfigs)
+      .set({
+        rawConsumedOffset: offset,
+        updatedAt: sql`(datetime('now'))`,
+      })
+      .where(eq(entertainmentConfigs.threadId, threadId))
+      .run();
+  }
+
   /** Novel source type from the stored config — drives file-vs-internet behavior. */
   getNovelType(threadId: string): "file" | "internet" | null {
     const row = this.getEntertainmentConfig(threadId);

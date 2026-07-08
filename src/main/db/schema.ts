@@ -153,9 +153,24 @@ export const entertainmentConfigs = sqliteTable("entertainment_configs", {
   // Renamed from lastChapterNumber to avoid collision with finalChapterNumber.
   lastReadChapterNumber: integer("last_read_chapter_number"),
   // Final chapter number of the book. null = unknown → assume the next chapter
-  // exists. Set upfront: files at ingest (parsed count), the internet stub at
-  // setup (hard-wired 40). Distinct from lastReadChapterNumber (resume position).
+  // exists. For internet novels set at setup (hard-wired 40); for FILE novels
+  // it is now set at END of the outline run (the count is unknown until the
+  // LLM finishes splitting — it is no longer parsed up front at upload).
+  // Distinct from lastReadChapterNumber (resume position).
   finalChapterNumber: integer("final_chapter_number"),
+  // The full decoded novel text for a FILE upload, held ONLY for the duration
+  // of the outline run so the chunk loop can re-read it on crash-resume without
+  // touching the (possibly moved/deleted/renamed) source file. Written once at
+  // upload, cleared (NULL) once the outline run completes. Internet novels never
+  // set this. Accessed via dedicated getRawNovelText/setRawNovelText/clearRawNovelText
+  // so the multi-MB blob never loads on hot config reads.
+  rawText: text("raw_text"),
+  // How far the outliner has consumed `rawText` (character offset). Persisted
+  // inside the outputChapters tool's execute after each round → every round
+  // boundary is a recovery point. On resume the next chunk starts at
+  // max(0, rawConsumedOffset − overlap) and re-covers the deferred straddler.
+  // 0 on a fresh upload; stays 0 for internet novels (no rawText).
+  rawConsumedOffset: integer("raw_consumed_offset").notNull().default(0),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),

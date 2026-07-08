@@ -156,7 +156,6 @@ type LanguagePatch = {
   targetLanguage?: string;
   translate?: Partial<{ enabled: boolean }>;
   nameLocalization?: Partial<{ enabled: boolean }>;
-  classicalToModern?: Partial<{ enabled: boolean }>;
   dialogueSubject?: Partial<{ enabled: boolean }>;
 };
 
@@ -233,7 +232,6 @@ export function patchSharedOptions(
   const LANGUAGE_TOGGLE_KEYS = [
     "translate",
     "nameLocalization",
-    "classicalToModern",
     "dialogueSubject",
   ] as const;
 

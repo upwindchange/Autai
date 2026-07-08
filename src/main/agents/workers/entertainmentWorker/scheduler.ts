@@ -1,6 +1,7 @@
 import PQueue from "p-queue";
 import log from "electron-log/main";
 import { entertainmentService, threadPersistenceService } from "@/services";
+import type { EntertainmentConfig } from "@shared";
 import { fetchInternetChapter } from "./internetFetch";
 import { rewriteChapter } from "./rewriter";
 import { generateOutlines, skipOutlines } from "./outliner";
@@ -21,6 +22,17 @@ interface ThreadWorker {
   queue: PQueue;
   inFlight: Set<number>; // dedup/lookup for enqueued+running chapter numbers
   target: number; // latest requested current chapter
+  /**
+   * Whether a `buildOutlines` run is currently in progress for this thread.
+   * buildOutlines runs OUTSIDE the serial p-queue (it's a whole-book step whose
+   * per-chapter progress callback enqueues INTO that queue), so the queue's
+   * concurrency:1 does NOT serialize it. This flag prevents concurrent
+   * outline runs (upload + startup-resume, or a poll-triggered re-entry) from
+   * double-submitmitting the same chapters — the second call returns early.
+   * `isOutlineComplete` alone is insufficient: two concurrent fresh runs both
+   * see "not complete" and both start, racing on the same chapter numbers.
+   */
+  outlineRunning: boolean;
 }
 
 /**
@@ -46,6 +58,7 @@ class DehydrateScheduler {
         queue: new PQueue({ concurrency: 1 }),
         inFlight: new Set(),
         target: 1,
+        outlineRunning: false,
       };
       this.workers.set(threadId, w);
     }
@@ -161,40 +174,73 @@ class DehydrateScheduler {
    * the thread's serial p-queue; its progress callback drives rewriting by
    * calling `ensure` per chapter, which enqueues into that serial queue.
    *
-   * Branches on availability:
-   *   - file novel + not `nonNovelSource` → run the outliner agent. Outlines are
-   *     generated in batches sized to the model's context window; each chapter's
-   *     outline landing fires `ensure(N)` so its rewrite is enqueued the moment
-   *     it's ready, without waiting for the whole book. `needsWork` holds any
-   *     chapter whose outline is still `"outlining"` back until its own outline
-   *     lands.
-   *   - otherwise (internet novel, or `nonNovelSource`) → mark every chapter's
-   *     outline row `"skipped"` and `ensure(1)` directly: there is no outline
-   *     step, so rewriting starts immediately and `needsWork` treats `"skipped"`
-   *     as "outline ready".
+   * Branches on novel type + nonNovelSource:
+   *   - file novel (NOT `nonNovelSource`) → run the outliner agent, which SPLITS
+   *     the raw text into chapters AND outlines each in a single LLM pass per
+   *     chunk (reading the persisted rawText chunk-by-chunk, sized by the input
+   *     context budget with a safe overlap). Each chapter's source row + outline
+   *     landing fires `ensure(N)` so its rewrite is enqueued the moment it's
+   *     ready. `needsWork` holds any chapter whose outline is still `"outlining"`
+   *     back until its own outline lands.
+   *   - internet novel OR `nonNovelSource` file → mark every existing source
+   *     chapter's outline `"skipped"` (no outline step) and let rewriting
+   *     proceed ungated. For internet novels the source site pre-chaptered it.
+   *     For `nonNovelSource` files: splitting continuous non-novel text (posts,
+   *     articles) into chapters is NOT yet implemented — the raw text is
+   *     persisted but no split/outline pass runs. `needsWork` treats `"skipped"`
+   *     as "outline ready"; with no source rows committed there's nothing to
+   *     rewrite yet, so the pipeline effectively waits until split support is
+   *     added for this source type.
    *
    * Re-entrancy: a run completes only when EVERY source chapter has an
-   * `outlined` row. If so, bail out so a retried upload / a poll-triggered
-   * call / the startup recovery scan never launches a second run. If not
-   * (some chapters are `outlining`/`error`/`skipped`/missing), `generateOutlines`
-   * resumes from the first unfinished chapter — it skips already-`outlined`
-   * chapters and rebuilds the prior-outline context from them.
+   * `outlined` row (file) / a `"skipped"` row (internet). If so, bail out so a
+   * retried upload / a poll-triggered call / the startup recovery scan never
+   * launches a second run. If not, `generateOutlines` resumes from the last
+   * committed chapter — it re-reads `rawConsumedOffset` + `maxSourceChapterNumber`
+   * from the DB and continues the chunk loop.
    */
   async buildOutlines(threadId: string): Promise<void> {
     const config = entertainmentService.getParsedConfig(threadId);
     if (!config || config.mode !== "dehydrate") return;
     if (entertainmentService.isOutlineComplete(threadId)) {
-      logger.debug("outlines already complete; skipping", { threadId });
+      logger.info("buildOutlines skipped — outlines already complete", {
+        threadId,
+      });
       return;
     }
-    const crossChapterAvailable =
-      config.novel.type === "file" && !config.options.nonNovelSource;
-    if (!crossChapterAvailable) {
-      // No outline step for this novel — mark every chapter skipped and let
-      // rewriting proceed ungated.
+    const w = this.workerFor(threadId);
+    if (w.outlineRunning) {
+      logger.info("buildOutlines skipped — outline run already in progress", {
+        threadId,
+      });
+      return;
+    }
+    w.outlineRunning = true;
+    try {
+      await this.runBuildOutlines(threadId, config);
+    } finally {
+      w.outlineRunning = false;
+    }
+  }
+
+  /**
+   * The actual outline run, factored out so `buildOutlines` can wrap it in the
+   * outlineRunning guard + try/finally. Never call directly — go through
+   * buildOutlines so the mutex holds.
+   */
+  private async runBuildOutlines(
+    threadId: string,
+    config: EntertainmentConfig,
+  ): Promise<void> {
+    if (config.novel.type === "internet" || config.options.nonNovelSource) {
+      // No outline/split step: internet novels are pre-chaptered by the source
+      // site; nonNovelSource files have no split implementation yet (continuous
+      // text — a future pass would segment it). Mark every existing source
+      // chapter's outline "skipped" so rewriting proceeds ungated for whatever
+      // source rows exist (nonNovelSource has none today → nothing to rewrite).
       const sourceCount =
         entertainmentService.listSourceChapters(threadId).length;
-      logger.info("outlines skipped (cross-chapter unavailable)", {
+      logger.info("outlines skipped (no split step)", {
         threadId,
         novelType: config.novel.type,
         nonNovelSource: config.options.nonNovelSource,
@@ -204,7 +250,19 @@ class DehydrateScheduler {
       this.ensure(threadId, 1);
       return;
     }
-    logger.info("starting outline generation", { threadId });
+    // Chaptered file novel: the outliner splits + outlines in one pass per
+    // chunk, reading the persisted rawText. (nonNovelSource files returned
+    // above — no split here.)
+    const consumedOffset = entertainmentService.getConsumedOffset(threadId);
+    const existingChapters =
+      entertainmentService.maxSourceChapterNumber(threadId);
+    logger.info("starting outline generation", {
+      threadId,
+      crossChapterStrength: config.options.crossChapter.strength,
+      resume: consumedOffset > 0,
+      consumedOffset,
+      existingChapters,
+    });
     const { outlined, errored } = await generateOutlines(
       threadId,
       config.options.crossChapter,
@@ -214,6 +272,7 @@ class DehydrateScheduler {
       threadId,
       outlined,
       errored,
+      finalChapter: entertainmentService.maxSourceChapterNumber(threadId),
     });
   }
 
@@ -236,17 +295,22 @@ class DehydrateScheduler {
     let skipped = 0;
     for (const t of allThreads) {
       const threadId = t.id;
-      // Skip threads that are fully outlined or have no source chapters —
-      // buildOutlines would no-op anyway, but this avoids spawning promises +
-      // logs for the common case (most threads are either complete or not yet
-      // uploaded).
+      // Skip threads that are fully outlined.
       if (entertainmentService.isOutlineComplete(threadId)) {
         skipped++;
         continue;
       }
+      // Resume if there's work to do: either source chapters already landed
+      // (partial file run OR an internet novel with chapters), OR there's a
+      // persisted rawText blob awaiting its first outline pass (a file novel
+      // that crashed between upload and outline start — source_chapters is
+      // empty there, but rawText is set). The rawText check is what makes the
+      // post-upload pre-outline crash recoverable.
       const sourceCount =
         entertainmentService.listSourceChapters(threadId).length;
-      if (sourceCount === 0) {
+      const hasRawText =
+        entertainmentService.getRawNovelText(threadId) != null;
+      if (sourceCount === 0 && !hasRawText) {
         skipped++;
         continue;
       }
@@ -254,6 +318,8 @@ class DehydrateScheduler {
       logger.info("resuming outline generation on startup", {
         threadId,
         title: t.title,
+        sourceCount,
+        hasRawText,
       });
       void this.buildOutlines(threadId).catch((err) =>
         logger.error("startup outline resume failed", { threadId, err }),
@@ -281,12 +347,13 @@ class DehydrateScheduler {
     if (source.status !== "fetched") return type === "internet"; // re-acquire stuck fetching
     // Outline readiness gate (章节并写 phase 1). A chapter may proceed to
     // rewriting only once its own outline is in a terminal status. For file
-    // novels an outline row always exists once `buildOutlines` has started
-    // (it pre-inserts one per source chapter); `"outlining"` holds the chapter
-    // back until its outline lands, and a missing row means the outline run
-    // hasn't begun yet (also hold back, so rewriting can't race ahead of it).
-    // Internet novels have no outline step (acquired one at a time), so a
-    // missing row there means "no gate" — proceed.
+    // novels the outliner commits each chapter's source row AND its outline row
+    // ATOMICALLY (in one tool-call pass) — so a source row present means its
+    // outline row is present too. There is no pre-inserted `outlining`
+    // placeholder anymore: a missing source row means the outline run hasn't
+    // reached this chapter yet (hold back); a present `outlining`/`error`
+    // outline row means it's in progress/failed. Internet novels have no outline
+    // step (acquired one at a time), so a missing row there means "no gate".
     const outline = entertainmentService.getOutline(threadId, c);
     if (outline) {
       if (outline.status === "outlining") {
@@ -393,18 +460,21 @@ class DehydrateScheduler {
       novelType: config.novel.type,
     });
 
-    // 1) Acquire 原文. Internet only — file chapters are pre-ingested as
-    //    'fetched', so a missing row means the file's end (skip). The fetcher
-    //    owns its row lifecycle + final-chapter handling and reports status:
-    //    "fetched" → proceed to rewrite; "finalChapter" | "error" → stop.
+    // 1) Acquire 原文. Internet only — for file novels the outliner commits each
+    //    chapter's source row as 'fetched' during the outline run (atomic with
+    //    its outline row), so a missing row means the outline run hasn't reached
+    //    this chapter yet (skip — it'll be re-enqueued as it lands). The
+    //    internet fetcher owns its row lifecycle + final-chapter handling and
+    //    reports status: "fetched" → proceed to rewrite; "finalChapter" |
+    //    "error" → stop.
     const source = entertainmentService.getSourceChapter(threadId, c);
     if (!source || source.status !== "fetched") {
       if (config.novel.type !== "internet") {
-        logger.debug("skip acquire — no source row (file end)", {
+        logger.debug("skip acquire — no source row yet (outline not reached)", {
           threadId,
           chapterNumber: c,
         });
-        return; // file: nothing to acquire
+        return; // file: outline hasn't committed this chapter yet
       }
       const outcome = await fetchInternetChapter(config.novel, c, {
         threadId,

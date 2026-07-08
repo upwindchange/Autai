@@ -10,10 +10,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { entertainmentService, threadPersistenceService } from "@/services";
 import { dehydrateScheduler } from "@agents/workers/entertainmentWorker/scheduler";
-import {
-  decodeNovelFile,
-  ingestFileNovel,
-} from "@agents/workers/entertainmentWorker/chapterParser";
+import { decodeNovelFile } from "@agents/workers/entertainmentWorker/fileDecoder";
 import { deriveChapterPhase, EntertainmentConfigSchema } from "@shared";
 import log from "electron-log/main";
 
@@ -123,28 +120,43 @@ entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
       return c.json({ error: "fsPath or fileBytesBase64 is required" }, 400);
     }
 
-    logger.info("upload", {
+    logger.info("upload request", {
       threadId,
       novelType: config.novel.type,
       via: fsPath ? "fsPath" : "base64",
+      nonNovelSource: config.options.nonNovelSource,
+      crossChapterStrength: config.options.crossChapter.strength,
+      filename: config.novel.filename,
     });
     applyConfig(threadId, config);
 
     // One-time ingestion. Guard against double-upload for an existing thread.
     if (entertainmentService.listSourceChapters(threadId).length === 0) {
       const decoded = decodeNovelFile({ fsPath, base64: fileBytesBase64 });
-      // Reject an empty file before it becomes a single garbage chapter: an
-      // empty decode would fall through to parseChapters' "no headings → one
-      // chapter" branch, yielding an empty chapter that the rewriter then
-      // hallucinates content for. Bail as a 400 before any DB write / LLM call.
+      // Reject an empty file before any DB write / LLM call.
       if (!decoded.trim()) {
+        logger.warn("upload rejected — decoded file is empty", { threadId });
         return c.json({ error: "The file is empty" }, 400);
       }
-      const count = ingestFileNovel(threadId, config.novel, decoded);
+      // Persist the full decoded text + zero consumed offset. Chapter SPLITTING
+      // is no longer done here by a regex parser — the outliner now splits +
+      // outlines in a single LLM pass, reading rawText chunk-by-chunk. The blob
+      // is held in the DB only for the outline run's duration (cleared at EOF)
+      // so crash-resume can re-read it without touching the (possibly moved)
+      // source file. finalChapterNumber is NOT set here — it's unknown until
+      // the LLM finishes splitting; the outliner sets it at EOF.
+      entertainmentService.setRawNovelText(threadId, decoded);
       entertainmentService.setLastReadChapterNumber(threadId, 1);
-      // Feature 4: a file's final chapter is the parsed count (known at ingest).
-      entertainmentService.setFinalChapterNumber(threadId, count);
-      logger.info("file uploaded + ingested", { threadId, count });
+      logger.info("file decoded + raw text persisted", {
+        threadId,
+        charLen: decoded.length,
+        byteEstimate: fsPath ? "(fsPath)" : fileBytesBase64?.length ?? 0,
+      });
+    } else {
+      logger.info("upload skipped — source chapters already exist (re-upload)", {
+        threadId,
+        existingCount: entertainmentService.listSourceChapters(threadId).length,
+      });
     }
 
     // Kick off the whole-book pipeline: outline generation (章节并写 phase 1),

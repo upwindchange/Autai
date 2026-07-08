@@ -11,115 +11,225 @@ import type {
   CrossChapterTactics,
 } from "@shared";
 import { CROSS_CHAPTER_CATEGORIES } from "@shared";
-import { OutlineBatchPlanner } from "./outlineBatcher";
+import {
+  planChunk,
+  sliceChapters,
+  initialAvgCharsPerChapter,
+  recomputeAvgCharsPerChapter,
+  bootstrapCharsPerToken,
+  calibrateCharsPerToken,
+  tokensOf,
+  type ChapterEntry,
+  type SliceResult,
+} from "./textChunker";
 import { compressPriorOutline } from "./outlineCompressor";
 
 const logger = log.scope("Dehydrate:Outliner");
 
 /**
- * Progress callback — fired once per chapter whose outline just landed. The
- * scheduler uses this to enqueue that chapter's rewrite the moment its outline
- * is ready, so rewriting does NOT wait for the whole book's outlines.
+ * Progress callback — fired once per chapter whose source + outline just
+ * landed. The scheduler uses this to enqueue that chapter's rewrite the moment
+ * it's ready, so rewriting does NOT wait for the whole book.
  */
 export type OnChapterOutlined = (chapterNumber: number) => void;
 
 /**
- * `outputOutlines` — the outliner agent's terminal tool and the ONLY way it
- * delivers its result. The agent calls it once per batch with one entry per
- * chapter it read in that batch; execute writes each entry to
- * `chapter_outlines(N)` and flips its status to `"outlined"`. Because the batch
- * is the unit of LLM work, one tool call persists multiple rows; the scheduler
- * learns of each via the caller's per-chapter progress callback.
+ * The `outputChapters` tool — the outliner agent's terminal tool and the ONLY
+ * way it delivers its result. ONE call, ONE pass: the model emits one entry per
+ * chapter it can fully identify in the excerpt (both its first and last
+ * text-chunk anchors visible), and the tool's execute runs self-contained
+ * deterministic logic to slice each chapter's verbatim body out of the full
+ * rawText, then writes BOTH `source_chapters` (title + verbatim content) AND
+ * `chapter_outlines` (outline + foreshadowing + needsCrossWrite) rows together.
  *
- * `threadId` arrives via `experimental_context` (zero-token — never in the
- * prompt). Named as an output verb so the model reads it as "this is how I hand
- * back the outlines", not a side-effect save it might skip.
+ * This merges chapter-splitting (previously the regex chapterParser) into the
+ * outliner in a single pass per chunk. The model contributes boundaries (the two
+ * text-chunk anchors) + outline metadata; the system contributes the exact
+ * verbatim body (zero fidelity loss — the rewriter feeds source_chapters.content
+ * verbatim, so paraphrase/truncation by the model would corrupt it).
+ *
+ * `threadId` / `rawText` / `searchFrom` / `nextChapterNumber` / `onCommit` all
+ * arrive via `experimental_context` (zero-token — never in the prompt). Named as
+ * an output verb so the model reads it as "this is how I hand back the chapters",
+ * not a side-effect save it might skip.
  */
-/**
- * The `outputOutlines` tool's description, extracted so the batch planner can
- * token-count it (the SDK injects this + the JSON schema as additional system
- * context, which counts against the window but isn't in the prompt string).
- */
-const OUTPUT_OUTLINES_TOOL_DESCRIPTION =
-  "The ONLY way to end your output and deliver the outlines — " +
-  "call this outputOutlines tool with one entry per chapter you were given, " +
-  "each carrying its chapterNumber, outline, foreshadowing, and needsCrossWrite. " +
-  "You are NOT ALLOWED to output the outlines as plain text and stop your output; " +
-  "they must go through this outputOutlines tool.";
+const OUTPUT_CHAPTERS_TOOL_DESCRIPTION =
+  "The ONLY way to end your output and deliver the chapters — " +
+  "call this outputChapters tool with one entry per chapter you can FULLY " +
+  "identify in the excerpt (you can see BOTH its opening and its closing text). " +
+  "For each chapter, provide its title, the first ~40 and last ~40 characters of " +
+  "its BODY (copied VERBATIM from the excerpt — the system locates these to slice " +
+  "the exact source text), plus its outline, foreshadowing, and needsCrossWrite. " +
+  "You are NOT ALLOWED to output chapters as plain text and stop your output; " +
+  "they must go through this outputChapters tool. " +
+  "Only emit a chapter when you can see BOTH its firstTextChunk AND its " +
+  "lastTextChunk in the excerpt — if a chapter's end runs off the end of the " +
+  "excerpt, DO NOT emit it (it will be covered in the next excerpt).";
 
-const outputOutlinesTool = tool({
-  description: OUTPUT_OUTLINES_TOOL_DESCRIPTION,
-  inputSchema: z.object({
-    outlines: z
-      .array(
-        z.object({
-          chapterNumber: z.number().int(),
-          outline: z
-            .string()
-            .min(1)
-            .describe(
-              "A brief plot summary of this chapter: the main events, " +
-                "character decisions, and any status changes, in 2-5 sentences.",
-            ),
-          foreshadowing: z
-            .array(z.string())
-            .describe(
-              "Keywords naming every clue, foreshadowing, planted hook, or " +
-                "promised payoff that appears in this chapter and matters " +
-                "later. May be empty if the chapter plants none.",
-            ),
-          needsCrossWrite: z
-            .boolean()
-            .describe(
-              "true if this chapter touches any of the cross-chapter patterns " +
-                "listed in the instructions (a recurring beat that must " +
-                "progress, info already established elsewhere, a reveal/" +
-                "suspense/POV beat orchestrated across chapters); false " +
-                "otherwise.",
-            ),
-        }),
-      )
-      .min(1),
-  }),
-  execute: async (input, { experimental_context }) => {
-    const ctx = experimental_context as { threadId: string };
-    let saved = 0;
-    for (const o of input.outlines) {
-      entertainmentService.updateOutline(ctx.threadId, o.chapterNumber, {
-        outline: o.outline,
-        foreshadowing: JSON.stringify(o.foreshadowing),
-        needsCrossWrite: o.needsCrossWrite,
-        status: "outlined",
+/**
+ * Context threaded into the tool's `execute` via `experimental_context` — kept
+ * out of the prompt so it costs zero tokens. Holds everything execute needs to
+ * slice verbatim bodies + write rows without touching RAM state the loop owns.
+ */
+interface OutputChaptersContext {
+  threadId: string;
+  /** The full decoded novel text (held in RAM for the whole run). */
+  rawText: string;
+  /** Lower bound for anchor search (= consumedOffset). */
+  searchFrom: number;
+  /** The next chapter number to assign (system-assigned, gap-free). */
+  nextChapterNumber: number;
+  /** Per-commit progress callback (fires the scheduler's rewrite enqueue). */
+  onCommit: (chapterNumber: number) => void;
+}
+
+/**
+ * The single merged tool: split + outline in one pass. Execute slices verbatim
+ * bodies via `textChunker.sliceChapters` and writes both tables.
+ */
+function makeOutputChaptersTool() {
+  return tool({
+    description: OUTPUT_CHAPTERS_TOOL_DESCRIPTION,
+    inputSchema: z.object({
+      chapters: z
+        .array(
+          z.object({
+            title: z
+              .string()
+              .nullable()
+              .describe(
+                "Verbatim heading text of this chapter (e.g. '第一章 风起'). " +
+                  "null if the fragment starts mid-chapter with no heading line.",
+              ),
+            firstTextChunk: z
+              .string()
+              .min(1)
+              .describe(
+                "The first ~40 characters of the chapter BODY (the text AFTER " +
+                  "the heading line), copied VERBATIM from the excerpt. The " +
+                  "system locates this string to find the chapter's start.",
+              ),
+            lastTextChunk: z
+              .string()
+              .min(1)
+              .describe(
+                "The last ~40 characters of the chapter BODY, copied VERBATIM " +
+                  "from the excerpt. The system locates this string to find the " +
+                  "chapter's end. Only emit this chapter if you can see its end.",
+              ),
+            outline: z
+              .string()
+              .min(1)
+              .describe(
+                "A brief plot summary of this chapter: the main events, " +
+                  "character decisions, and any status changes, in 2-5 sentences.",
+              ),
+            foreshadowing: z
+              .array(z.string())
+              .describe(
+                "Keywords naming every clue, foreshadowing, planted hook, or " +
+                  "promised payoff that appears in this chapter and matters " +
+                  "later. May be empty if the chapter plants none.",
+              ),
+            needsCrossWrite: z
+              .boolean()
+              .describe(
+                "true if this chapter touches any of the cross-chapter patterns " +
+                  "listed in the instructions (a recurring beat that must " +
+                  "progress, info already established elsewhere, a reveal/" +
+                  "suspense/POV beat orchestrated across chapters); false " +
+                  "otherwise.",
+              ),
+          }),
+        )
+        .min(1),
+    }),
+    execute: async (input, { experimental_context }) => {
+      const ctx = experimental_context as OutputChaptersContext;
+      const result: SliceResult = sliceChapters({
+        rawText: ctx.rawText,
+        entries: input.chapters as ChapterEntry[],
+        searchFrom: ctx.searchFrom,
+        nextChapterNumber: ctx.nextChapterNumber,
       });
-      saved++;
-    }
-    logger.debug("outlines output", {
-      threadId: ctx.threadId,
-      count: saved,
-      chapters: input.outlines.map((o) => o.chapterNumber),
-      needsCrossWrite: input.outlines
-        .filter((o) => o.needsCrossWrite)
-        .map((o) => o.chapterNumber),
-    });
-    return { saved };
-  },
-});
+
+      let saved = 0;
+      for (const ch of result.committed) {
+        // Write the source row (verbatim body, heading excluded → in `title`).
+        entertainmentService.insertSourceChapter({
+          threadId: ctx.threadId,
+          chapterNumber: ch.chapterNumber,
+          title: ch.title,
+          content: ch.body,
+          status: "fetched",
+        });
+        // Write the outline row.
+        entertainmentService.insertOutline({
+          threadId: ctx.threadId,
+          chapterNumber: ch.chapterNumber,
+          status: "outlined",
+        });
+        entertainmentService.updateOutline(ctx.threadId, ch.chapterNumber, {
+          outline: ch.outline,
+          foreshadowing: JSON.stringify(ch.foreshadowing),
+          needsCrossWrite: ch.needsCrossWrite,
+          status: "outlined",
+        });
+        try {
+          ctx.onCommit(ch.chapterNumber);
+        } catch (cbErr) {
+          logger.warn("onCommit callback threw", {
+            threadId: ctx.threadId,
+            chapterNumber: ch.chapterNumber,
+            err: cbErr,
+          });
+        }
+        saved++;
+      }
+
+      // Persist the advanced consumed offset → this round is a recovery point.
+      entertainmentService.setConsumedOffset(ctx.threadId, result.newConsumedOffset);
+
+      if (result.skipped.length > 0) {
+        logger.warn("tool: chapter entries skipped (anchors not found)", {
+          threadId: ctx.threadId,
+          skipped: result.skipped.length,
+          reasons: result.skipped.map((s) =>
+            s.kind === "skipped" ? s.reason : "committed",
+          ),
+        });
+      }
+      logger.info("tool: chapters committed", {
+        threadId: ctx.threadId,
+        saved,
+        skipped: result.skipped.length,
+        newConsumedOffset: result.newConsumedOffset,
+        chapters: result.committed.map((c) => c.chapterNumber),
+        truncated: result.committed.filter((c) => c.truncated).map((c) => c.chapterNumber),
+        needsCrossWrite: result.committed
+          .filter((c) => c.needsCrossWrite)
+          .map((c) => c.chapterNumber),
+      });
+      return { saved, newConsumedOffset: result.newConsumedOffset };
+    },
+  });
+}
 
 /**
  * Reinforcement appended to the system prompt on the one-shot retry when the
- * agent stopped without calling `outputOutlines`. Mirrors the rewriter's retry.
+ * agent stopped without calling `outputChapters`. Mirrors the rewriter's retry.
  */
 const RETRY_SUFFIX = `
 
 ## ⚠ Your previous submission was invalid — you must resubmit through the tool
-Your last response did not call the outputOutlines tool; \
+Your last response did not call the outputChapters tool; \
 instead, you stopped after emitting plain text. \
 Plain text is not accepted, so the result is invalid. \
-Please resubmit now: call the outputOutlines tool \
-with one entry per chapter you were given, each carrying chapterNumber, \
-outline, foreshadowing, and needsCrossWrite. \
-Do not output plain text, \
-and do not write any outline content outside of the tool call.`;
+Please resubmit now: call the outputChapters tool \
+with one entry per chapter you can FULLY identify in the excerpt, each carrying \
+title, firstTextChunk, lastTextChunk, outline, foreshadowing, and needsCrossWrite. \
+Only emit a chapter if you can see BOTH its firstTextChunk AND its lastTextChunk. \
+Do not output plain text, and do not write any content outside of the tool call.`;
 
 // ---------------------------------------------------------------------------
 // Cross-chapter tactic lookup table (章节并写 rules).
@@ -567,19 +677,33 @@ const CROSS_CHAPTER_TACTICS: Record<
  * dehydration orders (the outliner does not rewrite) — they are the patterns
  * the agent must recognize when deciding each chapter's `needsCrossWrite` flag,
  * and the context for what "cross-chapter co-writing" will later compress.
+ *
+ * `continueFromChapter` (when ≥1, i.e. not the first chunk) adds a one-line
+ * continuity note so the model knows the previous excerpt ended at chapter N-1
+ * and may begin with that chapter's tail (which it should ignore).
  */
-function buildOutlineSystemPrompt(crossChapter: CrossChapterDehydrate): string {
+function buildOutlineSystemPrompt(
+  crossChapter: CrossChapterDehydrate,
+  continueFromChapter: number,
+): string {
   const sections: string[] = [];
 
   // Role + goal (always on).
   sections.push(
-    "你是一名资深的中文小说连载编辑。你的任务是阅读给定的一批章节原文，为每一章生成三样东西，" +
+    "你是一名资深的中文小说连载编辑。你的任务是阅读给定的一段小说原文片段，" +
+      "在这一段中识别出你能完整看到开头和结尾的每一章，为每一章同时产出章节切分与剧情大纲，" +
       "供后续的「章节并写」工序使用：",
   );
 
-  // The three deliverables (always on).
+  // The deliverables (always on) — split + outline in ONE pass.
   sections.push(
-    "对每一章，请产出：\n" +
+    "对每一章（你能同时看到其正文开头和正文结尾的章节），请产出：\n" +
+      "- 标题：该章的标题行原文（如「第一章 风起」）。若片段从该章正文中间开始、没有标题行，填 null。\n" +
+      "- firstTextChunk：该章正文（标题行之后的内容）的前约 40 个字符，**逐字复制**自片段。" +
+      "系统会据此在全文中定位该章的起始位置。\n" +
+      "- lastTextChunk：该章正文最后约 40 个字符，**逐字复制**自片段。" +
+      "系统会据此定位该章的结束位置。**只有当你能看到该章的正文结尾时才提交该章**——" +
+      "若某章的结尾跑出了片段范围，不要提交它（它会在下一个片段中被覆盖）。\n" +
       "- 大纲：本章主要事件、人物决定、状态变化的简明概括（2-5 句，只述事实与推进，不复述原文描写）。\n" +
       "- 伏笔/线索：用关键词列出本章中出现、且后文会用到的线索与伏笔（人物、物品、承诺、能力、关系、悬念等）；" +
       "没有就留空数组。这些关键词用于后续重写时确保伏笔不被意外删除。\n" +
@@ -618,26 +742,40 @@ function buildOutlineSystemPrompt(crossChapter: CrossChapterDehydrate): string {
 
   // Cumulative-context note (always on) — explains the prior-outline prefix.
   sections.push(
-    "你会一次收到一批章节原文。如果你之前已经处理过更早的章节，本次输入会附带“前情大纲”" +
+    "你会一次收到一段小说原文片段。如果你之前已经处理过更早的片段，本次输入会附带“前情大纲”" +
       "（之前每一章的大纲汇总）作为上下文，帮助你判断伏笔是否已埋、套路是否在重复。" +
-      "请把前情大纲作为整体剧情的参照，但本次只需为“本次章节”这一批产出结果。",
+      "请把前情大纲作为整体剧情的参照，但本次只需为“本次片段中能完整看到开头与结尾的章节”产出结果。",
   );
+
+  // Continuity note (when not the first chunk) — tells the model where to resume.
+  if (continueFromChapter >= 1) {
+    sections.push(
+      `本次片段接续自上一段。上一段最后处理到第 ${continueFromChapter} 章；` +
+        `本片段开头可能包含该章的尾部内容——这部分你已处理过，不要重复提交。` +
+        `从第 ${continueFromChapter + 1} 章开始提交（若其正文开头和结尾都可见）。`,
+    );
+  }
 
   // Output contract (always on, English, closes the brief).
   sections.push(
-    "The only thing you are allowed to do is to call the outputOutlines tool:\n" +
-      "- Place an array entry per chapter you were given, each carrying " +
-      "chapterNumber, outline, foreshadowing (string array, may be empty), " +
-      "and needsCrossWrite (boolean);\n" +
-      "- You are not allowed to output outlines anywhere other than the " +
-      "outputOutlines tool;\n" +
+    "The only thing you are allowed to do is to call the outputChapters tool:\n" +
+      "- Place an array entry per chapter you can FULLY identify in the excerpt " +
+      "(you can see BOTH its firstTextChunk AND its lastTextChunk), each carrying " +
+      "title, firstTextChunk, lastTextChunk, outline, foreshadowing (string array, " +
+      "may be empty), and needsCrossWrite (boolean);\n" +
+      "- Copy firstTextChunk and lastTextChunk VERBATIM from the excerpt — the " +
+      "system locates these exact strings to slice the chapter's source text;\n" +
+      "- Do NOT emit a chapter whose end runs off the end of the excerpt — it will " +
+      "be covered in the next excerpt;\n" +
+      "- You are not allowed to output chapters anywhere other than the " +
+      "outputChapters tool;\n" +
       "- You are not allowed to output anything other than calling the " +
-      "outputOutlines tool;\n" +
+      "outputChapters tool;\n" +
       "- `outline` must be a brief factual summary: no explanations, asides, " +
       "or preambles; do not copy the original prose;\n" +
       "- `foreshadowing` entries are short keywords/noun phrases, not " +
       "sentences; only include things that genuinely matter later;\n" +
-      "- Emitting plain text without calling the outputOutlines tool " +
+      "- Emitting plain text without calling the outputChapters tool " +
       "will result in fatal failure.",
   );
 
@@ -645,33 +783,41 @@ function buildOutlineSystemPrompt(crossChapter: CrossChapterDehydrate): string {
 }
 
 /**
- * Run one outliner-agent pass under `systemPrompt` for a single batch. Returns
- * whether the agent called `outputOutlines` (the tool's execute already wrote
- * the rows to the DB on success). The `userContent` carries the prior outlines
- * (cumulative context) + this batch's chapter原文, formatted as one message.
+ * Run one outliner-agent pass under `systemPrompt` for a single chunk's excerpt.
+ * Returns whether the agent called `outputChapters` (the tool's execute already
+ * sliced + wrote the rows on success) PLUS the provider-reported inputTokens,
+ * which the chunk loop uses to calibrate chars-per-token against the real model
+ * tokenizer (no more cl100k_base guessing after round 1). The `userContent`
+ * carries the prior outlines (cumulative context) + this chunk's raw excerpt,
+ * formatted as one message. `maxOutputTokens` (when set) caps the model's output.
  */
-async function runOutlineAgent(
-  model: LanguageModel,
-  systemPrompt: string,
-  userContent: string,
-  threadId: string,
-): Promise<boolean> {
-  logger.debug("outliner agent batch start", {
+async function runOutlineAgent(params: {
+  model: LanguageModel;
+  maxOutputTokens?: number;
+  systemPrompt: string;
+  userContent: string;
+  threadId: string;
+  ctx: OutputChaptersContext;
+}): Promise<{ saved: boolean; inputTokens?: number }> {
+  const { model, maxOutputTokens, systemPrompt, userContent, threadId, ctx } =
+    params;
+  logger.debug("outliner agent chunk start", {
     threadId,
     userContentLen: userContent.length,
   });
   const result = streamText({
     model,
+    ...(maxOutputTokens != null && { maxOutputTokens }),
     system: systemPrompt,
     messages: [{ role: "user", content: userContent }],
     tools: {
-      outputOutlines: outputOutlinesTool,
+      outputChapters: makeOutputChaptersTool(),
     },
-    toolChoice: { type: "tool", toolName: "outputOutlines" },
-    stopWhen: [hasSuccessfulToolResult("outputOutlines"), stepCountIs(3)],
+    toolChoice: { type: "tool", toolName: "outputChapters" },
+    stopWhen: [hasSuccessfulToolResult("outputChapters"), stepCountIs(3)],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.chat,
-    experimental_context: { threadId },
+    experimental_context: ctx,
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "entertainment-outliner",
@@ -682,283 +828,456 @@ async function runOutlineAgent(
   const saved = steps
     .flatMap((s) => s.toolResults ?? [])
     .some(
-      (tr) => tr.toolName === "outputOutlines" && tr.type === "tool-result",
+      (tr) => tr.toolName === "outputChapters" && tr.type === "tool-result",
     );
   const usage = await result.totalUsage;
-  logger.debug("outliner agent batch done", {
+  const inputTokens = usage?.inputTokens;
+  logger.debug("outliner agent chunk done", {
     threadId,
     saved,
     steps: steps.length,
-    inputTokens: usage?.inputTokens,
+    inputTokens,
     outputTokens: usage?.outputTokens,
   });
-  return saved;
+  return { saved, inputTokens };
 }
-
-// --- batch budgeting -------------------------------------------------------
-
-// The complex model's context window is resolved once (see generateOutlines)
-// and threaded down as `maxContext`. There is no local fallback: the model
-// factory guarantees a concrete contextWindow (catalog limit, else a
-// user-entered override, else FALLBACK_CONTEXT_TOKENS with a warning — see
-// providers/index.ts).
 
 // --- the public entry ------------------------------------------------------
 
 /**
- * Generate outlines for every chapter of a file-uploaded novel. Owns the whole
- * `chapter_outlines` row lifecycle (mirrors `rewriteChapter`'s ownership of
- * rewrite rows). Resumable: a chapter counts as done ONLY if its row is
- * `status: "outlined"`; `outlining`/`error`/`skipped`/missing all mean "needs
- * (re)processing", so a crashed run picked back up continues from the first
- * unfinished chapter without re-processing completed ones.
+ * Generate outlines (and, in the same pass, split the source into chapters)
+ * for a file-uploaded novel. Owns the whole `source_chapters` +
+ * `chapter_outlines` row lifecycle. Resumable: every round persists
+ * `rawConsumedOffset` to the DB, so a crashed run picked back up continues from
+ * the last committed chapter without re-processing completed ones and without
+ * re-reading the original file (the decoded rawText is held in the DB for the
+ * run's duration).
  *
- *   1. Reconcile outline rows against source chapters. Skip chapters already
- *      `outlined`. For every other source chapter, insert an `outlining`
- *      placeholder (or reset a stale `error`/`skipped` row to `outlining`) so
- *      the scheduler's `needsWork` holds it back until its outline lands.
- *   2. If earlier chapters are already `outlined` (resume scenario), rebuild
- *      the cumulative prior outline from them via the compressor — the
- *      in-memory prior outline was lost on crash, so it's re-derived from the
- *      DB rows that did land.
- *   3. Loop the PENDING chapters in batches sized to the model's context
- *      window. Each batch's user message carries the cumulative prior outlines
- *      (so the agent can judge whether a beat is repeating or a clue was
- *      already planted) plus this batch's chapter原文.
- *   4. Per batch: run the agent (one-shot retry with `RETRY_SUFFIX` if it
- *      stopped without calling the tool). The tool's execute writes each
- *      chapter's row to `"outlined"`; the progress callback fires per chapter so
- *      the scheduler can enqueue rewriting chapter-by-chapter without waiting
- *      for the whole book.
- *   5. Any chapter still `"outlining"` after its batch's retry is marked
- *      `"error"` so it doesn't block rewriting forever (the scheduler treats
- *      `"error"` outlines as "ready, degrade to no-outline rewrite").
+ *   1. Load the rawText blob from DB into RAM once.
+ *   2. Each round reads continuity fresh from DB: consumedOffset (from
+ *      entertainment_configs.rawConsumedOffset) + nextChapterNumber (derived as
+ *      max(source_chapters.chapterNumber) + 1) + priorOutline (rebuilt from
+ *      already-outlined rows via the compressor when resuming). Each round
+ *      boundary is a recovery point.
+ *   3. Loop: planChunk sizes the read window by the INPUT context budget
+ *      (maxContext − maxOutput − priorOutline − systemPrompt − toolOverhead −
+ *      reserved), converted to chars via a chars-per-token that is bootstrapped
+ *      from cl100k_base for round 1 (conservative → chunk smaller → safe) and
+ *      then recalibrated each round from the model's REAL reported inputTokens
+ *      (handles any model's tokenizer + the text's language mix — no guessing,
+ *      no extra API calls). A generous overlap (≈1.5× the
+ *      observed average chapter length) guarantees ≥1 chapter of continuity
+ *      between back-to-back agent calls. Build the user message (prior outline
+ *      prefix + raw excerpt). Run the agent (one-shot retry with RETRY_SUFFIX on
+ *      a plain-text miss). The tool's execute slices verbatim bodies via
+ *      textChunker and writes BOTH tables per chapter, advancing
+ *      rawConsumedOffset.
+ *   4. A chapter whose end falls off the chunk edge is simply not emitted this
+ *      round; the next round's overlap re-covers it (no held-chapter state
+ *      machine). Giant-chapter safeguard: if a round commits nothing, force-
+ *      advance + retry; if still nothing, commit a truncated chapter.
+ *   5. At EOF: setFinalChapterNumber + clearRawNovelText (the blob is dead
+ *      weight once the run is complete; isOutlineComplete blocks re-entry).
  *
- * `onChapterOutlined` is called once per chapter whose outline just landed, in
- * chapter order within each batch. The caller (scheduler) uses it to `ensure`
- * that chapter's rewrite.
+ * `onChapterOutlined` is called once per chapter whose source + outline just
+ * landed, in chapter order within each round. The caller (scheduler) uses it to
+ * `ensure` that chapter's rewrite.
  */
 export async function generateOutlines(
   threadId: string,
   crossChapter: CrossChapterDehydrate,
   onChapterOutlined?: OnChapterOutlined,
 ): Promise<{ outlined: number; errored: number; skipped: number }> {
-  const sources = entertainmentService.listSourceChapters(threadId);
-  if (sources.length === 0) {
-    logger.info("no source chapters; nothing to outline", { threadId });
+  const rawText = entertainmentService.getRawNovelText(threadId);
+  if (!rawText || rawText.length === 0) {
+    logger.warn("no raw text; cannot outline", { threadId });
     return { outlined: 0, errored: 0, skipped: 0 };
   }
 
-  const systemPrompt = buildOutlineSystemPrompt(crossChapter);
-
-  // 1) Reconcile outline rows against source chapters. A chapter counts as
-  //    "done" ONLY if its outline row is `status: "outlined"` — `outlining`,
-  //    `error`, `skipped`, or a missing row all mean "needs (re)processing".
-  //    Pre-insert an `outlining` placeholder for any source chapter with no row
-  //    or a non-`outlined` row, so the scheduler's `needsWork` holds it back
-  //    until this run writes its outline. Already-`outlined` chapters are
-  //    skipped entirely (no re-processing, no LLM cost) — this is the resume
-  //    path after a crash.
-  const existingRows = entertainmentService.listOutlines(threadId);
-  const outlineByNum = new Map(
-    existingRows.map((o) => [o.chapterNumber, o]),
-  );
-  const doneChapterNums: number[] = []; // already `outlined` — feed recovery
-  let insertedPlaceholders = 0;
-  let resetStale = 0;
-  const pendingSources = sources.filter((s) => {
-    const row = outlineByNum.get(s.chapterNumber);
-    if (row?.status === "outlined") {
-      doneChapterNums.push(s.chapterNumber);
-      return false; // done — skip
-    }
-    // Not done: insert a fresh placeholder if no row, or reset a stale
-    // non-`outlined` row (`error`/`skipped`/`outlining`) to `outlining`.
-    if (!row) {
-      entertainmentService.insertOutline({
-        threadId,
-        chapterNumber: s.chapterNumber,
-        status: "outlining",
-      });
-      insertedPlaceholders++;
-    } else if (row.status !== "outlining") {
-      entertainmentService.updateOutline(threadId, s.chapterNumber, {
-        status: "outlining",
-      });
-      resetStale++;
-    }
-    return true;
-  });
-  logger.info("outline reconcile", {
-    threadId,
-    total: sources.length,
-    done: doneChapterNums.length,
-    pending: pendingSources.length,
-    insertedPlaceholders,
-    resetStale,
-  });
-
-  if (pendingSources.length === 0) {
-    logger.info("all chapters already outlined; nothing to do", {
-      threadId,
-      total: sources.length,
-    });
-    return { outlined: 0, errored: 0, skipped: 0 };
-  }
-
-  // 2) If earlier chapters are already outlined (resume scenario), rebuild the
-  //    cumulative prior outline from them so the LLM has context for judging
-  //    whether a beat is repeating or a clue was already planted. The prior
-  //    outline was an in-memory field lost on crash; we re-derive it by feeding
-  //    all done chapters' outlines through the compressor once.
-  let initialPriorOutline: string | undefined;
-  if (doneChapterNums.length > 0) {
-    const doneOutlines = doneChapterNums.map(
-      (n) => `第 ${n} 章：${outlineByNum.get(n)!.outline}`,
-    );
-    const recovered = await compressPriorOutline(threadId, doneOutlines);
-    initialPriorOutline = recovered ?? doneOutlines.join("\n");
-    logger.info("recovered prior outline from done chapters", {
-      threadId,
-      doneChapters: doneChapterNums.length,
-      recovered: !!recovered,
-      priorLen: initialPriorOutline.length,
-    });
-  }
-
-  // 3) Batch loop using the planner. The planner sizes each batch to the
-  //    model's context window (system + tools + cumulative prior outline all
-  //    measured via gpt-tokenizer), and compresses the cumulative prior
-  //    outline after each batch so it doesn't grow linearly. The loop itself
-  //    stays linear: plan → run → absorb. Only pending chapters are fed.
-  //
-  //    Resolve the complex model ONCE: its SDK object is threaded into each
-  //    batch's streamText call (runOutlineAgent), and its contextWindow drives
-  //    the planner. `contextWindow` is always a concrete number — the factory
-  //    guarantees it (catalog limit, else a user override, else a warned
-  //    128k fallback) — so there is no local fallback here.
+  // Resolve the complex model ONCE: its SDK object is threaded into each
+  // round's streamText call, and its contextWindow + maxOutputTokens drive the
+  // chunk sizing (input-budget driven — see planChunk). maxOutputTokens is
+  // optional on ResolvedModel; fall back to a quarter of the context window
+  // (defensive — the user is expected to have assigned it via the model
+  // catalog/override). Both it and maxOutputTokens cap the streamText call too.
   const complex = complexModel();
   const maxContext = complex.contextWindow;
-  const planner = await OutlineBatchPlanner.create({
-    maxContext,
-    systemPrompt,
-    toolDescription: OUTPUT_OUTLINES_TOOL_DESCRIPTION,
-    initialPriorOutline,
-  });
-  logger.info("outline run", {
+  const maxOutputTokens =
+    complex.maxOutputTokens ?? Math.floor(maxContext / 4);
+  if (complex.maxOutputTokens == null) {
+    logger.warn(
+      "maxOutputTokens not set on model; falling back to contextWindow/4",
+      { threadId, contextWindow: maxContext, fallback: maxOutputTokens },
+    );
+  }
+
+  // Bootstrapped chars-per-token for round 1 using cl100k_base. cl100k_base is
+  // conservative for Chinese-optimised models (tends to over-count Chinese →
+  // chars/token estimate LOW → chunk SMALL → safe against overflow on round 1).
+  // From round 2 on this is recalibrated from the real model's reported
+  // inputTokens (see the loop below) — no probing API call, the chunk loop
+  // calibrates itself. Zero means the bootstrap failed (empty/whitespace text).
+  let charsPerToken = bootstrapCharsPerToken(rawText);
+  // The outputChapters tool's description overhead, measured once (constant).
+  const toolDescriptionTokens = tokensOf(OUTPUT_CHAPTERS_TOOL_DESCRIPTION);
+
+  logger.info("outline run initialized", {
     threadId,
-    totalChapters: sources.length,
-    pendingChapters: pendingSources.length,
-    doneChapters: doneChapterNums.length,
+    rawTextLen: rawText.length,
     maxContext,
+    maxOutputTokens,
+    maxOutputTokensConfigured: complex.maxOutputTokens != null,
+    bootstrapCharsPerToken: charsPerToken,
+    toolDescriptionTokens,
     crossChapterStrength: crossChapter.strength,
   });
 
+  // Self-tuning average chapter length (chars). Starts from the initial
+  // estimate; recomputed each round from observed throughput.
+  let avgCharsPerChapter = initialAvgCharsPerChapter();
+
   let outlined = 0;
   let errored = 0;
-  let index = 0;
-  while (index < pendingSources.length) {
-    const batch = planner.planBatch(pendingSources, index);
-    index = batch.nextIndex;
-    const batchNums = batch.chapters.map((c) => c.chapterNumber);
-    const userContent = planner.buildUserMessage(batch.chapters);
+  let consecutiveZeroRounds = 0;
+  // In-RAM compressed prior outline prefix for cross-chapter context quality.
+  // Rebuilt from DB on resume; grown across rounds via the compressor.
+  let priorOutline = "";
 
-    // 3) Run the agent for this batch, with one retry on a plain-text miss.
+  // Loop until the consumed offset reaches end of rawText.
+  // Each iteration re-reads continuity state from DB so the loop self-corrects
+  // to whatever execute persisted (RAM never drifts from DB).
+  // Safety cap on iterations prevents an infinite loop if state goes bad.
+  const MAX_ROUNDS = 10_000;
+  for (let round = 0; round < MAX_ROUNDS; round++) {
+    // --- read continuity fresh from DB (recovery point) ---
+    const consumedOffset = entertainmentService.getConsumedOffset(threadId);
+    if (consumedOffset >= rawText.length) {
+      logger.info("reached end of raw text", {
+        threadId,
+        consumedOffset,
+        rawTextLen: rawText.length,
+        round,
+      });
+      break;
+    }
+    const nextChapterNumber =
+      entertainmentService.maxSourceChapterNumber(threadId) + 1;
+
+    // Rebuild prior outline on the FIRST round of a RESUME (consumedOffset > 0
+    // and we haven't built it yet this run). On a fresh upload (consumedOffset
+    // === 0) it stays empty.
+    if (round === 0 && consumedOffset > 0 && !priorOutline) {
+      const doneRows = entertainmentService.listOutlines(threadId);
+      const doneOutlines = doneRows
+        .filter((o) => o.status === "outlined")
+        .map((o) => `第 ${o.chapterNumber} 章：${o.outline}`);
+      if (doneOutlines.length > 0) {
+        const recovered = await compressPriorOutline(threadId, doneOutlines);
+        priorOutline = recovered ?? doneOutlines.join("\n");
+        logger.info("recovered prior outline on resume", {
+          threadId,
+          doneChapters: doneOutlines.length,
+          recovered: !!recovered,
+          priorLen: priorOutline.length,
+        });
+      }
+    }
+
+    const continueFromChapter = nextChapterNumber - 1; // 0 on a fresh upload
+
+    // Build this round's system prompt (varies by continueFromChapter) and
+    // measure its token cost for the input-budget calculation.
+    const systemPrompt = buildOutlineSystemPrompt(
+      crossChapter,
+      continueFromChapter,
+    );
+    const systemPromptTokens = tokensOf(systemPrompt);
+    const priorOutlineTokens = priorOutline ? tokensOf(priorOutline) : 0;
+
+    // --- plan the read window for this round (input-budget driven) ---
+    const plan = planChunk({
+      rawTextLen: rawText.length,
+      consumedOffset,
+      maxContext,
+      maxOutputTokens,
+      priorOutlineTokens,
+      systemPromptTokens,
+      toolDescriptionTokens,
+      charsPerToken,
+      avgCharsPerChapter,
+    });
+    const excerpt = rawText.slice(plan.readStart, plan.readEnd);
+
+    logger.debug("round planned", {
+      threadId,
+      round,
+      consumedOffset,
+      nextChapterNumber,
+      readStart: plan.readStart,
+      readEnd: plan.readEnd,
+      excerptLen: excerpt.length,
+      excerptCharBudget: plan.excerptCharBudget,
+      overlapChars: plan.overlapChars,
+      charsPerToken,
+      avgCharsPerChapter,
+      priorOutlineLen: priorOutline.length,
+      priorOutlineTokens,
+      systemPromptTokens,
+    });
+
+    // --- build the user message: prior prefix + raw excerpt ---
+    const userContent = buildUserMessage(priorOutline, continueFromChapter, excerpt);
+
+    // --- run the agent (one pass, single tool call) ---
+    const ctx: OutputChaptersContext = {
+      threadId,
+      rawText,
+      searchFrom: consumedOffset,
+      nextChapterNumber,
+      onCommit: (n) => {
+        try {
+          onChapterOutlined?.(n);
+        } catch (cbErr) {
+          logger.warn("onChapterOutlined callback threw", {
+            threadId,
+            chapterNumber: n,
+            err: cbErr,
+          });
+        }
+      },
+    };
+
     let saved = false;
+    let roundInputTokens: number | undefined;
     let retried = false;
     try {
-      saved = await runOutlineAgent(complex.model, systemPrompt, userContent, threadId);
+      const r = await runOutlineAgent({
+        model: complex.model,
+        maxOutputTokens,
+        systemPrompt,
+        userContent,
+        threadId,
+        ctx,
+      });
+      saved = r.saved;
+      roundInputTokens = r.inputTokens;
       if (!saved) {
         retried = true;
         logger.warn("outliner did not call tool; retrying", {
           threadId,
-          batch: batchNums,
+          round,
+          readStart: plan.readStart,
+          readEnd: plan.readEnd,
           userContentLen: userContent.length,
         });
-        saved = await runOutlineAgent(
-          complex.model,
-          systemPrompt + RETRY_SUFFIX,
+        const r2 = await runOutlineAgent({
+          model: complex.model,
+          maxOutputTokens,
+          systemPrompt: systemPrompt + RETRY_SUFFIX,
           userContent,
           threadId,
-        );
+          ctx,
+        });
+        saved = r2.saved;
+        roundInputTokens = r2.inputTokens;
         if (saved) {
-          logger.info("outliner retry succeeded", {
-            threadId,
-            batch: batchNums,
-          });
+          logger.info("outliner retry succeeded", { threadId, round });
         }
       }
     } catch (err) {
-      logger.error("outliner batch threw", {
+      logger.error("outliner round threw", {
         threadId,
-        batch: batchNums,
+        round,
         retried,
         err,
       });
     }
 
-    if (saved) {
-      // The tool already wrote each chapter's row to "outlined". Collect the
-      // freshly-written outlines, fire the per-chapter progress callback, count
-      // successes, then hand the new outlines to the planner for compression.
-      const newOutlines: string[] = [];
-      for (const n of batchNums) {
-        const row = entertainmentService.getOutline(threadId, n);
-        if (row && row.status === "outlined") {
-          newOutlines.push(`第 ${n} 章：${row.outline}`);
-          try {
-            onChapterOutlined?.(n);
-          } catch (cbErr) {
-            logger.warn("onChapterOutlined callback threw", {
-              threadId,
-              chapterNumber: n,
-              err: cbErr,
-            });
-          }
-          outlined++;
-        } else {
-          // Tool reported saved but the row didn't land — mark error.
-          logger.warn("outline row missing after tool reported saved", {
-            threadId,
-            chapterNumber: n,
-            rowStatus: row?.status ?? "no row",
-          });
-          entertainmentService.updateOutline(threadId, n, { status: "error" });
-          errored++;
-        }
+    // Calibrate chars-per-token from the REAL model's reported inputTokens.
+    // The model's inputTokens counts system + user + framework envelope; we only
+    // want the USER-message portion (system prompt + tool-schema are fixed
+    // overheads measured upstream via cl100k_base, and their cl100k_base count
+    // is as good as the model's for those small stable strings). Subtract them
+    // so the ratio is anchored to userContent (prior outline + excerpt) — the
+    // part whose char/token ratio is what we actually size on. Never goes below
+    // 1 so we never divide by zero.
+    if (roundInputTokens && roundInputTokens > 0) {
+      const fixedOverhead = systemPromptTokens + toolDescriptionTokens;
+      const userMessageTokens = Math.max(
+        1,
+        roundInputTokens - fixedOverhead,
+      );
+      const prior = charsPerToken;
+      charsPerToken = calibrateCharsPerToken(
+        charsPerToken,
+        userContent.length,
+        userMessageTokens,
+      );
+      if (charsPerToken !== prior) {
+        logger.debug("calibrated chars-per-token", {
+          threadId,
+          round,
+          prior,
+          userChars: userContent.length,
+          totalInputTokens: roundInputTokens,
+          fixedOverhead,
+          userMessageTokens,
+          charsPerToken,
+        });
       }
-      // Absorb + compress the cumulative prior outline for the next batch.
-      if (newOutlines.length) {
-        await planner.absorbOutlines(threadId, newOutlines);
-      }
-    } else {
-      // Batch failed after retry — mark every chapter in it as error.
-      for (const n of batchNums) {
-        entertainmentService.updateOutline(threadId, n, { status: "error" });
-        errored++;
-      }
-      logger.error("outliner batch failed after retry", {
-        threadId,
-        batch: batchNums,
-      });
     }
+
+    if (!saved) {
+      // Round failed after retry. The tool didn't persist anything for this
+      // round, so consumedOffset is unchanged — but we must make progress or
+      // the loop is stuck. Advance the offset by the excerpt budget (the
+      // chapters in this window are lost to error; they'll be missing from
+      // source/outline tables but the loop continues). No reliable chapter
+      // count to attribute (we never sliced), so count the round, not chapters.
+      errored++;
+      entertainmentService.setConsumedOffset(
+        threadId,
+        Math.min(rawText.length, consumedOffset + plan.excerptCharBudget),
+      );
+      consecutiveZeroRounds = 0;
+      logger.error("outliner round failed after retry; advancing offset", {
+        threadId,
+        round,
+      });
+      continue;
+    }
+
+    // Tool succeeded. Re-read what it persisted.
+    const newConsumedOffset = entertainmentService.getConsumedOffset(threadId);
+    const chaptersCommitted = Math.max(
+      0,
+      entertainmentService.maxSourceChapterNumber(threadId) -
+        (nextChapterNumber - 1),
+    );
+    outlined += chaptersCommitted;
+
+    if (chaptersCommitted === 0) {
+      // Tool returned but sliced nothing (all entries' anchors missed).
+      // Giant-chapter safeguard: force-advance and, if stuck twice, jump
+      // a full excerpt so the loop always makes progress.
+      consecutiveZeroRounds++;
+      if (consecutiveZeroRounds >= 2) {
+        logger.warn(
+          "outliner round committed nothing twice; force-advancing past the stuck window",
+          { threadId, round, consumedOffset, readStart: plan.readStart, readEnd: plan.readEnd },
+        );
+        entertainmentService.setConsumedOffset(
+          threadId,
+          Math.min(rawText.length, newConsumedOffset + plan.excerptCharBudget),
+        );
+        consecutiveZeroRounds = 0;
+      } else {
+        // Force-advance by half an excerpt and let the next overlap retry.
+        logger.warn(
+          "outliner round committed nothing; nudging offset forward",
+          { threadId, round, consumedOffset, newConsumedOffset },
+        );
+        entertainmentService.setConsumedOffset(
+          threadId,
+          Math.min(
+            rawText.length,
+            newConsumedOffset + Math.floor(plan.excerptCharBudget / 2),
+          ),
+        );
+      }
+      continue;
+    }
+    consecutiveZeroRounds = 0;
+
+    // Self-tune the average chapter length from this round's throughput.
+    const charsConsumed = Math.max(0, newConsumedOffset - consumedOffset);
+    avgCharsPerChapter = recomputeAvgCharsPerChapter(
+      avgCharsPerChapter,
+      charsConsumed,
+      chaptersCommitted,
+    );
+
+    // Absorb + compress the cumulative prior outline for the next round.
+    const newOutlines: string[] = [];
+    for (let n = nextChapterNumber; n < nextChapterNumber + chaptersCommitted; n++) {
+      const row = entertainmentService.getOutline(threadId, n);
+      if (row && row.status === "outlined") {
+        newOutlines.push(`第 ${n} 章：${row.outline}`);
+      }
+    }
+    if (newOutlines.length > 0) {
+      const merged =
+        priorOutline.length > 0 ?
+          [priorOutline, ...newOutlines].join("\n")
+        : newOutlines.join("\n");
+      const compressed = await compressPriorOutline(threadId, [merged]);
+      priorOutline = compressed ?? merged;
+    }
+
+    logger.debug("outliner round done", {
+      threadId,
+      round,
+      chaptersCommitted,
+      newConsumedOffset,
+      avgCharsPerChapter,
+      priorOutlineLen: priorOutline.length,
+    });
   }
+
+  // EOF: set final chapter number (count is now known) + clear the raw blob.
+  const finalChapter = entertainmentService.maxSourceChapterNumber(threadId);
+  if (finalChapter > 0) {
+    entertainmentService.setFinalChapterNumber(threadId, finalChapter);
+  }
+  entertainmentService.clearRawNovelText(threadId);
 
   logger.info("outline run complete", {
     threadId,
     outlined,
     errored,
-    total: sources.length,
+    finalChapter,
+    finalCharsPerToken: charsPerToken,
+    rawTextCleared: true,
   });
   return { outlined, errored, skipped: 0 };
 }
 
 /**
+ * Build the user message for one round: optional compressed prior-outline
+ * prefix + the raw excerpt, with the continuity chapter noted.
+ */
+function buildUserMessage(
+  priorOutline: string,
+  continueFromChapter: number,
+  excerpt: string,
+): string {
+  const parts: string[] = [];
+  if (priorOutline) {
+    parts.push(
+      "前情大纲（之前章节的概括，作为上下文参考，本次无需为这些章节产出结果）：\n" +
+        priorOutline,
+    );
+  }
+  if (continueFromChapter >= 1) {
+    parts.push(
+      `（接续：上一段最后处理到第 ${continueFromChapter} 章；本片段开头可能是该章的尾部，无需重复处理，` +
+        `从第 ${continueFromChapter + 1} 章起提交。）`,
+    );
+  }
+  parts.push("本次需要处理的小说原文片段：\n" + excerpt);
+  return parts.join("\n\n");
+}
+
+/**
  * Mark every source chapter's outline as `"skipped"` without invoking the agent.
- * Used when cross-chapter is unavailable (non-file novel, or the
- * `nonNovelSource` flag set) so the scheduler's `needsWork` treats them as
+ * Used for INTERNET novels (pre-chaptered by the source site — no splitting
+ * needed, so no LLM pass). The scheduler's `needsWork` treats "skipped" as
  * "outline ready" and proceeds to rewrite ungated. Idempotent — chapters that
  * already have a terminal-status row are left alone.
+ *
+ * Note: file novels (including nonNovelSource) NO LONGER take this path — they
+ * always run `generateOutlines`, because splitting now requires the LLM (the
+ * regex chapterParser is gone). `skipOutlines` is internet-only.
  */
 export function skipOutlines(threadId: string): void {
   const sources = entertainmentService.listSourceChapters(threadId);

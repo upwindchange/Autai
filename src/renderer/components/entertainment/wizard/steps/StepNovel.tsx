@@ -43,34 +43,19 @@ export const StepNovel: FC<StepNovelProps> = ({
     if (!first) return;
     const { file, fsPath, name } = first;
     setPendingFile(file);
-    setConfig((prev) =>
-      prev.mode === "dehydrate" ?
-        {
-          ...prev,
-          novel: {
-            type: "file",
-            filename: name,
-            ...(fsPath ? { fsPath } : {}),
-          },
-        }
-      : {
-          ...prev,
-          novel: {
-            type: "file",
-            filename: name,
-            ...(fsPath ? { fsPath } : {}),
-          },
-        },
-    );
+    setConfig((prev) => ({
+      ...prev,
+      novel: {
+        type: "file",
+        filename: name,
+        ...(fsPath ? { fsPath } : {}),
+      },
+    }));
   };
 
   const clearFile = () => {
     setPendingFile(undefined);
-    setConfig((prev) =>
-      prev.mode === "dehydrate" ?
-        { ...prev, novel: { type: "file", filename: "" } }
-      : { ...prev, novel: { type: "file", filename: "" } },
-    );
+    setConfig((prev) => ({ ...prev, novel: { type: "file", filename: "" } }));
   };
 
   // Switch novel source type (dehydrate only — interactive is locked to file).
