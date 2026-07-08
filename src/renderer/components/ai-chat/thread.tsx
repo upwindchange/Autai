@@ -281,6 +281,7 @@ const AssistantMessage: FC = () => {
   // for pt-[n] use -mb-[n + 6] & min-h-[n + 6] to preserve compensation
   const ACTION_BAR_PT = "pt-1.5";
   const ACTION_BAR_HEIGHT = `-mb-7.5 min-h-7.5 ${ACTION_BAR_PT}`;
+  const { t } = useTranslation("common");
   const status = useAuiState((s) => s.message.status?.type);
   // The "working" indicator is rendered via the built-in `indicator` part
   // (case below) — GroupedParts emits it while running with no text yet.
@@ -332,12 +333,14 @@ const AssistantMessage: FC = () => {
                 return part.dataRendererUI;
               case "indicator":
                 return (
-                  <DotMatrix
-                    state="loading"
-                    label="Assistant is working"
+                  <span
+                    role="status"
                     aria-busy="true"
-                    className="size-5 text-muted-foreground"
-                  />
+                    className="flex items-center gap-1.5 text-muted-foreground text-sm"
+                  >
+                    <DotMatrix state="loading" label={t("thread.working")} className="size-5" />
+                    {t("thread.working")}
+                  </span>
                 );
               default:
                 return null;
