@@ -24,7 +24,7 @@ import { eventBus } from "@/utils/eventBus";
 import { searchService } from "@/services/searchService";
 import { initializeDatabase, closeDatabase } from "@/db";
 import { initI18n, i18n } from "@/i18n";
-import { dehydrateScheduler } from "@agents/workers/entertainmentWorker/scheduler";
+import { pipelineRouter } from "@agents/workers/entertainmentWorker/shared/pipelineRouter";
 
 // const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -301,11 +301,12 @@ app.whenReady().then(async () => {
   updateSplashStatus("Loading interface...");
   createWindow(splash);
 
-  // Resume any outline generation that was interrupted by a previous shutdown.
-  // Scans every entertainment thread for incomplete outlines (source chapters
-  // without an `outlined` row) and restarts the outliner for them in the
-  // background. No-op when all threads are complete or on a fresh install.
-  dehydrateScheduler.resumeOutlines();
+  // Resume any entertainment pipeline work interrupted by a previous shutdown.
+  // Fans out to all three pipelines (chaptered-file outline+co-write,
+  // chaptered-internet fetch+rewrite, non-novel acquire+rewrite); each scans
+  // only the threads it owns and resumes in the background. No-op when all
+  // threads are complete or on a fresh install.
+  pipelineRouter.resumeAll();
 });
 
 app.on("window-all-closed", () => {

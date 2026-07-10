@@ -7,7 +7,7 @@ import { settingsService, entertainmentService } from "@/services";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { clickElementTool } from "@agents/tools/InteractiveTools";
 import type { InternetNovel } from "@shared";
-import type { FetchChapterOptions, InternetFetchContext } from "./index";
+import type { InternetFetchContext } from "./index";
 
 const logger = log.scope("Dehydrate:InternetFetch:Phase2");
 
@@ -49,10 +49,9 @@ const saveChapterContentTool = tool({
 function buildExtractSystemPrompt(
   novel: InternetNovel,
   chapterNumber: number,
-  nonNovelSource: boolean,
 ): string {
   const titlePart = novel.title.trim() || "the novel";
-  const label = nonNovelSource ? "the post/article" : `chapter ${chapterNumber}`;
+  const label = `chapter ${chapterNumber}`;
   return `You are an extraction agent controlling a browser via tools. The browser is already showing the BEGINNING of ${label} of "${titlePart}" — phase 1 opened it for you. Do NOT navigate to a different URL, and do NOT decide whether the book has ended.
 
 Your job: collect the COMPLETE prose of ${label} and save it.
@@ -80,18 +79,11 @@ Rules:
 export async function extractChapter(
   novel: InternetNovel,
   ctx: InternetFetchContext,
-  options: FetchChapterOptions,
 ): Promise<void> {
-  const label = options.nonNovelSource ?
-    "the post/article"
-  : `chapter ${ctx.chapterNumber}`;
+  const label = `chapter ${ctx.chapterNumber}`;
   const result = streamText({
     model: complexModel().model,
-    system: buildExtractSystemPrompt(
-      novel,
-      ctx.chapterNumber,
-      options.nonNovelSource,
-    ),
+    system: buildExtractSystemPrompt(novel, ctx.chapterNumber),
     messages: [
       { role: "user", content: `Read ${label} and save its full prose.` },
     ],

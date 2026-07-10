@@ -1267,30 +1267,3 @@ function buildUserMessage(
   parts.push("本次需要处理的小说原文片段：\n" + excerpt);
   return parts.join("\n\n");
 }
-
-/**
- * Mark every source chapter's outline as `"skipped"` without invoking the agent.
- * Used for INTERNET novels (pre-chaptered by the source site — no splitting
- * needed, so no LLM pass). The scheduler's `needsWork` treats "skipped" as
- * "outline ready" and proceeds to rewrite ungated. Idempotent — chapters that
- * already have a terminal-status row are left alone.
- *
- * Note: file novels (including nonNovelSource) NO LONGER take this path — they
- * always run `generateOutlines`, because splitting now requires the LLM (the
- * regex chapterParser is gone). `skipOutlines` is internet-only.
- */
-export function skipOutlines(threadId: string): void {
-  const sources = entertainmentService.listSourceChapters(threadId);
-  const existing = new Set(
-    entertainmentService.listOutlines(threadId).map((o) => o.chapterNumber),
-  );
-  for (const s of sources) {
-    if (!existing.has(s.chapterNumber)) {
-      entertainmentService.insertOutline({
-        threadId,
-        chapterNumber: s.chapterNumber,
-        status: "skipped",
-      });
-    }
-  }
-}

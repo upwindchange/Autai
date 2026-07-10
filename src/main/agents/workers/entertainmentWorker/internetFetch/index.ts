@@ -23,8 +23,6 @@ export interface InternetFetchContext {
 
 export interface FetchChapterOptions {
   threadId: string;
-  /** true = the source is one continuous post, not a chaptered novel. */
-  nonNovelSource: boolean;
   /**
    * true = force the search/landing path even for N>1. No longer caller-supplied
    * — `fetchInternetChapter` derives it from the chapter's prior status
@@ -132,13 +130,12 @@ export async function fetchInternetChapter(
   logger.info("fetch chapter", {
     threadId,
     chapterNumber,
-    nonNovelSource: options.nonNovelSource,
     useSearch,
   });
 
   try {
     await landOnChapter(novel, ctx, { ...options, useSearch });
-    await extractChapter(novel, ctx, { ...options, useSearch });
+    await extractChapter(novel, ctx);
     entertainmentService.updateSourceChapter(threadId, chapterNumber, {
       status: "fetched",
     });

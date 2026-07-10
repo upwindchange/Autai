@@ -808,12 +808,16 @@ export type RewrittenChapterStatus = "rewriting" | "rewritten" | "error";
 export type OutlineStatus = "outlining" | "outlined" | "error" | "skipped";
 
 /**
- * Per-chapter pipeline progress — the reader's list/TOC view, merging the three
- * tables by chapterNumber. A `null` status means no row for that table yet
- * (the chapter hasn't been acquired/rewritten/outlined). No prose here; see
- * ChapterDetail.
+ * Per-output pipeline progress — the reader's list/TOC view. After the
+ * 3-pipeline refactor the spine is the REWRITE OUTPUT (one row may cover a
+ * co-writing window of multiple source chapters), so `chapterNumber` here is
+ * the OUTPUT's sequential number (1,2,3,…), NOT a source-chapter number.
+ * `sourceStatus`/`outlineStatus` are aggregated across the output's source
+ * range (worst-case wins); `rewriteStatus` is the output row's own status. A
+ * `null` status means no row for that table yet within the output's range.
  */
 export interface ChapterProgress {
+  /** REWRITE OUTPUT sequential number (reader spine). */
   chapterNumber: number;
   title: string | null;
   sourceStatus: SourceChapterStatus | null;
@@ -821,7 +825,7 @@ export interface ChapterProgress {
   outlineStatus: OutlineStatus | null;
 }
 
-/** Single-chapter detail: progress + the rewritten prose (null unless rewritten). */
+/** Single-output detail: progress + the rewritten prose (null unless rewritten). */
 export interface ChapterDetail extends ChapterProgress {
   content: string | null;
 }

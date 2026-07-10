@@ -88,10 +88,6 @@ function isAbsoluteUrl(value: string): boolean {
   }
 }
 
-function contentLabel(nonNovelSource: boolean, chapterNumber: number): string {
-  return nonNovelSource ? "the post/article" : `chapter ${chapterNumber}`;
-}
-
 /**
  * Build a one-query `ResearchPlan` for `executeSearchQueries` from the wizard's
  * novel origin. `novel.source` is guidance (not a URL here); title/author add
@@ -127,9 +123,8 @@ function buildSearchPlan(
 function buildJudgeSystemPrompt(
   novel: InternetNovel,
   chapterNumber: number,
-  nonNovelSource: boolean,
 ): string {
-  const label = contentLabel(nonNovelSource, chapterNumber);
+  const label = `chapter ${chapterNumber}`;
   const titlePart = novel.title.trim() || "the requested novel";
   const authorPart = novel.author?.trim() ? ` by ${novel.author.trim()}` : "";
   return `You are judging whether the page currently loaded in the browser is the beginning of a specific piece of content.
@@ -177,17 +172,12 @@ Rules:
 async function judgeCandidate(
   novel: InternetNovel,
   ctx: InternetFetchContext,
-  options: FetchChapterOptions,
   candidateIndex: number,
 ): Promise<boolean> {
-  const label = contentLabel(options.nonNovelSource, ctx.chapterNumber);
+  const label = `chapter ${ctx.chapterNumber}`;
   const result = streamText({
     model: complexModel().model,
-    system: buildJudgeSystemPrompt(
-      novel,
-      ctx.chapterNumber,
-      options.nonNovelSource,
-    ),
+    system: buildJudgeSystemPrompt(novel, ctx.chapterNumber),
     messages: [
       {
         role: "user",
@@ -236,7 +226,6 @@ async function judgeCandidate(
 async function landViaSearch(
   novel: InternetNovel,
   ctx: InternetFetchContext,
-  options: FetchChapterOptions,
 ): Promise<void> {
   // 1) Gather candidates (RAM-only). [novel.source] if it's already a URL;
   //    otherwise one query via executeSearchQueries in a transient search session.
@@ -296,7 +285,7 @@ async function landViaSearch(
       });
       continue;
     }
-    if (await judgeCandidate(novel, ctx, options, i)) return; // landHere wrote the URL
+    if (await judgeCandidate(novel, ctx, i)) return; // landHere wrote the URL
   }
   throw new Error(
     `Could not land on chapter ${ctx.chapterNumber} (no candidate matched)`,
@@ -410,7 +399,7 @@ export async function landOnChapter(
 ): Promise<void> {
   const useSearch = ctx.chapterNumber === 1 || options.useSearch === true;
   if (useSearch) {
-    await landViaSearch(novel, ctx, options);
+    await landViaSearch(novel, ctx);
   } else {
     await landViaAdvance(novel, ctx);
   }

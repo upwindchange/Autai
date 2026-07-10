@@ -229,8 +229,17 @@ export const rewrittenChapters = sqliteTable(
     threadId: text("thread_id")
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
+    // After the 3-pipeline refactor, `chapterNumber` is the REWRITE OUTPUT's
+    // sequential number (the reader's spine key), NOT a mirror of a source
+    // chapter number. A co-writing window (pipeline ①) merges multiple source
+    // chapters into ONE rewrite output row; `sourceChapterStart/End` record
+    // which source chapters that output covers. For 1:1 pipelines (②, ③) both
+    // equal `chapterNumber`. Nullable so older rows (pre-migration) and rows
+    // inserted before the source range is known still validate.
     chapterNumber: integer("chapter_number").notNull(),
     content: text("content"), // 重写 (rewritten prose); null while status='rewriting'
+    sourceChapterStart: integer("source_chapter_start"),
+    sourceChapterEnd: integer("source_chapter_end"),
     status: text("status")
       .notNull()
       .default("rewriting")

@@ -9,7 +9,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { entertainmentService, threadPersistenceService } from "@/services";
-import { dehydrateScheduler } from "@agents/workers/entertainmentWorker/scheduler";
+import { pipelineRouter } from "@agents/workers/entertainmentWorker/shared/pipelineRouter";
 import { decodeNovelFile } from "@agents/workers/entertainmentWorker/fileDecoder";
 import { deriveChapterPhase, EntertainmentConfigSchema } from "@shared";
 import log from "electron-log/main";
@@ -166,7 +166,7 @@ entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
     // Fire-and-forget so the upload response returns at once; failures land in
     // the catch below's logger only if buildOutlines itself rejects (its inner
     // per-chapter errors are already persisted as outline status="error").
-    void dehydrateScheduler
+    void pipelineRouter
       .buildOutlines(threadId)
       .catch((err) =>
         logger.error("outline generation failed", { threadId, err }),
@@ -186,7 +186,7 @@ entertainmentRoutes.get("/threads/:threadId/chapters", (c) => {
   try {
     const threadId = c.req.param("threadId");
     const progress = entertainmentService.listChapterProgress(threadId);
-    const inFlight = dehydrateScheduler.getInFlight(threadId);
+    const inFlight = pipelineRouter.getInFlight(threadId);
     const chapters = progress.map((ch) => ({
       ...ch,
       phase: deriveChapterPhase(ch, inFlight),
@@ -211,7 +211,7 @@ entertainmentRoutes.get("/threads/:threadId/chapters/:n", (c) => {
       return c.json({ error: "Invalid chapter number" }, 400);
     }
     const chapter = entertainmentService.getChapterDetail(threadId, n);
-    const inFlight = dehydrateScheduler.getInFlight(threadId);
+    const inFlight = pipelineRouter.getInFlight(threadId);
     return c.json({
       chapter: { ...chapter, phase: deriveChapterPhase(chapter, inFlight) },
     });
@@ -257,7 +257,7 @@ entertainmentRoutes.post("/threads/:threadId/position", async (c) => {
 // dehydration worker (is it processing? what chapter? queue depth).
 entertainmentRoutes.get("/threads/:threadId/worker", (c) => {
   const threadId = c.req.param("threadId");
-  return c.json(dehydrateScheduler.getInfo(threadId));
+  return c.json(pipelineRouter.getInfo(threadId));
 });
 
 // POST /entertainment/threads/:threadId/worker — ensure a worker is processing
@@ -271,8 +271,8 @@ entertainmentRoutes.post("/threads/:threadId/worker", async (c) => {
     if (!parsed.success) {
       return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
     }
-    dehydrateScheduler.ensure(threadId, parsed.data.chapterNumber);
-    const info = dehydrateScheduler.getInfo(threadId);
+    pipelineRouter.ensure(threadId, parsed.data.chapterNumber);
+    const info = pipelineRouter.getInfo(threadId);
     logger.debug("worker ensure", {
       threadId,
       chapterNumber: parsed.data.chapterNumber,
@@ -304,8 +304,8 @@ entertainmentRoutes.post("/threads/:threadId/process", async (c) => {
     }
     const { from, count, all } = parsed.data;
     const to = all ? Number.MAX_SAFE_INTEGER : from + (count ?? 1) - 1;
-    dehydrateScheduler.ensureRange(threadId, from, to);
-    const info = dehydrateScheduler.getInfo(threadId);
+    pipelineRouter.ensureRange(threadId, from, to);
+    const info = pipelineRouter.getInfo(threadId);
     logger.debug("process range", {
       threadId,
       from,
@@ -328,8 +328,8 @@ entertainmentRoutes.post("/threads/:threadId/process", async (c) => {
 entertainmentRoutes.post("/threads/:threadId/reprocess-failed", (c) => {
   try {
     const threadId = c.req.param("threadId");
-    dehydrateScheduler.retryFailed(threadId);
-    const info = dehydrateScheduler.getInfo(threadId);
+    pipelineRouter.retryFailed(threadId);
+    const info = pipelineRouter.getInfo(threadId);
     logger.debug("reprocess failed", { threadId, ...info });
     return c.json(info);
   } catch (error) {

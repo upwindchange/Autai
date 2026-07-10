@@ -684,14 +684,7 @@ const DEPTH_ASPECTS: Record<keyof DehydrateDepth, DepthAspectText> = {
 export function buildRewriteSystemPrompt(
   options: DehydrateConfig["options"],
 ): string {
-  const {
-    basic,
-    situation,
-    depth,
-    language,
-    nonNovelSource,
-    customInstruction,
-  } = options;
+  const { basic, situation, depth, language, customInstruction } = options;
   const sections: string[] = [];
 
   // Role + goal (always on) — gives the brief its voice and purpose.
@@ -706,15 +699,6 @@ export function buildRewriteSystemPrompt(
       "- 守住本章的边界与视角：不要补写前后章节的内容，不要擅自续写或收尾。\n" +
       "- 保留对话的信息量与潜台词：只在表达层面优化，不要让人物说出原本没说过的话。",
   );
-
-  // Source shape — only when the source is a segmented continuous text.
-  if (nonNovelSource) {
-    sections.push(
-      "本章原文来自一段连续的非章节文本（如长帖、邮件往来、论坛串等）被切分而成，" +
-        "可能夹杂签名、时间戳、引用、混合语气等非正文痕迹；" +
-        "重写时请清理这些非故事内容，只保留并理顺故事本身，不要被原文的分页或断点带偏。",
-    );
-  }
 
   // 基础清洗 — one bullet per enabled toggle; all-off → section omitted.
   const basicRules = BASIC_ORDER.filter((k) => basic[k]).map(
