@@ -14,8 +14,6 @@ import { CROSS_CHAPTER_CATEGORIES } from "@shared";
 import {
   planChunk,
   sliceChapters,
-  initialAvgCharsPerChapter,
-  recomputeAvgCharsPerChapter,
   bootstrapCharsPerToken,
   calibrateCharsPerToken,
   tokensOf,
@@ -940,10 +938,6 @@ export async function generateOutlines(
     crossChapterStrength: crossChapter.strength,
   });
 
-  // Self-tuning average chapter length (chars). Starts from the initial
-  // estimate; recomputed each round from observed throughput.
-  let avgCharsPerChapter = initialAvgCharsPerChapter();
-
   let outlined = 0;
   let errored = 0;
   let consecutiveZeroRounds = 0;
@@ -1040,8 +1034,8 @@ export async function generateOutlines(
     const priorOutlineTokens = priorOutline ? tokensOf(priorOutline) : 0;
 
     // --- plan the read window for this round (input-budget driven) ---
-    // When carrying, the carried content's tokens are deducted from the budget
-    // and no extra overlap is added (the carry IS the continuity).
+    // The carry-forward content's tokens are deducted from the budget so new
+    // text is read less. NO overlap — the carry IS the continuity mechanism.
     const plan = planChunk({
       rawTextLen: rawText.length,
       consumedOffset,
@@ -1051,9 +1045,7 @@ export async function generateOutlines(
       systemPromptTokens,
       toolDescriptionTokens,
       charsPerToken,
-      avgCharsPerChapter,
-      prependTokens: carryTokens,
-      hasCarry: carryChars > 0,
+      carryTokens,
     });
     const newExcerpt = rawText.slice(plan.readStart, plan.readEnd);
     // The combined excerpt the model sees: carried content (if any) + new text,
@@ -1071,9 +1063,7 @@ export async function generateOutlines(
       carryChars,
       excerptLen: excerpt.length,
       excerptCharBudget: plan.excerptCharBudget,
-      overlapChars: plan.overlapChars,
       charsPerToken,
-      avgCharsPerChapter,
       priorOutlineLen: priorOutline.length,
       priorOutlineTokens,
       systemPromptTokens,
@@ -1246,14 +1236,6 @@ export async function generateOutlines(
     }
     consecutiveZeroRounds = 0;
 
-    // Self-tune the average chapter length from this round's throughput.
-    const charsConsumed = Math.max(0, newConsumedOffset - consumedOffset);
-    avgCharsPerChapter = recomputeAvgCharsPerChapter(
-      avgCharsPerChapter,
-      charsConsumed,
-      chaptersCommitted,
-    );
-
     // Absorb + compress the cumulative prior outline for the next round.
     // Reads source chapters' outline data (co-located after the table merge).
     const newOutlines: string[] = [];
@@ -1277,7 +1259,6 @@ export async function generateOutlines(
       round,
       chaptersCommitted,
       newConsumedOffset,
-      avgCharsPerChapter,
       priorOutlineLen: priorOutline.length,
     });
   }

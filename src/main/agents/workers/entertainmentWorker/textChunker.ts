@@ -14,8 +14,10 @@ import { countTokens } from "gpt-tokenizer";
  *      driven by the INPUT budget (context window), NOT max output tokens:
  *      because the model emits only short text-chunk anchors (not full chapter
  *      prose), output length is no longer the bottleneck — the context window
- *      is. A generous overlap guarantees ≥1 chapter of continuity between
- *      back-to-back agent calls.
+ *      is. There is NO overlap — chapter continuity between back-to-back rounds
+ *      is provided entirely by the outliner's unconditional DB carry-forward
+ *      (the last source chapter's content is prepended to the next round's
+ *      excerpt; `carryTokens` is deducted from the budget here).
  *   2. `sliceChapters` — the deterministic first/last-text-chunk → verbatim
  *      body slicer. The model emits, per chapter it can fully see, the first
  *      and last ~40 chars of the chapter body; this function locates those two
@@ -32,8 +34,10 @@ import { countTokens } from "gpt-tokenizer";
  *   - Straddler handling: a chapter whose end falls off the readEnd edge is
  *     simply not emitted this round (the model can't see its lastTextChunk, so
  *     it won't emit it). `consumedOffset` advances only to the end of the last
- *     committed chapter; the next round's overlap re-covers the deferred
- *     chapter fully. No held-chapter state machine.
+ *     committed chapter; the next round's UNCONDITIONAL carry-forward re-reads
+ *     that chapter's content (from DB) and prepends it, so a cross-chapter
+ *     storyline cut at the chunk boundary is completed naturally. No held-
+ *     chapter state machine, no overlap.
  *   - Giant-chapter safeguard: if a round commits zero chapters (the single
  *     visible chapter is bigger than the whole chunk), the caller force-advances
  *     `consumedOffset` and retries; if still zero, commits the chapter truncated.
@@ -74,27 +78,6 @@ const RESERVED_BUFFER = 12_000;
  * within ~3 rounds yet stable against a single noisy measurement.
  */
 const CALIBRATION_EMA_WEIGHT = 0.4;
-
-/**
- * Initial estimate of average chapter length in CHARACTERS (not tokens). Used
- * only for round 1's overlap sizing (before observed throughput is available).
- * After round 1 the estimate self-tunes from observed throughput.
- */
-const INITIAL_AVG_CHARS_PER_CHAPTER = 2500;
-
-/**
- * Overlap as a multiple of the observed average chapter length. Guarantees
- * ≥1 full chapter of continuity between back-to-back agent calls. 1.5× gives
- * headroom for chapters longer than the running average.
- */
-const OVERLAP_CHAPTER_MULTIPLE = 1.5;
-
-/**
- * Cap on the overlap as a fraction of the excerpt char budget. Prevents the
- * overlap from dominating when the budget is tight (prior outline grew large).
- * At least half the excerpt is always new text.
- */
-const OVERLAP_MAX_FRACTION = 0.5;
 
 /**
  * Minimum new characters per round so the loop always makes forward progress
@@ -241,6 +224,7 @@ export interface SliceResult {
  *               − priorOutlineTokens     (compressed cumulative outline prefix)
  *               − systemPromptTokens     (the outliner system prompt)
  *               − toolDescriptionTokens  (outputChapters tool schema overhead)
+ *               − carryTokens            (the unconditional DB carry-forward)
  *               − RESERVED_BUFFER         (reasoning + framework + divergence pad)
  *
  * Then converted to characters via the chars-per-token (cl100k_base bootstrap
@@ -248,13 +232,13 @@ export interface SliceResult {
  *
  *   excerptCharBudget = inputBudget × charsPerToken
  *
- * The excerpt includes the overlap region, so readStart backs up from
- * consumedOffset by `overlapChars` (≈ 1.5× the observed average chapter length,
- * capped at half the budget) so the deferred straddler from last round is
- * re-covered. The NEW text covered = readEnd − consumedOffset is always ≥
- * MIN_NEW_CHARS so the loop makes forward progress.
+ * NO OVERLAP. Chapter continuity between back-to-back rounds is provided
+ * entirely by the unconditional DB carry-forward (the last source chapter's
+ * content is prepended to the next round's excerpt, no annotation). readStart
+ * is therefore always consumedOffset — no backup. The loop guards EOF before
+ * calling, so every call has a carry except the first round (carryTokens=0).
  *
- * @returns `{ readStart, readEnd, excerptCharBudget, overlapChars }`.
+ * @returns `{ readStart, readEnd, excerptCharBudget }`.
  */
 export function planChunk(params: {
   rawTextLen: number;
@@ -265,24 +249,17 @@ export function planChunk(params: {
   systemPromptTokens: number;
   toolDescriptionTokens: number;
   charsPerToken: number;
-  avgCharsPerChapter: number;
   /**
-   * Tokens consumed by carried-forward content prepended this round (the
-   * unconditional DB carry-forward). Deducted from the budget so new text is
-   * read less to avoid overflow. 0 on rounds with no carry.
+   * Tokens consumed by the carried-forward content prepended this round (the
+   * last source chapter's content, read from DB). Deducted from the budget so
+   * new text is read less to avoid overflow. 0 on the first round (no previous
+   * chapter to carry).
    */
-  prependTokens?: number;
-  /**
-   * When true, a carry is active this round — the carried content already
-   * provides chapter continuity, so no additional overlap is needed (overlap
-   * set to 0, readStart = consumedOffset). When false, normal overlap applies.
-   */
-  hasCarry?: boolean;
+  carryTokens: number;
 }): {
   readStart: number;
   readEnd: number;
   excerptCharBudget: number;
-  overlapChars: number;
 } {
   const {
     rawTextLen,
@@ -293,9 +270,7 @@ export function planChunk(params: {
     systemPromptTokens,
     toolDescriptionTokens,
     charsPerToken,
-    avgCharsPerChapter,
-    prependTokens = 0,
-    hasCarry = false,
+    carryTokens,
   } = params;
 
   const inputBudget = Math.max(
@@ -305,7 +280,7 @@ export function planChunk(params: {
       priorOutlineTokens -
       systemPromptTokens -
       toolDescriptionTokens -
-      prependTokens -
+      carryTokens -
       RESERVED_BUFFER,
   );
   const excerptCharBudget = Math.max(
@@ -313,39 +288,9 @@ export function planChunk(params: {
     Math.floor(inputBudget * charsPerToken),
   );
 
-  // Overlap: 1.5× average chapter, capped at half the budget. When a carry is
-  // active, the carried content already provides continuity → no extra overlap.
-  const overlapChars = hasCarry ?
-    0
-  : Math.min(
-      Math.ceil(avgCharsPerChapter * OVERLAP_CHAPTER_MULTIPLE),
-      Math.floor(excerptCharBudget * OVERLAP_MAX_FRACTION),
-    );
-
-  const readStart = Math.max(0, consumedOffset - overlapChars);
+  const readStart = Math.max(0, consumedOffset);
   const readEnd = Math.min(rawTextLen, readStart + excerptCharBudget);
-  return { readStart, readEnd, excerptCharBudget, overlapChars };
-}
-
-/** Initial average-chars-per-chapter estimate for round 1 (before self-tuning). */
-export function initialAvgCharsPerChapter(): number {
-  return INITIAL_AVG_CHARS_PER_CHAPTER;
-}
-
-/**
- * Recompute the average chars-per-chapter from a round's observed throughput.
- * Returns the prior estimate if the round committed nothing (so a stuck round
- * doesn't collapse the overlap sizing). Pure, defensive.
- */
-export function recomputeAvgCharsPerChapter(
-  prior: number,
-  charsConsumedThisRound: number,
-  chaptersCommittedThisRound: number,
-): number {
-  if (chaptersCommittedThisRound <= 0) return prior;
-  const observed = charsConsumedThisRound / chaptersCommittedThisRound;
-  if (!Number.isFinite(observed) || observed <= 0) return prior;
-  return observed;
+  return { readStart, readEnd, excerptCharBudget };
 }
 
 // ---------------------------------------------------------------------------
