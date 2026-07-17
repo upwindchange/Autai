@@ -28,6 +28,11 @@ export function initializeDatabase(): void {
     nativeBinding: fs.realpathSync.native(bindingPath),
   });
   sqlite.pragma("journal_mode = WAL");
+  // Enable FK enforcement (OFF by default in SQLite, per-connection). Required
+  // for the rewritten_chapters→source_chapters ON DELETE CASCADE (and every
+  // other cascade in the schema) to actually fire. Without this all
+  // `references(..., { onDelete: "cascade" })` declarations are cosmetic.
+  sqlite.pragma("foreign_keys = ON");
 
   db = drizzle({ client: sqlite });
 

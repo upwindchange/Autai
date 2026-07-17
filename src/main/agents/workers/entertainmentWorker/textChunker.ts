@@ -184,7 +184,6 @@ export interface ChapterEntry {
   lastTextChunk: string;
   outline: string;
   foreshadowing: string[];
-  needsCrossWrite: boolean;
 }
 
 /** The full result of slicing one chapter: metadata + verbatim body + offsets. */
@@ -202,7 +201,6 @@ export interface SlicedChapter {
   truncated: boolean;
   outline: string;
   foreshadowing: string[];
-  needsCrossWrite: boolean;
 }
 
 /** Per-entry outcome — why a chapter was or wasn't committed. */
@@ -268,6 +266,18 @@ export function planChunk(params: {
   toolDescriptionTokens: number;
   charsPerToken: number;
   avgCharsPerChapter: number;
+  /**
+   * Tokens consumed by carried-forward content prepended this round (the
+   * unconditional DB carry-forward). Deducted from the budget so new text is
+   * read less to avoid overflow. 0 on rounds with no carry.
+   */
+  prependTokens?: number;
+  /**
+   * When true, a carry is active this round — the carried content already
+   * provides chapter continuity, so no additional overlap is needed (overlap
+   * set to 0, readStart = consumedOffset). When false, normal overlap applies.
+   */
+  hasCarry?: boolean;
 }): {
   readStart: number;
   readEnd: number;
@@ -284,6 +294,8 @@ export function planChunk(params: {
     toolDescriptionTokens,
     charsPerToken,
     avgCharsPerChapter,
+    prependTokens = 0,
+    hasCarry = false,
   } = params;
 
   const inputBudget = Math.max(
@@ -293,6 +305,7 @@ export function planChunk(params: {
       priorOutlineTokens -
       systemPromptTokens -
       toolDescriptionTokens -
+      prependTokens -
       RESERVED_BUFFER,
   );
   const excerptCharBudget = Math.max(
@@ -300,11 +313,14 @@ export function planChunk(params: {
     Math.floor(inputBudget * charsPerToken),
   );
 
-  // Overlap: 1.5× average chapter, capped at half the budget.
-  const overlapChars = Math.min(
-    Math.ceil(avgCharsPerChapter * OVERLAP_CHAPTER_MULTIPLE),
-    Math.floor(excerptCharBudget * OVERLAP_MAX_FRACTION),
-  );
+  // Overlap: 1.5× average chapter, capped at half the budget. When a carry is
+  // active, the carried content already provides continuity → no extra overlap.
+  const overlapChars = hasCarry ?
+    0
+  : Math.min(
+      Math.ceil(avgCharsPerChapter * OVERLAP_CHAPTER_MULTIPLE),
+      Math.floor(excerptCharBudget * OVERLAP_MAX_FRACTION),
+    );
 
   const readStart = Math.max(0, consumedOffset - overlapChars);
   const readEnd = Math.min(rawTextLen, readStart + excerptCharBudget);
@@ -515,7 +531,6 @@ export function sliceChapters(params: {
       truncated: false,
       outline: entry.outline,
       foreshadowing: entry.foreshadowing,
-      needsCrossWrite: entry.needsCrossWrite,
     });
     cursor = lastEnd;
     lastSeen = Math.max(lastSeen, lastEnd);
@@ -540,7 +555,6 @@ export function sliceChapters(params: {
           truncated: true,
           outline: entry.outline,
           foreshadowing: entry.foreshadowing,
-          needsCrossWrite: entry.needsCrossWrite,
         });
         cursor = truncEnd;
         lastSeen = Math.max(lastSeen, truncEnd);

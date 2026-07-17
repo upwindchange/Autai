@@ -39,8 +39,8 @@ export type OnChapterOutlined = (chapterNumber: number) => void;
  * chapter it can fully identify in the excerpt (both its first and last
  * text-chunk anchors visible), and the tool's execute runs self-contained
  * deterministic logic to slice each chapter's verbatim body out of the full
- * rawText, then writes BOTH `source_chapters` (title + verbatim content) AND
- * `chapter_outlines` (outline + foreshadowing + needsCrossWrite) rows together.
+ * rawText, then writes a `source_chapters` row (title + verbatim content +
+ * outline + foreshadowing + outlineStatus).
  *
  * This merges chapter-splitting (previously the regex chapterParser) into the
  * outliner in a single pass per chunk. The model contributes boundaries (the two
@@ -59,7 +59,7 @@ const OUTPUT_CHAPTERS_TOOL_DESCRIPTION =
   "identify in the excerpt (you can see BOTH its opening and its closing text). " +
   "For each chapter, provide its title, the first ~40 and last ~40 characters of " +
   "its BODY (copied VERBATIM from the excerpt — the system locates these to slice " +
-  "the exact source text), plus its outline, foreshadowing, and needsCrossWrite. " +
+  "the exact source text), plus its outline and foreshadowing. " +
   "You are NOT ALLOWED to output chapters as plain text and stop your output; " +
   "they must go through this outputChapters tool. " +
   "Only emit a chapter when you can see BOTH its firstTextChunk AND its " +
@@ -70,13 +70,29 @@ const OUTPUT_CHAPTERS_TOOL_DESCRIPTION =
  * Context threaded into the tool's `execute` via `experimental_context` — kept
  * out of the prompt so it costs zero tokens. Holds everything execute needs to
  * slice verbatim bodies + write rows without touching RAM state the loop owns.
+ *
+ * CARRY-FORWARD: when the previous round's last chapter is carried into this
+ * round (unconditional, unless EOF), `sliceText` = carryContent + newExcerpt
+ * (a combined contiguous string), `searchFrom` = 0 (search from the combined
+ * text's start), and `carryChars` = carryContent.length. The slicer locates
+ * anchors in sliceText; execute maps the last anchor's end back to rawText
+ * coordinates as `consumedOffset + (lastEndInSlice - carryChars)` to advance
+ * the consumed offset correctly. On a normal (non-carry) round, sliceText =
+ * rawText, searchFrom = consumedOffset, carryChars = 0 — the mapping is
+ * identity (newConsumedOffset from sliceChapters IS the rawText offset).
  */
 interface OutputChaptersContext {
   threadId: string;
   /** The full decoded novel text (held in RAM for the whole run). */
   rawText: string;
-  /** Lower bound for anchor search (= consumedOffset). */
+  /** The text the slicer searches (rawText, OR carryContent+newExcerpt). */
+  sliceText: string;
+  /** Lower bound for anchor search in sliceText (0 on a carry round). */
   searchFrom: number;
+  /** Length of carried content prepended this round (0 if no carry). */
+  carryChars: number;
+  /** The consumedOffset into rawText where new text begins (carry mapping). */
+  consumedOffset: number;
   /** The next chapter number to assign (system-assigned, gap-free). */
   nextChapterNumber: number;
   /** Per-commit progress callback (fires the scheduler's rewrite enqueue). */
@@ -131,15 +147,6 @@ function makeOutputChaptersTool() {
                   "promised payoff that appears in this chapter and matters " +
                   "later. May be empty if the chapter plants none.",
               ),
-            needsCrossWrite: z
-              .boolean()
-              .describe(
-                "true if this chapter touches any of the cross-chapter patterns " +
-                  "listed in the instructions (a recurring beat that must " +
-                  "progress, info already established elsewhere, a reveal/" +
-                  "suspense/POV beat orchestrated across chapters); false " +
-                  "otherwise.",
-              ),
           }),
         )
         .min(1),
@@ -147,7 +154,7 @@ function makeOutputChaptersTool() {
     execute: async (input, { experimental_context }) => {
       const ctx = experimental_context as OutputChaptersContext;
       const result: SliceResult = sliceChapters({
-        rawText: ctx.rawText,
+        rawText: ctx.sliceText,
         entries: input.chapters as ChapterEntry[],
         searchFrom: ctx.searchFrom,
         nextChapterNumber: ctx.nextChapterNumber,
@@ -155,25 +162,17 @@ function makeOutputChaptersTool() {
 
       let saved = 0;
       for (const ch of result.committed) {
-        // Write the source row (verbatim body, heading excluded → in `title`).
+        // Write the source row with outline data co-located (body verbatim,
+        // heading excluded → in `title`). outlineStatus "outlined" = done.
         entertainmentService.insertSourceChapter({
           threadId: ctx.threadId,
           chapterNumber: ch.chapterNumber,
           title: ch.title,
           content: ch.body,
           status: "fetched",
-        });
-        // Write the outline row.
-        entertainmentService.insertOutline({
-          threadId: ctx.threadId,
-          chapterNumber: ch.chapterNumber,
-          status: "outlined",
-        });
-        entertainmentService.updateOutline(ctx.threadId, ch.chapterNumber, {
           outline: ch.outline,
           foreshadowing: JSON.stringify(ch.foreshadowing),
-          needsCrossWrite: ch.needsCrossWrite,
-          status: "outlined",
+          outlineStatus: "outlined",
         });
         try {
           ctx.onCommit(ch.chapterNumber);
@@ -187,8 +186,16 @@ function makeOutputChaptersTool() {
         saved++;
       }
 
-      // Persist the advanced consumed offset → this round is a recovery point.
-      entertainmentService.setConsumedOffset(ctx.threadId, result.newConsumedOffset);
+      // Map the slicer's newConsumedOffset (in sliceText coordinates) back to
+      // rawText coordinates. On a normal round (carryChars=0) this is identity.
+      // On a carry round, the slicer's offset is within carryContent+newExcerpt;
+      // the portion beyond carryChars maps to rawText at consumedOffset + delta.
+      const sliceEnd = result.newConsumedOffset;
+      const rawConsumedOffset =
+        sliceEnd <= ctx.carryChars ?
+          ctx.consumedOffset // ended within the carried portion — no new progress
+        : ctx.consumedOffset + (sliceEnd - ctx.carryChars);
+      entertainmentService.setConsumedOffset(ctx.threadId, rawConsumedOffset);
 
       if (result.skipped.length > 0) {
         logger.warn("tool: chapter entries skipped (anchors not found)", {
@@ -203,14 +210,11 @@ function makeOutputChaptersTool() {
         threadId: ctx.threadId,
         saved,
         skipped: result.skipped.length,
-        newConsumedOffset: result.newConsumedOffset,
+        rawConsumedOffset,
         chapters: result.committed.map((c) => c.chapterNumber),
         truncated: result.committed.filter((c) => c.truncated).map((c) => c.chapterNumber),
-        needsCrossWrite: result.committed
-          .filter((c) => c.needsCrossWrite)
-          .map((c) => c.chapterNumber),
       });
-      return { saved, newConsumedOffset: result.newConsumedOffset };
+      return { saved, newConsumedOffset: rawConsumedOffset };
     },
   });
 }
@@ -227,7 +231,7 @@ instead, you stopped after emitting plain text. \
 Plain text is not accepted, so the result is invalid. \
 Please resubmit now: call the outputChapters tool \
 with one entry per chapter you can FULLY identify in the excerpt, each carrying \
-title, firstTextChunk, lastTextChunk, outline, foreshadowing, and needsCrossWrite. \
+title, firstTextChunk, lastTextChunk, outline, and foreshadowing. \
 Only emit a chapter if you can see BOTH its firstTextChunk AND its lastTextChunk. \
 Do not output plain text, and do not write any content outside of the tool call.`;
 
@@ -241,8 +245,9 @@ Do not output plain text, and do not write any content outside of the tool call.
 // surface here as a missing-key error. `CROSS_CHAPTER_CATEGORY_LABELS` names the
 // 12 groups (the 16 content-genre categories minus the 4 that are all-single);
 // grouping/order comes from `CROSS_CHAPTER_CATEGORIES` (shared). The outliner
-// injects only the tactics the user enabled, as the patterns the agent must
-// watch for when deciding each chapter's `needsCrossWrite` flag.
+// injects only the tactics the user enabled, as guidance for WHICH consecutive
+// chapters should be merged into a single source row (the carry-forward +
+// merge design replaces the former per-chapter needsCrossWrite flag).
 // ---------------------------------------------------------------------------
 
 const CROSS_CHAPTER_CATEGORY_LABELS: Record<CrossChapterCategory, string> = {
@@ -267,9 +272,9 @@ const CROSS_CHAPTER_CATEGORY_LABELS: Record<CrossChapterCategory, string> = {
 /**
  * One entry per `keyof CrossChapterTactics`. The `rule` is the
  * situation_based_prompt.md dehydration prompt for that tactic — it names the
- * pattern and the filler-vs-core split. Here it doubles as the description of a
- * cross-chapter pattern the outliner must recognize: a chapter that touches it
- * is a candidate for `needsCrossWrite: true`. Text transcribed verbatim from
+ * pattern and the filler-vs-core split. Here it serves as the description of a
+ * cross-chapter pattern whose consecutive chapters should be MERGED into one
+ * source row by the outliner. Text transcribed verbatim from
  * `situation_based_prompt.md` (section number in the comment for traceability).
  */
 const CROSS_CHAPTER_TACTICS: Record<
@@ -671,16 +676,18 @@ const CROSS_CHAPTER_TACTICS: Record<
 };
 
 /**
- * Build the outliner's system prompt. Mirrors `buildRewriteSystemPrompt`'s
- * situational-tactics section: only enabled tactics appear, grouped by
- * category, gated on `crossChapter.strength > 0`. The tactics here are NOT
- * dehydration orders (the outliner does not rewrite) — they are the patterns
- * the agent must recognize when deciding each chapter's `needsCrossWrite` flag,
- * and the context for what "cross-chapter co-writing" will later compress.
+ * Build the outliner's system prompt. The outliner reads a chunk of raw novel
+ * text and identifies "storyline units" — each may be a single original chapter
+ * OR several consecutive original chapters MERGED into one (when they form a
+ * single cross-chapter storyline: a tournament arc, a grinding sequence, a
+ * multi-chapter event). For each unit it emits title + first/last text anchors
+ * + outline + foreshadowing. The cross-chapter tactics table (when enabled)
+ * serves as guidance for WHICH consecutive chapters should be merged — not as a
+ * per-chapter flag (needsCrossWrite was removed; merging IS the cross-chapter
+ * handling).
  *
- * `continueFromChapter` (when ≥1, i.e. not the first chunk) adds a one-line
- * continuity note so the model knows the previous excerpt ended at chapter N-1
- * and may begin with that chapter's tail (which it should ignore).
+ * `continueFromChapter` (when ≥1) adds a one-line continuity note so the model
+ * knows the previous excerpt ended at chapter N-1.
  */
 function buildOutlineSystemPrompt(
   crossChapter: CrossChapterDehydrate,
@@ -691,26 +698,29 @@ function buildOutlineSystemPrompt(
   // Role + goal (always on).
   sections.push(
     "你是一名资深的中文小说连载编辑。你的任务是阅读给定的一段小说原文片段，" +
-      "在这一段中识别出你能完整看到开头和结尾的每一章，为每一章同时产出章节切分与剧情大纲，" +
-      "供后续的「章节并写」工序使用：",
+      "识别出其中的「剧情单元」，并为每个剧情单元同时产出章节切分与剧情大纲。" +
+      "一个剧情单元可能是单个原章，也可能是**连续多个原章合并而成**——" +
+      "当若干连续原章构成一个完整的跨章故事线（例如一整场擂台赛、一次连续刷怪、" +
+      "一段被拆成多章的事件、一个完整的小高潮），把它们合并成一个剧情单元。",
   );
 
   // The deliverables (always on) — split + outline in ONE pass.
   sections.push(
-    "对每一章（你能同时看到其正文开头和正文结尾的章节），请产出：\n" +
-      "- 标题：该章的标题行原文（如「第一章 风起」）。若片段从该章正文中间开始、没有标题行，填 null。\n" +
-      "- firstTextChunk：该章正文（标题行之后的内容）的前约 40 个字符，**逐字复制**自片段。" +
-      "系统会据此在全文中定位该章的起始位置。\n" +
-      "- lastTextChunk：该章正文最后约 40 个字符，**逐字复制**自片段。" +
-      "系统会据此定位该章的结束位置。**只有当你能看到该章的正文结尾时才提交该章**——" +
-      "若某章的结尾跑出了片段范围，不要提交它（它会在下一个片段中被覆盖）。\n" +
-      "- 大纲：本章主要事件、人物决定、状态变化的简明概括（2-5 句，只述事实与推进，不复述原文描写）。\n" +
-      "- 伏笔/线索：用关键词列出本章中出现、且后文会用到的线索与伏笔（人物、物品、承诺、能力、关系、悬念等）；" +
-      "没有就留空数组。这些关键词用于后续重写时确保伏笔不被意外删除。\n" +
-      "- 是否需要章节并写：本章是否触及下面列出的任何跨章套路。若触及任意一条，标 true；否则标 false。",
+    "对每个剧情单元（你能同时看到其正文开头和正文结尾），请产出：\n" +
+      "- 标题：该剧情单元的标题（通常取第一个原章的标题，如「第一章 风起」）。" +
+      "若片段从该单元正文中间开始、没有标题行，填 null。\n" +
+      "- firstTextChunk：该剧情单元正文（标题行之后的内容）的前约 40 个字符，**逐字复制**自片段。" +
+      "系统会据此在全文中定位该单元的起始位置。\n" +
+      "- lastTextChunk：该剧情单元正文最后约 40 个字符，**逐字复制**自片段。" +
+      "系统会据此定位该单元的结束位置。**只有当你能看到该单元的正文结尾时才提交它**——" +
+      "若某单元的结尾跑出了片段范围，不要提交它（它会在下一个片段中被覆盖）。\n" +
+      "- 大纲：该剧情单元主要事件、人物决定、状态变化的简明概括（2-5 句，只述事实与推进，不复述原文描写）。\n" +
+      "- 伏笔/线索：用关键词列出该单元中出现、且后文会用到的线索与伏笔（人物、物品、承诺、能力、关系、悬念等）；" +
+      "没有就留空数组。这些关键词用于后续重写时确保伏笔不被意外删除。",
   );
 
-  // Cross-chapter tactics — only when strength > 0, only the checked ones.
+  // Merge guidance — cross-chapter tactics describe patterns whose consecutive
+  // chapters SHOULD be merged into one unit. Only enabled tactics appear.
   const tacticBlocks: string[] = [];
   for (const cat of CROSS_CHAPTER_CATEGORIES) {
     const on = cat.tactics.filter((k) => crossChapter.tactics[k]);
@@ -726,17 +736,12 @@ function buildOutlineSystemPrompt(
   if (crossChapter.strength > 0 && tacticBlocks.length) {
     sections.push(
       [
-        "“是否需要章节并写”的判断依据：下面列出的跨章套路。" +
-          "本章只要出现其中任意一种模式（即使只是一处），就把 needsCrossWrite 标为 true；" +
-          "完全没有出现的章节才标 false。每条只说明这是什么套路、哪些是可压缩的水、哪些才是有效信息，" +
-          "作为你识别的依据。",
+        "合并判断依据：下面列出的跨章套路。当连续多个原章属于同一种套路、" +
+          "共同构成一个完整故事线时，应将它们合并成一个剧情单元（firstTextChunk 取故事线起点，" +
+          "lastTextChunk 取故事线终点）。每条说明这是什么套路、哪些是可压缩的水、哪些才是有效信息，" +
+          "作为你判断合并与识别的依据。不属于这些套路的独立原章保持单独成章。",
         ...tacticBlocks,
       ].join("\n\n"),
-    );
-  } else {
-    // strength = 0 or no tactics checked — nothing crosses chapters.
-    sections.push(
-      "本次未勾选任何跨章套路，所有章节的 needsCrossWrite 一律标 false。",
     );
   }
 
@@ -744,14 +749,13 @@ function buildOutlineSystemPrompt(
   sections.push(
     "你会一次收到一段小说原文片段。如果你之前已经处理过更早的片段，本次输入会附带“前情大纲”" +
       "（之前每一章的大纲汇总）作为上下文，帮助你判断伏笔是否已埋、套路是否在重复。" +
-      "请把前情大纲作为整体剧情的参照，但本次只需为“本次片段中能完整看到开头与结尾的章节”产出结果。",
+      "请把前情大纲作为整体剧情的参照，但本次只需为“本次片段中能完整看到开头与结尾的剧情单元”产出结果。",
   );
 
   // Continuity note (when not the first chunk) — tells the model where to resume.
   if (continueFromChapter >= 1) {
     sections.push(
       `本次片段接续自上一段。上一段最后处理到第 ${continueFromChapter} 章；` +
-        `本片段开头可能包含该章的尾部内容——这部分你已处理过，不要重复提交。` +
         `从第 ${continueFromChapter + 1} 章开始提交（若其正文开头和结尾都可见）。`,
     );
   }
@@ -759,15 +763,18 @@ function buildOutlineSystemPrompt(
   // Output contract (always on, English, closes the brief).
   sections.push(
     "The only thing you are allowed to do is to call the outputChapters tool:\n" +
-      "- Place an array entry per chapter you can FULLY identify in the excerpt " +
+      "- Place an array entry per storyline unit you can FULLY identify in the excerpt " +
       "(you can see BOTH its firstTextChunk AND its lastTextChunk), each carrying " +
-      "title, firstTextChunk, lastTextChunk, outline, foreshadowing (string array, " +
-      "may be empty), and needsCrossWrite (boolean);\n" +
+      "title, firstTextChunk, lastTextChunk, outline, and foreshadowing (string " +
+      "array, may be empty);\n" +
       "- Copy firstTextChunk and lastTextChunk VERBATIM from the excerpt — the " +
-      "system locates these exact strings to slice the chapter's source text;\n" +
-      "- Do NOT emit a chapter whose end runs off the end of the excerpt — it will " +
+      "system locates these exact strings to slice the unit's source text;\n" +
+      "- For a merged unit (multiple original chapters), firstTextChunk is the " +
+      "start of the FIRST original chapter and lastTextChunk is the end of the " +
+      "LAST original chapter in the merged storyline;\n" +
+      "- Do NOT emit a unit whose end runs off the end of the excerpt — it will " +
       "be covered in the next excerpt;\n" +
-      "- You are not allowed to output chapters anywhere other than the " +
+      "- You are not allowed to output units anywhere other than the " +
       "outputChapters tool;\n" +
       "- You are not allowed to output anything other than calling the " +
       "outputChapters tool;\n" +
@@ -845,10 +852,11 @@ async function runOutlineAgent(params: {
 // --- the public entry ------------------------------------------------------
 
 /**
- * Generate outlines (and, in the same pass, split the source into chapters)
- * for a file-uploaded novel. Owns the whole `source_chapters` +
- * `chapter_outlines` row lifecycle. Resumable: every round persists
- * `rawConsumedOffset` to the DB, so a crashed run picked back up continues from
+ * Generate outlines (and, in the same pass, split + MERGE the source into
+ * chapters) for a file-uploaded novel. Owns the whole `source_chapters` row
+ * lifecycle (outline/foreshadowing/outlineStatus now co-located on source rows).
+ * Resumable: every round persists `rawConsumedOffset` to the DB, so a crashed
+ * run picked back up continues from
  * the last committed chapter without re-processing completed ones and without
  * re-reading the original file (the decoded rawText is held in the DB for the
  * run's duration).
@@ -965,12 +973,15 @@ export async function generateOutlines(
 
     // Rebuild prior outline on the FIRST round of a RESUME (consumedOffset > 0
     // and we haven't built it yet this run). On a fresh upload (consumedOffset
-    // === 0) it stays empty.
+    // === 0) it stays empty. Reads source chapters' outline data (co-located
+    // after the chapter_outlines table merge).
     if (round === 0 && consumedOffset > 0 && !priorOutline) {
-      const doneRows = entertainmentService.listOutlines(threadId);
-      const doneOutlines = doneRows
-        .filter((o) => o.status === "outlined")
-        .map((o) => `第 ${o.chapterNumber} 章：${o.outline}`);
+      const doneSources = entertainmentService
+        .listSourceChapters(threadId)
+        .filter((s) => s.outlineStatus === "outlined");
+      const doneOutlines = doneSources.map(
+        (s) => `第 ${s.chapterNumber} 章：${s.outline}`,
+      );
       if (doneOutlines.length > 0) {
         const recovered = await compressPriorOutline(threadId, doneOutlines);
         priorOutline = recovered ?? doneOutlines.join("\n");
@@ -983,7 +994,41 @@ export async function generateOutlines(
       }
     }
 
-    const continueFromChapter = nextChapterNumber - 1; // 0 on a fresh upload
+    // --- UNCONDITIONAL DB CARRY-FORWARD ---
+    // Unless this is the novel's last chapter (EOF reached above), carry the
+    // last source chapter's content into this round: read it from DB, delete
+    // the row (so nextChapterNumber recycles — gap-free), and prepend its text
+    // to the new excerpt. The model sees one continuous text with no annotation
+    // — it cannot tell where the carried text ends and new text begins. If a
+    // cross-chapter storyline was cut at the chunk boundary, the carried first
+    // half + new second half let the model merge them into one unit naturally.
+    // No flags, no special prompt — EOF is the sole gate.
+    let carryContent = "";
+    let carryChars = 0;
+    let carryTokens = 0;
+    const lastChapterNum = entertainmentService.maxSourceChapterNumber(threadId);
+    if (lastChapterNum > 0) {
+      const lastSource = entertainmentService.getSourceChapter(
+        threadId,
+        lastChapterNum,
+      );
+      if (lastSource?.content) {
+        carryContent = lastSource.content;
+        carryChars = carryContent.length;
+        carryTokens = tokensOf(carryContent);
+        // Delete the carried row (FK cascade also drops its rewrite row if any).
+        entertainmentService.deleteSourceChapter(threadId, lastChapterNum);
+        logger.debug("carry-forward: deleted last chapter for re-merge", {
+          threadId,
+          chapterNumber: lastChapterNum,
+          carryChars,
+          carryTokens,
+        });
+      }
+    }
+
+    const continueFromChapter =
+      entertainmentService.maxSourceChapterNumber(threadId); // 0 after carry delete, or on fresh upload
 
     // Build this round's system prompt (varies by continueFromChapter) and
     // measure its token cost for the input-budget calculation.
@@ -995,6 +1040,8 @@ export async function generateOutlines(
     const priorOutlineTokens = priorOutline ? tokensOf(priorOutline) : 0;
 
     // --- plan the read window for this round (input-budget driven) ---
+    // When carrying, the carried content's tokens are deducted from the budget
+    // and no extra overlap is added (the carry IS the continuity).
     const plan = planChunk({
       rawTextLen: rawText.length,
       consumedOffset,
@@ -1005,8 +1052,13 @@ export async function generateOutlines(
       toolDescriptionTokens,
       charsPerToken,
       avgCharsPerChapter,
+      prependTokens: carryTokens,
+      hasCarry: carryChars > 0,
     });
-    const excerpt = rawText.slice(plan.readStart, plan.readEnd);
+    const newExcerpt = rawText.slice(plan.readStart, plan.readEnd);
+    // The combined excerpt the model sees: carried content (if any) + new text,
+    // with NO separator or annotation — one continuous stream.
+    const excerpt = carryContent + newExcerpt;
 
     logger.debug("round planned", {
       threadId,
@@ -1015,6 +1067,8 @@ export async function generateOutlines(
       nextChapterNumber,
       readStart: plan.readStart,
       readEnd: plan.readEnd,
+      newExcerptLen: newExcerpt.length,
+      carryChars,
       excerptLen: excerpt.length,
       excerptCharBudget: plan.excerptCharBudget,
       overlapChars: plan.overlapChars,
@@ -1025,14 +1079,17 @@ export async function generateOutlines(
       systemPromptTokens,
     });
 
-    // --- build the user message: prior prefix + raw excerpt ---
+    // --- build the user message: prior prefix + combined excerpt ---
     const userContent = buildUserMessage(priorOutline, continueFromChapter, excerpt);
 
     // --- run the agent (one pass, single tool call) ---
     const ctx: OutputChaptersContext = {
       threadId,
       rawText,
-      searchFrom: consumedOffset,
+      sliceText: excerpt,
+      searchFrom: 0, // search from the start of the combined text
+      carryChars,
+      consumedOffset,
       nextChapterNumber,
       onCommit: (n) => {
         try {
@@ -1198,11 +1255,12 @@ export async function generateOutlines(
     );
 
     // Absorb + compress the cumulative prior outline for the next round.
+    // Reads source chapters' outline data (co-located after the table merge).
     const newOutlines: string[] = [];
     for (let n = nextChapterNumber; n < nextChapterNumber + chaptersCommitted; n++) {
-      const row = entertainmentService.getOutline(threadId, n);
-      if (row && row.status === "outlined") {
-        newOutlines.push(`第 ${n} 章：${row.outline}`);
+      const src = entertainmentService.getSourceChapter(threadId, n);
+      if (src && src.outlineStatus === "outlined") {
+        newOutlines.push(`第 ${n} 章：${src.outline}`);
       }
     }
     if (newOutlines.length > 0) {

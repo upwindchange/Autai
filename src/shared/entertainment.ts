@@ -798,14 +798,15 @@ export type SourceChapterStatus = "fetching" | "fetched" | "error";
 export type RewrittenChapterStatus = "rewriting" | "rewritten" | "error";
 
 /**
- * Lifecycle of a `chapter_outlines` row (大纲 generation). The outline step is
- * the first phase of 章节并写: it summarises each chapter into a brief outline,
- * extracts foreshadowing/clue keywords, and flags whether the chapter needs
- * cross-chapter co-writing. The scheduler's `needsWork` treats `outlined`,
- * `error`, and `skipped` as "outline ready" (the chapter may proceed to
- * rewriting), while `outlining` holds the chapter back until its outline lands.
+ * Lifecycle of a source chapter's outline (co-located on `source_chapters`
+ * after the table merge). The outliner (file-novel pipeline) sets this during
+ * the outline pass: "pending" = not yet outlined (internet/non-novel sources
+ * stay here — they have no outline step); "outlined" = outline + foreshadowing
+ * populated; "error" = outline failed. `isOutlineComplete` checks every source
+ * row is `"outlined"` (or there are none). The reader's phase derivation treats
+ * `"pending"` as "connecting" (outline in progress) for file novels.
  */
-export type OutlineStatus = "outlining" | "outlined" | "error" | "skipped";
+export type OutlineStatus = "pending" | "outlined" | "error";
 
 /**
  * Per-output pipeline progress — the reader's list/TOC view. After the
@@ -867,7 +868,7 @@ export function deriveChapterPhase(
   // show syncing even while other chapters' outlines are still generating.
   if (ch.rewriteStatus === "rewriting") return "syncing";
   if (ch.rewriteStatus === "rewritten") return "success";
-  if (ch.outlineStatus === "outlining") return "connecting";
+  if (ch.outlineStatus === "pending") return "connecting";
   if (ch.sourceStatus === "fetching") return "loading";
   return inFlight.has(ch.chapterNumber) ? "paused" : "stopped";
 }

@@ -367,7 +367,7 @@ const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
   // branches (syncing/success) take priority once they apply — but a chapter
   // whose outline is still being generated won't have a rewriteStatus yet, so
   // it reaches here. Uses the DotMatrix "connecting" animation.
-  if (chapter.outlineStatus === "outlining") {
+  if (chapter.outlineStatus === "pending") {
     return (
       <ChapterState state="connecting" keyLabel="reader.chapter.outlining" />
     );

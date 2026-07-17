@@ -10,7 +10,6 @@ import {
   entertainmentConfigs,
   sourceChapters,
   rewrittenChapters,
-  chapterOutlines,
   bookmarks,
   chapterMeta,
 } from "./schema";
@@ -27,7 +26,6 @@ export type EntertainmentConfigRow = InferSelectModel<
 >;
 export type SourceChapterRow = InferSelectModel<typeof sourceChapters>;
 export type RewrittenChapterRow = InferSelectModel<typeof rewrittenChapters>;
-export type OutlineRow = InferSelectModel<typeof chapterOutlines>;
 export type BookmarkRow = InferSelectModel<typeof bookmarks>;
 export type ChapterMetaRow = InferSelectModel<typeof chapterMeta>;
 

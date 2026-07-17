@@ -162,13 +162,13 @@ async function rewriteNonNovel(
   _options: DehydrateConfig["options"],
 ): Promise<"rewritten" | "error"> {
   // Own the rewrite-row lifecycle: mark in-progress (insert fresh or reset stale).
+  const source = entertainmentService.getSourceChapter(threadId, 1);
   const existing = entertainmentService.getRewrittenChapter(threadId, 1);
   if (!existing) {
     entertainmentService.insertRewrittenChapter({
       threadId,
       chapterNumber: 1,
-      sourceChapterStart: 1,
-      sourceChapterEnd: 1,
+      sourceChapterId: source?.id,
       status: "rewriting",
     });
   } else {
@@ -177,8 +177,7 @@ async function rewriteNonNovel(
     });
   }
 
-  const sourceText =
-    entertainmentService.getSourceChapter(threadId, 1)?.content ?? "";
+  const sourceText = source?.content ?? "";
 
   logger.info("rewriting non-novel", { threadId, sourceLen: sourceText.length });
 
