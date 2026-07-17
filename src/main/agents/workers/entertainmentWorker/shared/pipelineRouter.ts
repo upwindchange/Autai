@@ -2,30 +2,38 @@ import log from "electron-log/main";
 import { entertainmentService } from "@/services";
 import type { EntertainmentConfig } from "@shared";
 import type { PipelineScheduler, WorkerLiveness } from "./pipelineScheduler";
-import { chapteredFileScheduler } from "../pipeline1ChapteredFile/scheduler";
+import {
+  chapteredFileScheduler,
+  type ChapteredFilePipeline,
+} from "../pipeline1ChapteredFile/scheduler";
 import { chapteredInternetScheduler } from "../pipeline2ChapteredInternet/scheduler";
 import { nonNovelScheduler } from "../pipeline3NonNovel/scheduler";
 
 const logger = log.scope("Dehydrate:PipelineRouter");
 
 /**
+ * Any of the three pipeline schedulers. ① is DECOUPLED — it implements its own
+ * `ChapteredFilePipeline` interface, not the shared `PipelineScheduler` that ②
+ * and ③ implement, because its execution model (batched outline + reader-driven
+ * rewrite, no boot resume) is fundamentally different. The two interfaces are
+ * structurally compatible on the reader-facing methods, so the facade below
+ * dispatches across the union without forcing them to share a declaration.
+ */
+type AnyPipeline = ChapteredFilePipeline | PipelineScheduler;
+
+/**
  * Resolve which of the three pipelines owns a thread, from its config. The
  * split is by (novel.type × nonNovelSource):
- *   - chaptered file (file, NOT nonNovelSource)        → ① outline + co-write
+ *   - chaptered file (file, NOT nonNovelSource)         → ① outline + reader-driven rewrite
  *   - chaptered internet (internet, NOT nonNovelSource) → ② per-chapter fetch + rewrite
- *   - non-novel (file OR internet, nonNovelSource)      → ③ single-piece acquire + rewrite
+ *   - non-novel (file OR internet, nonNovelSource)       → ③ single-piece acquire + rewrite
  * Only `dehydrate` mode is routed today (interactive is a UI placeholder with
  * no backend). A null/missing config or non-dehydrate mode resolves to `null`
- * (the router methods then no-op).
- *
- * The three schedulers are INDEPENDENT — each owns its own workers Map,
- * p-queues, and resume logic. This object is a thin dispatcher that exposes the
- * same 7-method `PipelineScheduler` surface so the REST routes and the startup
- * hook talk to ONE entry point and never know which pipeline they hit.
+ * (the facade methods then no-op).
  */
 export function pipelineForConfig(
   config: EntertainmentConfig | null,
-): PipelineScheduler | null {
+): AnyPipeline | null {
   if (!config || config.mode !== "dehydrate") return null;
   if (config.options.nonNovelSource) return nonNovelScheduler;
   if (config.novel.type === "file") return chapteredFileScheduler;
@@ -36,26 +44,29 @@ export function pipelineForConfig(
  * Resolve a thread's pipeline from its persisted config (DB read). Returns null
  * when the thread has no entertainment config or isn't a dehydrate thread.
  */
-function pipelineForThread(threadId: string): PipelineScheduler | null {
+function pipelineForThread(threadId: string): AnyPipeline | null {
   return pipelineForConfig(entertainmentService.getParsedConfig(threadId));
 }
 
 /**
- * The single entertainment-scheduling entry point. Dispatches every call to the
- * owning pipeline's scheduler. Routes (`entertainmentRoutes`) and startup
- * (`main/index.ts`) import ONLY this object — never a pipeline directly.
- *
- * `resumeAll` fans out to all three pipelines (each scans only its own threads).
+ * The route-facing facade the REST routes and the startup hook talk to. It is
+ * NOT `PipelineScheduler` — it deliberately exposes only the generic
+ * reader/lifecycle methods every pipeline shares. `buildOutlines` is absent:
+ * the upload route calls `chapteredFileScheduler.buildOutlines` directly (upload
+ * is unambiguously a file thread), and ②/③ have no outline step. Routes import
+ * ONLY this object; the upload route is the sole direct pipeline caller.
  */
-export const pipelineRouter: PipelineScheduler & {
+export interface PipelineRouterFacade {
+  ensure(threadId: string, n: number): void;
+  ensureRange(threadId: string, from: number, to: number): void;
+  retryFailed(threadId: string): number;
+  getInfo(threadId: string): WorkerLiveness;
+  getInFlight(threadId: string): Set<number>;
+  /** Startup recovery. Fans out to ②/③ only — ① resumes on thread-open, never boot. */
   resumeAll(): void;
-} = {
-  buildOutlines: (threadId: string) => {
-    const p = pipelineForThread(threadId);
-    if (!p) return Promise.resolve();
-    return p.buildOutlines(threadId);
-  },
+}
 
+export const pipelineRouter: PipelineRouterFacade = {
   ensure: (threadId: string, n: number) => {
     pipelineForThread(threadId)?.ensure(threadId, n);
   },
@@ -79,10 +90,10 @@ export const pipelineRouter: PipelineScheduler & {
     pipelineForThread(threadId)?.getInFlight(threadId) ?? new Set<number>(),
 
   resumeAll: () => {
-    // Each pipeline scans only the threads it owns. Fan out in order; each is
-    // fire-and-forget internally.
-    logger.info("startup recovery: fanning out to all pipelines");
-    chapteredFileScheduler.resumeAll();
+    // ① is intentionally omitted: its outline runs only on upload/thread-open,
+    // never on boot (it has no resumeAll). ②/③ resume their interrupted
+    // per-thread work here; each scans only the threads it owns.
+    logger.info("startup recovery: fanning out to pipelines ②/③");
     chapteredInternetScheduler.resumeAll();
     nonNovelScheduler.resumeAll();
   },

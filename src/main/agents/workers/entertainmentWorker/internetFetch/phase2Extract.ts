@@ -107,7 +107,9 @@ export async function extractChapter(
   const steps = await result.steps;
   const saved = steps
     .flatMap((s) => s.toolResults ?? [])
-    .some((tr) => tr.toolName === "saveChapterContent" && tr.type === "tool-result");
+    .some(
+      (tr) => tr.toolName === "saveChapterContent" && tr.type === "tool-result",
+    );
   if (saved) return; // content + title already written by the tool
   throw new Error(
     `Phase 2 did not save content for chapter ${ctx.chapterNumber}`,

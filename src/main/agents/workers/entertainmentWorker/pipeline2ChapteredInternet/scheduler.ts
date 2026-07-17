@@ -33,7 +33,10 @@
 import PQueue from "p-queue";
 import log from "electron-log/main";
 import { entertainmentService, threadPersistenceService } from "@/services";
-import type { PipelineScheduler, WorkerLiveness } from "../shared/pipelineScheduler";
+import type {
+  PipelineScheduler,
+  WorkerLiveness,
+} from "../shared/pipelineScheduler";
 import { fetchInternetChapter } from "../internetFetch";
 import { rewriteChapter } from "../rewriter";
 
@@ -192,13 +195,18 @@ class ChapteredInternetScheduler implements PipelineScheduler {
    * Safe on a fresh install (no threads → no-op).
    */
   resumeAll(): void {
-    const allThreads = threadPersistenceService.listThreadsByMode("entertainment");
+    const allThreads =
+      threadPersistenceService.listThreadsByMode("entertainment");
     let resumed = 0;
     let skipped = 0;
     for (const t of allThreads) {
       const threadId = t.id;
       const config = entertainmentService.getParsedConfig(threadId);
-      if (!config || config.mode !== "dehydrate" || config.novel.type !== "internet") {
+      if (
+        !config ||
+        config.mode !== "dehydrate" ||
+        config.novel.type !== "internet"
+      ) {
         skipped++; // not this pipeline's thread
         continue;
       }
@@ -290,7 +298,11 @@ class ChapteredInternetScheduler implements PipelineScheduler {
   private async processChapter(threadId: string, c: number): Promise<void> {
     const config = entertainmentService.getParsedConfig(threadId);
     // Only chaptered-internet dehydrate threads belong to this pipeline.
-    if (!config || config.mode !== "dehydrate" || config.novel.type !== "internet") {
+    if (
+      !config ||
+      config.mode !== "dehydrate" ||
+      config.novel.type !== "internet"
+    ) {
       logger.warn("not a chaptered-internet dehydrate thread; skipping", {
         threadId,
         chapterNumber: c,

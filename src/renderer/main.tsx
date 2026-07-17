@@ -258,7 +258,9 @@ function AppContent() {
     <SettingsProvider>
       <div className="w-dvw flex flex-row h-dvh">
         <SidebarProvider>
-          {zen ? null : showSettings ?
+          {zen ?
+            null
+          : showSettings ?
             <SettingsSidebar />
           : <SidebarLeft />}
           <SidebarInset className="relative flex-1">
@@ -266,7 +268,10 @@ function AppContent() {
               <ResizablePanelGroup orientation="horizontal" className="flex-1">
                 <ResizablePanel defaultSize={50} minSize={30}>
                   <div className="flex h-full flex-col overflow-hidden">
-                    <AppHeader title={headerTitle} shortTitle={headerTitleShort} />
+                    <AppHeader
+                      title={headerTitle}
+                      shortTitle={headerTitleShort}
+                    />
                     <div className="relative flex flex-1 flex-col overflow-hidden min-h-0">
                       {showSettings ?
                         <SettingsView />
@@ -284,7 +289,10 @@ function AppContent() {
               </ResizablePanelGroup>
             : <>
                 {zen ? null : (
-                  <AppHeader title={headerTitle} shortTitle={headerTitleShort} />
+                  <AppHeader
+                    title={headerTitle}
+                    shortTitle={headerTitleShort}
+                  />
                 )}
                 <div className="relative flex flex-1 flex-col overflow-hidden h-full">
                   {showSettings ?
@@ -383,7 +391,9 @@ function App() {
                 messages,
                 trigger,
                 messageId,
-                ...(threadSel?.systemPrompt && { system: threadSel.systemPrompt }),
+                ...(threadSel?.systemPrompt && {
+                  system: threadSel.systemPrompt,
+                }),
                 ...(threadSel?.params && { modelParams: threadSel.params }),
               },
               headers,

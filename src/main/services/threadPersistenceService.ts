@@ -122,7 +122,8 @@ class ThreadPersistenceService {
         // Persist per-thread params (JSON) + system prompt (plain text). null
         // means "explicitly cleared → use the global default".
         ...(override.params !== undefined && {
-          chatModelParams: override.params ? JSON.stringify(override.params) : null,
+          chatModelParams:
+            override.params ? JSON.stringify(override.params) : null,
         }),
         ...(override.systemPrompt !== undefined && {
           chatSystemPrompt: override.systemPrompt,
@@ -177,10 +178,13 @@ class ThreadPersistenceService {
           ...(selection && {
             // Only overwrite provider/model when the request carried a real
             // selection — an empty string would wipe an existing override.
-            ...(selection.providerId && { chatProviderId: selection.providerId }),
+            ...(selection.providerId && {
+              chatProviderId: selection.providerId,
+            }),
             ...(selection.modelId && { chatModelId: selection.modelId }),
             ...(selection.params !== undefined && {
-              chatModelParams: selection.params ? JSON.stringify(selection.params) : null,
+              chatModelParams:
+                selection.params ? JSON.stringify(selection.params) : null,
             }),
             ...(selection.systemPrompt !== undefined && {
               chatSystemPrompt: selection.systemPrompt,

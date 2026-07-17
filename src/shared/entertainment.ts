@@ -186,7 +186,9 @@ const TACTIC_SCOPE = {
 } as const satisfies Record<string, "single" | "cross" | "both">;
 
 /** All 85 tactic keys, in `situation.md` order. */
-export const ALL_TACTIC_KEYS = Object.keys(TACTIC_SCOPE) as (keyof typeof TACTIC_SCOPE)[];
+export const ALL_TACTIC_KEYS = Object.keys(
+  TACTIC_SCOPE,
+) as (keyof typeof TACTIC_SCOPE)[];
 /** Union of all 85 tactic keys. The concrete `SituationTactics`/`CrossChapterTactics` types each narrow this. */
 export type TacticKey = keyof typeof TACTIC_SCOPE;
 
@@ -277,7 +279,12 @@ export const TACTIC_CATEGORIES: readonly {
   },
   {
     key: "villainFaceSlap",
-    tactics: ["villainMockery", "braindeadVillains", "narratedConspiracy", "trialReveal"],
+    tactics: [
+      "villainMockery",
+      "braindeadVillains",
+      "narratedConspiracy",
+      "trialReveal",
+    ],
   },
   {
     key: "dailyLife",
@@ -676,11 +683,10 @@ const DepthFieldSchema = z
     }),
     DepthLevelSchema, // legacy bare number
   ])
-  .transform(
-    (v): { enabled: boolean; level: number } =>
-      typeof v === "number" ?
-        { enabled: true, level: v }
-      : { enabled: v.enabled, level: v.level },
+  .transform((v): { enabled: boolean; level: number } =>
+    typeof v === "number" ?
+      { enabled: true, level: v }
+    : { enabled: v.enabled, level: v.level },
   )
   .default({ enabled: false, level: 2 });
 
@@ -861,7 +867,8 @@ export function deriveChapterPhase(
   ch: ChapterProgress,
   inFlight: Set<number>,
 ): ChapterPhase {
-  if (ch.sourceStatus === "error" || ch.rewriteStatus === "error") return "error";
+  if (ch.sourceStatus === "error" || ch.rewriteStatus === "error")
+    return "error";
   // Rewriting states take priority over outlining: once a chapter's outline
   // lands, its rewrite is enqueued immediately (the outliner's progress
   // callback fires `ensure` per chapter), so a chapter already rewriting must

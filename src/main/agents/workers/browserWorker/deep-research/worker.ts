@@ -296,8 +296,7 @@ export async function browserDeepResearchWorker(
 
               if (askUserResult) {
                 const output = askUserResult.output as
-                  | { answer: string }
-                  | undefined;
+                  { answer: string } | undefined;
                 hitlAnswer = output?.answer ?? null;
                 logger.info("HITL clarification received", {
                   answerLength: hitlAnswer?.length ?? 0,

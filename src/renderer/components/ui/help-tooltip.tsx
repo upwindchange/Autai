@@ -53,8 +53,7 @@ export function HelpTooltip({
 }: HelpTooltipProps) {
   const isMobile = useIsMobile();
   const maxWidthStyle =
-    maxWidth !== undefined ?
-      `${maxWidth}px`
+    maxWidth !== undefined ? `${maxWidth}px`
     : isMobile ? "calc(100vw - 1.5rem)"
     : `${DESKTOP_MAX_PX}px`;
 

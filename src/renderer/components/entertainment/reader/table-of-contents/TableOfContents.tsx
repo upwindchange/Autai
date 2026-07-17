@@ -88,10 +88,8 @@ export const TableOfContents: FC<TableOfContentsProps> = ({
               type="button"
               onClick={() => onSelect(c.chapterNumber)}
               className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-muted ${
-                active ?
-                  "bg-muted font-medium text-foreground"
-                : dimmed ?
-                  "text-muted-foreground/70"
+                active ? "bg-muted font-medium text-foreground"
+                : dimmed ? "text-muted-foreground/70"
                 : "text-muted-foreground"
               }`}
             >

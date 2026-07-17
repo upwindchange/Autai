@@ -96,32 +96,39 @@ export const ResponsivePanel: FC<ResponsivePanelProps> = ({
   const tooltipSide = anchor === "bottom" ? "top" : "bottom";
   const drawerDirection = anchor;
 
-  const triggerNode = tooltip ? (
-    <TooltipProvider delayDuration={300}>
-      <Tooltip {...tooltipProps}>
-        <TooltipTrigger asChild>
-          {isMobile ?
-            <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-          : <PopoverTrigger asChild>{trigger}</PopoverTrigger>}
-        </TooltipTrigger>
-        <TooltipContent side={tooltipSide}>{tooltip}</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  ) : isMobile ? (
-    <DrawerTrigger asChild>{trigger}</DrawerTrigger>
-  ) : (
-    <PopoverTrigger asChild>{trigger}</PopoverTrigger>
-  );
+  const triggerNode =
+    tooltip ?
+      <TooltipProvider delayDuration={300}>
+        <Tooltip {...tooltipProps}>
+          <TooltipTrigger asChild>
+            {isMobile ?
+              <DrawerTrigger asChild>{trigger}</DrawerTrigger>
+            : <PopoverTrigger asChild>{trigger}</PopoverTrigger>}
+          </TooltipTrigger>
+          <TooltipContent side={tooltipSide}>{tooltip}</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    : isMobile ? <DrawerTrigger asChild>{trigger}</DrawerTrigger>
+    : <PopoverTrigger asChild>{trigger}</PopoverTrigger>;
 
   if (isMobile) {
     return (
-      <Drawer open={open} onOpenChange={onOpenChange} direction={drawerDirection}>
+      <Drawer
+        open={open}
+        onOpenChange={onOpenChange}
+        direction={drawerDirection}
+      >
         {triggerNode}
         <DrawerContent className="max-h-[85vh]">
           <DrawerHeader className="text-left">
             <DrawerTitle>{title}</DrawerTitle>
           </DrawerHeader>
-          <div className={cn("relative overflow-y-auto px-4 pb-6", contentClassName)}>
+          <div
+            className={cn(
+              "relative overflow-y-auto px-4 pb-6",
+              contentClassName,
+            )}
+          >
             {children}
           </div>
           {footer && (
@@ -146,18 +153,17 @@ export const ResponsivePanel: FC<ResponsivePanelProps> = ({
           contentClassName,
         )}
       >
-        {footer ? (
+        {footer ?
           <>
             <div className="px-4 pt-4 pb-2 text-sm font-medium">{title}</div>
             <div className="flex-1 overflow-y-auto px-4 pb-4">{children}</div>
             <div className="border-t bg-background px-4 py-3">{footer}</div>
           </>
-        ) : (
-          <>
+        : <>
             <div className="mb-3 text-sm font-medium">{title}</div>
             {children}
           </>
-        )}
+        }
       </PopoverContent>
     </Popover>
   );

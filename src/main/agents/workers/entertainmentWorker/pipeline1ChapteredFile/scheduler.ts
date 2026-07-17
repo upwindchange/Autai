@@ -3,98 +3,111 @@
  *
  * Serves uploads whose config is `mode: "dehydrate"`, `novel.type: "file"`,
  * and NOT `options.nonNovelSource` (a chaptered novel uploaded as a single
- * text file). Two sequential phases:
+ * text file). Two INDEPENDENT parts, each honestly named:
  *
- *   PHASE 1 — outline + merge (split + outline + carry-forward): delegates to
- *     the outliner agent (`generateOutlines`), which runs the chunk loop over
- *     the whole rawText. In a single LLM pass per chunk it SPLITS the source
- *     into chapters AND MERGES consecutive chapters that form a cross-chapter
- *     storyline into single source rows (a tournament arc spanning 3 original
- *     chapters becomes one source row). The unconditional DB carry-forward
- *     (last chapter's content prepended to the next chunk, no flags) ensures a
- *     storyline cut at a chunk boundary is completed in the next round. Each
- *     committed source row carries outline + foreshadowing + outlineStatus.
+ *   OUTLINER (LLM, batched) — `buildOutlines` runs the outliner agent's chunk
+ *     loop over the whole rawText. In a single LLM pass per chunk it SPLITS the
+ *     source into chapters and MERGES consecutive chapters that form a
+ *     cross-chapter storyline into single source rows (a tournament arc
+ *     spanning 3 original chapters becomes one source row). The unconditional
+ *     DB carry-forward (last chapter's content prepended to the next chunk)
+ *     completes a storyline cut at a chunk boundary. The round whose read
+ *     window reaches EOF is the last batch; the agent itself finalizes the
+ *     thread (sets finalChapterNumber) once that batch's rows land.
  *
- *   PHASE 2 — placeholder rewrite (NO LLM): once outlines land, write ONE
- *     rewrite row per source row (strict 1:1, sourceChapterId FK). Content is
- *     a placeholder joining the source prose — a stand-in for the future LLM
- *     co-writer that makes the read-side spine navigable today.
+ *   REWRITER (no LLM, reader-driven) — `ensure(n)` produces one rewrite row per
+ *     source row in the reader's window [n .. n+LOOKAHEAD]. Content is just a
+ *     placeholder prefix prepended to the source prose — a stand-in for the
+ *     future LLM co-writer that makes the read-side spine navigable today.
  *
- * THE SPINE KEY. After the 1:1 redesign, `chapterNumber` is both the source
- * and rewrite key (they mirror each other). The reader navigates by this
- * number. Outputs are produced synchronously per source row (no per-output
- * queue jobs), so `inFlight` stays empty; the queue structures exist only for
- * interface parity with ②/③.
+ * TRIGGERS. The outliner runs on exactly two events: file upload (the upload
+ * route calls `buildOutlines` directly) and thread-open (folded into `ensure`:
+ * when a previously-uploaded thread is opened, the reader's first `ensure`
+ * kicks `buildOutlines` if the outline isn't complete). It NEVER runs on boot —
+ * `resumeAll` is intentionally absent from this pipeline (the router's
+ * `resumeAll` fans out to ②/③ only). `sendInfo` fires when an outline run
+ * starts (passes the guards); `sendSuccess` fires when it completes.
  *
- * CONCURRENCY. One `outlineRunning` mutex per thread guards `buildOutlines`
- * against concurrent invocations (upload-trigger + startup-resume + poll
- * re-entry all racing). `ensure`/`ensureRange` are fire-and-forget kick-offs
- * of `buildOutlines` when the pipeline isn't yet fully complete.
+ * THE SPINE KEY. `chapterNumber` is both the source and rewrite key (they
+ * mirror 1:1). The reader navigates by this number. Rewrites are produced
+ * synchronously per source row within the window, so there is no per-output
+ * queue — `getInfo`/`getInFlight` report liveness only for the outline run.
  *
- * This is a complete, independent scheduling core — it implements the full
- * `PipelineScheduler` interface and owns only the threads matching its config
- * shape. The `pipelineRouter` (../shared/pipelineRouter) selects it.
+ * This is a complete, independent scheduling core. It exposes its OWN interface
+ * (`ChapteredFilePipeline`) — not the shared `PipelineScheduler`, which only ②
+ * and ③ implement. The `pipelineRouter` (../shared/pipelineRouter) selects it
+ * for chaptered-file threads and the upload route calls `buildOutlines` on it
+ * directly.
  */
 
-import PQueue from "p-queue";
 import log from "electron-log/main";
-import { entertainmentService, threadPersistenceService } from "@/services";
+import { entertainmentService } from "@/services";
+import { sendInfo, sendSuccess, sendWarning } from "@/utils/messageUtils";
 import { generateOutlines } from "../outliner";
-import type {
-  PipelineScheduler,
-  WorkerLiveness,
-} from "../shared/pipelineScheduler";
+import type { WorkerLiveness } from "../shared/pipelineScheduler";
 
 const logger = log.scope("Dehydrate:Pipeline1:File");
 
-interface ThreadWorker {
+/** Chapters kept ready ahead of the reader's current position. */
+const LOOKAHEAD = 10;
+
+/**
+ * Prefix prepended to each source chapter's prose to form its placeholder
+ * rewrite. A stand-in for the future LLM co-writer — makes the read-side spine
+ * navigable today with zero LLM cost.
+ */
+const REWRITE_PLACEHOLDER_PREFIX = "[REWRITE PLACEHOLDER]\n";
+
+/**
+ * Pipeline ①'s own scheduling contract — decoupled from the shared
+ * `PipelineScheduler` (②/③) because its execution model is fundamentally
+ * different (batched outline + reader-driven rewrite, no boot resume). The
+ * method set overlaps the reader-facing parts the router proxies, but the
+ * semantics are tailored here and documented honestly.
+ */
+export interface ChapteredFilePipeline {
   /**
-   * Serial p-queue kept for structural parity with the scheduler contract. This
-   * pipeline does NOT enqueue per-output jobs (outputs are bulk-built in phase
-   * 2), so the queue stays empty — it exists so the `ThreadWorker` shape and
-   * `getInfo`/`getInFlight` stay consistent across all three pipelines.
+   * Trigger/resume the outline run. Called directly by the upload route and
+   * idempotently kicked by `ensure` on thread-open. Guards on `finalChapterNumber`
+   * (set ⇒ the agent already finalized) and the in-memory `outlineRunning` mutex.
+   * Emits `sendInfo` on start and `sendSuccess` on completion.
    */
-  queue: PQueue;
-  /** Always empty for ① — no per-output jobs are ever enqueued. */
-  inFlight: Set<number>;
-  /** Latest requested chapter number (reader position; tracking only). */
-  target: number;
+  buildOutlines(threadId: string): Promise<void>;
   /**
-   * Re-entrancy mutex: prevents concurrent `buildOutlines` runs (upload +
-   * startup-resume + a poll re-entry all racing on the same thread).
+   * Drive the no-LLM rewriter for the reader's window [n .. n+LOOKAHEAD], and
+   * idempotently kick `buildOutlines` when the outline isn't complete (the
+   * folded thread-open resume path). `n` is the chapter the reader is on.
    */
-  outlineRunning: boolean;
+  ensure(threadId: string, n: number): void;
+  /** Drive the rewriter across [from..to] (capped at finalChapterNumber). */
+  ensureRange(threadId: string, from: number, to: number): void;
+  /** No error states in the placeholder rewriter ⇒ nothing to retry. Returns 0. */
+  retryFailed(threadId: string): number;
+  /** Liveness + target — backs `GET /worker`. `active` = an outline run in progress. */
+  getInfo(threadId: string): WorkerLiveness;
+  /** Always empty — the rewriter is synchronous (no per-output queue). */
+  getInFlight(threadId: string): Set<number>;
 }
 
-class ChapteredFileScheduler implements PipelineScheduler {
+interface ThreadWorker {
+  /** Re-entrancy mutex: prevents concurrent `buildOutlines` runs. */
+  outlineRunning: boolean;
+  /** Latest requested chapter number (reader position; tracking only). */
+  target: number;
+}
+
+class ChapteredFileScheduler implements ChapteredFilePipeline {
   private workers = new Map<string, ThreadWorker>();
 
   private workerFor(threadId: string): ThreadWorker {
     let w = this.workers.get(threadId);
     if (!w) {
-      w = {
-        queue: new PQueue({ concurrency: 1 }),
-        inFlight: new Set(),
-        target: 1,
-        outlineRunning: false,
-      };
+      w = { outlineRunning: false, target: 1 };
       this.workers.set(threadId, w);
     }
     return w;
   }
 
-  // --- the main driver: both phases run here, sequentially ----------------
-
-  /**
-   * Drive BOTH phases for a chaptered-file thread: outline+merge (via the
-   * outliner agent with carry-forward), then placeholder rewrite (1:1 per
-   * source row, no LLM).
-   *
-   * Idempotent + re-entrancy-guarded:
-   *   - Wrong pipeline (not dehydrate / not file / nonNovelSource) → no-op.
-   *   - Already fully done (outline + rewrite complete) → no-op.
-   *   - A run already in progress for this thread → no-op (mutex).
-   */
   async buildOutlines(threadId: string): Promise<void> {
     const config = entertainmentService.getParsedConfig(threadId);
     if (
@@ -105,11 +118,10 @@ class ChapteredFileScheduler implements PipelineScheduler {
     ) {
       return; // not this pipeline
     }
-    if (
-      this.isOutlineComplete(threadId) &&
-      this.rewriteComplete(threadId)
-    ) {
-      logger.info("buildOutlines skipped — pipeline already complete", {
+    // The agent sets finalChapterNumber on the last batch — once set, the book
+    // is fully outlined and re-entry is blocked.
+    if (entertainmentService.getFinalChapterNumber(threadId) != null) {
+      logger.info("buildOutlines skipped — outline already complete", {
         threadId,
       });
       return;
@@ -122,145 +134,77 @@ class ChapteredFileScheduler implements PipelineScheduler {
       return;
     }
     w.outlineRunning = true;
+    sendInfo("大纲生成已开始", "正在为这本小说生成章节大纲，请稍候。");
+    logger.info("phase 1: outline generation starting", {
+      threadId,
+      crossChapterStrength: config.options.crossChapter.strength,
+      resume: entertainmentService.getConsumedOffset(threadId) > 0,
+    });
     try {
-      // PHASE 1: outline + merge. Runs the outliner's chunk loop to completion;
-      // it writes source_chapters rows (with outline/foreshadowing/outlineStatus)
-      // progressively, merging cross-chapter storylines into single rows via
-      // the unconditional carry-forward.
-      logger.info("phase 1: outline generation starting", {
-        threadId,
-        crossChapterStrength: config.options.crossChapter.strength,
-        resume: entertainmentService.getConsumedOffset(threadId) > 0,
-      });
       await generateOutlines(threadId, config.options.crossChapter);
-
-      // PHASE 2: placeholder rewrite (no LLM). One rewrite row per source row.
-      await this.runPlaceholderRewrite(threadId);
-
-      // finalChapterNumber = source chapter count (1:1, so == rewrite count).
-      const chapterCount =
-        entertainmentService.maxSourceChapterNumber(threadId);
-      if (chapterCount > 0) {
-        entertainmentService.setFinalChapterNumber(threadId, chapterCount);
-      }
+      sendSuccess("大纲已生成", "章节大纲已生成至全文末尾，可以开始阅读。");
       logger.info("buildOutlines complete", {
         threadId,
-        sourceChapters: chapterCount,
+        finalChapter: entertainmentService.getFinalChapterNumber(threadId),
       });
+    } catch (err) {
+      logger.error("buildOutlines failed", { threadId, err });
+      sendWarning("大纲生成失败", "生成章节大纲时出错，请重试或重新上传文件。");
     } finally {
       w.outlineRunning = false;
     }
   }
 
-  /**
-   * Phase 2 — the placeholder rewriter (NO LLM). For each source chapter that
-   * doesn't yet have a rewrite row, write one with placeholder content (the
-   * source prose verbatim under a marker). 1:1 with source rows
-   * (sourceChapterId FK). Idempotent: source rows that already have a rewrite
-   * row are skipped.
-   */
-  private async runPlaceholderRewrite(threadId: string): Promise<void> {
-    const sources = entertainmentService.listSourceChapters(threadId);
-    if (sources.length === 0) {
-      logger.warn("placeholder rewrite skipped — no source chapters", {
-        threadId,
-      });
-      return;
-    }
-    let written = 0;
-    for (const s of sources) {
-      const existing = entertainmentService.getRewrittenChapter(
-        threadId,
-        s.chapterNumber,
-      );
-      if (existing) continue; // idempotent — already has a rewrite row
-      entertainmentService.insertRewrittenChapter({
-        threadId,
-        chapterNumber: s.chapterNumber,
-        sourceChapterId: s.id,
-        content: `[REWRITE PLACEHOLDER]\n${s.content ?? ""}`,
-        status: "rewritten",
-      });
-      written++;
-    }
-    // rawText is dead weight once the outline run is complete.
-    entertainmentService.clearRawNovelText(threadId);
-    logger.info("placeholder rewrite complete", {
-      threadId,
-      sourceChapters: sources.length,
-      written,
-    });
-  }
-
-  // --- completion helpers -------------------------------------------------
-
-  /** Phase 1 done: every source chapter has outlineStatus "outlined". */
-  private isOutlineComplete(threadId: string): boolean {
-    return entertainmentService.isOutlineComplete(threadId);
-  }
-
-  /**
-   * Phase 2 done: every source chapter has a corresponding rewrite row. In the
-   * 1:1 model this is `rewriteCount >= sourceCount`.
-   */
-  private rewriteComplete(threadId: string): boolean {
-    const sourceCount = entertainmentService.listSourceChapters(threadId).length;
-    if (sourceCount === 0) return true;
-    return (
-      entertainmentService.maxRewrittenChapterNumber(threadId) >= sourceCount
-    );
-  }
-
-  // --- the PipelineScheduler interface (reader-facing kicks) --------------
-
-  /**
-   * Ensure chapter `n` is available. For ① outputs are pre-built in bulk during
-   * phase 2 (no per-output job processing), so this is a fire-and-forget kick
-   * of `buildOutlines` when the pipeline isn't yet fully complete. If already
-   * complete, it's a no-op.
-   */
   ensure(threadId: string, n: number): void {
     const w = this.workerFor(threadId);
     w.target = n;
-    if (this.isOutlineComplete(threadId) && this.rewriteComplete(threadId)) {
-      return; // already complete
+    // Folded thread-open trigger: if the outline isn't complete and not already
+    // running, (re)start it. Idempotent — buildOutlines' guards collapse the
+    // repeated kicks from the reader's poll loop into a single run, and a
+    // completed thread never re-enters.
+    if (
+      entertainmentService.getFinalChapterNumber(threadId) == null &&
+      !w.outlineRunning
+    ) {
+      void this.buildOutlines(threadId).catch((err) =>
+        logger.error("ensure buildOutlines failed", { threadId, n, err }),
+      );
     }
-    void this.buildOutlines(threadId).catch((err) =>
-      logger.error("ensure buildOutlines failed", { threadId, n, err }),
-    );
+    const final = entertainmentService.getFinalChapterNumber(threadId);
+    const end = Math.min(n + LOOKAHEAD, final ?? n + LOOKAHEAD);
+    this.driveRewriter(threadId, n, end);
   }
 
-  /**
-   * Ensure every chapter in [from, to]. For ① this just fire-and-forgets
-   * `buildOutlines` if not complete (phase 2 builds ALL at once, not by range).
-   */
   ensureRange(threadId: string, from: number, to: number): void {
     const w = this.workerFor(threadId);
     w.target = from;
-    if (this.isOutlineComplete(threadId) && this.rewriteComplete(threadId)) {
-      return;
+    if (
+      entertainmentService.getFinalChapterNumber(threadId) == null &&
+      !w.outlineRunning
+    ) {
+      void this.buildOutlines(threadId).catch((err) =>
+        logger.error("ensureRange buildOutlines failed", {
+          threadId,
+          from,
+          to,
+          err,
+        }),
+      );
     }
-    void this.buildOutlines(threadId).catch((err) =>
-      logger.error("ensureRange buildOutlines failed", {
-        threadId,
-        from,
-        to,
-        err,
-      }),
-    );
+    const final = entertainmentService.getFinalChapterNumber(threadId);
+    const end =
+      final != null ? Math.min(to, final) : Math.min(to, from + LOOKAHEAD);
+    this.driveRewriter(threadId, from, end);
   }
 
-  /**
-   * Retry errored outputs. The placeholder rewriter has NO error states
-   * (everything is built synchronously and succeeds), so there is nothing to
-   * retry. Returns 0.
-   */
   retryFailed(_threadId: string): number {
+    // The placeholder rewriter has no error states (everything is a synchronous
+    // DB write that succeeds), and the outline is only ever (re)started on
+    // upload/thread-open — never from this manual retry. So there is nothing to
+    // re-enqueue.
     return 0;
   }
 
-  /** Liveness + target — backs `GET /worker`. `active` reflects an in-progress
-   * outline/rewrite run; pending/size are 0 (no per-output queue jobs). */
   getInfo(threadId: string): WorkerLiveness {
     const w = this.workers.get(threadId);
     if (!w) return { active: false, target: 0, pending: 0, size: 0 };
@@ -272,62 +216,34 @@ class ChapteredFileScheduler implements PipelineScheduler {
     };
   }
 
-  /**
-   * Snapshot of chapter numbers currently scheduled. For ① no per-output jobs
-   * are ever enqueued, so this is always the empty set. Returns a copy so
-   * callers can iterate safely.
-   */
-  getInFlight(threadId: string): Set<number> {
-    const w = this.workers.get(threadId);
-    return w ? new Set(w.inFlight) : new Set<number>();
+  getInFlight(_threadId: string): Set<number> {
+    // The rewriter is synchronous — chapters are either rewritten or not yet
+    // outlined; none are ever "in flight".
+    return new Set<number>();
   }
 
   /**
-   * Startup recovery: resume interrupted work for the threads THIS pipeline
-   * owns (dehydrate + file + not nonNovelSource) that are not yet fully
-   * complete (outline OR rewrite still pending). Fire-and-forget per thread —
-   * each `buildOutlines` runs independently; the per-thread mutex collapses
-   * concurrent kicks. Safe on a fresh install (no threads → no-op).
+   * Produce placeholder rewrites for every chapter in [from..to] that has a
+   * committed source row but no rewrite yet. Idempotent (existing rewrite rows
+   * are skipped). The rewriter MONITORS source_chapters indirectly: as the
+   * outliner commits more rows, subsequent `ensure`/`ensureRange` calls pick
+   * them up within the reader's window.
    */
-  resumeAll(): void {
-    const allThreads = threadPersistenceService.listThreadsByMode("entertainment");
-    let resumed = 0;
-    let skipped = 0;
-    for (const t of allThreads) {
-      const threadId = t.id;
-      const config = entertainmentService.getParsedConfig(threadId);
-      if (
-        !config ||
-        config.mode !== "dehydrate" ||
-        config.novel.type !== "file" ||
-        config.options.nonNovelSource
-      ) {
-        skipped++; // not this pipeline
-        continue;
-      }
-      if (this.isOutlineComplete(threadId) && this.rewriteComplete(threadId)) {
-        skipped++; // fully done
-        continue;
-      }
-      resumed++;
-      logger.info("resuming chaptered-file pipeline on startup", {
+  private driveRewriter(threadId: string, from: number, to: number): void {
+    for (let c = from; c <= to; c++) {
+      const src = entertainmentService.getSourceChapter(threadId, c);
+      if (!src || src.outlineStatus !== "outlined") continue; // not outlined yet
+      if (entertainmentService.getRewrittenChapter(threadId, c)) continue; // done
+      entertainmentService.insertRewrittenChapter({
         threadId,
-        title: t.title,
-        outlineComplete: this.isOutlineComplete(threadId),
-        rewriteComplete: this.rewriteComplete(threadId),
+        chapterNumber: c,
+        sourceChapterId: src.id,
+        content: REWRITE_PLACEHOLDER_PREFIX + (src.content ?? ""),
+        status: "rewritten",
       });
-      void this.buildOutlines(threadId).catch((err) =>
-        logger.error("startup resume failed", { threadId, err }),
-      );
     }
-    logger.info("startup recovery scan complete", {
-      pipeline: "chaptered-file",
-      totalThreads: allThreads.length,
-      resumed,
-      skipped,
-    });
   }
 }
 
-export const chapteredFileScheduler: PipelineScheduler =
+export const chapteredFileScheduler: ChapteredFilePipeline =
   new ChapteredFileScheduler();

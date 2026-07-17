@@ -34,8 +34,7 @@ export const requestHumanInterventionTool = tool({
   execute: async ({ reason }, { toolCallId, experimental_context }) => {
     const hitlService = HitlService.getInstance();
     const ctx = experimental_context as
-      | { abortSignal?: AbortSignal }
-      | undefined;
+      { abortSignal?: AbortSignal } | undefined;
 
     const response = await hitlService.request<{
       completed: boolean;
@@ -84,8 +83,7 @@ export const requestUserInputTool = tool({
   execute: async ({ question }, { toolCallId, experimental_context }) => {
     const hitlService = HitlService.getInstance();
     const ctx = experimental_context as
-      | { abortSignal?: AbortSignal }
-      | undefined;
+      { abortSignal?: AbortSignal } | undefined;
 
     const response = await hitlService.request<{ answer: string }>(
       toolCallId,
@@ -162,8 +160,7 @@ export const requestOptionListTool = tool({
   ) => {
     const hitlService = HitlService.getInstance();
     const ctx = experimental_context as
-      | { abortSignal?: AbortSignal }
-      | undefined;
+      { abortSignal?: AbortSignal } | undefined;
 
     const response = await hitlService.request<{
       selection: string | string[] | null;
@@ -253,8 +250,7 @@ export const requestQuestionFlowTool = tool({
   execute: async ({ prompt, steps }, { toolCallId, experimental_context }) => {
     const hitlService = HitlService.getInstance();
     const ctx = experimental_context as
-      | { abortSignal?: AbortSignal }
-      | undefined;
+      { abortSignal?: AbortSignal } | undefined;
 
     const response = await hitlService.request<{
       answers: Record<string, string[]>;

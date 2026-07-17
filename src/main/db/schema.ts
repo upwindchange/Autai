@@ -258,8 +258,9 @@ export const rewrittenChapters = sqliteTable(
     // CASCADE so deleting a source row (e.g. the carry-forward regeneration)
     // removes its rewrite too. Nullable only for migration safety on pre-
     // existing rows; new inserts always set it.
-    sourceChapterId: text("source_chapter_id").references(() =>
-      sourceChapters.id, { onDelete: "cascade" },
+    sourceChapterId: text("source_chapter_id").references(
+      () => sourceChapters.id,
+      { onDelete: "cascade" },
     ),
     status: text("status")
       .notNull()

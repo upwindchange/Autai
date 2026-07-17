@@ -54,44 +54,46 @@ export const StepMode: FC<StepModeProps> = ({
       <ModelCapabilityCard />
       <RadioGroup
         value={config.mode}
-        onValueChange={(v) => setConfig(swapMode(config, v as EntertainmentMode))}
+        onValueChange={(v) =>
+          setConfig(swapMode(config, v as EntertainmentMode))
+        }
         className="mx-auto grid w-full max-w-4xl grid-cols-1 gap-3 sm:grid-cols-2"
       >
-      {MODES.map((opt) => (
-        <div
-          key={opt.value}
-          className={cn(
-            "flex items-start gap-3 rounded-md border p-3 transition-colors",
-            opt.disabled ? "opacity-60" : "hover:bg-accent/40",
-          )}
-        >
-          <RadioGroupItem
-            value={opt.value}
-            id={`ent-mode-${opt.value}`}
-            disabled={opt.disabled}
-            className="mt-0.5 disabled:opacity-100"
-          />
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2">
-              <Label
-                htmlFor={`ent-mode-${opt.value}`}
-                className={cn(
-                  "font-medium",
-                  opt.disabled && "cursor-not-allowed",
+        {MODES.map((opt) => (
+          <div
+            key={opt.value}
+            className={cn(
+              "flex items-start gap-3 rounded-md border p-3 transition-colors",
+              opt.disabled ? "opacity-60" : "hover:bg-accent/40",
+            )}
+          >
+            <RadioGroupItem
+              value={opt.value}
+              id={`ent-mode-${opt.value}`}
+              disabled={opt.disabled}
+              className="mt-0.5 disabled:opacity-100"
+            />
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2">
+                <Label
+                  htmlFor={`ent-mode-${opt.value}`}
+                  className={cn(
+                    "font-medium",
+                    opt.disabled && "cursor-not-allowed",
+                  )}
+                >
+                  {t(opt.labelKey)}
+                </Label>
+                {opt.disabled && (
+                  <Badge variant="secondary" className="font-normal">
+                    {t("mode.comingSoon")}
+                  </Badge>
                 )}
-              >
-                {t(opt.labelKey)}
-              </Label>
-              {opt.disabled && (
-                <Badge variant="secondary" className="font-normal">
-                  {t("mode.comingSoon")}
-                </Badge>
-              )}
+              </div>
+              <p className="text-sm text-muted-foreground">{t(opt.descKey)}</p>
             </div>
-            <p className="text-sm text-muted-foreground">{t(opt.descKey)}</p>
           </div>
-        </div>
-      ))}
+        ))}
       </RadioGroup>
 
       {/* Legal acknowledgment — required to advance. UI-only: not sent to the

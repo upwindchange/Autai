@@ -101,13 +101,12 @@ export const Bookmarks: FC<BookmarksProps> = ({
         {t("reader.bookmarks.add")}
       </Button>
 
-      {bookmarks.length === 0 ? (
+      {bookmarks.length === 0 ?
         <div className="flex flex-col items-center justify-center gap-2 py-10 text-center text-muted-foreground">
           <Bookmark className="size-6 opacity-50" />
           <p className="text-sm">{t("reader.bookmarks.empty")}</p>
         </div>
-      ) : (
-        <ul className="flex flex-col gap-0.5">
+      : <ul className="flex flex-col gap-0.5">
           {bookmarks.map((b) => {
             const active = b.chapterNumber === currentChapterNumber;
             return (
@@ -145,7 +144,7 @@ export const Bookmarks: FC<BookmarksProps> = ({
             );
           })}
         </ul>
-      )}
+      }
     </div>
   );
 };

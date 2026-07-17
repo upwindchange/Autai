@@ -25,13 +25,6 @@ import { compressPriorOutline } from "./outlineCompressor";
 const logger = log.scope("Dehydrate:Outliner");
 
 /**
- * Progress callback — fired once per chapter whose source + outline just
- * landed. The scheduler uses this to enqueue that chapter's rewrite the moment
- * it's ready, so rewriting does NOT wait for the whole book.
- */
-export type OnChapterOutlined = (chapterNumber: number) => void;
-
-/**
  * The `outputChapters` tool — the outliner agent's terminal tool and the ONLY
  * way it delivers its result. ONE call, ONE pass: the model emits one entry per
  * chapter it can fully identify in the excerpt (both its first and last
@@ -56,8 +49,10 @@ const OUTPUT_CHAPTERS_TOOL_DESCRIPTION =
   "call this outputChapters tool with one entry per chapter you can FULLY " +
   "identify in the excerpt (you can see BOTH its opening and its closing text). " +
   "For each chapter, provide its title, the first ~40 and last ~40 characters of " +
-  "its BODY (copied VERBATIM from the excerpt — the system locates these to slice " +
-  "the exact source text), plus its outline and foreshadowing. " +
+  "its BODY (copied VERBATIM from the excerpt — the system matches these EXACTLY, " +
+  "character for character, to slice the source text; any deviation — a changed, " +
+  "dropped, or inserted character, or a whitespace change — causes the chapter to " +
+  "be skipped), plus its outline and foreshadowing. " +
   "You are NOT ALLOWED to output chapters as plain text and stop your output; " +
   "they must go through this outputChapters tool. " +
   "Only emit a chapter when you can see BOTH its firstTextChunk AND its " +
@@ -93,8 +88,13 @@ interface OutputChaptersContext {
   consumedOffset: number;
   /** The next chapter number to assign (system-assigned, gap-free). */
   nextChapterNumber: number;
-  /** Per-commit progress callback (fires the scheduler's rewrite enqueue). */
-  onCommit: (chapterNumber: number) => void;
+  /**
+   * True when this round's read window reaches EOF — the last batch. The tool
+   * finalizes the thread on it (sets finalChapterNumber, since the full chapter
+   * count is known once the last batch's rows land). Reaches the tool via
+   * experimental_context only — never the prompt.
+   */
+  isLastBatch: boolean;
 }
 
 /**
@@ -121,15 +121,18 @@ function makeOutputChaptersTool() {
               .describe(
                 "The first ~40 characters of the chapter BODY (the text AFTER " +
                   "the heading line), copied VERBATIM from the excerpt. The " +
-                  "system locates this string to find the chapter's start.",
+                  "system matches this string EXACTLY (character for character) " +
+                  "to find the chapter's start — copy it precisely; any " +
+                  "deviation skips the chapter.",
               ),
             lastTextChunk: z
               .string()
               .min(1)
               .describe(
                 "The last ~40 characters of the chapter BODY, copied VERBATIM " +
-                  "from the excerpt. The system locates this string to find the " +
-                  "chapter's end. Only emit this chapter if you can see its end.",
+                  "from the excerpt. The system matches this string EXACTLY to " +
+                  "find the chapter's end. Only emit this chapter if you can " +
+                  "see its end; copy precisely — any deviation skips it.",
               ),
             outline: z
               .string()
@@ -152,7 +155,7 @@ function makeOutputChaptersTool() {
     execute: async (input, { experimental_context }) => {
       const ctx = experimental_context as OutputChaptersContext;
       const result: SliceResult = sliceChapters({
-        rawText: ctx.sliceText,
+        excerpt: ctx.sliceText,
         entries: input.chapters as ChapterEntry[],
         searchFrom: ctx.searchFrom,
         nextChapterNumber: ctx.nextChapterNumber,
@@ -172,15 +175,6 @@ function makeOutputChaptersTool() {
           foreshadowing: JSON.stringify(ch.foreshadowing),
           outlineStatus: "outlined",
         });
-        try {
-          ctx.onCommit(ch.chapterNumber);
-        } catch (cbErr) {
-          logger.warn("onCommit callback threw", {
-            threadId: ctx.threadId,
-            chapterNumber: ch.chapterNumber,
-            err: cbErr,
-          });
-        }
         saved++;
       }
 
@@ -195,13 +189,21 @@ function makeOutputChaptersTool() {
         : ctx.consumedOffset + (sliceEnd - ctx.carryChars);
       entertainmentService.setConsumedOffset(ctx.threadId, rawConsumedOffset);
 
+      // The last batch reaches EOF — once its rows land, the full chapter count
+      // is known, so finalize the thread here (the flag arrives via context,
+      // never the prompt). buildOutlines' entry guard then blocks re-entry.
+      if (ctx.isLastBatch && saved > 0) {
+        entertainmentService.setFinalChapterNumber(
+          ctx.threadId,
+          entertainmentService.maxSourceChapterNumber(ctx.threadId),
+        );
+      }
+
       if (result.skipped.length > 0) {
         logger.warn("tool: chapter entries skipped (anchors not found)", {
           threadId: ctx.threadId,
           skipped: result.skipped.length,
-          reasons: result.skipped.map((s) =>
-            s.kind === "skipped" ? s.reason : "committed",
-          ),
+          reasons: result.skipped.map((s) => s.reason),
         });
       }
       logger.info("tool: chapters committed", {
@@ -210,7 +212,7 @@ function makeOutputChaptersTool() {
         skipped: result.skipped.length,
         rawConsumedOffset,
         chapters: result.committed.map((c) => c.chapterNumber),
-        truncated: result.committed.filter((c) => c.truncated).map((c) => c.chapterNumber),
+        isLastBatch: ctx.isLastBatch,
       });
       return { saved, newConsumedOffset: rawConsumedOffset };
     },
@@ -707,9 +709,10 @@ function buildOutlineSystemPrompt(
     "对每个剧情单元（你能同时看到其正文开头和正文结尾），请产出：\n" +
       "- 标题：该剧情单元的标题（通常取第一个原章的标题，如「第一章 风起」）。" +
       "若片段从该单元正文中间开始、没有标题行，填 null。\n" +
-      "- firstTextChunk：该剧情单元正文（标题行之后的内容）的前约 40 个字符，**逐字复制**自片段。" +
-      "系统会据此在全文中定位该单元的起始位置。\n" +
-      "- lastTextChunk：该剧情单元正文最后约 40 个字符，**逐字复制**自片段。" +
+      "- firstTextChunk：该剧情单元正文（标题行之后的内容）的前约 40 个字符，**逐字精确复制**自片段" +
+      "（一个字符都不能改动、漏掉或新增，包括空白也必须一致）。系统会在片段中据此精确定位该单元的起始位置；" +
+      "若有任何偏差，该单元会被跳过。\n" +
+      "- lastTextChunk：该剧情单元正文最后约 40 个字符，**逐字精确复制**自片段（同样一个字符都不能差）。" +
       "系统会据此定位该单元的结束位置。**只有当你能看到该单元的正文结尾时才提交它**——" +
       "若某单元的结尾跑出了片段范围，不要提交它（它会在下一个片段中被覆盖）。\n" +
       "- 大纲：该剧情单元主要事件、人物决定、状态变化的简明概括（2-5 句，只述事实与推进，不复述原文描写）。\n" +
@@ -765,8 +768,10 @@ function buildOutlineSystemPrompt(
       "(you can see BOTH its firstTextChunk AND its lastTextChunk), each carrying " +
       "title, firstTextChunk, lastTextChunk, outline, and foreshadowing (string " +
       "array, may be empty);\n" +
-      "- Copy firstTextChunk and lastTextChunk VERBATIM from the excerpt — the " +
-      "system locates these exact strings to slice the unit's source text;\n" +
+      "- Copy firstTextChunk and lastTextChunk VERBATIM from the excerpt, " +
+      "character for character — the system matches these exact strings to " +
+      "slice the unit's source text; any deviation (a changed/dropped/inserted " +
+      "character or whitespace) skips the unit;\n" +
       "- For a merged unit (multiple original chapters), firstTextChunk is the " +
       "start of the FIRST original chapter and lastTextChunk is the end of the " +
       "LAST original chapter in the merged storyline;\n" +
@@ -871,28 +876,26 @@ async function runOutlineAgent(params: {
  *      from cl100k_base for round 1 (conservative → chunk smaller → safe) and
  *      then recalibrated each round from the model's REAL reported inputTokens
  *      (handles any model's tokenizer + the text's language mix — no guessing,
- *      no extra API calls). A generous overlap (≈1.5× the
- *      observed average chapter length) guarantees ≥1 chapter of continuity
- *      between back-to-back agent calls. Build the user message (prior outline
- *      prefix + raw excerpt). Run the agent (one-shot retry with RETRY_SUFFIX on
- *      a plain-text miss). The tool's execute slices verbatim bodies via
- *      textChunker and writes BOTH tables per chapter, advancing
- *      rawConsumedOffset.
+ *      no extra API calls). There is NO overlap — continuity between
+ *      back-to-back rounds is provided by the unconditional DB carry-forward
+ *      (the last source chapter's content is prepended to the next round's
+ *      excerpt). Build the user message (prior outline prefix + raw excerpt),
+ *      then run the agent (one-shot retry with RETRY_SUFFIX on a plain-text
+ *      miss). The tool's execute slices verbatim bodies from the excerpt and
+ *      writes a source_chapters row per chapter, advancing rawConsumedOffset.
  *   4. A chapter whose end falls off the chunk edge is simply not emitted this
- *      round; the next round's overlap re-covers it (no held-chapter state
- *      machine). Giant-chapter safeguard: if a round commits nothing, force-
- *      advance + retry; if still nothing, commit a truncated chapter.
- *   5. At EOF: setFinalChapterNumber + clearRawNovelText (the blob is dead
- *      weight once the run is complete; isOutlineComplete blocks re-entry).
- *
- * `onChapterOutlined` is called once per chapter whose source + outline just
- * landed, in chapter order within each round. The caller (scheduler) uses it to
- * `ensure` that chapter's rewrite.
+ *      round; the next round's carry-forward re-covers it. If a round commits
+ *      nothing, the loop force-advances the offset so it always makes progress.
+ *   5. The round whose read window reaches EOF is the last batch (`isLastBatch`,
+ *      threaded into the tool via experimental_context). The tool sets
+ *      finalChapterNumber once that batch's rows land; the loop then exits. A
+ *      convergence fallback finalizes at loop exit if the last batch committed
+ *      nothing, and only then is the raw blob cleared (an interrupted run keeps
+ *      it for resume).
  */
 export async function generateOutlines(
   threadId: string,
   crossChapter: CrossChapterDehydrate,
-  onChapterOutlined?: OnChapterOutlined,
 ): Promise<{ outlined: number; errored: number; skipped: number }> {
   const rawText = entertainmentService.getRawNovelText(threadId);
   if (!rawText || rawText.length === 0) {
@@ -908,8 +911,7 @@ export async function generateOutlines(
   // catalog/override). Both it and maxOutputTokens cap the streamText call too.
   const complex = complexModel();
   const maxContext = complex.contextWindow;
-  const maxOutputTokens =
-    complex.maxOutputTokens ?? Math.floor(maxContext / 4);
+  const maxOutputTokens = complex.maxOutputTokens ?? Math.floor(maxContext / 4);
   if (complex.maxOutputTokens == null) {
     logger.warn(
       "maxOutputTokens not set on model; falling back to contextWindow/4",
@@ -1000,7 +1002,8 @@ export async function generateOutlines(
     let carryContent = "";
     let carryChars = 0;
     let carryTokens = 0;
-    const lastChapterNum = entertainmentService.maxSourceChapterNumber(threadId);
+    const lastChapterNum =
+      entertainmentService.maxSourceChapterNumber(threadId);
     if (lastChapterNum > 0) {
       const lastSource = entertainmentService.getSourceChapter(
         threadId,
@@ -1048,6 +1051,9 @@ export async function generateOutlines(
       carryTokens,
     });
     const newExcerpt = rawText.slice(plan.readStart, plan.readEnd);
+    // This batch reads to EOF — the agent finalizes the thread on it (via the
+    // isLastBatch flag in the tool context). The loop exits after this round.
+    const isLastBatch = plan.readEnd >= rawText.length;
     // The combined excerpt the model sees: carried content (if any) + new text,
     // with NO separator or annotation — one continuous stream.
     const excerpt = carryContent + newExcerpt;
@@ -1070,7 +1076,11 @@ export async function generateOutlines(
     });
 
     // --- build the user message: prior prefix + combined excerpt ---
-    const userContent = buildUserMessage(priorOutline, continueFromChapter, excerpt);
+    const userContent = buildUserMessage(
+      priorOutline,
+      continueFromChapter,
+      excerpt,
+    );
 
     // --- run the agent (one pass, single tool call) ---
     const ctx: OutputChaptersContext = {
@@ -1081,17 +1091,7 @@ export async function generateOutlines(
       carryChars,
       consumedOffset,
       nextChapterNumber,
-      onCommit: (n) => {
-        try {
-          onChapterOutlined?.(n);
-        } catch (cbErr) {
-          logger.warn("onChapterOutlined callback threw", {
-            threadId,
-            chapterNumber: n,
-            err: cbErr,
-          });
-        }
-      },
+      isLastBatch,
     };
 
     let saved = false;
@@ -1150,10 +1150,7 @@ export async function generateOutlines(
     // 1 so we never divide by zero.
     if (roundInputTokens && roundInputTokens > 0) {
       const fixedOverhead = systemPromptTokens + toolDescriptionTokens;
-      const userMessageTokens = Math.max(
-        1,
-        roundInputTokens - fixedOverhead,
-      );
+      const userMessageTokens = Math.max(1, roundInputTokens - fixedOverhead);
       const prior = charsPerToken;
       charsPerToken = calibrateCharsPerToken(
         charsPerToken,
@@ -1211,7 +1208,13 @@ export async function generateOutlines(
       if (consecutiveZeroRounds >= 2) {
         logger.warn(
           "outliner round committed nothing twice; force-advancing past the stuck window",
-          { threadId, round, consumedOffset, readStart: plan.readStart, readEnd: plan.readEnd },
+          {
+            threadId,
+            round,
+            consumedOffset,
+            readStart: plan.readStart,
+            readEnd: plan.readEnd,
+          },
         );
         entertainmentService.setConsumedOffset(
           threadId,
@@ -1239,7 +1242,11 @@ export async function generateOutlines(
     // Absorb + compress the cumulative prior outline for the next round.
     // Reads source chapters' outline data (co-located after the table merge).
     const newOutlines: string[] = [];
-    for (let n = nextChapterNumber; n < nextChapterNumber + chaptersCommitted; n++) {
+    for (
+      let n = nextChapterNumber;
+      n < nextChapterNumber + chaptersCommitted;
+      n++
+    ) {
       const src = entertainmentService.getSourceChapter(threadId, n);
       if (src && src.outlineStatus === "outlined") {
         newOutlines.push(`第 ${n} 章：${src.outline}`);
@@ -1261,12 +1268,28 @@ export async function generateOutlines(
       newConsumedOffset,
       priorOutlineLen: priorOutline.length,
     });
+
+    // The last batch reached EOF — the tool already set finalChapterNumber on a
+    // successful commit, so there is no more text to read. Exit the loop.
+    if (isLastBatch) {
+      logger.info("outliner reached the last batch; exiting loop", {
+        threadId,
+        round,
+      });
+      break;
+    }
   }
 
-  // EOF: set final chapter number (count is now known) + clear the raw blob.
-  const finalChapter = entertainmentService.maxSourceChapterNumber(threadId);
-  if (finalChapter > 0) {
-    entertainmentService.setFinalChapterNumber(threadId, finalChapter);
+  // Loop exit. The agent normally sets finalChapterNumber on the last batch; if
+  // it didn't (e.g. the last batch committed nothing), finalize here so the
+  // thread can't get stuck mid-book — buildOutlines' guard blocks re-entry once
+  // this is set. Only then is the raw blob dead weight; an interrupted run
+  // keeps it for resume.
+  if (entertainmentService.getFinalChapterNumber(threadId) == null) {
+    const finalChapter = entertainmentService.maxSourceChapterNumber(threadId);
+    if (finalChapter > 0) {
+      entertainmentService.setFinalChapterNumber(threadId, finalChapter);
+    }
   }
   entertainmentService.clearRawNovelText(threadId);
 
@@ -1274,7 +1297,7 @@ export async function generateOutlines(
     threadId,
     outlined,
     errored,
-    finalChapter,
+    finalChapter: entertainmentService.getFinalChapterNumber(threadId),
     finalCharsPerToken: charsPerToken,
     rawTextCleared: true,
   });

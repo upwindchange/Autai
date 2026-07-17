@@ -175,11 +175,9 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
           />
           <div className="flex justify-end pt-1">
             <Button onClick={handleSaveParams} disabled={paramsSaving}>
-              {paramsSaving ? (
+              {paramsSaving ?
                 <Loader2 className="size-4 animate-spin" />
-              ) : (
-                t("defaultChatParams.save")
-              )}
+              : t("defaultChatParams.save")}
             </Button>
           </div>
         </CardContent>
@@ -355,9 +353,7 @@ function TagManager({ mode, tags, onChanged }: TagManagerProps) {
                 <Input
                   value={editingTagName}
                   onChange={(e) => setEditingTagName(e.target.value)}
-                  onKeyDown={(e) =>
-                    e.key === "Enter" && handleSaveTag(tag.id)
-                  }
+                  onKeyDown={(e) => e.key === "Enter" && handleSaveTag(tag.id)}
                   className="h-8 max-w-xs"
                   autoFocus
                 />

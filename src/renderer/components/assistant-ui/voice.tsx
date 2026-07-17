@@ -13,11 +13,7 @@ import { MicIcon, MicOffIcon, PhoneIcon, PhoneOffIcon } from "lucide-react";
 import { type FC, memo, useCallback, useEffect, useRef, useState } from "react";
 
 export type VoiceOrbState =
-  | "idle"
-  | "connecting"
-  | "listening"
-  | "speaking"
-  | "muted";
+  "idle" | "connecting" | "listening" | "speaking" | "muted";
 
 export type VoiceOrbVariant = "default" | "blue" | "violet" | "emerald";
 

@@ -178,15 +178,16 @@ type CrossChapterPatch = DehydrateBlockPatch<CrossChapterTactics>;
  * 章节并写 (identical shape, different tactic sets). Tactics are merged per key
  * so each stays `boolean`, not `boolean | undefined`.
  */
-function mergeDehydrateBlock<T extends { strength: number; tactics: Record<string, boolean> }>(
-  base: T,
-  blockPatch: DehydrateBlockPatch<T["tactics"]>,
-): T {
+function mergeDehydrateBlock<
+  T extends { strength: number; tactics: Record<string, boolean> },
+>(base: T, blockPatch: DehydrateBlockPatch<T["tactics"]>): T {
   // Spread + cast preserves the concrete `T["tactics"]` (e.g. SituationTactics)
   // so per-key writes stay type-safe rather than widening to Record<string, boolean>.
   const tactics = { ...base.tactics } as T["tactics"];
   if (blockPatch.tactics) {
-    for (const key of Object.keys(blockPatch.tactics) as (keyof T["tactics"])[]) {
+    for (const key of Object.keys(
+      blockPatch.tactics,
+    ) as (keyof T["tactics"])[]) {
       const v = blockPatch.tactics[key];
       if (v !== undefined) tactics[key] = v;
     }
@@ -221,7 +222,10 @@ export function patchSharedOptions(
     customInstruction?: string;
   },
 ): EntertainmentConfig {
-  const mergeDepth = (base: DehydrateDepth, depthPatch: DepthPatch): DehydrateDepth => {
+  const mergeDepth = (
+    base: DehydrateDepth,
+    depthPatch: DepthPatch,
+  ): DehydrateDepth => {
     const out = { ...base };
     for (const key of Object.keys(depthPatch) as (keyof DehydrateDepth)[]) {
       out[key] = { ...base[key], ...depthPatch[key] };
@@ -261,7 +265,10 @@ export function patchSharedOptions(
         : {}),
         ...(patch.situation ?
           {
-            situation: mergeDehydrateBlock(prev.options.situation, patch.situation),
+            situation: mergeDehydrateBlock(
+              prev.options.situation,
+              patch.situation,
+            ),
           }
         : {}),
         ...(patch.crossChapter ?
@@ -296,7 +303,10 @@ export function patchSharedOptions(
       : {}),
       ...(patch.situation ?
         {
-          situation: mergeDehydrateBlock(prev.options.situation, patch.situation),
+          situation: mergeDehydrateBlock(
+            prev.options.situation,
+            patch.situation,
+          ),
         }
       : {}),
       ...(patch.crossChapter ?
@@ -361,8 +371,6 @@ export function isStepValid(
  * single continuous text with no chapters to be aware of in the first place.
  * The UI uses this to grey out the 章节并写 block and show an explanation.
  */
-export function isCrossChapterAvailable(
-  config: EntertainmentConfig,
-): boolean {
+export function isCrossChapterAvailable(config: EntertainmentConfig): boolean {
   return config.novel.type === "file" && !config.options.nonNovelSource;
 }

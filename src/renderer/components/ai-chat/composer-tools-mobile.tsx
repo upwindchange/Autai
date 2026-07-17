@@ -66,7 +66,10 @@ export const ComposerToolsMobile: FC<ComposerToolsMobileProps> = ({
   const hasActiveMcpServers = enabledMcpServerIds.length > 0;
 
   // effort: 0 = quick, 1 = standard, 2 = thorough (mirrors the desktop menu).
-  const effort = quickSearch ? 0 : deepResearch ? 2 : 1;
+  const effort =
+    quickSearch ? 0
+    : deepResearch ? 2
+    : 1;
   const handleEffortChange = (value: string) => {
     if (value === "0") {
       setQuickSearch(true);
@@ -146,16 +149,16 @@ export const ComposerToolsMobile: FC<ComposerToolsMobileProps> = ({
               <Blocks
                 className={cn(
                   "size-4",
-                  hasActiveMcpServers ?
-                    "text-orange-500"
-                  : "text-muted-foreground",
+                  hasActiveMcpServers ? "text-orange-500" : (
+                    "text-muted-foreground"
+                  ),
                 )}
               />
               <span
                 className={cn(
-                  hasActiveMcpServers ?
-                    "text-orange-500"
-                  : "text-muted-foreground",
+                  hasActiveMcpServers ? "text-orange-500" : (
+                    "text-muted-foreground"
+                  ),
                 )}
               >
                 {t("composer.tools.extensions")}

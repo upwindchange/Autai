@@ -99,7 +99,9 @@ function modelFromProviderRow(
     name: providerRow.providerDir,
   };
 
-  const model = new Provider(config, runtimeConfig).createLanguageModel(modelId);
+  const model = new Provider(config, runtimeConfig).createLanguageModel(
+    modelId,
+  );
 
   // Resolve limits: TOML catalog first, then the user-entered override for
   // no-TOML models. `contextWindow` is the only one that ever falls back.

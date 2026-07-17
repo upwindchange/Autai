@@ -145,7 +145,10 @@ export async function fetchInternetChapter(
       await destroyCrawlTab(sessionId); // book done — release the crawl tab
       entertainmentService.setFinalChapterNumber(threadId, chapterNumber - 1);
       entertainmentService.deleteSourceChapter(threadId, chapterNumber);
-      logger.info("reached final chapter", { threadId, final: chapterNumber - 1 });
+      logger.info("reached final chapter", {
+        threadId,
+        final: chapterNumber - 1,
+      });
       return "finalChapter";
     }
     logger.error("source acquire failed", { threadId, chapterNumber, err });

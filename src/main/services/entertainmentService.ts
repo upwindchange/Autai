@@ -91,8 +91,12 @@ class EntertainmentService {
         content: input.content ?? null,
         status: input.status,
         ...(input.outline != null && { outline: input.outline }),
-        ...(input.foreshadowing != null && { foreshadowing: input.foreshadowing }),
-        ...(input.outlineStatus != null && { outlineStatus: input.outlineStatus }),
+        ...(input.foreshadowing != null && {
+          foreshadowing: input.foreshadowing,
+        }),
+        ...(input.outlineStatus != null && {
+          outlineStatus: input.outlineStatus,
+        }),
       })
       .run();
   }
@@ -411,8 +415,7 @@ class EntertainmentService {
     // Re-read to pick up the DB-generated createdAt (consistent with listBookmarks).
     const row = db.select().from(bookmarks).where(eq(bookmarks.id, id)).get();
     if (!row) throw new Error(`Bookmark ${id} vanished after insert`);
-    const title =
-      this.getSourceChapter(threadId, chapterNumber)?.title ?? null;
+    const title = this.getSourceChapter(threadId, chapterNumber)?.title ?? null;
     return this.mapBookmark(row, chapterNumber, title);
   }
 

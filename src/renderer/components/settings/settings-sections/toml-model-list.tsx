@@ -77,7 +77,10 @@ export function TomlModelList({
             inputs even when the model list is empty — the user types a model
             id manually above and may still need to declare its caps. */}
         {providerId && selectedModel && (
-          <ModelOverrideInputs providerId={providerId} modelId={selectedModel} />
+          <ModelOverrideInputs
+            providerId={providerId}
+            modelId={selectedModel}
+          />
         )}
       </div>
     );
@@ -190,9 +193,7 @@ function ModelOverrideInputs({
       (o) => !(o.providerId === providerId && o.modelId === modelId),
     );
     const merged =
-      next.contextWindow || next.maxOutputTokens ?
-        [...others, next]
-      : others;
+      next.contextWindow || next.maxOutputTokens ? [...others, next] : others;
     void updateSettings({ ...settings, modelOverrides: merged });
   };
 

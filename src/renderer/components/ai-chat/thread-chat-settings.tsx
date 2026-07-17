@@ -149,12 +149,14 @@ export const ThreadChatSettings: FC = () => {
           >
             {t("threadSettings.resetToDefault")}
           </Button>
-          <Button size="sm" onClick={handleApply} disabled={saving || !threadId}>
-            {saving ? (
+          <Button
+            size="sm"
+            onClick={handleApply}
+            disabled={saving || !threadId}
+          >
+            {saving ?
               <Loader2 className="size-3.5 animate-spin" />
-            ) : (
-              t("threadSettings.apply")
-            )}
+            : t("threadSettings.apply")}
           </Button>
         </div>
       }

@@ -56,7 +56,10 @@ interface ChaptersState {
     n: number,
   ) => Promise<ChapterDetail | undefined>;
   /** Internet wizard submit: save config + set up the thread. */
-  setupInternet: (threadId: string, config: EntertainmentConfig) => Promise<void>;
+  setupInternet: (
+    threadId: string,
+    config: EntertainmentConfig,
+  ) => Promise<void>;
   /** File wizard submit: upload (backend detects encoding + ingests + starts rewrite). */
   uploadFile: (
     threadId: string,
@@ -131,14 +134,11 @@ export const useChaptersStore = create<ChaptersState>()(
         }>(`/entertainment/threads/${threadId}/chapters/${n}`);
         set((state) => {
           // Upsert: a network chapter may not be in the list yet (no source row).
-          const exists = state.chapters.some(
-            (c) => c.chapterNumber === n,
-          );
+          const exists = state.chapters.some((c) => c.chapterNumber === n);
           const merged: ChapterView = { ...chapter, content: chapter.content };
-          const next = exists ?
-              state.chapters.map((c) =>
-                c.chapterNumber === n ? merged : c,
-              )
+          const next =
+            exists ?
+              state.chapters.map((c) => (c.chapterNumber === n ? merged : c))
             : [...state.chapters, merged].sort(
                 (a, b) => a.chapterNumber - b.chapterNumber,
               );

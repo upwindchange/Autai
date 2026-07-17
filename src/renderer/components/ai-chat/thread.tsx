@@ -338,7 +338,11 @@ const AssistantMessage: FC = () => {
                     aria-busy="true"
                     className="flex items-center gap-1.5 text-muted-foreground text-sm"
                   >
-                    <DotMatrix state="loading" label={t("thread.working")} className="size-5" />
+                    <DotMatrix
+                      state="loading"
+                      label={t("thread.working")}
+                      className="size-5"
+                    />
                     {t("thread.working")}
                   </span>
                 );

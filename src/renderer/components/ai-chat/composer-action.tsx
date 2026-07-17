@@ -103,9 +103,9 @@ export const ComposerAction: FC = () => {
   // In any multi-agent mode the summed sub-agent usage ÷ one window is
   // meaningless, so the ring is hidden.
   const contextWindow = useThreadModelContextWindow();
-  const isMultiAgentMode = useBrowser || webSearch || deepResearch || quickSearch;
-  const showContextDisplay =
-    !isMultiAgentMode && contextWindow !== undefined;
+  const isMultiAgentMode =
+    useBrowser || webSearch || deepResearch || quickSearch;
+  const showContextDisplay = !isMultiAgentMode && contextWindow !== undefined;
 
   const isMobile = useIsMobile();
   // Controlled open state for the mobile tools drawer (desktop DropdownMenu
@@ -135,7 +135,7 @@ export const ComposerAction: FC = () => {
         {/* --- custom: unified tools menu (browser use + extensions + web search).
             Nested DropdownMenu on desktop; flattened bottom-sheet Drawer on
             mobile (see ComposerToolsMobile). --- */}
-        {isMobile ? (
+        {isMobile ?
           <ComposerToolsMobile
             open={toolsOpen}
             onOpenChange={setToolsOpen}
@@ -143,238 +143,235 @@ export const ComposerAction: FC = () => {
             mcpServers={mcpServers}
             isNative={isNativeRenderer()}
           />
-        ) : (
-        <DropdownMenu
-          onOpenChange={(open) => {
-            if (!open) {
-              setBrowserSubOpen(false);
-              setWebSearchSubOpen(false);
-            }
-          }}
-        >
-          <DropdownMenuTrigger asChild>
-            {toolsTrigger}
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="top" align="start">
-            {isNativeRenderer() && (
-              <>
-                <DropdownMenuGroup>
-                  {/* Browser Use Submenu */}
-                  <DropdownMenuSub
-                    open={useBrowser ? browserSubOpen : false}
-                    onOpenChange={setBrowserSubOpen}
-                  >
-                    <DropdownMenuSubTrigger
-                      className={cn(useBrowser && "bg-muted")}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        const next = !useBrowser;
-                        setUseBrowser(next);
-                        setBrowserSubOpen(next);
-                      }}
+        : <DropdownMenu
+            onOpenChange={(open) => {
+              if (!open) {
+                setBrowserSubOpen(false);
+                setWebSearchSubOpen(false);
+              }
+            }}
+          >
+            <DropdownMenuTrigger asChild>{toolsTrigger}</DropdownMenuTrigger>
+            <DropdownMenuContent side="top" align="start">
+              {isNativeRenderer() && (
+                <>
+                  <DropdownMenuGroup>
+                    {/* Browser Use Submenu */}
+                    <DropdownMenuSub
+                      open={useBrowser ? browserSubOpen : false}
+                      onOpenChange={setBrowserSubOpen}
                     >
-                      <Field>
-                        <FieldLabel>
-                          <Globe className="size-4" />
-                          {t("composer.tools.browserUse")}
-                        </FieldLabel>
-                        <FieldDescription>
-                          {useBrowser ?
-                            t("composer.browser.on")
-                          : t("composer.browser.off")}
-                        </FieldDescription>
-                      </Field>
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent className="max-w-64">
-                      <RadioGroup
-                        value={usePlannedBrowser ? "planned" : "simple"}
-                        onValueChange={(value) => {
-                          setUsePlannedBrowser(value === "planned");
+                      <DropdownMenuSubTrigger
+                        className={cn(useBrowser && "bg-muted")}
+                        onClick={(e) => {
+                          e.preventDefault();
+                          const next = !useBrowser;
+                          setUseBrowser(next);
+                          setBrowserSubOpen(next);
                         }}
-                        className="p-2 gap-1"
+                      >
+                        <Field>
+                          <FieldLabel>
+                            <Globe className="size-4" />
+                            {t("composer.tools.browserUse")}
+                          </FieldLabel>
+                          <FieldDescription>
+                            {useBrowser ?
+                              t("composer.browser.on")
+                            : t("composer.browser.off")}
+                          </FieldDescription>
+                        </Field>
+                      </DropdownMenuSubTrigger>
+                      <DropdownMenuSubContent className="max-w-64">
+                        <RadioGroup
+                          value={usePlannedBrowser ? "planned" : "simple"}
+                          onValueChange={(value) => {
+                            setUsePlannedBrowser(value === "planned");
+                          }}
+                          className="p-2 gap-1"
+                        >
+                          <Field orientation="horizontal">
+                            <RadioGroupItem
+                              value="simple"
+                              id="browser-mode-simple"
+                            />
+                            <FieldContent>
+                              <FieldLabel htmlFor="browser-mode-simple">
+                                {t("composer.browser.mode.simple")}
+                              </FieldLabel>
+                              <FieldDescription>
+                                {t("composer.browser.mode.simple.description")}
+                              </FieldDescription>
+                            </FieldContent>
+                          </Field>
+                          <Field orientation="horizontal">
+                            <RadioGroupItem
+                              value="planned"
+                              id="browser-mode-planned"
+                            />
+                            <FieldContent>
+                              <FieldLabel htmlFor="browser-mode-planned">
+                                {t("composer.browser.mode.planned")}
+                              </FieldLabel>
+                              <FieldDescription>
+                                {t("composer.browser.mode.planned.description")}
+                              </FieldDescription>
+                            </FieldContent>
+                          </Field>
+                        </RadioGroup>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  </DropdownMenuGroup>
+
+                  <DropdownMenuSeparator />
+                </>
+              )}
+
+              {/* Extensions Submenu */}
+              <DropdownMenuGroup>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Field>
+                      <FieldLabel>
+                        <Blocks
+                          className={cn(
+                            "size-4",
+                            hasActiveMcpServers ? "text-orange-500" : (
+                              "text-muted-foreground"
+                            ),
+                          )}
+                        />
+                        <span
+                          className={cn(
+                            hasActiveMcpServers ? "text-orange-500" : (
+                              "text-muted-foreground"
+                            ),
+                          )}
+                        >
+                          {t("composer.tools.extensions")}
+                        </span>
+                      </FieldLabel>
+                      <FieldDescription>
+                        {hasActiveMcpServers ?
+                          t("composer.tools.extensions.on")
+                        : t("composer.tools.extensions.description")}
+                      </FieldDescription>
+                    </Field>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    {mcpServers.map((server) => (
+                      <DropdownMenuItem
+                        key={server.id}
+                        className="flex items-center justify-between"
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          toggleMcpServer(server.id);
+                        }}
+                      >
+                        {server.name}
+                        <Switch
+                          size="sm"
+                          checked={enabledMcpServerIds.includes(server.id)}
+                        />
+                      </DropdownMenuItem>
+                    ))}
+                    {mcpServers.length > 0 && <DropdownMenuSeparator />}
+                    <DropdownMenuItem onClick={handleAddExtensions}>
+                      <Plus className="size-4" />
+                      {t("composer.tools.addExtensions")}
+                    </DropdownMenuItem>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              </DropdownMenuGroup>
+
+              <DropdownMenuSeparator />
+
+              {/* Web Search Submenu */}
+              <DropdownMenuGroup>
+                <DropdownMenuSub
+                  open={webSearch ? webSearchSubOpen : false}
+                  onOpenChange={setWebSearchSubOpen}
+                >
+                  <DropdownMenuSubTrigger
+                    className={cn(webSearch && "bg-muted")}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      const next = !webSearch;
+                      setWebSearch(next);
+                      setWebSearchSubOpen(next);
+                    }}
+                  >
+                    <Field>
+                      <FieldLabel>
+                        <Search className="size-4" />
+                        {t("composer.tools.webSearch")}
+                      </FieldLabel>
+                      <FieldDescription>
+                        {webSearch ?
+                          t("composer.webSearch.on")
+                        : t("composer.webSearch.off")}
+                      </FieldDescription>
+                    </Field>
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="max-w-64">
+                    <div className="space-y-2 p-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium">
+                          {t("composer.effort.label")}
+                        </span>
+                        <HelpTooltip
+                          content={t("composer.effort.description")}
+                          side="top"
+                          maxWidth={224}
+                          iconClassName="size-3.5 text-muted-foreground"
+                        />
+                      </div>
+                      <RadioGroup
+                        value={String(effort)}
+                        onValueChange={(v) => {
+                          if (v === "0") {
+                            setQuickSearch(true);
+                          } else if (v === "2") {
+                            setDeepResearch(true);
+                          } else {
+                            setDeepResearch(false);
+                            setQuickSearch(false);
+                          }
+                        }}
+                        className="gap-1.5"
                       >
                         <Field orientation="horizontal">
-                          <RadioGroupItem
-                            value="simple"
-                            id="browser-mode-simple"
-                          />
+                          <RadioGroupItem value="0" id="effort-quick" />
                           <FieldContent>
-                            <FieldLabel htmlFor="browser-mode-simple">
-                              {t("composer.browser.mode.simple")}
+                            <FieldLabel htmlFor="effort-quick">
+                              {t("composer.effort.quick")}
                             </FieldLabel>
-                            <FieldDescription>
-                              {t("composer.browser.mode.simple.description")}
-                            </FieldDescription>
                           </FieldContent>
                         </Field>
                         <Field orientation="horizontal">
-                          <RadioGroupItem
-                            value="planned"
-                            id="browser-mode-planned"
-                          />
+                          <RadioGroupItem value="1" id="effort-standard" />
                           <FieldContent>
-                            <FieldLabel htmlFor="browser-mode-planned">
-                              {t("composer.browser.mode.planned")}
+                            <FieldLabel htmlFor="effort-standard">
+                              {t("composer.effort.standard")}
                             </FieldLabel>
-                            <FieldDescription>
-                              {t("composer.browser.mode.planned.description")}
-                            </FieldDescription>
+                          </FieldContent>
+                        </Field>
+                        <Field orientation="horizontal">
+                          <RadioGroupItem value="2" id="effort-thorough" />
+                          <FieldContent>
+                            <FieldLabel htmlFor="effort-thorough">
+                              {t("composer.effort.thorough")}
+                            </FieldLabel>
                           </FieldContent>
                         </Field>
                       </RadioGroup>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                </DropdownMenuGroup>
-
-                <DropdownMenuSeparator />
-              </>
-            )}
-
-            {/* Extensions Submenu */}
-            <DropdownMenuGroup>
-              <DropdownMenuSub>
-                <DropdownMenuSubTrigger>
-                  <Field>
-                    <FieldLabel>
-                      <Blocks
-                        className={cn(
-                          "size-4",
-                          hasActiveMcpServers ? "text-orange-500" : (
-                            "text-muted-foreground"
-                          ),
-                        )}
-                      />
-                      <span
-                        className={cn(
-                          hasActiveMcpServers ? "text-orange-500" : (
-                            "text-muted-foreground"
-                          ),
-                        )}
-                      >
-                        {t("composer.tools.extensions")}
-                      </span>
-                    </FieldLabel>
-                    <FieldDescription>
-                      {hasActiveMcpServers ?
-                        t("composer.tools.extensions.on")
-                      : t("composer.tools.extensions.description")}
-                    </FieldDescription>
-                  </Field>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent>
-                  {mcpServers.map((server) => (
-                    <DropdownMenuItem
-                      key={server.id}
-                      className="flex items-center justify-between"
-                      onSelect={(e) => {
-                        e.preventDefault();
-                        toggleMcpServer(server.id);
-                      }}
-                    >
-                      {server.name}
-                      <Switch
-                        size="sm"
-                        checked={enabledMcpServerIds.includes(server.id)}
-                      />
-                    </DropdownMenuItem>
-                  ))}
-                  {mcpServers.length > 0 && <DropdownMenuSeparator />}
-                  <DropdownMenuItem onClick={handleAddExtensions}>
-                    <Plus className="size-4" />
-                    {t("composer.tools.addExtensions")}
-                  </DropdownMenuItem>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            </DropdownMenuGroup>
-
-            <DropdownMenuSeparator />
-
-            {/* Web Search Submenu */}
-            <DropdownMenuGroup>
-              <DropdownMenuSub
-                open={webSearch ? webSearchSubOpen : false}
-                onOpenChange={setWebSearchSubOpen}
-              >
-                <DropdownMenuSubTrigger
-                  className={cn(webSearch && "bg-muted")}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    const next = !webSearch;
-                    setWebSearch(next);
-                    setWebSearchSubOpen(next);
-                  }}
-                >
-                  <Field>
-                    <FieldLabel>
-                      <Search className="size-4" />
-                      {t("composer.tools.webSearch")}
-                    </FieldLabel>
-                    <FieldDescription>
-                      {webSearch ?
-                        t("composer.webSearch.on")
-                      : t("composer.webSearch.off")}
-                    </FieldDescription>
-                  </Field>
-                </DropdownMenuSubTrigger>
-                <DropdownMenuSubContent className="max-w-64">
-                  <div className="space-y-2 p-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-medium">
-                        {t("composer.effort.label")}
-                      </span>
-                      <HelpTooltip
-                        content={t("composer.effort.description")}
-                        side="top"
-                        maxWidth={224}
-                        iconClassName="size-3.5 text-muted-foreground"
-                      />
                     </div>
-                    <RadioGroup
-                      value={String(effort)}
-                      onValueChange={(v) => {
-                        if (v === "0") {
-                          setQuickSearch(true);
-                        } else if (v === "2") {
-                          setDeepResearch(true);
-                        } else {
-                          setDeepResearch(false);
-                          setQuickSearch(false);
-                        }
-                      }}
-                      className="gap-1.5"
-                    >
-                      <Field orientation="horizontal">
-                        <RadioGroupItem value="0" id="effort-quick" />
-                        <FieldContent>
-                          <FieldLabel htmlFor="effort-quick">
-                            {t("composer.effort.quick")}
-                          </FieldLabel>
-                        </FieldContent>
-                      </Field>
-                      <Field orientation="horizontal">
-                        <RadioGroupItem value="1" id="effort-standard" />
-                        <FieldContent>
-                          <FieldLabel htmlFor="effort-standard">
-                            {t("composer.effort.standard")}
-                          </FieldLabel>
-                        </FieldContent>
-                      </Field>
-                      <Field orientation="horizontal">
-                        <RadioGroupItem value="2" id="effort-thorough" />
-                        <FieldContent>
-                          <FieldLabel htmlFor="effort-thorough">
-                            {t("composer.effort.thorough")}
-                          </FieldLabel>
-                        </FieldContent>
-                      </Field>
-                    </RadioGroup>
-                  </div>
-                </DropdownMenuSubContent>
-              </DropdownMenuSub>
-            </DropdownMenuGroup>
-          </DropdownMenuContent>
-        </DropdownMenu>
-        )}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              </DropdownMenuGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        }
       </div>
 
       <div className="flex items-center gap-1">

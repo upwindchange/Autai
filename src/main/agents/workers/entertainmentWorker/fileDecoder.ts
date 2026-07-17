@@ -19,8 +19,9 @@ export function decodeNovelFile(input: {
   fsPath?: string;
   base64?: string;
 }): string {
-  const bytes = input.fsPath
-    ? readFileSync(input.fsPath)
+  const bytes =
+    input.fsPath ?
+      readFileSync(input.fsPath)
     : Buffer.from(input.base64 ?? "", "base64");
 
   const detected = jschardet.detect(bytes)?.encoding ?? "utf8";

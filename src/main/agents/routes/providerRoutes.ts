@@ -51,7 +51,9 @@ providerRoutes.get("/configured/models", async (c) => {
       const ctx = m.limit?.context ?? override?.contextWindow;
       const out = m.limit?.output ?? override?.maxOutputTokens;
       const limit =
-        ctx !== undefined ? { context: ctx, ...(out && { output: out }) } : undefined;
+        ctx !== undefined ?
+          { context: ctx, ...(out && { output: out }) }
+        : undefined;
       result.push({
         providerId: p.id,
         providerDir: p.providerDir,

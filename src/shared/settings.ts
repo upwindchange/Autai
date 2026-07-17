@@ -124,7 +124,8 @@ const DEFAULT_SETTINGS = {
   systemPrompt: "",
   // System-level default model parameters — threads without a per-thread
   // override fall back to these. undefined ⇒ model/provider defaults apply.
-  defaultModelParams: undefined as z.infer<typeof ModelParametersSchema> | undefined,
+  defaultModelParams: undefined as
+    z.infer<typeof ModelParametersSchema> | undefined,
   language: "system" as const,
   // Which top-level mode (chat | entertainment) the app opens in on boot.
   defaultAppMode: "chat" as const,
@@ -155,7 +156,9 @@ export const SettingsStateSchema = z
         complex: ModelRoleAssignmentSchema,
       })
       .default(DEFAULT_SETTINGS.modelAssignments),
-    modelOverrides: z.array(ModelOverrideSchema).default(DEFAULT_SETTINGS.modelOverrides),
+    modelOverrides: z
+      .array(ModelOverrideSchema)
+      .default(DEFAULT_SETTINGS.modelOverrides),
     useSameModelForAgents: z
       .boolean()
       .default(DEFAULT_SETTINGS.useSameModelForAgents),

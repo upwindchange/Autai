@@ -1,7 +1,7 @@
 import { countTokens } from "gpt-tokenizer";
 
 /**
- * Chunk-planning + anchor-slicing logic for the merged outliner.
+ * Chunk-planning + anchor-slicing logic for the outliner.
  *
  * The outliner (`outliner.ts`) wires it to the agent + DB; `fileDecoder.ts`
  * produces the rawText that flows in here. Dependency-free apart from
@@ -18,19 +18,21 @@ import { countTokens } from "gpt-tokenizer";
  *      is provided entirely by the outliner's unconditional DB carry-forward
  *      (the last source chapter's content is prepended to the next round's
  *      excerpt; `carryTokens` is deducted from the budget here).
- *   2. `sliceChapters` — the deterministic first/last-text-chunk → verbatim
- *      body slicer. The model emits, per chapter it can fully see, the first
- *      and last ~40 chars of the chapter body; this function locates those two
- *      anchors in the full rawText and slices the exact bytes between them.
- *      Zero fidelity loss (the rewriter feeds `source_chapters.content`
- *      verbatim), immune to model paraphrase, and unbounded by any per-chunk
- *      output cap (a chapter's body can be larger than maxOutputTokens without
- *      truncation, since only the two short anchors travel back through the
- *      tool call).
+ *   2. `sliceChapters` — verbatim anchor → body slicer. The model emits, per
+ *      chapter it can fully see, the first and last ~40 chars of the chapter
+ *      body; this function locates those two anchors IN THE EXCERPT (the exact
+ *      text the model saw) via plain `indexOf` and slices the bytes between
+ *      them. Matching is EXACT — no fuzzy/whitespace tolerance. A miss simply
+ *      defers the chapter (the outliner's carry-forward re-covers it next
+ *      round); a real fuzzy matcher can be dropped into `locateAnchor` later
+ *      without touching anything else.
  *
  * Design notes:
  *   - Chapter numbers are SYSTEM-ASSIGNED sequential ordinals (continuing from
  *     `nextChapterNumber`), never trusted from the model. Gap-free.
+ *   - The body is sliced from the EXCERPT (the LLM's input), not from the raw
+ *     DB blob — so the anchors always correspond to text the model actually
+ *     saw. Faithful to what the LLM can see.
  *   - Straddler handling: a chapter whose end falls off the readEnd edge is
  *     simply not emitted this round (the model can't see its lastTextChunk, so
  *     it won't emit it). `consumedOffset` advances only to the end of the last
@@ -38,9 +40,6 @@ import { countTokens } from "gpt-tokenizer";
  *     that chapter's content (from DB) and prepends it, so a cross-chapter
  *     storyline cut at the chunk boundary is completed naturally. No held-
  *     chapter state machine, no overlap.
- *   - Giant-chapter safeguard: if a round commits zero chapters (the single
- *     visible chapter is bigger than the whole chunk), the caller force-advances
- *     `consumedOffset` and retries; if still zero, commits the chapter truncated.
  *   - Tokenizer calibration: the bound model + the text's language are BOTH
  *     unknown up front, and cl100k_base (gpt-tokenizer) is a GPT-4/4o tokenizer
  *     that can be badly wrong for Chinese-optimised models (Qwen/GLM/DeepSeek).
@@ -155,59 +154,57 @@ export interface ChapterEntry {
   /** Verbatim heading text (e.g. "第一章 风起"). null if no heading. */
   title: string | null;
   /**
-   * First ~40 chars of the chapter BODY (after the heading line), verbatim.
-   * The slicer locates this in rawText to fix the chapter's start.
+   * First ~40 chars of the chapter BODY (after the heading line), copied
+   * EXACTLY from the excerpt — character for character. The slicer matches it
+   * verbatim (`indexOf`) to fix the chapter's start; any deviation skips the
+   * chapter this round (the next round's carry-forward recovers it).
    */
   firstTextChunk: string;
   /**
-   * Last ~40 chars of the chapter BODY, verbatim. The slicer locates this to
-   * fix the chapter's end. The model emits a chapter ONLY when it can see both
-   * anchors — so a chapter straddling the chunk edge is deferred, not emitted.
+   * Last ~40 chars of the chapter BODY, copied EXACTLY from the excerpt. The
+   * slicer matches it verbatim to fix the chapter's end. The model emits a
+   * chapter ONLY when it can see both anchors — so a chapter straddling the
+   * chunk edge is deferred, not emitted.
    */
   lastTextChunk: string;
   outline: string;
   foreshadowing: string[];
 }
 
-/** The full result of slicing one chapter: metadata + verbatim body + offsets. */
+/** The result of slicing one chapter: system-assigned number + verbatim body. */
 export interface SlicedChapter {
   /** System-assigned sequential number (continuing from nextChapterNumber). */
   chapterNumber: number;
   title: string | null;
-  /** Verbatim body, heading excluded. */
+  /**
+   * Verbatim body sliced from the excerpt — begins with firstTextChunk and ends
+   * with lastTextChunk. The heading line is excluded (it lives in `title`),
+   * matching the existing source_chapters contract.
+   */
   body: string;
-  /** rawText start offset of `body` (inclusive). */
-  startOffset: number;
-  /** rawText end offset of `body` (exclusive). */
-  endOffset: number;
-  /** Whether the body was truncated (giant-chapter safeguard path). */
-  truncated: boolean;
   outline: string;
   foreshadowing: string[];
 }
 
-/** Per-entry outcome — why a chapter was or wasn't committed. */
-export type SliceOutcome =
-  | { kind: "committed"; chapter: SlicedChapter }
-  | { kind: "skipped"; reason: "anchor-not-found" | "out-of-order"; entry: ChapterEntry };
+/** A skipped entry and why (today the only reason is a verbatim anchor miss). */
+export interface SliceOutcome {
+  reason: "anchor-not-found";
+  entry: ChapterEntry;
+}
 
-/** Result of slicing a round's entries against the rawText. */
+/** Result of slicing a round's entries against the excerpt. */
 export interface SliceResult {
   /** Chapters committed this round, in order. */
   committed: SlicedChapter[];
-  /** Entries skipped (anchor miss / out of order). Overlap recovers them. */
+  /** Entries skipped (an anchor didn't verbatim-match). Carry-forward recovers. */
   skipped: SliceOutcome[];
   /**
-   * New consumed offset = end of the last committed chapter (or the input
-   * searchFrom if nothing committed). The caller persists this as the recovery
-   * checkpoint; the next round starts at max(0, this − overlap).
+   * End offset in the EXCERPT of the last committed chapter (or `searchFrom` if
+   * nothing committed). The caller maps this back to a rawText consumedOffset
+   * to advance the next chunk's read window — it is NOT used for body content
+   * (the body comes straight from the excerpt).
    */
   newConsumedOffset: number;
-  /**
-   * The highest rawText offset the slicer actually touched (for the
-   * giant-chapter safeguard: the caller checks whether any progress was made).
-   */
-  lastSeenOffset: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -294,235 +291,79 @@ export function planChunk(params: {
 }
 
 // ---------------------------------------------------------------------------
-//  Anchor matching + slicing (deterministic)
+//  Anchor matching + slicing (verbatim)
 // ---------------------------------------------------------------------------
 
 /**
- * Collapse runs of whitespace to single spaces and trim. The model copies
- * anchors "verbatim" but may normalize line breaks / collapse spaces in its own
- * rendering; matching on the collapsed form tolerates that while still pinning
- * a unique location. Both rawText excerpt and the anchor are collapsed before
- * substring search.
+ * Verbatim anchor match — the SINGLE site a fuzzy matcher can replace later
+ * (e.g. a fuzzy-search library). Returns the index of `anchor` in `excerpt` at
+ * or after `from`, or -1 if not found. Today this is plain `indexOf`: the model
+ * is contracted to copy anchors character-for-character, and a miss defers the
+ * chapter (carry-forward recovers it next round) rather than silently slicing
+ * the wrong span.
  */
-function collapseWhitespace(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
+function locateAnchor(excerpt: string, anchor: string, from: number): number {
+  return excerpt.indexOf(anchor, from);
 }
 
 /**
- * Find the (collapsed) anchor within `rawText` starting at `from`, returning the
- * OFFSET IN THE ORIGINAL rawText corresponding to the match start. Returns -1
- * if not found.
- *
- * Collapsing changes string length, so we can't `indexOf` on the collapsed
- * forms and use the index directly. Instead we map the collapsed match back to
- * an original-text offset by tracking the cumulative original-length consumed
- * as we walk through whitespace runs. This keeps the returned offset exact.
- *
- * Strategy: try the full anchor first; if no match, fall back to its first 20
- * chars (a shorter anchor is less likely to be split across a normalization
- * boundary the model rendered differently, and still pins a unique-enough spot
- * when combined with the `from` lower bound).
- */
-function findAnchorOffset(
-  rawText: string,
-  anchor: string,
-  from: number,
-): number {
-  const candidates = [anchor, anchor.slice(0, 20)].filter(
-    (s) => s.trim().length >= 5,
-  );
-  for (const cand of candidates) {
-    const pos = indexOfWithWhitespaceTolerance(rawText, cand, from);
-    if (pos >= 0) return pos;
-  }
-  return -1;
-}
-
-/**
- * Locate `needle` in `haystack` starting at `from`, tolerating whitespace-run
- * differences between them. Returns the offset in `haystack` of the match start,
- * or -1. Implementation: build a sliding match by scanning haystack for the
- * needle's first non-space char, then consuming both forward while their
- * whitespace-collapsed token streams agree. To keep this tractable on large
- * inputs we constrain the search to a forward window from `from`.
- */
-function indexOfWithWhitespaceTolerance(
-  haystack: string,
-  needle: string,
-  from: number,
-): number {
-  // Fast path: exact substring (covers the common verbatim-copy case).
-  const exact = haystack.indexOf(needle, from);
-  if (exact >= 0) return exact;
-
-  // Whitespace-tolerant fallback. Normalize needle; walk haystack from `from`,
-  // matching the needle's collapsed char stream against the haystack's collapsed
-  // stream but tracking the ORIGINAL haystack offset of the match start.
-  const normNeedle = collapseWhitespace(needle);
-  if (!normNeedle) return -1;
-
-  // We scan candidate start positions in haystack (each non-space char from
-  // `from` onward) and attempt a full match from there. Bounded by the needle
-  // length × a small factor to avoid pathological scans.
-  const maxScan = haystack.length;
-  const firstChar = normNeedle[0];
-  for (let h = from; h < maxScan; h++) {
-    // Skip whitespace in haystack to align token starts (collapsed view).
-    const ch = haystack[h];
-    if (/\s/.test(ch)) continue;
-    if (ch !== firstChar) continue;
-    // Try to consume normNeedle starting here against haystack's collapsed view.
-    const match = tryMatch(haystack, h, normNeedle);
-    if (match >= 0) return h; // match start in ORIGINAL haystack coords
-  }
-  return -1;
-}
-
-/**
- * From a starting position in `haystack` (original coords), consume
- * `normNeedle` (already whitespace-collapsed) char-by-char, allowing haystack
- * whitespace runs to map to single spaces. Returns the end offset (exclusive)
- * in haystack if the whole needle matched, else -1.
- */
-function tryMatch(
-  haystack: string,
-  hStart: number,
-  normNeedle: string,
-): number {
-  let h = hStart;
-  let n = 0;
-  while (n < normNeedle.length && h < haystack.length) {
-    const nc = normNeedle[n];
-    const hc = haystack[h];
-    if (/\s/.test(nc)) {
-      // Needle expects a whitespace boundary — consume one whitespace run in haystack.
-      if (!/\s/.test(hc)) return -1;
-      while (h < haystack.length && /\s/.test(haystack[h])) h++;
-      n++;
-      continue;
-    }
-    if (hc !== nc) return -1;
-    h++;
-    n++;
-  }
-  return n >= normNeedle.length ? h : -1;
-}
-
-/**
- * Slice a round's `entries` against the full `rawText`, committing each chapter
- * whose two anchors both locate (and are in order). Deterministic and pure: it
- * takes the model's entries + the rawText + a starting search offset, returns
- * the committed chapters with verbatim bodies and the advanced consumed offset.
+ * Slice a round's `entries` against the EXCERPT (the exact text the model saw),
+ * committing each chapter whose two anchors both verbatim-match (in order).
+ * Deterministic and pure: takes the model's entries + the excerpt + a starting
+ * search offset, returns the committed chapters with verbatim bodies and the
+ * advanced consumed offset.
  *
  * Contract:
- *   - Entries are processed in the order given. `searchFrom` advances to each
- *     committed chapter's end, so each entry is searched after the previous one.
- *   - A chapter's body = rawText.slice(firstPos, lastEnd), TRIMMED, where
- *     firstPos is the firstTextChunk match and lastEnd is the end of the
- *     lastTextChunk match. The heading line (before firstTextChunk) is excluded
- *     and lives in `title` — matching the existing source_chapters contract.
- *   - If an entry's anchors can't both be located, or it's out of order, it's
- *     skipped (recorded in `skipped`); the overlap in the next round recovers it.
+ *   - Entries are processed in the order given. The search for each entry's
+ *     lastTextChunk starts at the end of its firstTextChunk, so each entry is
+ *     located after the previous one.
+ *   - A chapter's body = excerpt.slice(firstPos, lastEnd) — it BEGINS with the
+ *     firstTextChunk and ENDS with the lastTextChunk (verbatim from the
+ *     excerpt). The heading line (before firstTextChunk) is excluded and lives
+ *     in `title` — matching the existing source_chapters contract.
+ *   - If an entry's anchors can't both be located, it is skipped (recorded in
+ *     `skipped`); the next round's carry-forward recovers it.
  *   - Chapter numbers are sequential from `nextChapterNumber`, system-assigned.
  */
 export function sliceChapters(params: {
-  rawText: string;
+  excerpt: string;
   entries: ChapterEntry[];
   searchFrom: number;
   nextChapterNumber: number;
-  /** When set (giant-chapter safeguard), commit a final truncated chapter. */
-  truncateAt?: number;
 }): SliceResult {
-  const { rawText, entries, searchFrom, nextChapterNumber } = params;
+  const { excerpt, entries, searchFrom, nextChapterNumber } = params;
   const committed: SlicedChapter[] = [];
   const skipped: SliceOutcome[] = [];
   let cursor = searchFrom;
-  let lastSeen = searchFrom;
   let chapterNumber = nextChapterNumber;
 
   for (const entry of entries) {
-    const firstPos = findAnchorOffset(rawText, entry.firstTextChunk, cursor);
+    const firstPos = locateAnchor(excerpt, entry.firstTextChunk, cursor);
     if (firstPos < 0) {
-      skipped.push({ kind: "skipped", reason: "anchor-not-found", entry });
+      skipped.push({ reason: "anchor-not-found", entry });
       continue;
     }
-    // The lastTextChunk must lie at/after the end of the firstTextChunk.
-    const firstChunkEnd = firstPos + entry.firstTextChunk.length;
-    const lastStart = findAnchorOffset(
-      rawText,
+    const lastPos = locateAnchor(
+      excerpt,
       entry.lastTextChunk,
-      firstChunkEnd,
+      firstPos + entry.firstTextChunk.length,
     );
-    if (lastStart < 0) {
-      skipped.push({ kind: "skipped", reason: "anchor-not-found", entry });
+    if (lastPos < 0) {
+      skipped.push({ reason: "anchor-not-found", entry });
       continue;
     }
-    // Compute the true end of the lastTextChunk in original coords. Because the
-    // match was whitespace-tolerant, re-walk from lastStart for the chunk's
-    // collapsed length to get the exact end offset.
-    const lastEnd = endOfMatch(rawText, lastStart, entry.lastTextChunk);
-    if (lastEnd < 0 || lastEnd <= firstPos) {
-      // Out of order — last anchor precedes first anchor. Skip; don't move cursor.
-      skipped.push({ kind: "skipped", reason: "out-of-order", entry });
-      continue;
-    }
-    const body = rawText.slice(firstPos, lastEnd).trim();
+    const lastEnd = lastPos + entry.lastTextChunk.length;
     committed.push({
-      chapterNumber: chapterNumber,
+      chapterNumber,
       title: entry.title,
-      body,
-      startOffset: firstPos,
-      endOffset: lastEnd,
-      truncated: false,
+      body: excerpt.slice(firstPos, lastEnd),
       outline: entry.outline,
       foreshadowing: entry.foreshadowing,
     });
     cursor = lastEnd;
-    lastSeen = Math.max(lastSeen, lastEnd);
     chapterNumber++;
   }
 
-  // Giant-chapter safeguard: nothing committed but we were asked to force a
-  // truncated commit for the first entry whose first anchor IS visible.
-  if (committed.length === 0 && params.truncateAt != null && entries.length > 0) {
-    const entry = entries[0];
-    const firstPos = findAnchorOffset(rawText, entry.firstTextChunk, searchFrom);
-    if (firstPos >= 0) {
-      const truncEnd = Math.min(rawText.length, params.truncateAt);
-      const body = rawText.slice(firstPos, truncEnd).trim();
-      if (body.length > 0) {
-        committed.push({
-          chapterNumber,
-          title: entry.title,
-          body,
-          startOffset: firstPos,
-          endOffset: truncEnd,
-          truncated: true,
-          outline: entry.outline,
-          foreshadowing: entry.foreshadowing,
-        });
-        cursor = truncEnd;
-        lastSeen = Math.max(lastSeen, truncEnd);
-      }
-    }
-  }
-
   const newConsumedOffset = committed.length > 0 ? cursor : searchFrom;
-  return {
-    committed,
-    skipped,
-    newConsumedOffset,
-    lastSeenOffset: lastSeen,
-  };
-}
-
-/**
- * Return the end offset (exclusive, original coords) of the whitespace-tolerant
- * match of `anchor` starting at `start` in `rawText`. Mirrors `tryMatch`'s walk
- * but returns the end offset rather than a success flag.
- */
-function endOfMatch(rawText: string, start: number, anchor: string): number {
-  const norm = collapseWhitespace(anchor);
-  if (!norm) return -1;
-  return tryMatch(rawText, start, norm);
+  return { committed, skipped, newConsumedOffset };
 }

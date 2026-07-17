@@ -215,7 +215,9 @@ chatRoutes.post("/", async (c) => {
           // explicit selection (matches the pre-existing pattern); params and
           // systemPrompt are written whenever the request carried them.
           const hasOverride =
-            !!chatSelection || system !== undefined || modelParams !== undefined;
+            !!chatSelection ||
+            system !== undefined ||
+            modelParams !== undefined;
           logger.debug("Persisting thread chat override on chat finish", {
             sessionId,
             hasOverride,

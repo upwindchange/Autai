@@ -86,23 +86,28 @@ export class ChatWorker {
       // Map ModelParameters → AI SDK v6 CallSettings. Only fields the user
       // explicitly set are forwarded (undefined ⇒ SDK/model default).
       // NOTE: ModelParameters.maxTokens → streamText.maxOutputTokens.
-      const forwardedParams = params ?
-        {
-          ...(params.temperature != null && { temperature: params.temperature }),
-          ...(params.maxTokens != null && { maxOutputTokens: params.maxTokens }),
-          ...(params.topP != null && { topP: params.topP }),
-          ...(params.topK != null && { topK: params.topK }),
-          ...(params.frequencyPenalty != null && {
-            frequencyPenalty: params.frequencyPenalty,
-          }),
-          ...(params.presencePenalty != null && {
-            presencePenalty: params.presencePenalty,
-          }),
-          ...(params.stopSequences?.length && {
-            stopSequences: params.stopSequences,
-          }),
-        }
-      : {};
+      const forwardedParams =
+        params ?
+          {
+            ...(params.temperature != null && {
+              temperature: params.temperature,
+            }),
+            ...(params.maxTokens != null && {
+              maxOutputTokens: params.maxTokens,
+            }),
+            ...(params.topP != null && { topP: params.topP }),
+            ...(params.topK != null && { topK: params.topK }),
+            ...(params.frequencyPenalty != null && {
+              frequencyPenalty: params.frequencyPenalty,
+            }),
+            ...(params.presencePenalty != null && {
+              presencePenalty: params.presencePenalty,
+            }),
+            ...(params.stopSequences?.length && {
+              stopSequences: params.stopSequences,
+            }),
+          }
+        : {};
 
       this.logger.debug("creating stream with chat model", {
         systemLength: mergedSystem.length,

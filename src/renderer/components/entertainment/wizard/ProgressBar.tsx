@@ -31,19 +31,24 @@ export function ProgressBar({ step, labels }: ProgressBarProps) {
           const done = i < step;
           const current = i === step;
           return (
-            <div key={i} className={cn("flex items-center", i < last && "flex-1")}>
+            <div
+              key={i}
+              className={cn("flex items-center", i < last && "flex-1")}
+            >
               <span
                 aria-hidden
                 className={cn(
                   "flex size-7 shrink-0 items-center justify-center rounded-full border text-xs font-medium transition-colors",
                   current &&
                     "ring-2 ring-primary/30 ring-offset-2 ring-offset-background",
-                  done || current
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-muted-foreground/30 bg-background text-muted-foreground",
+                  done || current ?
+                    "border-primary bg-primary text-primary-foreground"
+                  : "border-muted-foreground/30 bg-background text-muted-foreground",
                 )}
               >
-                {done ? <Check className="size-4" /> : i + 1}
+                {done ?
+                  <Check className="size-4" />
+                : i + 1}
               </span>
               {i < last && (
                 <span className="relative mx-1 h-0.5 flex-1 overflow-hidden rounded-full bg-muted sm:mx-2">
@@ -65,8 +70,7 @@ export function ProgressBar({ step, labels }: ProgressBarProps) {
             key={i}
             className={cn(
               "text-xs transition-colors",
-              i === step ?
-                "font-medium text-foreground"
+              i === step ? "font-medium text-foreground"
               : i < step ? "text-muted-foreground"
               : "text-muted-foreground/50",
               i === labels.length - 1 ? "text-right"

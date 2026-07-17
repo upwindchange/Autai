@@ -87,8 +87,7 @@ export const useReaderSettingsStore = create<ReaderSettingsState>()(
       // margin), so drop the old field and start margin at the default.
       migrate: (persistedState, _version) => {
         const s = persistedState as
-          | { settings?: Record<string, unknown> }
-          | undefined;
+          { settings?: Record<string, unknown> } | undefined;
         if (s?.settings) {
           delete s.settings.maxWidth;
           if (s.settings.margin == null) s.settings.margin = 12;

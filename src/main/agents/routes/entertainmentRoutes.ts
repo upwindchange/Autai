@@ -10,6 +10,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { entertainmentService, threadPersistenceService } from "@/services";
 import { pipelineRouter } from "@agents/workers/entertainmentWorker/shared/pipelineRouter";
+import { chapteredFileScheduler } from "@agents/workers/entertainmentWorker/pipeline1ChapteredFile/scheduler";
 import { decodeNovelFile } from "@agents/workers/entertainmentWorker/fileDecoder";
 import { deriveChapterPhase, EntertainmentConfigSchema } from "@shared";
 import log from "electron-log/main";
@@ -62,7 +63,10 @@ const CreateBookmarkSchema = z.object({
  * (file) and setup (internet) wizard paths. Idempotent: setupEntertainmentThread
  * only fires on the thread's first config.
  */
-function applyConfig(threadId: string, config: z.infer<typeof EntertainmentConfigSchema>): void {
+function applyConfig(
+  threadId: string,
+  config: z.infer<typeof EntertainmentConfigSchema>,
+): void {
   if (!threadPersistenceService.getThread(threadId)) {
     threadPersistenceService.createThread(threadId, "entertainment");
   }
@@ -86,7 +90,10 @@ entertainmentRoutes.post("/threads/:threadId/setup", async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const parsed = SetupSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
+      return c.json(
+        { error: "Invalid request body", details: parsed.error.issues },
+        400,
+      );
     }
     applyConfig(threadId, parsed.data.config);
     // The internet fetcher discovers the book's final chapter during the crawl
@@ -108,7 +115,10 @@ entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const parsed = UploadSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
+      return c.json(
+        { error: "Invalid request body", details: parsed.error.issues },
+        400,
+      );
     }
     const { config, fsPath, fileBytesBase64 } = parsed.data;
     // The upload route serves file novels only (internet novels use /setup).
@@ -150,23 +160,27 @@ entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
       logger.info("file decoded + raw text persisted", {
         threadId,
         charLen: decoded.length,
-        byteEstimate: fsPath ? "(fsPath)" : fileBytesBase64?.length ?? 0,
+        byteEstimate: fsPath ? "(fsPath)" : (fileBytesBase64?.length ?? 0),
       });
     } else {
-      logger.info("upload skipped — source chapters already exist (re-upload)", {
-        threadId,
-        existingCount: entertainmentService.listSourceChapters(threadId).length,
-      });
+      logger.info(
+        "upload skipped — source chapters already exist (re-upload)",
+        {
+          threadId,
+          existingCount:
+            entertainmentService.listSourceChapters(threadId).length,
+        },
+      );
     }
 
-    // Kick off the whole-book pipeline: outline generation (章节并写 phase 1),
-    // which in turn drives rewriting chapter-by-chapter as each outline lands.
-    // For novels where cross-chapter is unavailable (nonNovelSource), the
-    // outliner marks every chapter "skipped" and starts rewriting immediately.
-    // Fire-and-forget so the upload response returns at once; failures land in
-    // the catch below's logger only if buildOutlines itself rejects (its inner
-    // per-chapter errors are already persisted as outline status="error").
-    void pipelineRouter
+    // Kick off the outline run directly on Pipeline ① (upload is unambiguously a
+    // file thread, so it bypasses the router facade). The outliner streams
+    // source chapters in as it progresses; the reader-driven rewriter then
+    // produces each chapter's rewrite on demand via POST /worker (ensure) once
+    // the reader opens the thread. Fire-and-forget so the upload response
+    // returns at once — buildOutlines persists per-round errors itself and emits
+    // its own sendInfo/sendSuccess toasts.
+    void chapteredFileScheduler
       .buildOutlines(threadId)
       .catch((err) =>
         logger.error("outline generation failed", { threadId, err }),
@@ -236,7 +250,10 @@ entertainmentRoutes.post("/threads/:threadId/position", async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const parsed = PositionSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
+      return c.json(
+        { error: "Invalid request body", details: parsed.error.issues },
+        400,
+      );
     }
     entertainmentService.setLastReadChapterNumber(
       threadId,
@@ -269,7 +286,10 @@ entertainmentRoutes.post("/threads/:threadId/worker", async (c) => {
     const body = await c.req.json().catch(() => ({}));
     const parsed = WorkerSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json({ error: "Invalid request body", details: parsed.error.issues }, 400);
+      return c.json(
+        { error: "Invalid request body", details: parsed.error.issues },
+        400,
+      );
     }
     pipelineRouter.ensure(threadId, parsed.data.chapterNumber);
     const info = pipelineRouter.getInfo(threadId);
@@ -347,9 +367,7 @@ entertainmentRoutes.get("/threads/:threadId/export", (c) => {
   try {
     const threadId = c.req.param("threadId");
     const range = (c.req.query("range") ?? "all") as
-      | "current"
-      | "fromCurrent"
-      | "all";
+      "current" | "fromCurrent" | "all";
     const chapter = Number(c.req.query("chapter") ?? NaN);
     let query: { from?: number; to?: number };
     if (range === "current") {
@@ -359,10 +377,7 @@ entertainmentRoutes.get("/threads/:threadId/export", (c) => {
       query = { from: chapter, to: chapter };
     } else if (range === "fromCurrent") {
       if (!Number.isInteger(chapter) || chapter < 1) {
-        return c.json(
-          { error: "Invalid chapter for range=fromCurrent" },
-          400,
-        );
+        return c.json({ error: "Invalid chapter for range=fromCurrent" }, 400);
       }
       query = { from: chapter };
     } else {

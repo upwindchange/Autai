@@ -165,9 +165,7 @@ class ThreadIntelligenceService {
   // default" action (see resetTagsToDefault), which does not touch this flag.
   populateChineseEntertainmentTagsIfPending(): void {
     if (!(i18n.language ?? "en").startsWith("zh")) return;
-    if (
-      settingsService.getRawSetting(CHINESE_TAGS_POPULATED_FLAG) === "1"
-    )
+    if (settingsService.getRawSetting(CHINESE_TAGS_POPULATED_FLAG) === "1")
       return;
     try {
       this.backfillChineseGenreTags(

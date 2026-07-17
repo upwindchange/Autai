@@ -250,7 +250,12 @@ threadRoutes.get("/:id/messages", (c) => {
 // (chat_model_params JSON, chat_system_prompt text), so the renderer can
 // repopulate the thread-level settings panel on load.
 threadRoutes.get("/:id/model", (c) => {
-  const empty = { providerId: null, modelId: null, params: null, systemPrompt: null };
+  const empty = {
+    providerId: null,
+    modelId: null,
+    params: null,
+    systemPrompt: null,
+  };
   try {
     const id = c.req.param("id");
     const thread = threadPersistenceService.getThread(id);

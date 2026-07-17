@@ -198,7 +198,9 @@ async function landOnPage(
   }
 
   if (candidates.length === 0) {
-    logger.warn("no candidate URL found for single page", { threadId: ctx.threadId });
+    logger.warn("no candidate URL found for single page", {
+      threadId: ctx.threadId,
+    });
     return false;
   }
   logger.info("search candidate", {

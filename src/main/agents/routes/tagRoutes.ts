@@ -1,6 +1,9 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import { threadIntelligenceService, threadPersistenceService } from "@/services";
+import {
+  threadIntelligenceService,
+  threadPersistenceService,
+} from "@/services";
 import { CreateTagSchema, UpdateTagSchema } from "../schemas/apiSchemas";
 import log from "electron-log/main";
 

@@ -1,6 +1,13 @@
 import { type FC, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Bookmark, Download, List, Maximize2, Minimize2, Sparkles } from "lucide-react";
+import {
+  Bookmark,
+  Download,
+  List,
+  Maximize2,
+  Minimize2,
+  Sparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -178,7 +185,11 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   // The three export ranges rendered in the Download panel, each gated by what
   // has actually been rewritten so ranges with no ready chapters grey out.
   const downloadOptions = [
-    { range: "current", label: t("reader.download.current"), disabled: !currentReady },
+    {
+      range: "current",
+      label: t("reader.download.current"),
+      disabled: !currentReady,
+    },
     {
       range: "fromCurrent",
       label: t("reader.download.fromCurrent"),
@@ -264,7 +275,9 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
       aria-label={t("reader.bookmarks.open")}
       className="size-9 rounded-full"
     >
-      <Bookmark className={cn("size-5", currentHasBookmark && "text-primary")} />
+      <Bookmark
+        className={cn("size-5", currentHasBookmark && "text-primary")}
+      />
     </Button>
   );
 
@@ -336,9 +349,9 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
                   onClick={() => triggerDownload(opt.range)}
                   className={cn(
                     "flex w-full items-center rounded-md px-3 py-2 text-left text-sm transition-colors",
-                    opt.disabled
-                      ? "cursor-not-allowed text-muted-foreground/50"
-                      : "hover:bg-accent hover:text-accent-foreground",
+                    opt.disabled ?
+                      "cursor-not-allowed text-muted-foreground/50"
+                    : "hover:bg-accent hover:text-accent-foreground",
                   )}
                 >
                   {opt.label}
@@ -390,9 +403,9 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
                 onClick={handleProcessAll}
                 disabled={currentChapterNumber == null}
               >
-                {finalChapterNumber != null
-                  ? t("reader.process.toEnd", { n: finalChapterNumber })
-                  : t("reader.process.all")}
+                {finalChapterNumber != null ?
+                  t("reader.process.toEnd", { n: finalChapterNumber })
+                : t("reader.process.all")}
               </Button>
               <Button
                 type="button"

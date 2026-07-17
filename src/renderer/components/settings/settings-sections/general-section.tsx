@@ -131,9 +131,7 @@ export function GeneralSection() {
       <Card>
         <CardHeader>
           <CardTitle>{t("general.startup.title")}</CardTitle>
-          <CardDescription>
-            {t("general.startup.description")}
-          </CardDescription>
+          <CardDescription>{t("general.startup.description")}</CardDescription>
         </CardHeader>
         <CardContent>
           <Select
@@ -144,9 +142,7 @@ export function GeneralSection() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="chat">
-                {t("general.startup.chat")}
-              </SelectItem>
+              <SelectItem value="chat">{t("general.startup.chat")}</SelectItem>
               <SelectItem value="entertainment">
                 {t("general.startup.entertainment")}
               </SelectItem>

@@ -194,7 +194,7 @@ const ModelColumn: FC<{
         </div>
         <div className="text-[11px] text-muted-foreground/80">{sublabel}</div>
       </div>
-      {model ? (
+      {model ?
         <>
           <div className="flex items-center gap-2">
             {model.logo && (
@@ -227,14 +227,13 @@ const ModelColumn: FC<{
           )}
           {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
         </>
-      ) : (
-        <div className="flex items-center gap-2 py-1">
+      : <div className="flex items-center gap-2 py-1">
           <DotMatrix state="warning" className="size-4 shrink-0" />
           <p className="text-xs text-amber-600 dark:text-amber-500">
             {t("capability.notConfigured.body")}
           </p>
         </div>
-      )}
+      }
     </div>
   );
 };

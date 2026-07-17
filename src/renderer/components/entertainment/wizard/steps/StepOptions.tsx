@@ -1,4 +1,10 @@
-import { useState, type Dispatch, type FC, type ReactNode, type SetStateAction } from "react";
+import {
+  useState,
+  type Dispatch,
+  type FC,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import { useTranslation } from "react-i18next";
 import { ChevronDownIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -143,7 +149,9 @@ const SectionCard: FC<{
     <section className="flex flex-col rounded-lg border bg-card px-4 py-3">
       <div className="mb-3 flex items-center gap-1.5">
         <h3 className="text-sm font-semibold">{t(titleKey)}</h3>
-        {tooltipKey ? <HelpTooltip content={t(tooltipKey)} /> : null}
+        {tooltipKey ?
+          <HelpTooltip content={t(tooltipKey)} />
+        : null}
       </div>
       {/* Body flexes so a child (e.g. the custom-instruction textarea) can fill
           the card when a grid row stretches it to match a taller neighbour.
@@ -264,10 +272,7 @@ const TacticBlock: FC<{
     <Collapsible
       open={open && !disabled}
       onOpenChange={(o) => !disabled && setOpen(o)}
-      className={cn(
-        "rounded-lg border bg-card",
-        disabled && "opacity-60",
-      )}
+      className={cn("rounded-lg border bg-card", disabled && "opacity-60")}
     >
       <div className="flex flex-col gap-2 px-4 py-3">
         <div className="flex items-center justify-between gap-2">
@@ -284,7 +289,10 @@ const TacticBlock: FC<{
             <CollapsibleTrigger asChild>
               <Button variant="ghost" size="icon" className="size-7">
                 <ChevronDownIcon
-                  className={cn("size-4 transition-transform", open && "rotate-180")}
+                  className={cn(
+                    "size-4 transition-transform",
+                    open && "rotate-180",
+                  )}
                 />
               </Button>
             </CollapsibleTrigger>
@@ -303,7 +311,9 @@ const TacticBlock: FC<{
               <span className="text-xs text-muted-foreground">
                 {t(`options.${blockKey}.strength.label`)}
               </span>
-              <HelpTooltip content={t(`options.${blockKey}.strength.tooltip`)} />
+              <HelpTooltip
+                content={t(`options.${blockKey}.strength.tooltip`)}
+              />
               <ToggleGroup
                 type="single"
                 variant="outline"
@@ -362,9 +372,9 @@ const TacticBlock: FC<{
               return (
                 <div key={cat.key} className="flex flex-col gap-2">
                   <div className="flex items-center gap-1.5">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {t(`options.category.${cat.key}`)}
-                  </span>
+                    <span className="text-xs font-medium text-muted-foreground">
+                      {t(`options.category.${cat.key}`)}
+                    </span>
                     <span className="text-xs text-muted-foreground">
                       ({catEnabled.length}/{cat.tactics.length})
                     </span>
@@ -397,9 +407,8 @@ const DepthRow: FC<{
   onSelect: (segment: DepthSegment) => void;
 }> = ({ labelKey, tooltip, field, onSelect }) => {
   const { t } = useTranslation("entertainment");
-  const value: DepthSegment = field.enabled ?
-      DEPTH_LEVELS[field.level - 1] ?? "medium"
-    : "off";
+  const value: DepthSegment =
+    field.enabled ? (DEPTH_LEVELS[field.level - 1] ?? "medium") : "off";
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center gap-1.5">
@@ -539,7 +548,10 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
         customInstruction: "",
       });
       if (base.mode === "interactive") {
-        return { ...base, options: { ...base.options, interactionFrequency: 2 } };
+        return {
+          ...base,
+          options: { ...base.options, interactionFrequency: 2 },
+        };
       }
       return base;
     });
@@ -572,11 +584,19 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
               FREQ_LEVELS[config.options.interactionFrequency - 1] ?? "balanced"
             }
             onValueChange={(v) => {
-              const idx = FREQ_LEVELS.indexOf(v as (typeof FREQ_LEVELS)[number]);
+              const idx = FREQ_LEVELS.indexOf(
+                v as (typeof FREQ_LEVELS)[number],
+              );
               if (idx >= 0) {
                 setConfig((prev) =>
                   prev.mode === "interactive" ?
-                    { ...prev, options: { ...prev.options, interactionFrequency: idx + 1 } }
+                    {
+                      ...prev,
+                      options: {
+                        ...prev.options,
+                        interactionFrequency: idx + 1,
+                      },
+                    }
                   : prev,
                 );
               }
@@ -644,7 +664,10 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
             </div>
             {lang.translate.enabled && (
               <>
-                <Label htmlFor="ent-lang-target" className="text-sm font-medium">
+                <Label
+                  htmlFor="ent-lang-target"
+                  className="text-sm font-medium"
+                >
                   <span>{t("options.language.targetLanguage.label")}</span>
                   <span className="text-destructive">*</span>
                 </Label>
@@ -717,7 +740,10 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
         <SectionCard titleKey="options.section.custom.title">
           <div className="flex min-h-0 flex-1 flex-col gap-2">
             <div className="flex items-center gap-1.5">
-              <Label htmlFor="ent-custom-instruction" className="text-sm font-medium">
+              <Label
+                htmlFor="ent-custom-instruction"
+                className="text-sm font-medium"
+              >
                 {t("options.customInstruction.label")}
               </Label>
               <HelpTooltip content={t("options.customInstruction.tooltip")} />

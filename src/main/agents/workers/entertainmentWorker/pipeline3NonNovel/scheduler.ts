@@ -28,7 +28,10 @@ import {
 } from "@/services";
 import type { DehydrateConfig } from "@shared";
 import { fetchSinglePage } from "../shared/fetchSinglePage";
-import type { PipelineScheduler, WorkerLiveness } from "../shared/pipelineScheduler";
+import type {
+  PipelineScheduler,
+  WorkerLiveness,
+} from "../shared/pipelineScheduler";
 
 const logger = log.scope("Dehydrate:Pipeline3:NonNovel");
 
@@ -179,7 +182,10 @@ async function rewriteNonNovel(
 
   const sourceText = source?.content ?? "";
 
-  logger.info("rewriting non-novel", { threadId, sourceLen: sourceText.length });
+  logger.info("rewriting non-novel", {
+    threadId,
+    sourceLen: sourceText.length,
+  });
 
   const basePrompt = `${REWRITE_SYSTEM_PROMPT}\n\n${OUTPUT_CONTRACT}`;
   try {
@@ -187,10 +193,9 @@ async function rewriteNonNovel(
     if (!saved) {
       // The agent stopped without calling the tool (typical: plain-text output).
       // Reinforce the ending condition and retry once.
-      logger.warn(
-        "rewrite stopped without outputContent; retrying once",
-        { threadId },
-      );
+      logger.warn("rewrite stopped without outputContent; retrying once", {
+        threadId,
+      });
       saved = await runRewriteAgent(
         `${basePrompt}${RETRY_SUFFIX}`,
         sourceText,
@@ -254,7 +259,10 @@ class NonNovelScheduler implements PipelineScheduler {
    * on this so a completed thread is never re-processed.
    */
   private isComplete(threadId: string): boolean {
-    return entertainmentService.getRewrittenChapter(threadId, 1)?.status === "rewritten";
+    return (
+      entertainmentService.getRewrittenChapter(threadId, 1)?.status ===
+      "rewritten"
+    );
   }
 
   /**
@@ -268,7 +276,11 @@ class NonNovelScheduler implements PipelineScheduler {
   async buildOutlines(threadId: string): Promise<void> {
     const config = entertainmentService.getParsedConfig(threadId);
     // Only this pipeline owns non-novel dehydrate threads.
-    if (!config || config.mode !== "dehydrate" || !config.options.nonNovelSource) {
+    if (
+      !config ||
+      config.mode !== "dehydrate" ||
+      !config.options.nonNovelSource
+    ) {
       return; // wrong pipeline
     }
     // Already done — don't reprocess a completed thread.
@@ -278,7 +290,9 @@ class NonNovelScheduler implements PipelineScheduler {
     }
     const w = this.workerFor(threadId);
     if (w.outlineRunning) {
-      logger.info("buildOutlines skipped — run already in progress", { threadId });
+      logger.info("buildOutlines skipped — run already in progress", {
+        threadId,
+      });
       return;
     }
     w.outlineRunning = true;
@@ -293,7 +307,9 @@ class NonNovelScheduler implements PipelineScheduler {
           // lands.
           const raw = entertainmentService.getRawNovelText(threadId);
           if (!raw) {
-            logger.info("buildOutlines: no raw text yet — nothing to do", { threadId });
+            logger.info("buildOutlines: no raw text yet — nothing to do", {
+              threadId,
+            });
             return; // upload hasn't run / already consumed
           }
           const existing = entertainmentService.getSourceChapter(threadId, 1);
@@ -319,7 +335,9 @@ class NonNovelScheduler implements PipelineScheduler {
           // is InternetNovel in this branch.
           const outcome = await fetchSinglePage(config.novel, threadId);
           if (outcome !== "fetched") {
-            logger.warn("buildOutlines: single-page fetch failed", { threadId });
+            logger.warn("buildOutlines: single-page fetch failed", {
+              threadId,
+            });
             return; // fetcher already marked the source row "error"
           }
         }
@@ -374,8 +392,7 @@ class NonNovelScheduler implements PipelineScheduler {
   retryFailed(threadId: string): number {
     const source = entertainmentService.getSourceChapter(threadId, 1);
     const rewrite = entertainmentService.getRewrittenChapter(threadId, 1);
-    const hadError =
-      source?.status === "error" || rewrite?.status === "error";
+    const hadError = source?.status === "error" || rewrite?.status === "error";
     if (!hadError) return 0;
     logger.info("retry failed non-novel", { threadId });
     void this.buildOutlines(threadId).catch((err) =>
@@ -413,13 +430,18 @@ class NonNovelScheduler implements PipelineScheduler {
    * fire-and-forgets `buildOutlines`. Safe on a fresh install (no threads).
    */
   resumeAll(): void {
-    const allThreads = threadPersistenceService.listThreadsByMode("entertainment");
+    const allThreads =
+      threadPersistenceService.listThreadsByMode("entertainment");
     let resumed = 0;
     let skipped = 0;
     for (const t of allThreads) {
       const threadId = t.id;
       const config = entertainmentService.getParsedConfig(threadId);
-      if (!config || config.mode !== "dehydrate" || !config.options.nonNovelSource) {
+      if (
+        !config ||
+        config.mode !== "dehydrate" ||
+        !config.options.nonNovelSource
+      ) {
         skipped++;
         continue; // not ours
       }

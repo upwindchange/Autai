@@ -21,8 +21,7 @@ export function useThreadModelContextWindow(): number | undefined {
 
   const providerId =
     selection?.providerId ?? settings.modelAssignments.chat.providerId;
-  const modelId =
-    selection?.modelId ?? settings.modelAssignments.chat.modelId;
+  const modelId = selection?.modelId ?? settings.modelAssignments.chat.modelId;
   if (!providerId || !modelId) return undefined;
 
   return models.find(

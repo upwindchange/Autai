@@ -59,7 +59,12 @@ export const useThreadModelStore = create<ThreadModelState>((set, get) => ({
     set((s) => ({
       map: {
         ...s.map,
-        [threadId]: { providerId: null, modelId: null, params: null, systemPrompt: null },
+        [threadId]: {
+          providerId: null,
+          modelId: null,
+          params: null,
+          systemPrompt: null,
+        },
       },
     }));
     try {

@@ -54,7 +54,10 @@ class SettingsService {
    * Reads `_settings` directly (not the role-mirroring `settings` getter):
    * overrides are raw per-model user data, independent of `useSameModelForAgents`.
    */
-  getModelOverride(providerId: string, modelId: string): ModelOverride | undefined {
+  getModelOverride(
+    providerId: string,
+    modelId: string,
+  ): ModelOverride | undefined {
     return this._settings.modelOverrides.find(
       (o) => o.providerId === providerId && o.modelId === modelId,
     );
@@ -120,9 +123,10 @@ class SettingsService {
           JSON.parse(settingsMap.get("default_model_params")!)
         : undefined,
       language: settingsMap.get("language") || defaults.language,
-      modelOverrides: settingsMap.get("model_overrides") ?
-        JSON.parse(settingsMap.get("model_overrides")!)
-      : [],
+      modelOverrides:
+        settingsMap.get("model_overrides") ?
+          JSON.parse(settingsMap.get("model_overrides")!)
+        : [],
       defaultAppMode:
         settingsMap.get("default_app_mode") === "entertainment" ?
           "entertainment"

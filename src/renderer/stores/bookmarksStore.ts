@@ -29,7 +29,9 @@ interface BookmarksState {
 }
 
 const byCreatedAtDesc = (a: Bookmark, b: Bookmark) =>
-  a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0;
+  a.createdAt < b.createdAt ? 1
+  : a.createdAt > b.createdAt ? -1
+  : 0;
 
 export const useBookmarksStore = create<BookmarksState>()(
   subscribeWithSelector((set) => ({
@@ -40,9 +42,9 @@ export const useBookmarksStore = create<BookmarksState>()(
     loadBookmarks: async (threadId) => {
       set({ loading: true });
       try {
-        const { bookmarks } = await httpClient.getJSON<{ bookmarks: Bookmark[] }>(
-          `/entertainment/threads/${threadId}/bookmarks`,
-        );
+        const { bookmarks } = await httpClient.getJSON<{
+          bookmarks: Bookmark[];
+        }>(`/entertainment/threads/${threadId}/bookmarks`);
         set({
           currentThreadId: threadId,
           bookmarks: [...bookmarks].sort(byCreatedAtDesc),
@@ -73,7 +75,9 @@ export const useBookmarksStore = create<BookmarksState>()(
       set((state) => ({
         bookmarks: state.bookmarks.filter((b) => b.id !== id),
       }));
-      await httpClient.delete(`/entertainment/threads/${threadId}/bookmarks/${id}`);
+      await httpClient.delete(
+        `/entertainment/threads/${threadId}/bookmarks/${id}`,
+      );
     },
   })),
 );
