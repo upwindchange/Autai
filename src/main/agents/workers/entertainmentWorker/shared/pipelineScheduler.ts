@@ -5,7 +5,7 @@
  * INDEPENDENT scheduling core — there is NO shared scheduler. `pipelineRouter`
  * (./pipelineRouter.ts) inspects a thread's config, picks the right pipeline's
  * scheduler, and delegates — so every scheduler must expose these identical
- * seven methods. The REST routes (`entertainmentRoutes`) and the startup hook
+ * six methods. The REST routes (`entertainmentRoutes`) and the startup hook
  * (`main/index.ts`) only ever talk to the router, never a pipeline directly.
  *
  * Concurrency model (replicated per pipeline — NOT shared): each thread gets a
@@ -30,6 +30,17 @@ export interface WorkerLiveness {
   size: number;
 }
 
+/**
+ * Chapters kept ready ahead of the reader's current position — the reader-poll
+ * lookahead window. Shared by pipelines ① (chaptered-file) and ② (chaptered-
+ * internet), which both translate "reader is on chapter n" into
+ * `ensureRange(n, n + LOOKAHEAD)`. Pipeline ③ (non-novel) has a single output
+ * and ignores the upper bound, so this value is inert for it. Formerly a
+ * per-pipeline private constant duplicated as `10` in ①/② — hoisted here so the
+ * REST route and the schedulers agree on one window size.
+ */
+export const LOOKAHEAD = 10;
+
 export interface PipelineScheduler {
   /**
    * Whole-source preparation kick-off (fire-and-forget). For ① this runs the
@@ -40,16 +51,11 @@ export interface PipelineScheduler {
   buildOutlines(threadId: string): Promise<void>;
 
   /**
-   * Ensure the lookahead window [n .. n+LOOKAHEAD] is processed (n first,
-   * priority). Idempotent + dedup'd → safe for Next, TOC jumps, and recovery.
-   * `n` is the REWRITE OUTPUT sequential number.
-   */
-  ensure(threadId: string, n: number): void;
-
-  /**
    * Ensure every output in [from, to] that needs work is enqueued — the
-   * "process next N / process all" path. `to` may be `Number.MAX_SAFE_INTEGER`
-   * for "all"; each pipeline caps it at its known final chapter.
+   * "process next N / process all" path, AND the reader-poll path: the route
+   * calls `ensureRange(n, n + LOOKAHEAD)` to keep a prefetch window ready.
+   * `to` may be `Number.MAX_SAFE_INTEGER` for "all"; each pipeline caps it at
+   * its known final chapter.
    */
   ensureRange(threadId: string, from: number, to: number): void;
 

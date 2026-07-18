@@ -23,27 +23,26 @@
  *
  * Concurrency model (replicated per pipeline — NOT shared): each thread gets a
  * serial p-queue (concurrency 1) lazily via `workerFor`, with an
- * `inFlight: Set<number>` dedup/lookup. `ensure(N)` enqueues the lookahead
- * window [N .. N+LOOKAHEAD], N first (highest priority). Each job acquires the
- * source if needed and then rewrites. Idempotent + resumable: a later `ensure`
- * re-evaluates the window, and `needsWork` (simplified here — no outline gate)
+ * `inFlight: Set<number>` dedup/lookup. `ensureRange(N, N+LOOKAHEAD)` enqueues
+ * the lookahead window, N first (highest priority). Each job acquires the
+ * source if needed and then rewrites. Idempotent + resumable: a later
+ * `ensureRange` re-evaluates the window, and `needsWork` (simplified here — no
+ * outline gate)
  * decides what still needs doing.
  */
 
 import PQueue from "p-queue";
 import log from "electron-log/main";
 import { entertainmentService, threadPersistenceService } from "@/services";
-import type {
-  PipelineScheduler,
-  WorkerLiveness,
+import {
+  LOOKAHEAD,
+  type PipelineScheduler,
+  type WorkerLiveness,
 } from "../shared/pipelineScheduler";
 import { fetchInternetChapter } from "../internetFetch";
 import { rewriteChapter } from "../rewriter";
 
 const logger = log.scope("Dehydrate:Pipeline2:Internet");
-
-/** Chapters kept ready ahead of the reader's current position. */
-const LOOKAHEAD = 10;
 
 interface ThreadWorker {
   queue: PQueue;
@@ -53,8 +52,8 @@ interface ThreadWorker {
 
 /**
  * Per-thread chaptered-internet orchestrator. Each thread gets a serial p-queue
- * (concurrency 1); `ensure(N)` enqueues any missing work for the window
- * [N .. N+LOOKAHEAD], the current chapter first (priority). Each job acquires
+ * (concurrency 1); `ensureRange(N, N+LOOKAHEAD)` enqueues any missing work for
+ * the window, the current chapter first (priority). Each job acquires
  * the source (network) if needed, then rewrites. There is no outline step for
  * internet novels, so `needsWork` collapses to source-then-rewrite readiness
  * with no outline gate.
@@ -86,35 +85,13 @@ class ChapteredInternetScheduler implements PipelineScheduler {
   }
 
   /**
-   * Ensure the lookahead window [n .. n+LOOKAHEAD] is processed, n first
-   * (highest priority). Idempotent + dedup'd → safe for Next, TOC jumps, and
-   * recovery. `n` is the REWRITE OUTPUT sequential number; for this pipeline it
-   * coincides with the source chapter number (1:1).
-   */
-  ensure(threadId: string, n: number): void {
-    const w = this.workerFor(threadId);
-    const prevTarget = w.target;
-    w.target = n;
-    const final = entertainmentService.getFinalChapterNumber(threadId);
-    const end = Math.min(n + LOOKAHEAD, final ?? n + LOOKAHEAD);
-    const enqueued = this.enqueueWindow(threadId, w, n, end);
-    logger.debug("ensure lookahead", {
-      threadId,
-      currentN: n,
-      prevTarget,
-      enqueued,
-      inFlight: w.inFlight.size,
-      queueSize: w.queue.size,
-    });
-  }
-
-  /**
    * Ensure every chapter in [from, to] that needs work is enqueued — the
-   * "process next N" / "process all" path. `to` is capped at the thread's known
-   * finalChapterNumber; when final is unknown it is capped at `from + LOOKAHEAD`
-   * so a stray "process all" (Number.MAX_SAFE_INTEGER) can't enqueue an
-   * unbounded range. `from` wins target, so chapters nearer it process first
-   * (enqueue priority).
+   * "process next N" / "process all" path, AND the reader-poll path: the route
+   * calls `ensureRange(n, n + LOOKAHEAD)` to keep a prefetch window ready. `to`
+   * is capped at the thread's known finalChapterNumber; when final is unknown
+   * it is capped at `from + LOOKAHEAD` so a stray "process all"
+   * (Number.MAX_SAFE_INTEGER) can't enqueue an unbounded range. `from` wins
+   * target, so chapters nearer it process first (enqueue priority).
    */
   ensureRange(threadId: string, from: number, to: number): void {
     const w = this.workerFor(threadId);
@@ -215,7 +192,7 @@ class ChapteredInternetScheduler implements PipelineScheduler {
         threadId,
         title: t.title,
       });
-      this.ensure(threadId, 1);
+      this.ensureRange(threadId, 1, 1 + LOOKAHEAD);
     }
     logger.info("startup recovery scan complete", {
       totalThreads: allThreads.length,

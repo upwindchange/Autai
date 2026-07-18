@@ -44,12 +44,9 @@ import log from "electron-log/main";
 import { entertainmentService } from "@/services";
 import { sendInfo, sendSuccess, sendWarning } from "@/utils/messageUtils";
 import { generateOutlines } from "../outliner";
-import type { WorkerLiveness } from "../shared/pipelineScheduler";
+import { LOOKAHEAD, type WorkerLiveness } from "../shared/pipelineScheduler";
 
 const logger = log.scope("Dehydrate:Pipeline1:File");
-
-/** Chapters kept ready ahead of the reader's current position. */
-const LOOKAHEAD = 10;
 
 /**
  * Prefix prepended to each source chapter's prose to form its placeholder
@@ -68,18 +65,19 @@ const REWRITE_PLACEHOLDER_PREFIX = "[REWRITE PLACEHOLDER]\n";
 export interface ChapteredFilePipeline {
   /**
    * Trigger/resume the outline run. Called directly by the upload route and
-   * idempotently kicked by `ensure` on thread-open. Guards on `finalChapterNumber`
-   * (set ⇒ the agent already finalized) and the in-memory `outlineRunning` mutex.
-   * Emits `sendInfo` on start and `sendSuccess` on completion.
+   * idempotently kicked by `ensureRange` on thread-open. Guards on
+   * `finalChapterNumber` (set ⇒ the agent already finalized) and the in-memory
+   * `outlineRunning` mutex. Emits `sendInfo` on start and `sendSuccess` on
+   * completion.
    */
   buildOutlines(threadId: string): Promise<void>;
   /**
-   * Drive the no-LLM rewriter for the reader's window [n .. n+LOOKAHEAD], and
-   * idempotently kick `buildOutlines` when the outline isn't complete (the
-   * folded thread-open resume path). `n` is the chapter the reader is on.
+   * Drive the no-LLM rewriter across [from..to] (capped at finalChapterNumber),
+   * and idempotently kick `buildOutlines` when the outline isn't complete (the
+   * folded thread-open resume path). The reader-poll route calls this with
+   * [n .. n+LOOKAHEAD] as its prefetch window; `POST /process` calls it with an
+   * explicit range.
    */
-  ensure(threadId: string, n: number): void;
-  /** Drive the rewriter across [from..to] (capped at finalChapterNumber). */
   ensureRange(threadId: string, from: number, to: number): void;
   /** No error states in the placeholder rewriter ⇒ nothing to retry. Returns 0. */
   retryFailed(threadId: string): number;
@@ -153,26 +151,6 @@ class ChapteredFileScheduler implements ChapteredFilePipeline {
     } finally {
       w.outlineRunning = false;
     }
-  }
-
-  ensure(threadId: string, n: number): void {
-    const w = this.workerFor(threadId);
-    w.target = n;
-    // Folded thread-open trigger: if the outline isn't complete and not already
-    // running, (re)start it. Idempotent — buildOutlines' guards collapse the
-    // repeated kicks from the reader's poll loop into a single run, and a
-    // completed thread never re-enters.
-    if (
-      entertainmentService.getFinalChapterNumber(threadId) == null &&
-      !w.outlineRunning
-    ) {
-      void this.buildOutlines(threadId).catch((err) =>
-        logger.error("ensure buildOutlines failed", { threadId, n, err }),
-      );
-    }
-    const final = entertainmentService.getFinalChapterNumber(threadId);
-    const end = Math.min(n + LOOKAHEAD, final ?? n + LOOKAHEAD);
-    this.driveRewriter(threadId, n, end);
   }
 
   ensureRange(threadId: string, from: number, to: number): void {

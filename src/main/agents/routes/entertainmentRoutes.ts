@@ -10,6 +10,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import { entertainmentService, threadPersistenceService } from "@/services";
 import { pipelineRouter } from "@agents/workers/entertainmentWorker/shared/pipelineRouter";
+import { LOOKAHEAD } from "@agents/workers/entertainmentWorker/shared/pipelineScheduler";
 import { chapteredFileScheduler } from "@agents/workers/entertainmentWorker/pipeline1ChapteredFile/scheduler";
 import { decodeNovelFile } from "@agents/workers/entertainmentWorker/fileDecoder";
 import { deriveChapterPhase, EntertainmentConfigSchema } from "@shared";
@@ -291,11 +292,16 @@ entertainmentRoutes.post("/threads/:threadId/worker", async (c) => {
         400,
       );
     }
-    pipelineRouter.ensure(threadId, parsed.data.chapterNumber);
+    const { chapterNumber } = parsed.data;
+    pipelineRouter.ensureRange(
+      threadId,
+      chapterNumber,
+      chapterNumber + LOOKAHEAD,
+    );
     const info = pipelineRouter.getInfo(threadId);
     logger.debug("worker ensure", {
       threadId,
-      chapterNumber: parsed.data.chapterNumber,
+      chapterNumber,
       active: info.active,
       target: info.target,
       pending: info.pending,

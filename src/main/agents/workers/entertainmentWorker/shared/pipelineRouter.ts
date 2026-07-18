@@ -57,7 +57,6 @@ function pipelineForThread(threadId: string): AnyPipeline | null {
  * ONLY this object; the upload route is the sole direct pipeline caller.
  */
 export interface PipelineRouterFacade {
-  ensure(threadId: string, n: number): void;
   ensureRange(threadId: string, from: number, to: number): void;
   retryFailed(threadId: string): number;
   getInfo(threadId: string): WorkerLiveness;
@@ -67,10 +66,6 @@ export interface PipelineRouterFacade {
 }
 
 export const pipelineRouter: PipelineRouterFacade = {
-  ensure: (threadId: string, n: number) => {
-    pipelineForThread(threadId)?.ensure(threadId, n);
-  },
-
   ensureRange: (threadId: string, from: number, to: number) => {
     pipelineForThread(threadId)?.ensureRange(threadId, from, to);
   },

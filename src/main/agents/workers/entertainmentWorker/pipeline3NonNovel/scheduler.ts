@@ -9,7 +9,7 @@
  * producing exactly ONE rewrite output (chapterNumber 1).
  *
  * This is a complete, INDEPENDENT scheduling core implementing the
- * `PipelineScheduler` contract (7 methods). It is much simpler than pipelines
+ * `PipelineScheduler` contract (6 methods). It is much simpler than pipelines
  * ①/② because the "output spine" is a single number (1): there is no lookahead
  * window, no per-output serial queue, and no in-flight dedup set — every entry
  * point just (re)runs the single acquire→rewrite pass, guarded by an
@@ -356,23 +356,10 @@ class NonNovelScheduler implements PipelineScheduler {
   }
 
   /**
-   * Ensure output N is processed. Pipeline ③ has exactly one output (N is always
-   * 1) and no lookahead window — so this just (re)runs the single pass if not
-   * yet complete. Fire-and-forget; the `outlineRunning` mutex serializes it.
-   */
-  ensure(threadId: string, _n: number): void {
-    const w = this.workerFor(threadId);
-    w.target = _n;
-    if (this.isComplete(threadId)) return;
-    void this.buildOutlines(threadId).catch((err) =>
-      logger.error("ensure buildOutlines failed", { threadId, err }),
-    );
-  }
-
-  /**
-   * Ensure every output in [from, to] is processed. Same as `ensure` for this
-   * pipeline — one output, fire-and-forget the single pass. `to` is irrelevant
-   * (there is only ever output 1).
+   * Ensure every output in [from, to] is processed. For this pipeline there is
+   * only ever output 1, so this just (re)runs the single acquire→rewrite pass if
+   * not yet complete — fire-and-forget, serialized by the `outlineRunning`
+   * mutex. `to` is irrelevant (single output).
    */
   ensureRange(threadId: string, from: number, _to: number): void {
     const w = this.workerFor(threadId);

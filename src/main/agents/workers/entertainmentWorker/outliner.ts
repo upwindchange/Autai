@@ -1286,6 +1286,7 @@ export async function generateOutlines(
   // this is set. Only then is the raw blob dead weight; an interrupted run
   // keeps it for resume.
   if (entertainmentService.getFinalChapterNumber(threadId) == null) {
+    logger.warn("missing final chapter number, set the number manually");
     const finalChapter = entertainmentService.maxSourceChapterNumber(threadId);
     if (finalChapter > 0) {
       entertainmentService.setFinalChapterNumber(threadId, finalChapter);
