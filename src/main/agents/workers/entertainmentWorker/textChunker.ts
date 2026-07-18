@@ -176,10 +176,19 @@ export function calibrateCharsPerToken(
 //  Types
 // ---------------------------------------------------------------------------
 
-/** The model's per-chapter output: two text-chunk anchors + outline metadata. */
+/** The model's per-unit output: two text-chunk anchors + outline metadata. */
 export interface ChapterEntry {
-  /** Verbatim heading text (e.g. "第一章 风起"). null if no heading. */
-  title: string | null;
+  /**
+   * Title for this storyline unit — REQUIRED (never null or empty). NOT
+   * required to be a verbatim heading:
+   *   - single original chapter with a heading → reuse that heading verbatim;
+   *   - merged unit (several original chapters) → a NEW synthesized title;
+   *   - source novel with no chapter titles → also a NEW synthesized title.
+   * The slicer does not validate or use this field — it passes through to the
+   * `source_chapters` row untouched. The DB column is nullable for other
+   * writers, but the outliner always supplies a value.
+   */
+  title: string;
   /**
    * First ~40 chars of the chapter BODY (after the heading line), copied
    * EXACTLY from the excerpt — character for character. The slicer matches it
@@ -202,7 +211,8 @@ export interface ChapterEntry {
 export interface SlicedChapter {
   /** System-assigned sequential number (continuing from nextChapterNumber). */
   chapterNumber: number;
-  title: string | null;
+  /** Pass-through title from `ChapterEntry.title` (always present from the outliner). */
+  title: string;
   /**
    * Verbatim body sliced from the excerpt — begins with firstTextChunk and ends
    * with lastTextChunk. The heading line is excluded (it lives in `title`),

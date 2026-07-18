@@ -5,6 +5,7 @@ import { complexModel } from "@agents/providers";
 import type { LanguageModel } from "ai";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
 import { settingsService, entertainmentService } from "@/services";
+import { sendAlert } from "@/utils/messageUtils";
 import type {
   CrossChapterCategory,
   CrossChapterDehydrate,
@@ -39,24 +40,28 @@ const logger = log.scope("Dehydrate:Outliner");
  * verbatim body (zero fidelity loss — the rewriter feeds source_chapters.content
  * verbatim, so paraphrase/truncation by the model would corrupt it).
  *
- * `threadId` / `rawText` / `searchFrom` / `nextChapterNumber` / `onCommit` all
- * arrive via `experimental_context` (zero-token — never in the prompt). Named as
- * an output verb so the model reads it as "this is how I hand back the chapters",
- * not a side-effect save it might skip.
+ * `threadId` / `sliceText` / `searchFrom` / `carryChars` / `carryChapterNumber`
+ * / `consumedOffset` / `nextChapterNumber` / `isLastBatch` all arrive via
+ * `experimental_context` (zero-token — never in the prompt). Named as an output
+ * verb so the model reads it as "this is how I hand back the chapters", not a
+ * side-effect save it might skip.
  */
 const OUTPUT_CHAPTERS_TOOL_DESCRIPTION =
   "The ONLY way to end your output and deliver the chapters — " +
-  "call this outputChapters tool with one entry per chapter you can FULLY " +
-  "identify in the excerpt (you can see BOTH its opening and its closing text). " +
-  "For each chapter, provide its title, the first ~40 and last ~40 characters of " +
-  "its BODY (copied VERBATIM from the excerpt — the system matches these EXACTLY, " +
-  "character for character, to slice the source text; any deviation — a changed, " +
-  "dropped, or inserted character, or a whitespace change — causes the chapter to " +
-  "be skipped), plus its outline and foreshadowing. " +
-  "You are NOT ALLOWED to output chapters as plain text and stop your output; " +
+  "call this outputChapters tool with one entry per storyline unit you can " +
+  "FULLY identify in the excerpt (you can see BOTH its opening and its closing " +
+  "text). For each unit, provide its title (REQUIRED — reuse the original " +
+    "heading if the unit is a single titled chapter; otherwise write a NEW " +
+    "concise title; never empty or null), the " +
+  "first ~40 and last ~40 characters of its BODY (copied VERBATIM from the " +
+  "excerpt — the system matches these EXACTLY, character for character, to " +
+  "slice the source text; any deviation — a changed, dropped, or inserted " +
+  "character, or a whitespace change — causes the unit to be skipped), plus " +
+  "its outline and foreshadowing. " +
+  "You are NOT ALLOWED to output units as plain text and stop your output; " +
   "they must go through this outputChapters tool. " +
-  "Only emit a chapter when you can see BOTH its firstTextChunk AND its " +
-  "lastTextChunk in the excerpt — if a chapter's end runs off the end of the " +
+  "Only emit a unit when you can see BOTH its firstTextChunk AND its " +
+  "lastTextChunk in the excerpt — if a unit's end runs off the end of the " +
   "excerpt, DO NOT emit it (it will be covered in the next excerpt).";
 
 /**
@@ -73,17 +78,29 @@ const OUTPUT_CHAPTERS_TOOL_DESCRIPTION =
  * the consumed offset correctly. On a normal (non-carry) round, sliceText =
  * rawText, searchFrom = consumedOffset, carryChars = 0 — the mapping is
  * identity (newConsumedOffset from sliceChapters IS the rawText offset).
+ *
+ * DEFERRED CARRY DELETE: the loop only READS the carried row's content — it
+ * does NOT delete it. `carryChapterNumber` (null when no carry) names the row
+ * that must be removed. `execute` deletes it at the LAST possible moment —
+ * right before its first insert, and only if `sliceChapters` actually produced
+ * committed rows. This way a failed round (no tool call, or execute throws
+ * before the insert loop) leaves the carried row in the DB so the next round
+ * can re-carry it, instead of silently dropping that chapter.
  */
 interface OutputChaptersContext {
   threadId: string;
-  /** The full decoded novel text (held in RAM for the whole run). */
-  rawText: string;
   /** The text the slicer searches (rawText, OR carryContent+newExcerpt). */
   sliceText: string;
   /** Lower bound for anchor search in sliceText (0 on a carry round). */
   searchFrom: number;
   /** Length of carried content prepended this round (0 if no carry). */
   carryChars: number;
+  /**
+   * The chapterNumber of the carried row to delete before inserting, or null
+   * when there is no carry. The loop only READS the row; `execute` deletes it
+   * right before the first successful insert so a failed round keeps it.
+   */
+  carryChapterNumber: number | null;
   /** The consumedOffset into rawText where new text begins (carry mapping). */
   consumedOffset: number;
   /** The next chapter number to assign (system-assigned, gap-free). */
@@ -110,10 +127,17 @@ function makeOutputChaptersTool() {
           z.object({
             title: z
               .string()
-              .nullable()
+              .min(1)
               .describe(
-                "Verbatim heading text of this chapter (e.g. '第一章 风起'). " +
-                  "null if the fragment starts mid-chapter with no heading line.",
+                "The title for this storyline unit — REQUIRED, must never be " +
+                  "empty or null. If the unit is a SINGLE original chapter whose " +
+                  "source has a heading, reuse that original heading verbatim " +
+                  "(e.g. '第一章 风起'). If the unit MERGES several original " +
+                  "chapters into one storyline, write a NEW concise title " +
+                  "summarizing the merged storyline. If the source novel " +
+                  "provides no chapter titles at all, also write a NEW concise " +
+                  "title. A synthesized title is always expected for merged or " +
+                  "title-less units — never leave this empty.",
               ),
             firstTextChunk: z
               .string()
@@ -122,8 +146,7 @@ function makeOutputChaptersTool() {
                 "The first ~40 characters of the chapter BODY (the text AFTER " +
                   "the heading line), copied VERBATIM from the excerpt. The " +
                   "system matches this string EXACTLY (character for character) " +
-                  "to find the chapter's start — copy it precisely; any " +
-                  "deviation skips the chapter.",
+                  "to find the chapter's start — copy it precisely.",
               ),
             lastTextChunk: z
               .string()
@@ -132,21 +155,28 @@ function makeOutputChaptersTool() {
                 "The last ~40 characters of the chapter BODY, copied VERBATIM " +
                   "from the excerpt. The system matches this string EXACTLY to " +
                   "find the chapter's end. Only emit this chapter if you can " +
-                  "see its end; copy precisely — any deviation skips it.",
+                  "see its end; copy precisely.",
               ),
             outline: z
               .string()
               .min(1)
               .describe(
-                "A brief plot summary of this chapter: the main events, " +
-                  "character decisions, and any status changes, in 2-5 sentences.",
+                "A brief factual plot summary of this unit: the main events, " +
+                  "character decisions, and any status changes, in 2-5 sentences. " +
+                  "Stored to the DB as a non-null TEXT column — must never be " +
+                  "empty; if the unit has no plot content, still summarize what " +
+                  "is there. No explanations, asides, or preambles; do not copy " +
+                  "the original prose.",
               ),
             foreshadowing: z
               .array(z.string())
               .describe(
-                "Keywords naming every clue, foreshadowing, planted hook, or " +
-                  "promised payoff that appears in this chapter and matters " +
-                  "later. May be empty if the chapter plants none.",
+                "An array of short keyword/noun-phrase tags naming every clue, " +
+                  "foreshadowing, planted hook, or promised payoff in this unit " +
+                  "that matters later. Stored to the DB as a JSON string array " +
+                  "(NOT NULL, defaults to '[]'); null is not accepted — if the " +
+                  "unit plants none, return an empty array []. Each entry must be " +
+                  "a short tag (not a full sentence).",
               ),
           }),
         )
@@ -160,6 +190,32 @@ function makeOutputChaptersTool() {
         searchFrom: ctx.searchFrom,
         nextChapterNumber: ctx.nextChapterNumber,
       });
+
+      // Nothing committed → bail out BEFORE any DB mutation. The carried row
+      // (if any) stays in the DB so the next round re-carries it. This is the
+      // A2 fix: a round that fails or slices nothing must not drop the carried
+      // chapter on the floor.
+      if (result.committed.length === 0) {
+        if (ctx.carryChapterNumber != null) {
+          logger.debug("tool: nothing committed; keeping carried row", {
+            threadId: ctx.threadId,
+            carryChapterNumber: ctx.carryChapterNumber,
+          });
+        }
+        return { saved: 0, newConsumedOffset: ctx.consumedOffset };
+      }
+
+      // LAST-MOMENT CARRY DELETE — only now that we are certain rows will be
+      // written. Removing it earlier (loop start) would lose the chapter if the
+      // round then failed; removing it later would collide with the first
+      // insert on the (threadId, chapterNumber) unique index. FK cascade drops
+      // any rewrite row too.
+      if (ctx.carryChapterNumber != null) {
+        entertainmentService.deleteSourceChapter(
+          ctx.threadId,
+          ctx.carryChapterNumber,
+        );
+      }
 
       let saved = 0;
       for (const ch of result.committed) {
@@ -229,11 +285,14 @@ const RETRY_SUFFIX = `
 Your last response did not call the outputChapters tool; \
 instead, you stopped after emitting plain text. \
 Plain text is not accepted, so the result is invalid. \
-Please resubmit now: call the outputChapters tool \
-with one entry per chapter you can FULLY identify in the excerpt, each carrying \
-title, firstTextChunk, lastTextChunk, outline, and foreshadowing. \
-Only emit a chapter if you can see BOTH its firstTextChunk AND its lastTextChunk. \
-Do not output plain text, and do not write any content outside of the tool call.`;
+Please resubmit now: call the outputChapters tool with ONE entry per storyline \
+unit you can FULLY identify in the excerpt (you can see BOTH its firstTextChunk \
+AND its lastTextChunk). Each entry carries: title (REQUIRED — reuse the original \
+heading for a single titled chapter, otherwise synthesize a NEW concise title \
+for a merged or title-less unit; never empty), firstTextChunk + lastTextChunk \
+(copied VERBATIM, character for character), outline (non-empty factual summary), \
+and foreshadowing (string array; [] if none). Do not output plain text, and do \
+not write any content outside of the tool call.`;
 
 // ---------------------------------------------------------------------------
 // Cross-chapter tactic lookup table (章节并写 rules).
@@ -685,13 +744,9 @@ const CROSS_CHAPTER_TACTICS: Record<
  * serves as guidance for WHICH consecutive chapters should be merged — not as a
  * per-chapter flag (needsCrossWrite was removed; merging IS the cross-chapter
  * handling).
- *
- * `continueFromChapter` (when ≥1) adds a one-line continuity note so the model
- * knows the previous excerpt ended at chapter N-1.
  */
 function buildOutlineSystemPrompt(
   crossChapter: CrossChapterDehydrate,
-  continueFromChapter: number,
 ): string {
   const sections: string[] = [];
 
@@ -707,17 +762,22 @@ function buildOutlineSystemPrompt(
   // The deliverables (always on) — split + outline in ONE pass.
   sections.push(
     "对每个剧情单元（你能同时看到其正文开头和正文结尾），请产出：\n" +
-      "- 标题：该剧情单元的标题（通常取第一个原章的标题，如「第一章 风起」）。" +
-      "若片段从该单元正文中间开始、没有标题行，填 null。\n" +
+      "- 标题：该剧情单元的标题，**必填，不允许为空或 null**。" +
+      "**若该单元是单个有标题的原章**，直接沿用该原章标题" +
+      "（如「第一章 风起」）；**若该单元由多个原章合并而成**，请为这条合并后的故事线**新拟一个简明标题**；" +
+      "**若原小说本身不提供章节标题**，也请新拟一个简明标题。合并单元或无标题原文都必须给出新标题，不得留空。\n" +
       "- firstTextChunk：该剧情单元正文（标题行之后的内容）的前约 40 个字符，**逐字精确复制**自片段" +
       "（一个字符都不能改动、漏掉或新增，包括空白也必须一致）。系统会在片段中据此精确定位该单元的起始位置；" +
       "若有任何偏差，该单元会被跳过。\n" +
       "- lastTextChunk：该剧情单元正文最后约 40 个字符，**逐字精确复制**自片段（同样一个字符都不能差）。" +
       "系统会据此定位该单元的结束位置。**只有当你能看到该单元的正文结尾时才提交它**——" +
       "若某单元的结尾跑出了片段范围，不要提交它（它会在下一个片段中被覆盖）。\n" +
-      "- 大纲：该剧情单元主要事件、人物决定、状态变化的简明概括（2-5 句，只述事实与推进，不复述原文描写）。\n" +
-      "- 伏笔/线索：用关键词列出该单元中出现、且后文会用到的线索与伏笔（人物、物品、承诺、能力、关系、悬念等）；" +
-      "没有就留空数组。这些关键词用于后续重写时确保伏笔不被意外删除。",
+      "- 大纲：该剧情单元主要事件、人物决定、状态变化的简明概括（2-5 句，只述事实与推进，不复述原文描写）。" +
+      "存入数据库为非空 TEXT 字段，**必须给出非空内容**，不得为空字符串。\n" +
+      "- 伏笔/线索：字符串数组，用关键词列出该单元中出现、且后文会用到的线索与伏笔" +
+      "（人物、物品、承诺、能力、关系、悬念等）。存入数据库为 JSON 字符串数组（NOT NULL，默认 '[]'），" +
+      "**不接受 null**：若该单元没有伏笔，返回**空数组 []**，而非 null。每项为短语关键词，不是完整句子。" +
+      "这些标签用于后续重写时确保伏笔不被意外删除。",
   );
 
   // Merge guidance — cross-chapter tactics describe patterns whose consecutive
@@ -753,14 +813,6 @@ function buildOutlineSystemPrompt(
       "请把前情大纲作为整体剧情的参照，但本次只需为“本次片段中能完整看到开头与结尾的剧情单元”产出结果。",
   );
 
-  // Continuity note (when not the first chunk) — tells the model where to resume.
-  if (continueFromChapter >= 1) {
-    sections.push(
-      `本次片段接续自上一段。上一段最后处理到第 ${continueFromChapter} 章；` +
-        `从第 ${continueFromChapter + 1} 章开始提交（若其正文开头和结尾都可见）。`,
-    );
-  }
-
   // Output contract (always on, English, closes the brief).
   sections.push(
     "The only thing you are allowed to do is to call the outputChapters tool:\n" +
@@ -768,6 +820,11 @@ function buildOutlineSystemPrompt(
       "(you can see BOTH its firstTextChunk AND its lastTextChunk), each carrying " +
       "title, firstTextChunk, lastTextChunk, outline, and foreshadowing (string " +
       "array, may be empty);\n" +
+      "- `title`: REQUIRED — must never be empty or null. Reuse the original " +
+      "chapter heading VERBATIM if the unit is a single original chapter that " +
+      "has one; WRITE A NEW concise title if the unit MERGES several original " +
+      "chapters, OR if the source novel has no chapter titles at all. Merged " +
+      "and title-less units must carry a synthesized title;\n" +
       "- Copy firstTextChunk and lastTextChunk VERBATIM from the excerpt, " +
       "character for character — the system matches these exact strings to " +
       "slice the unit's source text; any deviation (a changed/dropped/inserted " +
@@ -781,9 +838,12 @@ function buildOutlineSystemPrompt(
       "outputChapters tool;\n" +
       "- You are not allowed to output anything other than calling the " +
       "outputChapters tool;\n" +
-      "- `outline` must be a brief factual summary: no explanations, asides, " +
-      "or preambles; do not copy the original prose;\n" +
-      "- `foreshadowing` entries are short keywords/noun phrases, not " +
+      "- `outline` is stored as a NOT NULL TEXT column — it must be a non-empty " +
+      "brief factual summary; no explanations, asides, or preambles; do not " +
+      "copy the original prose;\n" +
+      "- `foreshadowing` is stored as a JSON string array in a NOT NULL column " +
+      "(DB default '[]'). null is NOT accepted — return an empty array [] when " +
+      "the unit plants none. Entries are short keywords/noun phrases, not " +
       "sentences; only include things that genuinely matter later;\n" +
       "- Emitting plain text without calling the outputChapters tool " +
       "will result in fatal failure.",
@@ -884,8 +944,12 @@ async function runOutlineAgent(params: {
  *      miss). The tool's execute slices verbatim bodies from the excerpt and
  *      writes a source_chapters row per chapter, advancing rawConsumedOffset.
  *   4. A chapter whose end falls off the chunk edge is simply not emitted this
- *      round; the next round's carry-forward re-covers it. If a round commits
- *      nothing, the loop force-advances the offset so it always makes progress.
+ *      round; the next round's carry-forward re-covers it. A round that fails
+ *      (no tool call after retry, or the tool commits nothing — typically a
+ *      transient provider issue, NOT a malformed book) does NOT skip content:
+ *      it sends an alert and returns early, leaving consumedOffset, the raw
+ *      blob, and finalChapterNumber untouched. The user reopens the thread and
+ *      `ensureRange` resumes from the last checkpoint — same loop, same offset.
  *   5. The round whose read window reaches EOF is the last batch (`isLastBatch`,
  *      threaded into the tool via experimental_context). The tool sets
  *      finalChapterNumber once that batch's rows land; the loop then exits. A
@@ -942,7 +1006,6 @@ export async function generateOutlines(
 
   let outlined = 0;
   let errored = 0;
-  let consecutiveZeroRounds = 0;
   // In-RAM compressed prior outline prefix for cross-chapter context quality.
   // Rebuilt from DB on resume; grown across rounds via the compressor.
   let priorOutline = "";
@@ -964,8 +1027,6 @@ export async function generateOutlines(
       });
       break;
     }
-    const nextChapterNumber =
-      entertainmentService.maxSourceChapterNumber(threadId) + 1;
 
     // Rebuild prior outline on the FIRST round of a RESUME (consumedOffset > 0
     // and we haven't built it yet this run). On a fresh upload (consumedOffset
@@ -990,18 +1051,25 @@ export async function generateOutlines(
       }
     }
 
-    // --- UNCONDITIONAL DB CARRY-FORWARD ---
+    // --- UNCONDITIONAL DB CARRY-FORWARD (READ ONLY) ---
     // Unless this is the novel's last chapter (EOF reached above), carry the
-    // last source chapter's content into this round: read it from DB, delete
-    // the row (so nextChapterNumber recycles — gap-free), and prepend its text
-    // to the new excerpt. The model sees one continuous text with no annotation
-    // — it cannot tell where the carried text ends and new text begins. If a
-    // cross-chapter storyline was cut at the chunk boundary, the carried first
-    // half + new second half let the model merge them into one unit naturally.
-    // No flags, no special prompt — EOF is the sole gate.
+    // last source chapter's content into this round: READ its text from DB and
+    // prepend it to the new excerpt. The model sees one continuous text with no
+    // annotation — it cannot tell where the carried text ends and new text
+    // begins. If a cross-chapter storyline was cut at the chunk boundary, the
+    // carried first half + new second half let the model merge them into one
+    // unit naturally. No flags, no special prompt — EOF is the sole gate.
+    //
+    // NOTE: we do NOT delete the carried row here. Its chapterNumber is stashed
+    // in `carryChapterNumber` and threaded into the tool's context; `execute`
+    // deletes the row at the last possible moment — right before its first
+    // insert, and only if it actually commits rows. This keeps the row alive on
+    // a failed round (no tool call, or execute slices nothing / throws) so the
+    // next round re-carries it instead of dropping that chapter on the floor.
     let carryContent = "";
     let carryChars = 0;
     let carryTokens = 0;
+    let carryChapterNumber: number | null = null;
     const lastChapterNum =
       entertainmentService.maxSourceChapterNumber(threadId);
     if (lastChapterNum > 0) {
@@ -1013,9 +1081,8 @@ export async function generateOutlines(
         carryContent = lastSource.content;
         carryChars = carryContent.length;
         carryTokens = tokensOf(carryContent);
-        // Delete the carried row (FK cascade also drops its rewrite row if any).
-        entertainmentService.deleteSourceChapter(threadId, lastChapterNum);
-        logger.debug("carry-forward: deleted last chapter for re-merge", {
+        carryChapterNumber = lastChapterNum;
+        logger.debug("carry-forward: read last chapter for re-merge", {
           threadId,
           chapterNumber: lastChapterNum,
           carryChars,
@@ -1024,15 +1091,20 @@ export async function generateOutlines(
       }
     }
 
-    const continueFromChapter =
-      entertainmentService.maxSourceChapterNumber(threadId); // 0 after carry delete, or on fresh upload
+    // --- next chapter number: DB is the single source of truth ---
+    // Computed AFTER the carry-forward read above. On a carry round, the carried
+    // row is still in the DB at this point (execute deletes it right before its
+    // first insert), so `carryChapterNumber` is the slot the re-merged unit must
+    // recycle — feeding it here keeps chapter numbers gap-free: the carried row
+    // is deleted and immediately re-filled at the same number. On a no-carry
+    // round (first round, or resuming with no prior chapters) fall back to
+    // max(chapterNumber)+1.
+    const nextChapterNumber =
+      carryChapterNumber ?? entertainmentService.maxSourceChapterNumber(threadId) + 1;
 
-    // Build this round's system prompt (varies by continueFromChapter) and
-    // measure its token cost for the input-budget calculation.
-    const systemPrompt = buildOutlineSystemPrompt(
-      crossChapter,
-      continueFromChapter,
-    );
+    // Build this round's system prompt and measure its token cost for the
+    // input-budget calculation.
+    const systemPrompt = buildOutlineSystemPrompt(crossChapter);
     const systemPromptTokens = tokensOf(systemPrompt);
     const priorOutlineTokens = priorOutline ? tokensOf(priorOutline) : 0;
 
@@ -1076,19 +1148,15 @@ export async function generateOutlines(
     });
 
     // --- build the user message: prior prefix + combined excerpt ---
-    const userContent = buildUserMessage(
-      priorOutline,
-      continueFromChapter,
-      excerpt,
-    );
+    const userContent = buildUserMessage(priorOutline, excerpt);
 
     // --- run the agent (one pass, single tool call) ---
     const ctx: OutputChaptersContext = {
       threadId,
-      rawText,
       sliceText: excerpt,
       searchFrom: 0, // search from the start of the combined text
       carryChars,
+      carryChapterNumber,
       consumedOffset,
       nextChapterNumber,
       isLastBatch,
@@ -1171,73 +1239,56 @@ export async function generateOutlines(
       }
     }
 
-    if (!saved) {
-      // Round failed after retry. The tool didn't persist anything for this
-      // round, so consumedOffset is unchanged — but we must make progress or
-      // the loop is stuck. Advance the offset by the excerpt budget (the
-      // chapters in this window are lost to error; they'll be missing from
-      // source/outline tables but the loop continues). No reliable chapter
-      // count to attribute (we never sliced), so count the round, not chapters.
+    // --- failure handling: alert + stop, never skip content ---
+    // Two failure modes both mean "this round produced nothing" and both are
+    // treated the same way — they are almost always transient provider issues
+    // (rate limit, 5xx, internal filter, a one-off bad output), NOT a malformed
+    // book. The old code force-advanced consumedOffset past the stuck window,
+    // which SILENTLY DROPPED that text forever. Instead: send a persistent
+    // alert, return early, and leave DB state untouched so the user can reopen
+    // the thread and `ensureRange` resumes from the last checkpoint.
+    //
+    //   !saved                  — model never produced a usable tool call,
+    //                              even after the one-shot RETRY_SUFFIX retry.
+    //   chaptersCommitted === 0 — tool ran but sliced nothing (all anchors
+    //                              missed); execute's early-return already left
+    //                              consumedOffset and the carried row untouched.
+    //
+    // We early-return BEFORE the finalize block, so: raw blob stays in DB,
+    // consumedOffset holds the last successful round's value, and
+    // finalChapterNumber stays null — exactly the resumable state ensureRange
+    // re-enters on the next thread open.
+    const newConsumedOffset = entertainmentService.getConsumedOffset(threadId);
+    const chaptersCommitted = saved ?
+      Math.max(
+        0,
+        entertainmentService.maxSourceChapterNumber(threadId) -
+          (nextChapterNumber - 1),
+      )
+    : 0;
+
+    if (!saved || chaptersCommitted === 0) {
       errored++;
-      entertainmentService.setConsumedOffset(
-        threadId,
-        Math.min(rawText.length, consumedOffset + plan.excerptCharBudget),
-      );
-      consecutiveZeroRounds = 0;
-      logger.error("outliner round failed after retry; advancing offset", {
+      const reason = !saved ?
+        "model did not call the outputChapters tool after retry"
+      : "tool committed nothing (all anchors missed)";
+      logger.error("outliner round failed; stopping for user retry", {
         threadId,
         round,
+        reason,
+        consumedOffset,
+        newConsumedOffset,
+        readStart: plan.readStart,
+        readEnd: plan.readEnd,
       });
-      continue;
+      sendAlert(
+        "大纲生成暂时失败",
+        `在第 ${round + 1} 轮处理时未能产出章节（常见原因：模型提供商临时限流或网络问题）。` +
+          `已完成的大纲已保存，请稍后重新打开本书，系统将从断点处自动继续。`,
+      );
+      return { outlined, errored, skipped: 0 };
     }
-
-    // Tool succeeded. Re-read what it persisted.
-    const newConsumedOffset = entertainmentService.getConsumedOffset(threadId);
-    const chaptersCommitted = Math.max(
-      0,
-      entertainmentService.maxSourceChapterNumber(threadId) -
-        (nextChapterNumber - 1),
-    );
     outlined += chaptersCommitted;
-
-    if (chaptersCommitted === 0) {
-      // Tool returned but sliced nothing (all entries' anchors missed).
-      // Giant-chapter safeguard: force-advance and, if stuck twice, jump
-      // a full excerpt so the loop always makes progress.
-      consecutiveZeroRounds++;
-      if (consecutiveZeroRounds >= 2) {
-        logger.warn(
-          "outliner round committed nothing twice; force-advancing past the stuck window",
-          {
-            threadId,
-            round,
-            consumedOffset,
-            readStart: plan.readStart,
-            readEnd: plan.readEnd,
-          },
-        );
-        entertainmentService.setConsumedOffset(
-          threadId,
-          Math.min(rawText.length, newConsumedOffset + plan.excerptCharBudget),
-        );
-        consecutiveZeroRounds = 0;
-      } else {
-        // Force-advance by half an excerpt and let the next overlap retry.
-        logger.warn(
-          "outliner round committed nothing; nudging offset forward",
-          { threadId, round, consumedOffset, newConsumedOffset },
-        );
-        entertainmentService.setConsumedOffset(
-          threadId,
-          Math.min(
-            rawText.length,
-            newConsumedOffset + Math.floor(plan.excerptCharBudget / 2),
-          ),
-        );
-      }
-      continue;
-    }
-    consecutiveZeroRounds = 0;
 
     // Absorb + compress the cumulative prior outline for the next round.
     // Reads source chapters' outline data (co-located after the table merge).
@@ -1280,11 +1331,14 @@ export async function generateOutlines(
     }
   }
 
-  // Loop exit. The agent normally sets finalChapterNumber on the last batch; if
-  // it didn't (e.g. the last batch committed nothing), finalize here so the
-  // thread can't get stuck mid-book — buildOutlines' guard blocks re-entry once
-  // this is set. Only then is the raw blob dead weight; an interrupted run
-  // keeps it for resume.
+  // Loop exit. The agent normally sets finalChapterNumber on the last batch
+  // (EOF) and a failed round returns early before reaching here, so the only
+  // way to land here with finalChapterNumber still null is the MAX_ROUNDS safety
+  // cap (a pathologically long book that never reaches EOF in 10k rounds).
+  // Finalize in that case so the thread can't get stuck mid-book — buildOutlines'
+  // guard blocks re-entry once this is set. Only then is the raw blob dead
+  // weight; an interrupted (alerted) run keeps it for resume by returning early
+  // above, never reaching this block.
   if (entertainmentService.getFinalChapterNumber(threadId) == null) {
     logger.warn("missing final chapter number, set the number manually");
     const finalChapter = entertainmentService.maxSourceChapterNumber(threadId);
@@ -1307,11 +1361,13 @@ export async function generateOutlines(
 
 /**
  * Build the user message for one round: optional compressed prior-outline
- * prefix + the raw excerpt, with the continuity chapter noted.
+ * prefix + the raw excerpt. No resume/continuity note — the carry-forward
+ * design feeds the previous round's last row verbatim into this round's
+ * excerpt (one continuous stream, no boundary annotation), so there is no
+ * chapter-edge to point the model at.
  */
 function buildUserMessage(
   priorOutline: string,
-  continueFromChapter: number,
   excerpt: string,
 ): string {
   const parts: string[] = [];
@@ -1319,12 +1375,6 @@ function buildUserMessage(
     parts.push(
       "前情大纲（之前章节的概括，作为上下文参考，本次无需为这些章节产出结果）：\n" +
         priorOutline,
-    );
-  }
-  if (continueFromChapter >= 1) {
-    parts.push(
-      `（接续：上一段最后处理到第 ${continueFromChapter} 章；本片段开头可能是该章的尾部，无需重复处理，` +
-        `从第 ${continueFromChapter + 1} 章起提交。）`,
     );
   }
   parts.push("本次需要处理的小说原文片段：\n" + excerpt);
