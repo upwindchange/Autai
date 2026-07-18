@@ -1,11 +1,15 @@
 import { countTokens } from "gpt-tokenizer";
+import approxSearch from "approx-string-match";
+import { normalizeText } from "@agents/utils";
 
 /**
  * Chunk-planning + anchor-slicing logic for the outliner.
  *
  * The outliner (`outliner.ts`) wires it to the agent + DB; `fileDecoder.ts`
- * produces the rawText that flows in here. Dependency-free apart from
- * gpt-tokenizer (cl100k_base) — no `ai` SDK, no DB, no electron-log.
+ * produces the rawText that flows in here. Dependencies: gpt-tokenizer
+ * (cl100k_base, for fixed-overhead token counts + round-1 bootstrap) and
+ * approx-string-match (Myers bit-vector fuzzy anchor matching). No `ai` SDK,
+ * no DB, no electron-log.
  *
  * Two responsibilities:
  *   1. `planChunk` — given the model's context window, max output, fixed
@@ -18,14 +22,18 @@ import { countTokens } from "gpt-tokenizer";
  *      is provided entirely by the outliner's unconditional DB carry-forward
  *      (the last source chapter's content is prepended to the next round's
  *      excerpt; `carryTokens` is deducted from the budget here).
- *   2. `sliceChapters` — verbatim anchor → body slicer. The model emits, per
- *      chapter it can fully see, the first and last ~40 chars of the chapter
- *      body; this function locates those two anchors IN THE EXCERPT (the exact
- *      text the model saw) via plain `indexOf` and slices the bytes between
- *      them. Matching is EXACT — no fuzzy/whitespace tolerance. A miss simply
- *      defers the chapter (the outliner's carry-forward re-covers it next
- *      round); a real fuzzy matcher can be dropped into `locateAnchor` later
- *      without touching anything else.
+ *   2. `sliceChapters` — anchor → body slicer. The model emits, per chapter it
+ *      can fully see, the first and last ~40 chars of the chapter body; this
+ *      function locates those two anchors IN THE EXCERPT (the exact text the
+ *      model saw) and slices the bytes between them. Matching is EXACT-FIRST:
+ *      `indexOf` (zero false-positive risk, covers the model's contracted
+ *      verbatim copies), with `approx-string-match` as the fuzzy fallback
+ *      (tolerates the small drift the model does introduce — typos, a
+ *      dropped/inserted char, a full/half-width space its emitted anchor
+ *      carries that NFKC did not canonicalise away). maxErrors is the
+ *      length-proportional budget defined by `ANCHOR_ERROR_RATIO`. A miss on
+ *      both paths defers the chapter (the outliner's carry-forward re-covers
+ *      it next round) rather than silently slicing the wrong span.
  *
  * Design notes:
  *   - Chapter numbers are SYSTEM-ASSIGNED sequential ordinals (continuing from
@@ -84,6 +92,25 @@ const CALIBRATION_EMA_WEIGHT = 0.4;
  * than stalling.
  */
 const MIN_NEW_CHARS = 2000;
+
+/**
+ * Fuzzy-anchor error budget: a single anchor (firstTextChunk / lastTextChunk)
+ * is allowed up to `max(1, ⌈length × ANCHOR_ERROR_RATIO⌉)` edit errors before
+ * its approximate match is rejected.
+ *
+ * 0.15 (≈6 errors on the contracted ~40-char anchor) is calibrated against
+ * real LLM inaccuracy: a couple of char typos + a missing/inserted char + a
+ * leftover full/half-width space artifact that NFKC normalisation in
+ * `fileDecoder` cannot catch (the anchor comes from the model, not the file,
+ * so it is not normalised). Tighter (0.10 ≈ 4) starts dropping legitimately
+ * recoverable chapters; much looser (0.25+) risks an anchor matching the wrong
+ * chapter's body and silently slicing across chapter boundaries.
+ *
+ * This ratio caps `approx-string-match`'s `search` cost (O((k/w)·n)) — the
+ * library further ratchets this down internally to the best match's error
+ * count, so the practical budget is whatever the cleanest match needs.
+ */
+const ANCHOR_ERROR_RATIO = 0.15;
 
 /**
  * Token-counting wrapper around gpt-tokenizer's cl100k_base. Centralised so the
@@ -291,38 +318,107 @@ export function planChunk(params: {
 }
 
 // ---------------------------------------------------------------------------
-//  Anchor matching + slicing (verbatim)
+//  Anchor matching (exact-first, fuzzy fallback) + slicing (verbatim)
 // ---------------------------------------------------------------------------
 
 /**
- * Verbatim anchor match — the SINGLE site a fuzzy matcher can replace later
- * (e.g. a fuzzy-search library). Returns the index of `anchor` in `excerpt` at
- * or after `from`, or -1 if not found. Today this is plain `indexOf`: the model
- * is contracted to copy anchors character-for-character, and a miss defers the
- * chapter (carry-forward recovers it next round) rather than silently slicing
- * the wrong span.
+ * A located anchor: the half-open `[start, end)` span in the excerpt where the
+ * anchor was matched. `end` differs from `start + anchor.length` whenever the
+ * fuzzy path matched with insertions/deletions, so callers that advance a
+ * cursor past the match MUST use `end`, not the anchor's own length.
  */
-function locateAnchor(excerpt: string, anchor: string, from: number): number {
-  return excerpt.indexOf(anchor, from);
+interface AnchorMatch {
+  start: number;
+  /** Exclusive end offset of the match in the excerpt. */
+  end: number;
+}
+
+/**
+ * Locate an anchor in the excerpt at or after `from`. Exact-first:
+ *
+ *   0. NORMALISE the anchor first — the excerpt is already canonical (it was
+ *      normalised at file ingestion by the same `normalizeText`), but the
+ *      model's emitted anchor may carry drift NFKC/whitespace canonicalisation
+ *      can fix in-place: a fullwidth ASCII char (`１`→`1`), a stray double
+ *      space, a trailing newline, a CRLF. Folding the anchor into the same
+ *      canonical form as the excerpt lets exact `indexOf` succeed where it
+ *      would otherwise have missed and fallen through to the fuzzy path. This
+ *      is the cheapest fix and recovers the most anchors.
+ *   1. EXACT (`indexOf`) — zero false-positive risk, O(n). The model is
+ *      contracted to copy anchors character-for-character, so (post-normalise)
+ *      the overwhelming majority land here and never pay for fuzzy machinery.
+ *   2. FUZZY (`approx-string-match`, Myers bit-vector) — tolerates the drift
+ *      normalisation CAN'T fix: an actual typo (wrong character), a dropped or
+ *      inserted character, a missing word. maxErrors is the length-proportional
+ *      budget defined by `ANCHOR_ERROR_RATIO`.
+ *
+ * All paths return the match as a `[start, end)` span (or `null` on a miss) in
+ * the EXCERPT's coordinate system. The anchor is normalised for MATCHING ONLY;
+ * `sliceChapters` slices the body from the excerpt (never from the anchor), so
+ * body fidelity is unaffected. The returned `end` follows the MATCHED span, not
+ * the anchor's declared length, so a fuzzy match with insertions/deletions
+ * advances the cursor correctly. A miss returns `null` and the entry is
+ * deferred (the next round's carry-forward recovers it) rather than silently
+ * slicing the wrong span.
+ *
+ * `approxSearch` searches the WHOLE excerpt (not just from `from`) because the
+ * edit-distance computation needs surrounding context; matches at `start < from`
+ * are filtered out afterwards. The library ratchets its internal threshold to
+ * the best match's error count, so passing `ANCHOR_ERROR_RATIO·length` as the
+ * budget yields all matches at the cleanest achievable cost — we then pick the
+ * earliest one at or past `from`.
+ */
+function locateAnchor(
+  excerpt: string,
+  anchor: string,
+  from: number,
+): AnchorMatch | null {
+  const canonicalAnchor = normalizeText(anchor);
+
+  const exactPos = excerpt.indexOf(canonicalAnchor, from);
+  if (exactPos >= 0) {
+    return { start: exactPos, end: exactPos + canonicalAnchor.length };
+  }
+
+  const maxErrors = Math.max(
+    1,
+    Math.ceil(canonicalAnchor.length * ANCHOR_ERROR_RATIO),
+  );
+  const matches = approxSearch(excerpt, canonicalAnchor, maxErrors);
+  for (const m of matches) {
+    // `search` returns matches in ascending `end` (it scans left-to-right and
+    // reports match-ends as it finds them); `start` is therefore monotonic-ish
+    // but not strictly, so we still take the earliest start ≥ from rather than
+    // assuming the first returned match qualifies.
+    if (m.start >= from) {
+      return { start: m.start, end: m.end };
+    }
+  }
+  return null;
 }
 
 /**
  * Slice a round's `entries` against the EXCERPT (the exact text the model saw),
- * committing each chapter whose two anchors both verbatim-match (in order).
- * Deterministic and pure: takes the model's entries + the excerpt + a starting
- * search offset, returns the committed chapters with verbatim bodies and the
- * advanced consumed offset.
+ * committing each chapter whose two anchors both match (exact-first, fuzzy
+ * fallback) in order. Deterministic and pure: takes the model's entries + the
+ * excerpt + a starting search offset, returns the committed chapters with
+ * verbatim bodies and the advanced consumed offset.
  *
  * Contract:
  *   - Entries are processed in the order given. The search for each entry's
- *     lastTextChunk starts at the end of its firstTextChunk, so each entry is
- *     located after the previous one.
- *   - A chapter's body = excerpt.slice(firstPos, lastEnd) — it BEGINS with the
- *     firstTextChunk and ENDS with the lastTextChunk (verbatim from the
- *     excerpt). The heading line (before firstTextChunk) is excluded and lives
- *     in `title` — matching the existing source_chapters contract.
- *   - If an entry's anchors can't both be located, it is skipped (recorded in
- *     `skipped`); the next round's carry-forward recovers it.
+ *     lastTextChunk starts at the END of its firstTextChunk MATCH (not at
+ *     `firstPos + entry.firstTextChunk.length`): a fuzzy match may end before
+ *     or after the anchor's declared length when it includes
+ *     insertions/deletions, and the cursor must follow the matched span or the
+ *     chapters overlap/gap.
+ *   - A chapter's body = excerpt.slice(firstMatch.start, lastMatch.end) — it
+ *     BEGINS with the firstTextChunk and ENDS with the lastTextChunk (verbatim
+ *     from the excerpt, even on a fuzzy match — the body is sliced from the
+ *     excerpt, never from the anchor). The heading line (before firstTextChunk)
+ *     is excluded and lives in `title` — matching the source_chapters contract.
+ *   - If an entry's anchors can't both be located (neither exact nor fuzzy), it
+ *     is skipped (recorded in `skipped`); the next round's carry-forward
+ *     recovers it.
  *   - Chapter numbers are sequential from `nextChapterNumber`, system-assigned.
  */
 export function sliceChapters(params: {
@@ -338,29 +434,24 @@ export function sliceChapters(params: {
   let chapterNumber = nextChapterNumber;
 
   for (const entry of entries) {
-    const firstPos = locateAnchor(excerpt, entry.firstTextChunk, cursor);
-    if (firstPos < 0) {
+    const first = locateAnchor(excerpt, entry.firstTextChunk, cursor);
+    if (!first) {
       skipped.push({ reason: "anchor-not-found", entry });
       continue;
     }
-    const lastPos = locateAnchor(
-      excerpt,
-      entry.lastTextChunk,
-      firstPos + entry.firstTextChunk.length,
-    );
-    if (lastPos < 0) {
+    const last = locateAnchor(excerpt, entry.lastTextChunk, first.end);
+    if (!last) {
       skipped.push({ reason: "anchor-not-found", entry });
       continue;
     }
-    const lastEnd = lastPos + entry.lastTextChunk.length;
     committed.push({
       chapterNumber,
       title: entry.title,
-      body: excerpt.slice(firstPos, lastEnd),
+      body: excerpt.slice(first.start, last.end),
       outline: entry.outline,
       foreshadowing: entry.foreshadowing,
     });
-    cursor = lastEnd;
+    cursor = last.end;
     chapterNumber++;
   }
 

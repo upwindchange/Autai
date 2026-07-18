@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import jschardet from "jschardet";
 import * as iconv from "iconv-lite";
 import log from "electron-log/main";
+import { normalizeText } from "@agents/utils";
 
 const logger = log.scope("Dehydrate:FileDecoder");
 
@@ -15,11 +16,13 @@ const logger = log.scope("Dehydrate:FileDecoder");
  * Electron picker yields it) or as base64 (`base64`, browser fallback where no
  * path exists).
  *
- * After decoding, the text is run through `normalizeDecodedText` (NFKC +
- * whitespace/newline canonicalisation). This is the file-upload mode only — the
- * normalised text is what gets persisted to DB and read by the outliner, so the
- * model's verbatim anchors have a fighting chance of matching even when the
- * source file used non-canonical whitespace or CJK compatibility forms.
+ * After decoding, the text is run through `normalizeText` (shared with the
+ * outliner's anchor matcher) — NFKC + whitespace/newline canonicalisation.
+ * This is the file-upload mode only — the canonicalised text is what gets
+ * persisted to DB and read by the outliner, AND it is the same transform the
+ * outliner applies to the model's anchors before matching, so the two sides
+ * stay in the same canonical form. See `utils/textNormalize.ts` for the full
+ * rationale.
  */
 export function decodeNovelFile(input: {
   fsPath?: string;
@@ -48,39 +51,7 @@ export function decodeNovelFile(input: {
     });
     decoded = bytes.toString("utf8");
   }
-  return normalizeDecodedText(decoded);
-}
-
-/**
- * Canonicalise decoded novel text for the outliner. Applied once at ingestion
- * (file-upload mode) so every downstream stage — DB blob, chunk planning, anchor
- * matching — sees the SAME representation.
- *
- *   1. NFKC — fold CJK compatibility forms + compatibility-namespace whitespace
- *      to their canonical composed forms (matters for Chinese text where
- *      copy-pasted sources often carry fullwidth Latin/digits or compatibility
- *      ideographs).
- *   2. Newlines — collapse CRLF / lone CR to a single `\n`.
- *   3. Horizontal whitespace — collapse runs of spaces/tabs (but NOT newlines)
- *      to one space.
- *   4. Line-edge spaces — trim spaces immediately around newlines so lines are
- *      tight (kills indentation noise the model would otherwise have to copy
- *      verbatim into its anchors).
- *   5. Blank runs — cap consecutive blank lines at one (i.e. `\n\n`).
- *   6. trim — drop leading/trailing whitespace.
- *
- * The `/u` flag on every regex is required: the text is multi-byte CJK, and the
- * `u` flag makes `.` and character classes operate on code points (not UTF-16
- * code units), so `[^\S\n]` and `\n{3,}` behave correctly on surrogate pairs.
- */
-function normalizeDecodedText(text: string): string {
-  return text
-    .normalize("NFKC")
-    .replace(/\r\n?/gu, "\n")
-    .replace(/[^\S\n]+/gu, " ")
-    .replace(/ *\n */gu, "\n")
-    .replace(/\n{3,}/gu, "\n\n")
-    .trim();
+  return normalizeText(decoded);
 }
 
 // Normalize jschardet aliases to iconv-lite encoding names.
