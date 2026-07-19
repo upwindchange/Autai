@@ -6,6 +6,7 @@ import type { LanguageModel } from "ai";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
 import { settingsService, entertainmentService } from "@/services";
 import { sendAlert } from "@/utils/messageUtils";
+import { i18n } from "@/i18n";
 import type {
   CrossChapterCategory,
   CrossChapterDehydrate,
@@ -1282,9 +1283,10 @@ export async function generateOutlines(
         readEnd: plan.readEnd,
       });
       sendAlert(
-        "大纲生成暂时失败",
-        `在第 ${round + 1} 轮处理时未能产出章节（常见原因：模型提供商临时限流或网络问题）。` +
-          `已完成的大纲已保存，请稍后重新打开本书，系统将从断点处自动继续。`,
+        i18n.t("entertainment.outlineTransientFailedTitle"),
+        i18n.t("entertainment.outlineTransientFailedBody", {
+          round: round + 1,
+        }),
       );
       return { outlined, errored, skipped: 0 };
     }

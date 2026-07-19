@@ -43,6 +43,7 @@
 import log from "electron-log/main";
 import { entertainmentService } from "@/services";
 import { sendInfo, sendSuccess, sendWarning } from "@/utils/messageUtils";
+import { i18n } from "@/i18n";
 import { generateOutlines } from "../outliner";
 import { LOOKAHEAD, type WorkerLiveness } from "../shared/pipelineScheduler";
 
@@ -140,14 +141,20 @@ class ChapteredFileScheduler implements ChapteredFilePipeline {
     });
     try {
       await generateOutlines(threadId, config.options.crossChapter);
-      sendSuccess("大纲已生成", "章节大纲已生成至全文末尾，可以开始阅读。");
+      sendSuccess(
+        i18n.t("entertainment.outlineSucceededTitle"),
+        i18n.t("entertainment.outlineSucceededBody"),
+      );
       logger.info("buildOutlines complete", {
         threadId,
         finalChapter: entertainmentService.getFinalChapterNumber(threadId),
       });
     } catch (err) {
       logger.error("buildOutlines failed", { threadId, err });
-      sendWarning("大纲生成失败", "生成章节大纲时出错，请重试或重新上传文件。");
+      sendWarning(
+        i18n.t("entertainment.outlineFailedTitle"),
+        i18n.t("entertainment.outlineFailedBody"),
+      );
     } finally {
       w.outlineRunning = false;
     }

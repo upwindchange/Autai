@@ -59,6 +59,16 @@ const en = {
     // the seeded entertainment tag names (Rewrite / Interactive).
     dehydrate: "Rewrite",
     interactive: "Interactive",
+    // Outline pipeline toasts (file-upload novels).
+    outlineSucceededTitle: "Outline generated",
+    outlineSucceededBody:
+      "Chapter outlines have been generated through the end of the book. You can start reading.",
+    outlineFailedTitle: "Outline generation failed",
+    outlineFailedBody:
+      "An error occurred while generating chapter outlines. Please retry or re-upload the file.",
+    outlineTransientFailedTitle: "Outline generation paused",
+    outlineTransientFailedBody:
+      "Round {{round}} produced no chapters (often a temporary model-provider issue such as rate limiting or a network blip). Completed outlines are saved — please reopen this book shortly and it will resume from the last checkpoint.",
   },
   agents: {
     searchingTitle: "Looking up multiple topics at once: {{title}}",
