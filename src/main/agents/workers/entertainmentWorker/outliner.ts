@@ -17,9 +17,8 @@ import {
   planChunk,
   sliceChapters,
   charOffsetAfterParagraph,
-  bootstrapCharsPerToken,
-  calibrateCharsPerToken,
-  tokensOf,
+  probeCharsPerToken,
+  PROBE_FALLBACK_CHARS_PER_TOKEN,
   type ChapterEntry,
 } from "./textChunker";
 import { compressPriorOutline } from "./outlineCompressor";
@@ -35,6 +34,20 @@ const logger = log.scope("Dehydrate:Outliner");
  * to a couple thousand chars — small relative to the input budget.
  */
 const CARRY_PARA_COUNT = 20;
+
+/**
+ * Hard cap on the model's maxOutputTokens for the outliner rounds. Under
+ * Design B the tool emits only `{title, endPara, outline, foreshadowing}` per
+ * chapter — short index references, no verbatim body. Observed usage is
+ * ~1.1k tokens/chapter (round 0 used 17,952 output tokens for 17 chapters); a
+ * 64k cap gives ~4× headroom even on a 3-attempt retry round
+ * (`stopWhen: stepCountIs(3)`). Clamping here (rather than trusting the model
+ * catalog's configured cap) reclaims input budget: under the input-budget
+ * formula, maxOutputTokens is subtracted from maxContext, so dropping from
+ * 131k → 64k reclaims ~67k tokens for input. We take the min so a model
+ * configured for LESS than 64k output still honors its own limit.
+ */
+const MAX_OUTPUT_TOKENS_CAP = 64_000;
 
 /**
  * The `outputChapters` tool — the outliner agent's terminal tool and the ONLY
@@ -1007,10 +1020,10 @@ function buildOutlineSystemPrompt(crossChapter: CrossChapterDehydrate): string {
  * Run one outliner-agent pass under `systemPrompt` for a single chunk's excerpt.
  * Returns whether the agent called `outputChapters` (the tool's execute already
  * sliced + wrote the rows on success) PLUS the provider-reported inputTokens,
- * which the chunk loop uses to calibrate chars-per-token against the real model
- * tokenizer (no more cl100k_base guessing after round 1). The `userContent`
- * carries the prior outlines (cumulative context) + this chunk's raw excerpt,
- * formatted as one message. `maxOutputTokens` (when set) caps the model's output.
+ * which the chunk loop folds into the pooled chars-per-token accumulator. The
+ * `userContent` carries the prior outlines (cumulative context) + this chunk's
+ * tagged excerpt, formatted as one message. `maxOutputTokens` caps the model's
+ * output (clamped to MAX_OUTPUT_TOKENS_CAP upstream).
  */
 async function runOutlineAgent(params: {
   model: LanguageModel;
@@ -1070,38 +1083,51 @@ async function runOutlineAgent(params: {
  * chapters) for a file-uploaded novel. Owns the whole `source_chapters` row
  * lifecycle (outline/foreshadowing/outlineStatus now co-located on source rows).
  * Resumable: every round persists `rawConsumedOffset` to the DB, so a crashed
- * run picked back up continues from
- * the last committed chapter without re-processing completed ones and without
- * re-reading the original file (the decoded rawText is held in the DB for the
- * run's duration).
+ * run picked back up continues from the last committed chapter without
+ * re-processing completed ones and without re-reading the original file (the
+ * decoded rawText is held in the DB for the run's duration).
  *
  *   1. Load the rawText blob from DB into RAM once.
- *   2. Each round reads continuity fresh from DB: consumedOffset (from
+ *   2. Probe the model's chars-per-token ONCE before round 0: a tiny
+ *      `generateText` call with a 4k-char raw-text sample (no system prompt, no
+ *      tool) reads back `usage.inputTokens` and yields the content's true
+ *      density under the model's tokenizer. cl100k_base was removed entirely —
+ *      it over-counted Chinese by ~78% for Qwen/GLM/DeepSeek-style models,
+ *      causing round 0 to ship 1.52M tokens against a 1M ceiling. On probe
+ *      failure we fall back to a conservative ratio (sizes round 0 small).
+ *   3. Each round reads continuity fresh from DB: consumedOffset (from
  *      entertainment_configs.rawConsumedOffset) + nextChapterNumber (derived as
  *      max(source_chapters.chapterNumber) + 1) + priorOutline (rebuilt from
  *      already-outlined rows via the compressor when resuming). Each round
  *      boundary is a recovery point.
- *   3. Loop: planChunk sizes the read window by the INPUT context budget
- *      (maxContext − maxOutput − priorOutline − systemPrompt − toolOverhead −
- *      reserved), converted to chars via a chars-per-token that is bootstrapped
- *      from cl100k_base for round 1 (conservative → chunk smaller → safe) and
- *      then recalibrated each round from the model's REAL reported inputTokens
- *      (handles any model's tokenizer + the text's language mix — no guessing,
- *      no extra API calls). There is NO overlap — continuity between
- *      back-to-back rounds is provided by the unconditional DB carry-forward
- *      (the last source chapter's content is prepended to the next round's
- *      excerpt). Build the user message (prior outline prefix + raw excerpt),
- *      then run the agent (one-shot retry with RETRY_SUFFIX on a plain-text
- *      miss). The tool's execute slices verbatim bodies from the excerpt and
- *      writes a source_chapters row per chapter, advancing rawConsumedOffset.
- *   4. A chapter whose end falls off the chunk edge is simply not emitted this
- *      round; the next round's carry-forward re-covers it. A round that fails
- *      (no tool call after retry, or the tool commits nothing — typically a
- *      transient provider issue, NOT a malformed book) does NOT skip content:
- *      it sends an alert and returns early, leaving consumedOffset, the raw
- *      blob, and finalChapterNumber untouched. The user reopens the thread and
+ *   4. Loop: planChunk sizes the read window by the INPUT context budget. All
+ *      fixed overheads are CHAR lengths now (system prompt, tool description,
+ *      prior outline, carry section); the input-token budget is converted to
+ *      chars once via `charsPerToken` and every overhead is subtracted in chars
+ *      from that single pool. A tighten loop then shrinks the tagged excerpt
+ *      until the ACTUAL sent content (tagged paragraphs + all overheads) fits,
+ *      correcting for the ~12% tagging overhead the `¶N¶` markers add.
+ *      Continuity between back-to-back rounds is prompt-only (the 前情衔接
+ *      section): the previous chapter's outline + last N paragraphs appear
+ *      untagged above the new text, and the model may emit endPara=-1 on its
+ *      first entry to merge into the previous row. Build the user message, then
+ *      run the agent (one-shot retry with RETRY_SUFFIX on a plain-text miss).
+ *      The tool's execute slices verbatim bodies from the excerpt and writes a
+ *      source_chapters row per chapter, advancing rawConsumedOffset.
+ *   5. Calibration: after each round the real `usage.inputTokens` folds into a
+ *      pooled accumulator (cumulative chars ÷ cumulative user-message tokens) —
+ *      the maximum-likelihood estimator that converges after round 0. Round 0
+ *      also back-solves the fixed overhead (system + tool + envelope) from the
+ *      known userContent length + probe ratio, so round 1+ is exact. No EMA,
+ *      no slow convergence — one data point suffices.
+ *   6. A chapter whose end falls off the chunk edge is simply not emitted this
+ *      round; the next round's carry re-covers it. A round that fails (no tool
+ *      call after retry, or the tool commits nothing — typically a transient
+ *      provider issue, NOT a malformed book) does NOT skip content: it sends an
+ *      alert and returns early, leaving consumedOffset, the raw blob, and
+ *      finalChapterNumber untouched. The user reopens the thread and
  *      `ensureRange` resumes from the last checkpoint — same loop, same offset.
- *   5. The round whose read window reaches EOF is the last batch (`isLastBatch`,
+ *   7. The round whose read window reaches EOF is the last batch (`isLastBatch`,
  *      threaded into the tool via experimental_context). The tool sets
  *      finalChapterNumber once that batch's rows land; the loop then exits. A
  *      convergence fallback finalizes at loop exit if the last batch committed
@@ -1119,39 +1145,53 @@ export async function generateOutlines(
   }
 
   // Resolve the complex model ONCE: its SDK object is threaded into each
-  // round's streamText call, and its contextWindow + maxOutputTokens drive the
-  // chunk sizing (input-budget driven — see planChunk). maxOutputTokens is
-  // optional on ResolvedModel; fall back to a quarter of the context window
-  // (defensive — the user is expected to have assigned it via the model
-  // catalog/override). Both it and maxOutputTokens cap the streamText call too.
+  // round's streamText call AND into the probe call below. Its contextWindow
+  // drives the input-budget math in `planChunk`. maxOutputTokens is clamped to
+  // MAX_OUTPUT_TOKENS_CAP (see comment there) — this reclaims input budget
+  // while keeping a comfortable retry headroom under Design B's tiny per-chapter
+  // output. The clamped value caps the streamText call too.
   const complex = complexModel();
   const maxContext = complex.contextWindow;
-  const maxOutputTokens = complex.maxOutputTokens ?? Math.floor(maxContext / 4);
-  if (complex.maxOutputTokens == null) {
-    logger.warn(
-      "maxOutputTokens not set on model; falling back to contextWindow/4",
-      { threadId, contextWindow: maxContext, fallback: maxOutputTokens },
-    );
-  }
+  const configuredMaxOutput = complex.maxOutputTokens ?? MAX_OUTPUT_TOKENS_CAP;
+  const maxOutputTokens = Math.min(MAX_OUTPUT_TOKENS_CAP, configuredMaxOutput);
 
-  // Bootstrapped chars-per-token for round 1 using cl100k_base. cl100k_base is
-  // conservative for Chinese-optimised models (tends to over-count Chinese →
-  // chars/token estimate LOW → chunk SMALL → safe against overflow on round 1).
-  // From round 2 on this is recalibrated from the real model's reported
-  // inputTokens (see the loop below) — no probing API call, the chunk loop
-  // calibrates itself. Zero means the bootstrap failed (empty/whitespace text).
-  let charsPerToken = bootstrapCharsPerToken(rawText);
-  // The outputChapters tool's description overhead, measured once (constant).
-  const toolDescriptionTokens = tokensOf(OUTPUT_CHAPTERS_TOOL_DESCRIPTION);
+  // Measure the REAL chars-per-token for this novel's content via a small probe
+  // call. The bound model's tokenizer is unknown and GPT-family tokenizers
+  // (cl100k_base etc.) badly misestimate Chinese-optimised models; the probe
+  // sends a small raw-text sample and reads back `usage.inputTokens` to derive
+  // the true ratio. On failure (network/rate-limit) we fall back to a
+  // conservative ratio that sizes round 0 small and safe.
+  const probeResult = await probeCharsPerToken(
+    complex.model,
+    rawText,
+    threadId,
+  );
+  let charsPerToken = probeResult ?? PROBE_FALLBACK_CHARS_PER_TOKEN;
+
+  // Fixed-overhead accumulators for the pooled-accumulation calibration below.
+  // `cumulativeUserChars` / `cumulativeUserTokens` are folded into after every
+  // round; `fixedOverheadTokens` is back-solved from round 0's real inputTokens
+  // (it covers system prompt + tool schema + framework envelope — everything
+  // NOT in the user message). See the calibration block in the round loop.
+  let cumulativeUserChars = 0;
+  let cumulativeUserTokens = 0;
+  let fixedOverheadTokens = 0;
+
+  // The outputChapters tool's description overhead — a constant char length
+  // for the whole run (the description string never changes).
+  const toolDescriptionChars = OUTPUT_CHAPTERS_TOOL_DESCRIPTION.length;
 
   logger.info("outline run initialized", {
     threadId,
     rawTextLen: rawText.length,
     maxContext,
     maxOutputTokens,
-    maxOutputTokensConfigured: complex.maxOutputTokens != null,
-    bootstrapCharsPerToken: charsPerToken,
-    toolDescriptionTokens,
+    configuredMaxOutput,
+    maxOutputTokensCap: MAX_OUTPUT_TOKENS_CAP,
+    probeCharsPerToken: probeResult,
+    probeFallback: probeResult == null,
+    charsPerToken,
+    toolDescriptionChars,
     crossChapterStrength: crossChapter.strength,
   });
 
@@ -1218,7 +1258,7 @@ export async function generateOutlines(
     // always NEW-only, so paragraph indices stay local and unambiguous.
     let carryOutline = "";
     let carryParagraphs: string[] = []; // untagged, prompt-only
-    let carryTokens = 0;
+    let carryChars = 0;
     let carryChapterNumber: number | null = null;
     const lastChapterNum =
       entertainmentService.maxSourceChapterNumber(threadId);
@@ -1231,15 +1271,13 @@ export async function generateOutlines(
         const lastParas = lastSource.content.split("\n");
         carryParagraphs = lastParas.slice(-CARRY_PARA_COUNT);
         carryOutline = lastSource.outline ?? "";
-        carryTokens = tokensOf(
-          carryOutline + "\n" + carryParagraphs.join("\n"),
-        );
+        carryChars = (carryOutline + "\n" + carryParagraphs.join("\n")).length;
         carryChapterNumber = lastChapterNum;
         logger.debug("carry-forward: read last chapter for 前情衔接", {
           threadId,
           chapterNumber: lastChapterNum,
           carryParas: carryParagraphs.length,
-          carryTokens,
+          carryChars,
         });
       }
     }
@@ -1255,14 +1293,15 @@ export async function generateOutlines(
         lastChapterNum + 1
       : entertainmentService.maxSourceChapterNumber(threadId) + 1;
 
-    // Build this round's system prompt and measure its token cost for the
-    // input-budget calculation.
+    // Build this round's system prompt; measure all fixed overheads as CHAR
+    // lengths for the input-budget math (everything is chars now — see
+    // planChunk).
     const systemPrompt = buildOutlineSystemPrompt(crossChapter);
-    const systemPromptTokens = tokensOf(systemPrompt);
-    const priorOutlineTokens = priorOutline ? tokensOf(priorOutline) : 0;
+    const systemPromptChars = systemPrompt.length;
+    const priorOutlineChars = priorOutline.length;
 
     // --- plan the read window for this round (input-budget driven) ---
-    // The carry prefix's tokens (outline + last N paragraphs) are deducted from
+    // The carry prefix's chars (outline + last N paragraphs) are deducted from
     // the budget so new text is read less. NO overlap — the carry section is
     // prompt context, and the new-text section's paragraph indices are LOCAL
     // (start at ¶0¶), so there is no coordinate continuity to preserve.
@@ -1271,13 +1310,13 @@ export async function generateOutlines(
       consumedOffset,
       maxContext,
       maxOutputTokens,
-      priorOutlineTokens,
-      systemPromptTokens,
-      toolDescriptionTokens,
+      priorOutlineChars,
+      systemPromptChars,
+      toolDescriptionChars,
       charsPerToken,
-      carryTokens,
+      carryChars,
     });
-    const newExcerpt = rawText.slice(plan.readStart, plan.readEnd);
+    let newExcerpt = rawText.slice(plan.readStart, plan.readEnd);
     // This batch reads to EOF — the agent finalizes the thread on it (via the
     // isLastBatch flag in the tool context). The loop exits after this round.
     const isLastBatch = plan.readEnd >= rawText.length;
@@ -1288,8 +1327,28 @@ export async function generateOutlines(
     // The untagged `paragraphs` array is threaded into the tool via ctx for
     // deterministic body slicing; the tagged version goes into the prompt so
     // the model can reference paragraph indices.
+    //
+    // TAGGING-OVERHEAD CORRECTION: the `¶N¶` markers add ~6.4 chars ×
+    // paragraphCount to the excerpt (~12% for a typical round). planChunk sized
+    // `excerptCharBudget` against the untagged length, but what actually ships
+    // in the user message is the tagged length. We tighten the paragraph list
+    // (pop trailing paragraphs + re-tag) until the tagged excerpt + every other
+    // fixed overhead fits inside `excerptCharBudget`. In practice the loop runs
+    // 0-1 times; a `while` is robustness against pathological paragraph counts.
     const paragraphs = newExcerpt.split("\n");
-    const taggedExcerpt = paragraphs.map((p, i) => `¶${i}¶${p}`).join("\n");
+    let taggedExcerpt = paragraphs.map((p, i) => `¶${i}¶${p}`).join("\n");
+    const fixedOverheadChars =
+      priorOutlineChars + systemPromptChars + toolDescriptionChars + carryChars;
+    let tightenPasses = 0;
+    while (
+      paragraphs.length > 1 &&
+      taggedExcerpt.length + fixedOverheadChars > plan.excerptCharBudget
+    ) {
+      paragraphs.pop();
+      taggedExcerpt = paragraphs.map((p, i) => `¶${i}¶${p}`).join("\n");
+      newExcerpt = paragraphs.join("\n");
+      tightenPasses++;
+    }
 
     logger.debug("round planned", {
       threadId,
@@ -1303,10 +1362,13 @@ export async function generateOutlines(
       carryParas: carryParagraphs.length,
       taggedExcerptLen: taggedExcerpt.length,
       excerptCharBudget: plan.excerptCharBudget,
+      tightenPasses,
       charsPerToken,
       priorOutlineLen: priorOutline.length,
-      priorOutlineTokens,
-      systemPromptTokens,
+      priorOutlineChars,
+      systemPromptChars,
+      toolDescriptionChars,
+      carryChars,
     });
 
     // --- build the user message: prior outline + carry section + tagged excerpt
@@ -1376,35 +1438,58 @@ export async function generateOutlines(
       });
     }
 
-    // Calibrate chars-per-token from the REAL model's reported inputTokens.
-    // The model's inputTokens counts system + user + framework envelope; we only
-    // want the USER-message portion (system prompt + tool-schema are fixed
-    // overheads measured upstream via cl100k_base, and their cl100k_base count
-    // is as good as the model's for those small stable strings). Subtract them
-    // so the ratio is anchored to userContent (prior outline + excerpt) — the
-    // part whose char/token ratio is what we actually size on. Never goes below
-    // 1 so we never divide by zero.
+    // Calibrate chars-per-token via POOLED ACCUMULATION. Each round's real
+    // `usage.inputTokens` decomposes as `fixedOverheadTokens + userMessageTokens`,
+    // where the fixed overhead covers system prompt + tool schema + framework
+    // envelope and userMessageTokens is the user-message portion (prior outline
+    // + carry + tagged excerpt). We want the ratio anchored to userContent —
+    // that's the part whose char/token ratio drives sizing.
+    //
+    // Round 0: back-solve fixedOverheadTokens from the real inputTokens, since
+    //   we know the userContent length AND the probe-derived charsPerToken
+    //   (which gives an estimate of userMessageTokens). This is the ONLY place
+    //   the probe ratio is used for calibration; everything after pools real
+    //   measurements. After round 0 the pooled accumulator replaces the probe
+    //   entirely.
+    // Round 1+: fold userContent.length + (inputTokens − fixedOverhead) into the
+    //   running totals. charsPerToken = cumulativeChars / cumulativeTokens is the
+    //   maximum-likelihood estimator for the ratio — converges after round 0 and
+    //   automatically weights by sample size (a 1M-char round counts far more
+    //   than a 4k-char probe). No EMA tuning param, no slow convergence.
     if (roundInputTokens && roundInputTokens > 0) {
-      const fixedOverhead = systemPromptTokens + toolDescriptionTokens;
-      const userMessageTokens = Math.max(1, roundInputTokens - fixedOverhead);
-      const prior = charsPerToken;
-      charsPerToken = calibrateCharsPerToken(
-        charsPerToken,
-        userContent.length,
-        userMessageTokens,
-      );
-      if (charsPerToken !== prior) {
-        logger.debug("calibrated chars-per-token", {
-          threadId,
-          round,
-          prior,
-          userChars: userContent.length,
-          totalInputTokens: roundInputTokens,
-          fixedOverhead,
-          userMessageTokens,
-          charsPerToken,
-        });
+      const priorCharsPerToken = charsPerToken;
+      if (round === 0) {
+        // Back-solve: userMessageTokens ≈ userContent.length / charsPerToken
+        // (the probe ratio is a good estimate of the content density).
+        const estimatedUserMessageTokens = Math.max(
+          1,
+          Math.round(userContent.length / charsPerToken),
+        );
+        fixedOverheadTokens = Math.max(
+          0,
+          roundInputTokens - estimatedUserMessageTokens,
+        );
       }
+      const userMessageTokens = Math.max(
+        1,
+        roundInputTokens - fixedOverheadTokens,
+      );
+      cumulativeUserChars += userContent.length;
+      cumulativeUserTokens += userMessageTokens;
+      charsPerToken = cumulativeUserChars / cumulativeUserTokens;
+      logger.debug("calibrated chars-per-token", {
+        threadId,
+        round,
+        mode: round === 0 ? "round-0 back-solve" : "pooled accumulation",
+        priorCharsPerToken,
+        userChars: userContent.length,
+        cumulativeUserChars,
+        totalInputTokens: roundInputTokens,
+        fixedOverheadTokens,
+        userMessageTokens,
+        cumulativeUserTokens,
+        charsPerToken,
+      });
     }
 
     // --- failure handling: alert + stop, never skip content ---

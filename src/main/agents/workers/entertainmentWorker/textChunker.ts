@@ -1,32 +1,34 @@
-import { countTokens } from "gpt-tokenizer";
+import { generateText } from "ai";
+import log from "electron-log/main";
+import type { LanguageModel } from "ai";
+import { settingsService } from "@/services";
+import { TIMEOUTS } from "@agents/utils";
 
 /**
  * Chunk-planning + paragraph-slicing logic for the outliner.
  *
- * The outliner (`outliner.ts`) wires it to the agent + DB; `fileDecoder.ts`
- * produces the rawText that flows in here. Dependencies: gpt-tokenizer
- * (cl100k_base, for fixed-overhead token counts + round-1 bootstrap). No fuzzy
- * matcher, no `approx-string-match` — slicing is deterministic array indexing.
+ * The outliner (`outliner.ts`) wires this to the agent + DB; `fileDecoder.ts`
+ * produces the rawText that flows in here.
  *
  * Two responsibilities:
  *   1. `planChunk` — given the model's context window, max output, fixed
- *      overheads, and how far we've already consumed, compute the next
- *      `[readStart, readEnd)` window of raw text to feed the agent. Sizing is
- *      driven by the INPUT budget (context window), NOT max output tokens:
- *      because the model emits only short paragraph-index references (not full
- *      chapter prose), output length is no longer the bottleneck — the context
- *      window is. There is NO overlap — chapter continuity between back-to-back
- *      rounds is provided by the outliner's 前情衔接 section (the previous
- *      chapter's outline + last N paragraphs, untagged, with a `-1` merge
- *      sentinel the model may emit on its first entry; see outliner.ts).
+ *      overheads (as CHARACTER counts), and how far we've already consumed,
+ *      compute the next `[readStart, readEnd)` window of raw text to feed the
+ *      agent. Sizing is driven by the INPUT budget (context window), NOT max
+ *      output tokens: the model emits only short paragraph-index references
+ *      (not full chapter prose), so the context window is the bottleneck. There
+ *      is NO overlap — chapter continuity between back-to-back rounds is
+ *      provided by the outliner's 前情衔接 section (previous chapter's outline +
+ *      last N paragraphs, untagged, with a `-1` merge sentinel the model may
+ *      emit on its first entry; see outliner.ts).
  *   2. `sliceChapters` — paragraph-index → body slicer. The model emits, per
  *      storyline unit it can fully see, the LOCAL index of the unit's LAST
  *      paragraph (counting only the tagged `¶N¶` paragraphs in the new-text
  *      section, 0-based); this function slices the verbatim body by pure array
  *      indexing into the untagged paragraphs array the outliner passes via
- *      `experimental_context`. No string matching, no anchors, no fuzzy
- *      fallback — body extraction is 100% deterministic, with zero fidelity
- *      loss and zero "permanent chapter drop" failure mode.
+ *      `experimental_context`. No string matching — body extraction is 100%
+ *      deterministic, with zero fidelity loss and zero "permanent chapter drop"
+ *      failure mode.
  *
  * Design notes:
  *   - Chapter numbers are SYSTEM-ASSIGNED sequential ordinals (continuing from
@@ -39,43 +41,35 @@ import { countTokens } from "gpt-tokenizer";
  *     chapter's storyline, it emits `endPara: -1` on the first entry, and the
  *     outliner UPDATEs the previous row in place (concat body + concat outline)
  *     instead of inserting a fresh row. See `sliceChapters` + outliner.ts.
- *   - Tokenizer calibration: the bound model + the text's language are BOTH
- *     unknown up front, and cl100k_base (gpt-tokenizer) is a GPT-4/4o tokenizer
- *     that can be badly wrong for Chinese-optimised models (Qwen/GLM/DeepSeek).
- *     Rather than guess or pay for a probing API call, we let the chunk loop
- *     calibrate itself: round 1 uses a cl100k_base estimate (conservative →
- *     chunk smaller than real capacity → safe), then each round's actual
- *     `usage.inputTokens` (reported by the real model) refines a running
- *     chars-per-token average. No extra calls, self-correcting, robust.
+ *   - chars-per-token calibration: the bound model's tokenizer is unknown and
+ *     cannot be reliably estimated with any GPT-family tokenizer (cl100k_base
+ *     over-counts Chinese by ~78% for Qwen/GLM/DeepSeek-style models). We
+ *     measure the REAL ratio once up front via a small probe call
+ *     (`probeCharsPerToken`), then refine it after each round by pooled
+ *     accumulation (cumulative chars ÷ cumulative user-message tokens) — the
+ *     maximum-likelihood estimator that converges after one round and stays
+ *     converged.
  */
+
+const logger = log.scope("Dehydrate:Chunker");
 
 // ---------------------------------------------------------------------------
 //  Tuning constants
 // ---------------------------------------------------------------------------
 
 /**
- * Token budget reserved for things `countTokens` cannot measure pre-flight:
+ * Token budget reserved for things we cannot measure pre-flight:
  *   - the model's internal reasoning/thinking tokens;
  *   - framework protocol wrapping (role markers, JSON envelope per message);
  *   - the tool's JSON-schema overhead (the SDK injects the `outputChapters`
  *     schema as system context, not as part of our prompt string);
- *   - the round-1 cl100k_base error margin (round 1 sizes with cl100k_base before
- *     the real tokenizer has been calibrated — direction-agnostic pad).
+ *   - the round-0 probe imprecision (the probe samples a small head of the
+ *     text; the full round's density may differ slightly).
  *
- * From round 2 on the real tokenizer is calibrated from actual usage, so this
- * mostly covers reasoning + framework overhead there. Round 1 is the one place
- * cl100k_base's divergence could bite, and there we don't pretend to know the
- * direction, so this is a plain safety pad.
+ * The probe ratio is exact for the sample but only approximate for the whole
+ * round; pooled accumulation corrects any bias from round 1 on.
  */
 const RESERVED_BUFFER = 12_000;
-
-/**
- * Exponential-moving-average weight for chars-per-token calibration. Each
- * successful round nudges the running estimate toward the freshly observed
- * chars/inputToken by this fraction (0–1). 0.4 is responsive enough to adapt
- * within ~3 rounds yet stable against a single noisy measurement.
- */
-const CALIBRATION_EMA_WEIGHT = 0.4;
 
 /**
  * Minimum new characters per round so the loop always makes forward progress
@@ -85,64 +79,86 @@ const CALIBRATION_EMA_WEIGHT = 0.4;
 const MIN_NEW_CHARS = 2000;
 
 /**
- * Token-counting wrapper around gpt-tokenizer's cl100k_base. Centralised so the
- * tokenizer choice lives in one place.
- *
- * Used for the FIXED overheads (system prompt, tool description, prior-outline
- * prefix, carry prefix) — small, stable strings whose exact count barely
- * matters — AND for the round-1 raw-text chars-per-token bootstrap. From round
- * 2 on, the raw text's chars-per-token is calibrated from the model's actual
- * reported inputTokens (see `calibrateCharsPerToken`); cl100k_base only
- * bootstraps.
+ * Number of characters of raw text to send in the probe call. Enough to give
+ * the model's tokenizer a representative sample of the content's density (it
+ * covers several paragraphs of typical Chinese web-novel prose); small enough
+ * to keep the probe cost negligible (~1k tokens).
  */
-export function tokensOf(text: string): number {
-  return countTokens(text);
-}
+const PROBE_SAMPLE_CHARS = 4000;
 
 /**
- * Bootstrap estimate of the raw text's chars-per-token using cl100k_base.
- * Used ONLY for round 1 (before the real model's tokenizer has been observed):
- * cl100k_base is conservative for Chinese-optimised models (it tends to count
- * MORE tokens for Chinese than those models actually do → chars/token estimate
- * comes out LOWER → chunk comes out SMALLER → safe against overflow on round 1).
- * Round 2+ replaces this with `calibrateCharsPerToken` driven by real usage.
- *
- * Samples the head of the text to avoid a costly full-text count; the head is a
- * good-enough density proxy for the bootstrap (calibration corrects any bias).
+ * Conservative fallback chars-per-token used when the probe call fails (network
+ * error, rate limit, etc.). Chinese-optimised models typically land around
+ * 0.5-0.8 chars/token; 0.5 sizes round 0 small, guaranteeing no overflow.
+ * Pooled accumulation replaces it after round 0.
  */
-export function bootstrapCharsPerToken(rawText: string): number {
-  if (!rawText) return 0;
-  const sample = rawText.slice(0, 4000);
-  const toks = tokensOf(sample);
-  if (toks <= 0) return 0;
-  const c = sample.length / toks;
-  return Number.isFinite(c) && c > 0 ? c : 0;
-}
+const FALLBACK_CHARS_PER_TOKEN = 0.5;
+
+// ---------------------------------------------------------------------------
+//  chars-per-token calibration
+// ---------------------------------------------------------------------------
 
 /**
- * Refine the running chars-per-token estimate from a round's ACTUAL model
- * usage. After each successful round the outliner reads the real
- * `usage.inputTokens` the provider reported, plus the input char length we sent
- * (the excerpt + prefix), and folds `inputChars / inputTokens` into the running
- * estimate via exponential moving average.
+ * Measure the model's REAL chars-per-token for the novel's content via a single
+ * minimal probe call. Sends a small raw-text excerpt (untagged, no system
+ * prompt, no tools) and reads back `usage.inputTokens`; the ratio
+ * `excerptChars / inputTokens` is the content's true density under the model's
+ * tokenizer.
  *
- * This is the ONLY accurate signal for the bound model's tokenizer (cl100k_base
- * bootstraps round 1 only). It self-corrects for both the model and the text's
- * language mix, and costs nothing — the round was already going to run.
+ * Used ONLY before round 0: it seeds `charsPerToken` so round 0 sizes against
+ * the real tokenizer instead of a GPT-family guess. After round 0 the pooled
+ * accumulator (`outliner.ts`) refines it.
  *
- * Returns the prior estimate unchanged if the new sample is unusable (zero
- * tokens, non-finite), so a failed read can't corrupt calibration.
+ * Returns `null` on any failure (network error, missing usage, zero tokens).
+ * The caller falls back to `FALLBACK_CHARS_PER_TOKEN` so round 0 still sizes
+ * small and safe.
  */
-export function calibrateCharsPerToken(
-  prior: number,
-  inputChars: number,
-  inputTokens: number,
-): number {
-  if (!inputTokens || inputTokens <= 0) return prior;
-  const observed = inputChars / inputTokens;
-  if (!Number.isFinite(observed) || observed <= 0) return prior;
-  if (prior <= 0) return observed; // first real measurement replaces the bootstrap
-  return prior + CALIBRATION_EMA_WEIGHT * (observed - prior);
+export async function probeCharsPerToken(
+  model: LanguageModel,
+  rawText: string,
+  threadId: string,
+): Promise<number | null> {
+  if (!rawText) return null;
+  const sample = rawText.slice(0, PROBE_SAMPLE_CHARS);
+  if (!sample) return null;
+  try {
+    const result = await generateText({
+      model,
+      prompt: sample,
+      maxOutputTokens: 1,
+      maxRetries: settingsService.settings.maxRetries,
+      timeout: TIMEOUTS.chat,
+      experimental_telemetry: {
+        isEnabled: settingsService.settings.langfuse.enabled,
+        functionId: "entertainment-outliner-probe",
+        metadata: { threadId, sampleChars: sample.length },
+      },
+    });
+    const inputTokens = result.usage?.inputTokens;
+    if (!inputTokens || inputTokens <= 0) {
+      logger.warn("probe returned no inputTokens", {
+        threadId,
+        sampleChars: sample.length,
+      });
+      return null;
+    }
+    const cpt = sample.length / inputTokens;
+    if (!Number.isFinite(cpt) || cpt <= 0) return null;
+    logger.info("probe measured chars-per-token", {
+      threadId,
+      sampleChars: sample.length,
+      inputTokens,
+      charsPerToken: cpt,
+    });
+    return cpt;
+  } catch (err) {
+    logger.warn("probe failed; falling back to conservative ratio", {
+      threadId,
+      sampleChars: sample.length,
+      err,
+    });
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -238,26 +254,30 @@ export interface SliceResult {
 }
 
 // ---------------------------------------------------------------------------
-//  Chunk planning (input-budget driven)
+//  Chunk planning (input-budget driven, all-char math)
 // ---------------------------------------------------------------------------
 
 /**
  * Plan one round's read window `[readStart, readEnd)` into rawText.
  *
- * The excerpt budget is derived from the INPUT context window, NOT max output:
+ * The excerpt budget is derived from the INPUT context window, NOT max output.
+ * Everything is computed in CHARACTERS — the input-token budget is converted to
+ * a char budget once via `charsPerToken`, then every fixed overhead (system
+ * prompt, tool description, prior outline, carry section) is subtracted in
+ * chars from that single pool:
  *
- *   inputBudget = maxContext
- *               − maxOutputTokens        (reserved for the model's output)
- *               − priorOutlineTokens     (compressed cumulative outline prefix)
- *               − systemPromptTokens     (the outliner system prompt)
- *               − toolDescriptionTokens  (outputChapters tool schema overhead)
- *               − carryTokens            (the 前情衔接 carry prefix)
- *               − RESERVED_BUFFER         (reasoning + framework + divergence pad)
+ *   inputCharBudget  = (maxContext − maxOutputTokens − RESERVED_BUFFER) × charsPerToken
+ *   excerptCharBudget = inputCharBudget
+ *                      − priorOutlineChars
+ *                      − systemPromptChars
+ *                      − toolDescriptionChars
+ *                      − carryChars
  *
- * Then converted to characters via the chars-per-token (cl100k_base bootstrap
- * for round 1, recalibrated from real usage from round 2 on):
- *
- *   excerptCharBudget = inputBudget × charsPerToken
+ * Keeping every term in chars (rather than subtracting tokens then converting
+ * the remainder) makes the budget math uniform and makes the tagging-overhead
+ * correction in the caller obvious: the caller builds the tagged excerpt and
+ * shrinks it until it fits `excerptCharBudget`, guaranteeing the ACTUAL sent
+ * content fits, not a pre-tag estimate.
  *
  * NO OVERLAP. Chapter continuity between back-to-back rounds is provided by the
  * 前情衔接 section (previous chapter's outline + last N paragraphs, untagged)
@@ -271,16 +291,19 @@ export function planChunk(params: {
   consumedOffset: number;
   maxContext: number;
   maxOutputTokens: number;
-  priorOutlineTokens: number;
-  systemPromptTokens: number;
-  toolDescriptionTokens: number;
+  /** Char length of the compressed cumulative prior-outline prefix. */
+  priorOutlineChars: number;
+  /** Char length of the outliner system prompt. */
+  systemPromptChars: number;
+  /** Char length of the `outputChapters` tool description (constant for a run). */
+  toolDescriptionChars: number;
   charsPerToken: number;
   /**
-   * Tokens consumed by the 前情衔接 carry prefix (previous chapter's outline +
-   * last N paragraphs, untagged). Deducted from the budget so new text is read
-   * less to avoid overflow. 0 on the first round (no previous chapter to carry).
+   * Char length of the 前情衔接 carry prefix (previous chapter's outline + last
+   * N paragraphs, untagged). Deducted from the budget so new text is read less
+   * to avoid overflow. 0 on the first round (no previous chapter to carry).
    */
-  carryTokens: number;
+  carryChars: number;
 }): {
   readStart: number;
   readEnd: number;
@@ -291,26 +314,26 @@ export function planChunk(params: {
     consumedOffset,
     maxContext,
     maxOutputTokens,
-    priorOutlineTokens,
-    systemPromptTokens,
-    toolDescriptionTokens,
+    priorOutlineChars,
+    systemPromptChars,
+    toolDescriptionChars,
     charsPerToken,
-    carryTokens,
+    carryChars,
   } = params;
 
-  const inputBudget = Math.max(
+  const inputCharBudget = Math.max(
     0,
-    maxContext -
-      maxOutputTokens -
-      priorOutlineTokens -
-      systemPromptTokens -
-      toolDescriptionTokens -
-      carryTokens -
-      RESERVED_BUFFER,
+    (maxContext - maxOutputTokens - RESERVED_BUFFER) * charsPerToken,
   );
   const excerptCharBudget = Math.max(
     MIN_NEW_CHARS,
-    Math.floor(inputBudget * charsPerToken),
+    Math.floor(
+      inputCharBudget -
+        priorOutlineChars -
+        systemPromptChars -
+        toolDescriptionChars -
+        carryChars,
+    ),
   );
 
   const readStart = Math.max(0, consumedOffset);
@@ -442,3 +465,6 @@ export function charOffsetAfterParagraph(
   }
   return windowCharStart + chars;
 }
+
+/** Conservative fallback ratio for `charsPerToken` when the probe fails. */
+export const PROBE_FALLBACK_CHARS_PER_TOKEN = FALLBACK_CHARS_PER_TOKEN;
