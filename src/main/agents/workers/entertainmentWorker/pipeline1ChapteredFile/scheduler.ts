@@ -15,23 +15,42 @@
  *     window reaches EOF is the last batch; the agent itself finalizes the
  *     thread (sets finalChapterNumber) once that batch's rows land.
  *
- *   REWRITER (no LLM, reader-driven) — `ensure(n)` produces one rewrite row per
- *     source row in the reader's window [n .. n+LOOKAHEAD]. Content is just a
- *     placeholder prefix prepended to the source prose — a stand-in for the
- *     future LLM co-writer that makes the read-side spine navigable today.
+ *   REWRITER (LLM, reader-driven, on-demand) — `ensureRange` enqueues a real
+ *     LLM rewrite (./rewriter.ts `rewriteChapter`) for every source row in the
+ *     reader's window [n .. n+LOOKAHEAD] that still needs work. Each rewrite
+ *     is 1:1 with its source row (same `chapterNumber` — the reader's spine
+ *     key), even when that source row covers several merged original chapters
+ *     (the rewriter treats the row's `content` as one opaque prose unit).
  *
  * TRIGGERS. The outliner runs on exactly two events: file upload (the upload
- * route calls `buildOutlines` directly) and thread-open (folded into `ensure`:
- * when a previously-uploaded thread is opened, the reader's first `ensure`
- * kicks `buildOutlines` if the outline isn't complete). It NEVER runs on boot —
- * `resumeAll` is intentionally absent from this pipeline (the router's
- * `resumeAll` fans out to ②/③ only). `sendInfo` fires when an outline run
- * starts (passes the guards); `sendSuccess` fires when it completes.
+ *   route calls `buildOutlines` directly) and thread-open (folded into
+ *   `ensureRange`: when a previously-uploaded thread is opened, the reader's
+ *   first `ensureRange` kicks `buildOutlines` if the outline isn't complete).
+ *   It NEVER runs on boot — `resumeAll` is intentionally absent from this
+ *   pipeline (the router's `resumeAll` fans out to ②/③ only). The REWRITER
+ *   has no separate trigger: it is driven entirely by `ensureRange`, which
+ *   the reader-poll route (`POST /worker`) and the manual `POST /process`
+ *   both call. There is no "outline done → rewrite all" hook — rewrites are
+ *   strictly on-demand within the lookahead window, so a book the user never
+ *   reads past chapter 5 never spends rewrite tokens on chapter 50.
+ *
+ * SELF-HEAL & ROBUSTNESS (no resumeAll, no error-terminal). `needsWork`
+ *   treats ONLY `status === "rewritten"` as complete. Consequences:
+ *   - A row stuck in `"rewriting"` (process killed mid-agent) is auto-redone
+ *     on the next `ensureRange` — the dirty flag cleans itself, no sweep.
+ *   - A row in `"error"` is auto-redone too (this pipeline has no error-
+ *     terminal policy; only `"rewritten"` counts as done). `retryFailed`
+ *     gives the user a manual "redo all errors now" entry on top of that.
+ *   - Restart with empty memory: the reader opening the thread fires
+ *     `ensureRange` (entertainment-thread.tsx), which scans the window via
+ *     `needsWork` and re-enqueues everything not `"rewritten"`. No boot-time
+ *     `resumeAll` is needed — thread-open is the recovery path.
  *
  * THE SPINE KEY. `chapterNumber` is both the source and rewrite key (they
- * mirror 1:1). The reader navigates by this number. Rewrites are produced
- * synchronously per source row within the window, so there is no per-output
- * queue — `getInfo`/`getInFlight` report liveness only for the outline run.
+ *   mirror 1:1). The reader navigates by this number. Rewrites run on a serial
+ *   per-thread p-queue (concurrency 1) with an `inFlight` Set dedup, so
+ *   `getInfo`/`getInFlight` report real queue depth and liveness for BOTH the
+ *   outline run and the rewrite queue.
  *
  * This is a complete, independent scheduling core. It exposes its OWN interface
  * (`ChapteredFilePipeline`) — not the shared `PipelineScheduler`, which only ②
@@ -40,28 +59,23 @@
  * directly.
  */
 
+import PQueue from "p-queue";
 import log from "electron-log/main";
 import { entertainmentService } from "@/services";
 import { sendInfo, sendSuccess, sendWarning } from "@/utils/messageUtils";
 import { i18n } from "@/i18n";
 import { generateOutlines } from "../outliner";
+import { rewriteChapter } from "./rewriter";
 import { LOOKAHEAD, type WorkerLiveness } from "../shared/pipelineScheduler";
 
 const logger = log.scope("Dehydrate:Pipeline1:File");
 
 /**
- * Prefix prepended to each source chapter's prose to form its placeholder
- * rewrite. A stand-in for the future LLM co-writer — makes the read-side spine
- * navigable today with zero LLM cost.
- */
-const REWRITE_PLACEHOLDER_PREFIX = "[REWRITE PLACEHOLDER]\n";
-
-/**
  * Pipeline ①'s own scheduling contract — decoupled from the shared
  * `PipelineScheduler` (②/③) because its execution model is fundamentally
- * different (batched outline + reader-driven rewrite, no boot resume). The
- * method set overlaps the reader-facing parts the router proxies, but the
- * semantics are tailored here and documented honestly.
+ * different (batched outline + reader-driven on-demand rewrite, no boot
+ * resume). The method set overlaps the reader-facing parts the router proxies,
+ * but the semantics are tailored here and documented honestly.
  */
 export interface ChapteredFilePipeline {
   /**
@@ -73,26 +87,41 @@ export interface ChapteredFilePipeline {
    */
   buildOutlines(threadId: string): Promise<void>;
   /**
-   * Drive the no-LLM rewriter across [from..to] (capped at finalChapterNumber),
+   * Drive the LLM rewriter across [from..to] (capped at finalChapterNumber),
    * and idempotently kick `buildOutlines` when the outline isn't complete (the
    * folded thread-open resume path). The reader-poll route calls this with
    * [n .. n+LOOKAHEAD] as its prefetch window; `POST /process` calls it with an
-   * explicit range.
+   * explicit range. If `from` is far ahead of the running rewrite, the running
+   * rewrite is aborted so the far chapter is served first.
    */
   ensureRange(threadId: string, from: number, to: number): void;
-  /** No error states in the placeholder rewriter ⇒ nothing to retry. Returns 0. */
+  /**
+   * Re-enqueue every errored rewrite row for the thread, immediately. NOT the
+   * only retry path — `needsWork` already auto-redoes `"error"` rows on the
+   * next `ensureRange` (this pipeline has no error-terminal policy). This is
+   * the manual "Redo failed" entry the user can fire without waiting for the
+   * next reader poll. Returns the count actually enqueued.
+   */
   retryFailed(threadId: string): number;
-  /** Liveness + target — backs `GET /worker`. `active` = an outline run in progress. */
+  /** Liveness + target — backs `GET /worker`. `active` = outline run OR queue busy. */
   getInfo(threadId: string): WorkerLiveness;
-  /** Always empty — the rewriter is synchronous (no per-output queue). */
+  /** Snapshot of rewrite chapter numbers currently scheduled (enqueued or running). */
   getInFlight(threadId: string): Set<number>;
 }
 
 interface ThreadWorker {
   /** Re-entrancy mutex: prevents concurrent `buildOutlines` runs. */
   outlineRunning: boolean;
-  /** Latest requested chapter number (reader position; tracking only). */
+  /** Serial rewrite queue (concurrency 1) — one rewrite per thread at a time. */
+  queue: PQueue;
+  /** Dedup/lookup for enqueued+running rewrite chapter numbers. */
+  inFlight: Set<number>;
+  /** Latest requested chapter number (reader position; backs GET /worker). */
   target: number;
+  /** Abort controller for the currently-RUNNING rewrite, so a far-chapter
+   * `ensureRange` can preempt it (near chapters still queued are filtered out
+   * by `needsWork` when their turn comes). Undefined when nothing is running. */
+  abortController?: AbortController;
 }
 
 class ChapteredFileScheduler implements ChapteredFilePipeline {
@@ -101,7 +130,12 @@ class ChapteredFileScheduler implements ChapteredFilePipeline {
   private workerFor(threadId: string): ThreadWorker {
     let w = this.workers.get(threadId);
     if (!w) {
-      w = { outlineRunning: false, target: 1 };
+      w = {
+        outlineRunning: false,
+        queue: new PQueue({ concurrency: 1 }),
+        inFlight: new Set(),
+        target: 1,
+      };
       this.workers.set(threadId, w);
     }
     return w;
@@ -162,6 +196,7 @@ class ChapteredFileScheduler implements ChapteredFilePipeline {
 
   ensureRange(threadId: string, from: number, to: number): void {
     const w = this.workerFor(threadId);
+    const prevTarget = w.target;
     w.target = from;
     if (
       entertainmentService.getFinalChapterNumber(threadId) == null &&
@@ -176,56 +211,175 @@ class ChapteredFileScheduler implements ChapteredFilePipeline {
         }),
       );
     }
+    // Far-chapter preemption: if the reader jumped well past the running
+    // rewrite, abort it so the far chapter is served first. Near chapters
+    // still queued are filtered out by `needsWork` when their turn comes
+    // (they're behind the new target → low priority, and once the far window
+    // is processed they fall out of the reader's interest).
+    if (from > prevTarget) {
+      w.abortController?.abort();
+      w.abortController = undefined;
+    }
     const final = entertainmentService.getFinalChapterNumber(threadId);
     const end =
       final != null ? Math.min(to, final) : Math.min(to, from + LOOKAHEAD);
-    this.driveRewriter(threadId, from, end);
+    const enqueued = this.enqueueWindow(threadId, w, from, end);
+    logger.debug("ensureRange", {
+      threadId,
+      fromN: from,
+      toN: to,
+      end,
+      enqueued,
+      inFlight: w.inFlight.size,
+      queueSize: w.queue.size,
+    });
   }
 
-  retryFailed(_threadId: string): number {
-    // The placeholder rewriter has no error states (everything is a synchronous
-    // DB write that succeeds), and the outline is only ever (re)started on
-    // upload/thread-open — never from this manual retry. So there is nothing to
-    // re-enqueue.
-    return 0;
+  retryFailed(threadId: string): number {
+    const w = this.workerFor(threadId);
+    const failed = entertainmentService
+      .listChapterProgress(threadId)
+      .filter((ch) => ch.rewriteStatus === "error");
+    let enqueued = 0;
+    for (const ch of failed) {
+      const n = ch.chapterNumber;
+      if (w.inFlight.has(n)) continue;
+      this.enqueue(threadId, w, n);
+      enqueued++;
+    }
+    logger.info("retry failed chapters", {
+      threadId,
+      failed: failed.length,
+      enqueued,
+    });
+    return enqueued;
   }
 
   getInfo(threadId: string): WorkerLiveness {
     const w = this.workers.get(threadId);
     if (!w) return { active: false, target: 0, pending: 0, size: 0 };
     return {
-      active: w.outlineRunning,
+      active: w.outlineRunning || w.queue.pending > 0 || w.queue.size > 0,
       target: w.target,
-      pending: 0,
-      size: 0,
+      pending: w.queue.pending,
+      size: w.queue.size,
     };
   }
 
-  getInFlight(_threadId: string): Set<number> {
-    // The rewriter is synchronous — chapters are either rewritten or not yet
-    // outlined; none are ever "in flight".
-    return new Set<number>();
+  getInFlight(threadId: string): Set<number> {
+    const w = this.workers.get(threadId);
+    return w ? new Set(w.inFlight) : new Set<number>();
+  }
+
+  // --- internals ---------------------------------------------------------
+
+  /**
+   * Decide whether source row `c` still needs a (re)write. The SELF-HEAL core:
+   * ONLY `status === "rewritten"` counts as complete. A missing row, a stale
+   * `"rewriting"` (process killed mid-agent), or an `"error"` all return true
+   * — the next `ensureRange` / restart thread-open re-enqueues them. Combined
+   * with the `inFlight` dedup, this means no row is ever double-triggered:
+   * once enqueued it's in `inFlight`, and once running it's `"rewriting"` in
+   * the DB (also not `"rewritten"`, but `inFlight` short-circuits before the
+   * DB is even consulted).
+   *
+   * The OUTLINE GATE: a row needs rewrite only once its source is outlined
+   * (`outlineStatus === "outlined"`). Until the outliner reaches this chapter,
+   * it is skipped — later `ensureRange` calls (reader polls, restart) pick it
+   * up as the outliner commits more rows.
+   */
+  private needsWork(threadId: string, c: number): boolean {
+    const final = entertainmentService.getFinalChapterNumber(threadId);
+    if (final != null && c > final) return false; // past known end
+    const src = entertainmentService.getSourceChapter(threadId, c);
+    if (!src || src.outlineStatus !== "outlined") return false; // not outlined yet
+    const rewrite = entertainmentService.getRewrittenChapter(threadId, c);
+    return !rewrite || rewrite.status !== "rewritten"; // only "rewritten" is done
   }
 
   /**
-   * Produce placeholder rewrites for every chapter in [from..to] that has a
-   * committed source row but no rewrite yet. Idempotent (existing rewrite rows
-   * are skipped). The rewriter MONITORS source_chapters indirectly: as the
-   * outliner commits more rows, subsequent `ensure`/`ensureRange` calls pick
-   * them up within the reader's window.
+   * Enqueue every chapter in [from, end] that needs work, nearer `from` first
+   * (higher priority). Shared by `ensureRange` (lookahead window / explicit
+   * range). Idempotent via the `inFlight` dedup.
    */
-  private driveRewriter(threadId: string, from: number, to: number): void {
-    for (let c = from; c <= to; c++) {
-      const src = entertainmentService.getSourceChapter(threadId, c);
-      if (!src || src.outlineStatus !== "outlined") continue; // not outlined yet
-      if (entertainmentService.getRewrittenChapter(threadId, c)) continue; // done
-      entertainmentService.insertRewrittenChapter({
-        threadId,
-        chapterNumber: c,
-        sourceChapterId: src.id,
-        content: REWRITE_PLACEHOLDER_PREFIX + (src.content ?? ""),
-        status: "rewritten",
-      });
+  private enqueueWindow(
+    threadId: string,
+    w: ThreadWorker,
+    from: number,
+    end: number,
+  ): number {
+    let enqueued = 0;
+    for (let c = from; c <= end; c++) {
+      if (w.inFlight.has(c)) continue;
+      if (!this.needsWork(threadId, c)) continue;
+      this.enqueue(threadId, w, c);
+      enqueued++;
+    }
+    return enqueued;
+  }
+
+  private enqueue(threadId: string, w: ThreadWorker, c: number): void {
+    w.inFlight.add(c);
+    const priority = LOOKAHEAD - (c - w.target); // current chapter highest
+    logger.debug("enqueue rewrite job", {
+      threadId,
+      chapterNumber: c,
+      priority,
+    });
+    w.queue
+      .add(() => this.processChapter(threadId, c), {
+        priority,
+        id: String(c),
+      })
+      .catch((err) =>
+        logger.error("rewrite job failed", {
+          threadId,
+          chapterNumber: c,
+          err,
+        }),
+      )
+      .finally(() => w.inFlight.delete(c));
+  }
+
+  /**
+   * One source row, serial per thread: rewrite 原文 → 重写. The scheduler does
+   * NO DB writes of its own — it only reads (to make scheduling decisions)
+   * and branches on the status the rewriter reports back. The rewriter
+   * (./rewriter.ts `rewriteChapter`) owns its row lifecycle + content and
+   * persists its own terminal status (`"rewritten"` via the agent's
+   * `outputCoWrittenContent` tool, or `"error"` on failure). The per-run
+   * `AbortController` is wired in here so a far-chapter `ensureRange` can
+   * preempt a running near-chapter rewrite.
+   */
+  private async processChapter(threadId: string, c: number): Promise<void> {
+    // Execution-time final cap: the lookahead enqueues [N..N+10] before the
+    // book's end is known, so chapters past the discovered final can still be
+    // dequeued. Skip them here.
+    const finalCap = entertainmentService.getFinalChapterNumber(threadId);
+    if (finalCap != null && c > finalCap) {
+      logger.debug("skip — past final chapter", { threadId, c, finalCap });
+      return;
+    }
+    // Outline gate, re-checked at execution time: a row enqueued as "outlined"
+    // could in principle have been deleted/re-merged by the outliner's carry-
+    // forward path. If it's no longer ready, skip (a later ensureRange picks
+    // up the re-merged row at its new chapterNumber).
+    const src = entertainmentService.getSourceChapter(threadId, c);
+    if (!src || src.outlineStatus !== "outlined") {
+      logger.debug("skip — source not outlined", { threadId, c });
+      return;
+    }
+
+    logger.info("processing chapter", { threadId, chapterNumber: c });
+    const w = this.workerFor(threadId);
+    const abortController = new AbortController();
+    w.abortController = abortController;
+    try {
+      await rewriteChapter(threadId, c, abortController.signal);
+    } finally {
+      if (w.abortController === abortController) {
+        w.abortController = undefined;
+      }
     }
   }
 }

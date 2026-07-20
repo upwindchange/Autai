@@ -16,96 +16,142 @@ import { CROSS_CHAPTER_CATEGORIES } from "@shared";
 import {
   planChunk,
   sliceChapters,
+  charOffsetAfterParagraph,
   bootstrapCharsPerToken,
   calibrateCharsPerToken,
   tokensOf,
   type ChapterEntry,
-  type SliceResult,
 } from "./textChunker";
 import { compressPriorOutline } from "./outlineCompressor";
 
 const logger = log.scope("Dehydrate:Outliner");
 
 /**
+ * Number of trailing paragraphs of the previous chapter to include in the
+ * 前情衔接 carry section. Enough for the model to recognise whether the new
+ * excerpt's opening continues the previous storyline (and thus emit the
+ * endPara=-1 merge sentinel) without paying the token cost of carrying the
+ * whole chapter. 20 paragraphs of a typical Chinese web novel is a few hundred
+ * to a couple thousand chars — small relative to the input budget.
+ */
+const CARRY_PARA_COUNT = 20;
+
+/**
  * The `outputChapters` tool — the outliner agent's terminal tool and the ONLY
  * way it delivers its result. ONE call, ONE pass: the model emits one entry per
- * chapter it can fully identify in the excerpt (both its first and last
- * text-chunk anchors visible), and the tool's execute runs self-contained
- * deterministic logic to slice each chapter's verbatim body out of the full
- * rawText, then writes a `source_chapters` row (title + verbatim content +
- * outline + foreshadowing + outlineStatus).
+ * storyline unit it can fully identify in the excerpt (it can see the unit's
+ * LAST paragraph), and the tool's execute runs self-contained deterministic
+ * logic to slice each unit's verbatim body out of the paragraphs array (pure
+ * array indexing — NO string matching, NO anchors, NO fuzzy fallback), then
+ * writes a `source_chapters` row (title + verbatim content + outline +
+ * foreshadowing + outlineStatus).
  *
- * This merges chapter-splitting (previously the regex chapterParser) into the
- * outliner in a single pass per chunk. The model contributes boundaries (the two
- * text-chunk anchors) + outline metadata; the system contributes the exact
- * verbatim body (zero fidelity loss — the rewriter feeds source_chapters.content
- * verbatim, so paraphrase/truncation by the model would corrupt it).
+ * This merges chapter-splitting into the outliner in a single pass per chunk.
+ * The model contributes a single paragraph index (`endPara`) + outline metadata;
+ * the system contributes the exact verbatim body (zero fidelity loss, zero
+ * permanent-drop failure mode — every emitted entry produces a row).
  *
- * `threadId` / `sliceText` / `searchFrom` / `carryChars` / `carryChapterNumber`
- * / `consumedOffset` / `nextChapterNumber` / `isLastBatch` all arrive via
- * `experimental_context` (zero-token — never in the prompt). Named as an output
- * verb so the model reads it as "this is how I hand back the chapters", not a
- * side-effect save it might skip.
+ * PARAGRAPH INDEXING: the new-text section the model sees is split into
+ * paragraphs (post-normalize: every `\n` is a paragraph boundary), each tagged
+ * `¶N¶` with N a 0-based LOCAL index re-numbered every round. The model emits
+ * `endPara` = the local index of the unit's LAST paragraph; the system slices
+ * `paragraphs[prevEnd+1 .. endPara]` deterministically. The untagged paragraphs
+ * array is threaded in via `experimental_context` (zero-token — never in the
+ * prompt). Paragraph indices NEVER touch the DB — the body is materialised
+ * verbatim into `source_chapters.content`, and the indices die with the round.
+ *
+ * CARRY MERGE: when this round's first unit CONTINUES the previous chapter's
+ * storyline (a cross-chapter storyline cut at the chunk boundary), the model
+ * emits the FIRST entry with `endPara: -1` as the merge sentinel. The system
+ * then UPDATEs the previous row in place (concat body + concat outline) instead
+ * of inserting a fresh row — preserving the chapter number and any rewrite row
+ * already pointing at it. No delete, no re-insert.
+ *
+ * `threadId` / `paragraphs` / `carryChapterNumber` / `nextChapterNumber` /
+ * `windowCharStart` / `isLastBatch` all arrive via `experimental_context`
+ * (zero-token — never in the prompt). Named as an output verb so the model
+ * reads it as "this is how I hand back the chapters", not a side-effect save it
+ * might skip.
  */
 const OUTPUT_CHAPTERS_TOOL_DESCRIPTION =
   "The ONLY way to end your output and deliver the chapters — " +
   "call this outputChapters tool with one entry per storyline unit you can " +
-  "FULLY identify in the excerpt (you can see BOTH its opening and its closing " +
-  "text). For each unit, provide its title (REQUIRED — reuse the original " +
-    "heading if the unit is a single titled chapter; otherwise write a NEW " +
-    "concise title; never empty or null), the " +
-  "first ~40 and last ~40 characters of its BODY (copied VERBATIM from the " +
-  "excerpt — the system matches these EXACTLY, character for character, to " +
-  "slice the source text; any deviation — a changed, dropped, or inserted " +
-  "character, or a whitespace change — causes the unit to be skipped), plus " +
-  "its outline and foreshadowing. " +
+  "FULLY identify in the new-text section (you can see the unit's LAST " +
+  "paragraph — its end is not cut off by the section's bottom edge). For each " +
+  "unit, provide its title, its endPara (the LOCAL paragraph index of the " +
+  "unit's last paragraph — see below), its outline, and its foreshadowing.\n\n" +
+  "PARAGRAPH INDEXING: the new-text section is split into paragraphs, each " +
+  "tagged `¶N¶` with N a 0-based LOCAL index (re-numbered every excerpt, " +
+  "starting at ¶0¶). For each storyline unit, emit `endPara` = the index of " +
+  "the unit's LAST paragraph. The system slices the verbatim body as all " +
+  "paragraphs from the previous unit's end + 1 through `endPara`. You do NOT " +
+  "need to copy any text — just the integer index. The body is extracted " +
+  "deterministically by the system.\n" +
+  "- Only emit a unit when you can see its LAST paragraph in the new-text " +
+  "section — if a unit's end runs off the bottom of the section, DO NOT emit " +
+  "it (it will be covered in the next excerpt).\n" +
+  "- `endPara` values MUST be strictly increasing across entries (each unit " +
+  "starts where the previous one ended + 1). Gaps or backwards values are " +
+  "rejected.\n\n" +
+  "MERGE WITH PREVIOUS CHAPTER (-1 sentinel): if the new-text section's " +
+  "opening CONTINUES a storyline from the 前情衔接 section (the previous " +
+  "chapter's outline + last paragraphs, shown untagged above the new text), " +
+  "emit your FIRST entry with `endPara: -1`. On `-1`, the system appends the " +
+  "next entry's body to the previous chapter's row and concatenates the " +
+  "outlines — i.e. the storyline cut at the chunk boundary is completed as " +
+  "ONE chapter. You MUST still provide title/outline/foreshadowing for the " +
+  "merged unit. Only the FIRST entry may carry `-1`; `-1` elsewhere is a hard " +
+  "error. If the new text does NOT continue the previous chapter, start " +
+  "normally at endPara >= 0.\n\n" +
   "You are NOT ALLOWED to output units as plain text and stop your output; " +
-  "they must go through this outputChapters tool. " +
-  "Only emit a unit when you can see BOTH its firstTextChunk AND its " +
-  "lastTextChunk in the excerpt — if a unit's end runs off the end of the " +
-  "excerpt, DO NOT emit it (it will be covered in the next excerpt).";
+  "they must go through this outputChapters tool.";
 
 /**
  * Context threaded into the tool's `execute` via `experimental_context` — kept
  * out of the prompt so it costs zero tokens. Holds everything execute needs to
  * slice verbatim bodies + write rows without touching RAM state the loop owns.
  *
- * CARRY-FORWARD: when the previous round's last chapter is carried into this
- * round (unconditional, unless EOF), `sliceText` = carryContent + newExcerpt
- * (a combined contiguous string), `searchFrom` = 0 (search from the combined
- * text's start), and `carryChars` = carryContent.length. The slicer locates
- * anchors in sliceText; execute maps the last anchor's end back to rawText
- * coordinates as `consumedOffset + (lastEndInSlice - carryChars)` to advance
- * the consumed offset correctly. On a normal (non-carry) round, sliceText =
- * rawText, searchFrom = consumedOffset, carryChars = 0 — the mapping is
- * identity (newConsumedOffset from sliceChapters IS the rawText offset).
+ * PARAGRAPHS ARE LOCAL + EPHEMERAL: `paragraphs[0]` is the first NEW paragraph
+ * of this round. The carry paragraphs (前情衔接 section) are NOT in this array
+ * — they appear only in the prompt, untagged, and never participate in slicing.
+ * Indices never reach the DB; the body is materialised into `content`.
  *
- * DEFERRED CARRY DELETE: the loop only READS the carried row's content — it
- * does NOT delete it. `carryChapterNumber` (null when no carry) names the row
- * that must be removed. `execute` deletes it at the LAST possible moment —
- * right before its first insert, and only if `sliceChapters` actually produced
- * committed rows. This way a failed round (no tool call, or execute throws
- * before the insert loop) leaves the carried row in the DB so the next round
- * can re-carry it, instead of silently dropping that chapter.
+ * CARRY-MERGE (replaces the old carry-delete): the loop only READs the carried
+ * row's content + outline for the 前情衔接 prompt section. `carryChapterNumber`
+ * (null when no carry) names the row that may be UPDATEd in place if the model
+ * emits `endPara: -1` on its first entry. If the model does NOT emit `-1`, the
+ * carried row stays untouched (its storyline was complete) and the new entries
+ * are inserted at `nextChapterNumber`, `nextChapterNumber+1`, etc. Either way
+ * the carried row is never deleted — the merge path uses `updateSourceChapter`
+ * (concat body + concat outline) so the chapter number and any rewrite row
+ * pointing at it stay intact.
  */
 interface OutputChaptersContext {
   threadId: string;
-  /** The text the slicer searches (rawText, OR carryContent+newExcerpt). */
-  sliceText: string;
-  /** Lower bound for anchor search in sliceText (0 on a carry round). */
-  searchFrom: number;
-  /** Length of carried content prepended this round (0 if no carry). */
-  carryChars: number;
   /**
-   * The chapterNumber of the carried row to delete before inserting, or null
-   * when there is no carry. The loop only READS the row; `execute` deletes it
-   * right before the first successful insert so a failed round keeps it.
+   * Untagged paragraphs sliced from this round's rawText window. Index 0 is
+   * the first NEW paragraph (carry paragraphs are NOT here — they appear only
+   * in the 前情衔接 prompt section, untagged). The slicer indexes into this
+   * array using the model's local `endPara` values.
+   */
+  paragraphs: string[];
+  /**
+   * The chapterNumber of the carried row (previous round's last chapter), or
+   * null on the first round (no previous chapter to carry). The loop READs
+   * this row's content + outline for the 前情衔接 section; `execute` UPDATEs
+   * it in place (concat body + concat outline) iff the model emits `endPara:
+   * -1` on its first entry. Never deleted.
    */
   carryChapterNumber: number | null;
-  /** The consumedOffset into rawText where new text begins (carry mapping). */
-  consumedOffset: number;
   /** The next chapter number to assign (system-assigned, gap-free). */
   nextChapterNumber: number;
+  /**
+   * Char offset into rawText where this round's window STARTS (i.e. where
+   * `paragraphs[0]` begins). Used by `charOffsetAfterParagraph` to translate
+   * the last committed `endPara` back to a rawText char offset for the
+   * consumedOffset checkpoint.
+   */
+  windowCharStart: number;
   /**
    * True when this round's read window reaches EOF — the last batch. The tool
    * finalizes the thread on it (sets finalChapterNumber, since the full chapter
@@ -116,8 +162,27 @@ interface OutputChaptersContext {
 }
 
 /**
+ * Merge two foreshadowing arrays (the carried row's existing JSON-string array
+ * and the incoming merge entry's array) into one deduped JSON string. Used by
+ * the carry-merge path when the model emits `endPara: -1`.
+ */
+function mergeForeshadowing(existingJson: string, incoming: string[]): string {
+  let existing: string[] = [];
+  try {
+    const parsed = JSON.parse(existingJson);
+    if (Array.isArray(parsed))
+      existing = parsed.filter((x) => typeof x === "string");
+  } catch {
+    // malformed JSON in DB — treat as empty
+  }
+  const merged = Array.from(new Set([...existing, ...incoming]));
+  return JSON.stringify(merged);
+}
+
+/**
  * The single merged tool: split + outline in one pass. Execute slices verbatim
- * bodies via `textChunker.sliceChapters` and writes both tables.
+ * bodies via `textChunker.sliceChapters` (deterministic paragraph indexing) and
+ * writes the source_chapters rows.
  */
 function makeOutputChaptersTool() {
   return tool({
@@ -140,23 +205,28 @@ function makeOutputChaptersTool() {
                   "title. A synthesized title is always expected for merged or " +
                   "title-less units — never leave this empty.",
               ),
-            firstTextChunk: z
-              .string()
-              .min(1)
+            endPara: z
+              .number()
+              .int()
               .describe(
-                "The first ~40 characters of the chapter BODY (the text AFTER " +
-                  "the heading line), copied VERBATIM from the excerpt. The " +
-                  "system matches this string EXACTLY (character for character) " +
-                  "to find the chapter's start — copy it precisely.",
-              ),
-            lastTextChunk: z
-              .string()
-              .min(1)
-              .describe(
-                "The last ~40 characters of the chapter BODY, copied VERBATIM " +
-                  "from the excerpt. The system matches this string EXACTLY to " +
-                  "find the chapter's end. Only emit this chapter if you can " +
-                  "see its end; copy precisely.",
+                "The LOCAL paragraph index (0-based, counting only the tagged " +
+                  "¶N¶ paragraphs in the new-text section) of this storyline " +
+                  "unit's LAST paragraph. The system slices the verbatim body " +
+                  "as all paragraphs from the previous unit's end + 1 through " +
+                  "endPara — you do NOT copy any text, just emit the integer " +
+                  "index. Only emit a unit when you can see its LAST paragraph " +
+                  "in the new-text section. endPara values MUST be strictly " +
+                  "increasing across entries. " +
+                  "SPECIAL VALUE -1 (MERGE SENTINEL): emit -1 ONLY as the FIRST " +
+                  "entry, when this round's first storyline unit CONTINUES the " +
+                  "previous chapter's storyline from the 前情衔接 section (a " +
+                  "cross-chapter storyline cut at the chunk boundary). On -1 " +
+                  "the system appends the next entry's body to the previous " +
+                  "chapter's row and concatenates the outlines — the cut " +
+                  "storyline becomes one chapter. You MUST still provide " +
+                  "title/outline/foreshadowing for the merged unit. If the new " +
+                  "text does NOT continue the previous chapter, start normally " +
+                  "at endPara >= 0.",
               ),
             outline: z
               .string()
@@ -167,7 +237,10 @@ function makeOutputChaptersTool() {
                   "Stored to the DB as a non-null TEXT column — must never be " +
                   "empty; if the unit has no plot content, still summarize what " +
                   "is there. No explanations, asides, or preambles; do not copy " +
-                  "the original prose.",
+                  "the original prose. When this entry is the merge sentinel " +
+                  "(endPara=-1), write the outline so it concatenates naturally " +
+                  "onto the previous chapter's outline (the system joins them " +
+                  "with a newline).",
               ),
             foreshadowing: z
               .array(z.string())
@@ -185,46 +258,113 @@ function makeOutputChaptersTool() {
     }),
     execute: async (input, { experimental_context }) => {
       const ctx = experimental_context as OutputChaptersContext;
-      const result: SliceResult = sliceChapters({
-        excerpt: ctx.sliceText,
+      const result = sliceChapters({
+        paragraphs: ctx.paragraphs,
         entries: input.chapters as ChapterEntry[],
-        searchFrom: ctx.searchFrom,
         nextChapterNumber: ctx.nextChapterNumber,
       });
 
-      // Nothing committed → bail out BEFORE any DB mutation. The carried row
-      // (if any) stays in the DB so the next round re-carries it. This is the
-      // A2 fix: a round that fails or slices nothing must not drop the carried
-      // chapter on the floor.
-      if (result.committed.length === 0) {
+      // Nothing committed AND no merge → bail out BEFORE any DB mutation.
+      // The carried row stays in the DB untouched so the next round re-carries
+      // it. This is the failure-mode guard: a round that produces nothing must
+      // not corrupt the carried chapter.
+      if (result.committed.length === 0 && !result.mergeWithCarry) {
         if (ctx.carryChapterNumber != null) {
           logger.debug("tool: nothing committed; keeping carried row", {
             threadId: ctx.threadId,
             carryChapterNumber: ctx.carryChapterNumber,
           });
         }
-        return { saved: 0, newConsumedOffset: ctx.consumedOffset };
+        return { saved: 0, lastEndPara: -1 };
       }
 
-      // LAST-MOMENT CARRY DELETE — only now that we are certain rows will be
-      // written. Removing it earlier (loop start) would lose the chapter if the
-      // round then failed; removing it later would collide with the first
-      // insert on the (threadId, chapterNumber) unique index. FK cascade drops
-      // any rewrite row too.
-      if (ctx.carryChapterNumber != null) {
-        entertainmentService.deleteSourceChapter(
+      // CARRY-MERGE PATH: if the first entry was the -1 sentinel, UPDATE the
+      // carried row in place. The continuation body is `committed[0].body`
+      // (paragraphs[0..k] where k is the next entry's endPara); the merged
+      // title/outline/foreshadowing come from the sentinel entry itself
+      // (input.chapters[0]).
+      //
+      // We use updateSourceChapter (not delete+insert) so the chapter number
+      // is preserved AND any rewrite row pointing at it via source_chapter_id
+      // FK stays valid. The body is concatenated with a `\n` separator so the
+      // rewritten prose stays paragraph-structured.
+      let firstNewIndex = 0;
+      let saved = 0;
+      const mergeSentinel = result.mergeWithCarry ? input.chapters[0] : null;
+      if (
+        result.mergeWithCarry &&
+        ctx.carryChapterNumber != null &&
+        mergeSentinel
+      ) {
+        const carried = entertainmentService.getSourceChapter(
           ctx.threadId,
           ctx.carryChapterNumber,
         );
+        if (carried) {
+          // The continuation body is committed[0].body (the first non-sentinel
+          // entry's body, which the slicer produced starting at paragraph 0).
+          const continuationBody =
+            result.committed.length > 0 ? result.committed[0].body : "";
+          const mergedBody =
+            carried.content ?
+              carried.content + "\n" + continuationBody
+            : continuationBody;
+          const mergedOutline =
+            carried.outline ?
+              carried.outline + "\n" + mergeSentinel.outline
+            : mergeSentinel.outline;
+          const mergedForeshadowing = mergeForeshadowing(
+            carried.foreshadowing,
+            mergeSentinel.foreshadowing,
+          );
+          entertainmentService.updateSourceChapter(
+            ctx.threadId,
+            ctx.carryChapterNumber,
+            {
+              content: mergedBody,
+              outline: mergedOutline,
+              foreshadowing: mergedForeshadowing,
+              title: mergeSentinel.title || carried.title,
+              outlineStatus: "outlined",
+            },
+          );
+          // The continuation body's chapter (committed[0]) has been folded into
+          // the carried row — skip it in the new-insert loop.
+          firstNewIndex = 1;
+          saved = 1; // count the merged row as 1 saved
+          logger.debug("tool: carry-merge updated previous row", {
+            threadId: ctx.threadId,
+            carryChapterNumber: ctx.carryChapterNumber,
+            continuationParas: result.committed[0]?.body.length ?? 0,
+          });
+        } else {
+          // Carried row vanished (concurrent delete?) — fall back to treating
+          // the merge entry as a fresh insert at nextChapterNumber.
+          logger.warn("tool: carry-merge target row missing; inserting fresh", {
+            threadId: ctx.threadId,
+            carryChapterNumber: ctx.carryChapterNumber,
+          });
+          // Demote the merge to a normal insert: reuse committed[0] at its
+          // already-assigned chapterNumber (which equals nextChapterNumber).
+          // No skip needed; saved stays 0 and the loop below handles it.
+        }
       }
 
-      let saved = 0;
-      for (const ch of result.committed) {
-        // Write the source row with outline data co-located (body verbatim,
-        // heading excluded → in `title`). outlineStatus "outlined" = done.
+      // Insert the remaining new chapters (skipping the merged continuation
+      // body if a merge happened). On a merge round, numbering continues at
+      // carryChapterNumber + 1 (the slicer already assigned chapterNumber =
+      // nextChapterNumber to committed[0], which is the continuation we just
+      // folded into the carried row, so we skip it and continue from
+      // nextChapterNumber + 1 for committed[1+]).
+      const startChapter =
+        result.mergeWithCarry ?
+          ctx.nextChapterNumber + 1
+        : ctx.nextChapterNumber;
+      for (let i = firstNewIndex; i < result.committed.length; i++) {
+        const ch = result.committed[i];
         entertainmentService.insertSourceChapter({
           threadId: ctx.threadId,
-          chapterNumber: ch.chapterNumber,
+          chapterNumber: startChapter + (i - firstNewIndex),
           title: ch.title,
           content: ch.body,
           status: "fetched",
@@ -235,16 +375,16 @@ function makeOutputChaptersTool() {
         saved++;
       }
 
-      // Map the slicer's newConsumedOffset (in sliceText coordinates) back to
-      // rawText coordinates. On a normal round (carryChars=0) this is identity.
-      // On a carry round, the slicer's offset is within carryContent+newExcerpt;
-      // the portion beyond carryChars maps to rawText at consumedOffset + delta.
-      const sliceEnd = result.newConsumedOffset;
-      const rawConsumedOffset =
-        sliceEnd <= ctx.carryChars ?
-          ctx.consumedOffset // ended within the carried portion — no new progress
-        : ctx.consumedOffset + (sliceEnd - ctx.carryChars);
-      entertainmentService.setConsumedOffset(ctx.threadId, rawConsumedOffset);
+      // Translate the last committed endPara (local index) back to a rawText
+      // char offset via charOffsetAfterParagraph. No more carry-coordinate
+      // mapping — paragraphs[] is already new-only, so the offset is a pure
+      // sum of paragraph lengths + the round's windowCharStart.
+      const newConsumedOffset = charOffsetAfterParagraph(
+        ctx.paragraphs,
+        result.lastEndPara,
+        ctx.windowCharStart,
+      );
+      entertainmentService.setConsumedOffset(ctx.threadId, newConsumedOffset);
 
       // The last batch reaches EOF — once its rows land, the full chapter count
       // is known, so finalize the thread here (the flag arrives via context,
@@ -256,22 +396,16 @@ function makeOutputChaptersTool() {
         );
       }
 
-      if (result.skipped.length > 0) {
-        logger.warn("tool: chapter entries skipped (anchors not found)", {
-          threadId: ctx.threadId,
-          skipped: result.skipped.length,
-          reasons: result.skipped.map((s) => s.reason),
-        });
-      }
       logger.info("tool: chapters committed", {
         threadId: ctx.threadId,
         saved,
-        skipped: result.skipped.length,
-        rawConsumedOffset,
+        mergeWithCarry: result.mergeWithCarry,
+        lastEndPara: result.lastEndPara,
+        newConsumedOffset,
         chapters: result.committed.map((c) => c.chapterNumber),
         isLastBatch: ctx.isLastBatch,
       });
-      return { saved, newConsumedOffset: rawConsumedOffset };
+      return { saved, lastEndPara: result.lastEndPara };
     },
   });
 }
@@ -287,13 +421,13 @@ Your last response did not call the outputChapters tool; \
 instead, you stopped after emitting plain text. \
 Plain text is not accepted, so the result is invalid. \
 Please resubmit now: call the outputChapters tool with ONE entry per storyline \
-unit you can FULLY identify in the excerpt (you can see BOTH its firstTextChunk \
-AND its lastTextChunk). Each entry carries: title (REQUIRED — reuse the original \
-heading for a single titled chapter, otherwise synthesize a NEW concise title \
-for a merged or title-less unit; never empty), firstTextChunk + lastTextChunk \
-(copied VERBATIM, character for character), outline (non-empty factual summary), \
-and foreshadowing (string array; [] if none). Do not output plain text, and do \
-not write any content outside of the tool call.`;
+unit you can FULLY identify in the new-text section (you can see the unit's \
+LAST paragraph). Each entry carries: title (REQUIRED), endPara (the LOCAL 0-based \
+index of the unit's last ¶N¶-tagged paragraph; or -1 as the merge-with-previous-\
+chapter sentinel on the FIRST entry only), outline (non-empty factual summary), \
+and foreshadowing (string array; [] if none). The system extracts the body \
+deterministically from your endPara — you do not copy any text. Do not output \
+plain text, and do not write any content outside of the tool call.`;
 
 // ---------------------------------------------------------------------------
 // Cross-chapter tactic lookup table (章节并写 rules).
@@ -740,15 +874,13 @@ const CROSS_CHAPTER_TACTICS: Record<
  * text and identifies "storyline units" — each may be a single original chapter
  * OR several consecutive original chapters MERGED into one (when they form a
  * single cross-chapter storyline: a tournament arc, a grinding sequence, a
- * multi-chapter event). For each unit it emits title + first/last text anchors
- * + outline + foreshadowing. The cross-chapter tactics table (when enabled)
- * serves as guidance for WHICH consecutive chapters should be merged — not as a
- * per-chapter flag (needsCrossWrite was removed; merging IS the cross-chapter
- * handling).
+ * multi-chapter event). For each unit it emits title + endPara (the LOCAL
+ * paragraph index of the unit's last paragraph) + outline + foreshadowing. The
+ * cross-chapter tactics table (when enabled) serves as guidance for WHICH
+ * consecutive chapters should be merged — not as a per-chapter flag
+ * (needsCrossWrite was removed; merging IS the cross-chapter handling).
  */
-function buildOutlineSystemPrompt(
-  crossChapter: CrossChapterDehydrate,
-): string {
+function buildOutlineSystemPrompt(crossChapter: CrossChapterDehydrate): string {
   const sections: string[] = [];
 
   // Role + goal (always on).
@@ -760,21 +892,26 @@ function buildOutlineSystemPrompt(
       "一段被拆成多章的事件、一个完整的小高潮），把它们合并成一个剧情单元。",
   );
 
-  // The deliverables (always on) — split + outline in ONE pass.
+  // The deliverables (always on) — split + outline in ONE pass, paragraph-indexed.
   sections.push(
-    "对每个剧情单元（你能同时看到其正文开头和正文结尾），请产出：\n" +
+    "对每个剧情单元（你能看到其正文的最后一段——结尾没有跑出片段范围），请产出：\n" +
       "- 标题：该剧情单元的标题，**必填，不允许为空或 null**。" +
       "**若该单元是单个有标题的原章**，直接沿用该原章标题" +
       "（如「第一章 风起」）；**若该单元由多个原章合并而成**，请为这条合并后的故事线**新拟一个简明标题**；" +
       "**若原小说本身不提供章节标题**，也请新拟一个简明标题。合并单元或无标题原文都必须给出新标题，不得留空。\n" +
-      "- firstTextChunk：该剧情单元正文（标题行之后的内容）的前约 40 个字符，**逐字精确复制**自片段" +
-      "（一个字符都不能改动、漏掉或新增，包括空白也必须一致）。系统会在片段中据此精确定位该单元的起始位置；" +
-      "若有任何偏差，该单元会被跳过。\n" +
-      "- lastTextChunk：该剧情单元正文最后约 40 个字符，**逐字精确复制**自片段（同样一个字符都不能差）。" +
-      "系统会据此定位该单元的结束位置。**只有当你能看到该单元的正文结尾时才提交它**——" +
-      "若某单元的结尾跑出了片段范围，不要提交它（它会在下一个片段中被覆盖）。\n" +
+      "- endPara：该剧情单元最后一段在「本次需要处理的小说原文片段」中的**段落序号**。" +
+      "片段中每一段都已用 `¶N¶` 标记，N 是从 0 开始的本地段落序号（每次片段都从 ¶0¶ 重新计数）。" +
+      "你只需给出该单元最后一段的 N 值（整数），系统会自动切取「上一单元结尾段 + 1」到 endPara 之间的所有段落作为该单元的正文。\n" +
+      "  · **你不需要复制任何正文文本**——只需给出段落序号，正文由系统按序号精确切取。\n" +
+      "  · **只有当你能看到该单元的最后一段时才提交它**——若某单元的结尾跑出了片段范围，不要提交它（它会在下一个片段中被覆盖）。\n" +
+      "  · 各条目的 endPara 必须**严格递增**（每个单元紧接上一个单元结束的下一段开始）。\n" +
+      "  · **特殊值 -1（合并哨兵）**：**仅作为第一条条目**，当本次片段开头延续「前情衔接」中给出的上一章故事线时，" +
+      "将第一条条目的 endPara 设为 -1。系统会把下一条条目的正文追加到上一章行，并把两份大纲拼接，" +
+      "从而把在切片边界被切断的故事线还原为一个完整章节。**即使 endPara=-1，仍必须给出该单元的标题/大纲/伏笔。**" +
+      "若本次片段开头并不延续上一章，按正常方式从 endPara ≥ 0 开始。\n" +
       "- 大纲：该剧情单元主要事件、人物决定、状态变化的简明概括（2-5 句，只述事实与推进，不复述原文描写）。" +
-      "存入数据库为非空 TEXT 字段，**必须给出非空内容**，不得为空字符串。\n" +
+      "存入数据库为非空 TEXT 字段，**必须给出非空内容**，不得为空字符串。" +
+      "当该条目是合并哨兵（endPara=-1）时，请写成可与上一章大纲自然拼接的形式（系统用换行连接）。\n" +
       "- 伏笔/线索：字符串数组，用关键词列出该单元中出现、且后文会用到的线索与伏笔" +
       "（人物、物品、承诺、能力、关系、悬念等）。存入数据库为 JSON 字符串数组（NOT NULL，默认 '[]'），" +
       "**不接受 null**：若该单元没有伏笔，返回**空数组 []**，而非 null。每项为短语关键词，不是完整句子。" +
@@ -799,49 +936,62 @@ function buildOutlineSystemPrompt(
     sections.push(
       [
         "合并判断依据：下面列出的跨章套路。当连续多个原章属于同一种套路、" +
-          "共同构成一个完整故事线时，应将它们合并成一个剧情单元（firstTextChunk 取故事线起点，" +
-          "lastTextChunk 取故事线终点）。每条说明这是什么套路、哪些是可压缩的水、哪些才是有效信息，" +
+          "共同构成一个完整故事线时，应将它们合并成一个剧情单元（endPara 取故事线最后一段的序号，" +
+          "起点自动紧接上一单元）。每条说明这是什么套路、哪些是可压缩的水、哪些才是有效信息，" +
           "作为你判断合并与识别的依据。不属于这些套路的独立原章保持单独成章。",
         ...tacticBlocks,
       ].join("\n\n"),
     );
   }
 
-  // Cumulative-context note (always on) — explains the prior-outline prefix.
+  // Cumulative-context note (always on) — explains the prior-outline prefix
+  // and the 前情衔接 carry section + the -1 merge sentinel.
   sections.push(
-    "你会一次收到一段小说原文片段。如果你之前已经处理过更早的片段，本次输入会附带“前情大纲”" +
-      "（之前每一章的大纲汇总）作为上下文，帮助你判断伏笔是否已埋、套路是否在重复。" +
-      "请把前情大纲作为整体剧情的参照，但本次只需为“本次片段中能完整看到开头与结尾的剧情单元”产出结果。",
+    "你每次会收到：\n" +
+      "1. （可选）「前情大纲」——之前所有章节大纲的压缩汇总，作为整体剧情参照，" +
+      "帮助你判断伏笔是否已埋、套路是否在重复。**本次无需为前情大纲中的章节产出结果。**\n" +
+      "2. （可选，仅当本次不是首轮时）「前情衔接」——上一章的大纲 + 上一章的最后若干段原文" +
+      "（**未标记 ¶N¶**）。如果「本次需要处理的小说原文片段」开头延续此故事线，" +
+      "请将**第一条**条目的 endPara 设为 **-1**，与上一章合并；否则按正常方式从 endPara ≥ 0 开始。\n" +
+      "3. 「本次需要处理的小说原文片段」——每段以 `¶N¶` 标记（N 从 0 起的本地段落序号）。" +
+      "只为「你能看到其最后一段的剧情单元」产出结果。",
   );
 
   // Output contract (always on, English, closes the brief).
   sections.push(
     "The only thing you are allowed to do is to call the outputChapters tool:\n" +
-      "- Place an array entry per storyline unit you can FULLY identify in the excerpt " +
-      "(you can see BOTH its firstTextChunk AND its lastTextChunk), each carrying " +
-      "title, firstTextChunk, lastTextChunk, outline, and foreshadowing (string " +
-      "array, may be empty);\n" +
+      "- Place an array entry per storyline unit you can FULLY identify in the " +
+      "new-text section (you can see the unit's LAST paragraph — its end is not " +
+      "cut off by the section's bottom edge), each carrying title, endPara, " +
+      "outline, and foreshadowing (string array, may be empty);\n" +
       "- `title`: REQUIRED — must never be empty or null. Reuse the original " +
       "chapter heading VERBATIM if the unit is a single original chapter that " +
       "has one; WRITE A NEW concise title if the unit MERGES several original " +
       "chapters, OR if the source novel has no chapter titles at all. Merged " +
       "and title-less units must carry a synthesized title;\n" +
-      "- Copy firstTextChunk and lastTextChunk VERBATIM from the excerpt, " +
-      "character for character — the system matches these exact strings to " +
-      "slice the unit's source text; any deviation (a changed/dropped/inserted " +
-      "character or whitespace) skips the unit;\n" +
-      "- For a merged unit (multiple original chapters), firstTextChunk is the " +
-      "start of the FIRST original chapter and lastTextChunk is the end of the " +
-      "LAST original chapter in the merged storyline;\n" +
-      "- Do NOT emit a unit whose end runs off the end of the excerpt — it will " +
-      "be covered in the next excerpt;\n" +
+      "- `endPara`: the LOCAL 0-based index of the unit's LAST paragraph, " +
+      "counting only the tagged ¶N¶ paragraphs in the new-text section. The " +
+      "system extracts the verbatim body deterministically as all paragraphs " +
+      "from the previous unit's end + 1 through endPara — YOU DO NOT COPY ANY " +
+      "TEXT, just emit the integer index. endPara values MUST be strictly " +
+      "increasing across entries. SPECIAL VALUE -1 (MERGE SENTINEL): emit -1 " +
+      "ONLY as the FIRST entry when this round's first unit CONTINUES the " +
+      "previous chapter's storyline from the 前情衔接 section; the system " +
+      "appends the next entry's body to the previous chapter's row and " +
+      "concatenates the outlines. You MUST still provide title/outline/" +
+      "foreshadowing for the merged unit. -1 anywhere except the first entry " +
+      "is a hard error;\n" +
+      "- Do NOT emit a unit whose end runs off the bottom of the new-text " +
+      "section — it will be covered in the next excerpt;\n" +
       "- You are not allowed to output units anywhere other than the " +
       "outputChapters tool;\n" +
       "- You are not allowed to output anything other than calling the " +
       "outputChapters tool;\n" +
       "- `outline` is stored as a NOT NULL TEXT column — it must be a non-empty " +
       "brief factual summary; no explanations, asides, or preambles; do not " +
-      "copy the original prose;\n" +
+      "copy the original prose. When this entry is the merge sentinel " +
+      "(endPara=-1), write the outline so it concatenates naturally onto the " +
+      "previous chapter's outline (the system joins them with a newline);\n" +
       "- `foreshadowing` is stored as a JSON string array in a NOT NULL column " +
       "(DB default '[]'). null is NOT accepted — return an empty array [] when " +
       "the unit plants none. Entries are short keywords/noun phrases, not " +
@@ -1052,23 +1202,22 @@ export async function generateOutlines(
       }
     }
 
-    // --- UNCONDITIONAL DB CARRY-FORWARD (READ ONLY) ---
-    // Unless this is the novel's last chapter (EOF reached above), carry the
-    // last source chapter's content into this round: READ its text from DB and
-    // prepend it to the new excerpt. The model sees one continuous text with no
-    // annotation — it cannot tell where the carried text ends and new text
-    // begins. If a cross-chapter storyline was cut at the chunk boundary, the
-    // carried first half + new second half let the model merge them into one
-    // unit naturally. No flags, no special prompt — EOF is the sole gate.
+    // --- DB CARRY-FORWARD (READ ONLY, prompt-only) ---
+    // Unless this is the novel's last chapter (EOF reached above), READ the
+    // previous chapter's outline + last N paragraphs (UNTAGGED) for the
+    // 前情衔接 prompt section. The model sees them as context (NOT as part of
+    // the tagged new-text section), and decides whether to merge via the
+    // endPara=-1 sentinel on its first entry. If it merges, `execute` UPDATEs
+    // the carried row in place (concat body + concat outline) — no delete, no
+    // re-insert, chapter number preserved.
     //
-    // NOTE: we do NOT delete the carried row here. Its chapterNumber is stashed
-    // in `carryChapterNumber` and threaded into the tool's context; `execute`
-    // deletes the row at the last possible moment — right before its first
-    // insert, and only if it actually commits rows. This keeps the row alive on
-    // a failed round (no tool call, or execute slices nothing / throws) so the
-    // next round re-carries it instead of dropping that chapter on the floor.
-    let carryContent = "";
-    let carryChars = 0;
+    // This replaces the old design's "prepend carried content to the excerpt
+    // and let the slicer match anchors across the boundary" — which was the
+    // source of the anchor-matching fragility this whole refactor eliminates.
+    // The carry is now PROMPT-ONLY: the paragraphs the model indexes into are
+    // always NEW-only, so paragraph indices stay local and unambiguous.
+    let carryOutline = "";
+    let carryParagraphs: string[] = []; // untagged, prompt-only
     let carryTokens = 0;
     let carryChapterNumber: number | null = null;
     const lastChapterNum =
@@ -1079,29 +1228,32 @@ export async function generateOutlines(
         lastChapterNum,
       );
       if (lastSource?.content) {
-        carryContent = lastSource.content;
-        carryChars = carryContent.length;
-        carryTokens = tokensOf(carryContent);
+        const lastParas = lastSource.content.split("\n");
+        carryParagraphs = lastParas.slice(-CARRY_PARA_COUNT);
+        carryOutline = lastSource.outline ?? "";
+        carryTokens = tokensOf(
+          carryOutline + "\n" + carryParagraphs.join("\n"),
+        );
         carryChapterNumber = lastChapterNum;
-        logger.debug("carry-forward: read last chapter for re-merge", {
+        logger.debug("carry-forward: read last chapter for 前情衔接", {
           threadId,
           chapterNumber: lastChapterNum,
-          carryChars,
+          carryParas: carryParagraphs.length,
           carryTokens,
         });
       }
     }
 
     // --- next chapter number: DB is the single source of truth ---
-    // Computed AFTER the carry-forward read above. On a carry round, the carried
-    // row is still in the DB at this point (execute deletes it right before its
-    // first insert), so `carryChapterNumber` is the slot the re-merged unit must
-    // recycle — feeding it here keeps chapter numbers gap-free: the carried row
-    // is deleted and immediately re-filled at the same number. On a no-carry
-    // round (first round, or resuming with no prior chapters) fall back to
-    // max(chapterNumber)+1.
+    // Always max(chapterNumber)+1. The carried row is NEVER deleted — if the
+    // model merges via -1, `execute` UPDATEs the carried row in place; the
+    // first NEW row then lands at carryChapterNumber+1. If the model does NOT
+    // merge, the first new row lands at carryChapterNumber+1 too. Either way
+    // gap-free. On a no-carry round (first round) fall back to max+1 = 1.
     const nextChapterNumber =
-      carryChapterNumber ?? entertainmentService.maxSourceChapterNumber(threadId) + 1;
+      lastChapterNum > 0 ?
+        lastChapterNum + 1
+      : entertainmentService.maxSourceChapterNumber(threadId) + 1;
 
     // Build this round's system prompt and measure its token cost for the
     // input-budget calculation.
@@ -1110,8 +1262,10 @@ export async function generateOutlines(
     const priorOutlineTokens = priorOutline ? tokensOf(priorOutline) : 0;
 
     // --- plan the read window for this round (input-budget driven) ---
-    // The carry-forward content's tokens are deducted from the budget so new
-    // text is read less. NO overlap — the carry IS the continuity mechanism.
+    // The carry prefix's tokens (outline + last N paragraphs) are deducted from
+    // the budget so new text is read less. NO overlap — the carry section is
+    // prompt context, and the new-text section's paragraph indices are LOCAL
+    // (start at ¶0¶), so there is no coordinate continuity to preserve.
     const plan = planChunk({
       rawTextLen: rawText.length,
       consumedOffset,
@@ -1127,9 +1281,15 @@ export async function generateOutlines(
     // This batch reads to EOF — the agent finalizes the thread on it (via the
     // isLastBatch flag in the tool context). The loop exits after this round.
     const isLastBatch = plan.readEnd >= rawText.length;
-    // The combined excerpt the model sees: carried content (if any) + new text,
-    // with NO separator or annotation — one continuous stream.
-    const excerpt = carryContent + newExcerpt;
+
+    // --- split the new excerpt into paragraphs and tag for the LLM ---
+    // Post-normalizeText every `\n` is a paragraph boundary (blank-line runs
+    // collapse to a single `\n`), so `split("\n")` yields clean paragraphs.
+    // The untagged `paragraphs` array is threaded into the tool via ctx for
+    // deterministic body slicing; the tagged version goes into the prompt so
+    // the model can reference paragraph indices.
+    const paragraphs = newExcerpt.split("\n");
+    const taggedExcerpt = paragraphs.map((p, i) => `¶${i}¶${p}`).join("\n");
 
     logger.debug("round planned", {
       threadId,
@@ -1139,8 +1299,9 @@ export async function generateOutlines(
       readStart: plan.readStart,
       readEnd: plan.readEnd,
       newExcerptLen: newExcerpt.length,
-      carryChars,
-      excerptLen: excerpt.length,
+      paragraphCount: paragraphs.length,
+      carryParas: carryParagraphs.length,
+      taggedExcerptLen: taggedExcerpt.length,
       excerptCharBudget: plan.excerptCharBudget,
       charsPerToken,
       priorOutlineLen: priorOutline.length,
@@ -1148,18 +1309,24 @@ export async function generateOutlines(
       systemPromptTokens,
     });
 
-    // --- build the user message: prior prefix + combined excerpt ---
-    const userContent = buildUserMessage(priorOutline, excerpt);
+    // --- build the user message: prior outline + carry section + tagged excerpt
+    const carrySection =
+      carryChapterNumber != null ?
+        `上一章大纲：${carryOutline}\n\n${carryParagraphs.join("\n")}`
+      : null;
+    const userContent = buildUserMessage({
+      priorOutline,
+      carrySection,
+      taggedExcerpt,
+    });
 
     // --- run the agent (one pass, single tool call) ---
     const ctx: OutputChaptersContext = {
       threadId,
-      sliceText: excerpt,
-      searchFrom: 0, // search from the start of the combined text
-      carryChars,
+      paragraphs, // untagged, for deterministic body slicing in execute
       carryChapterNumber,
-      consumedOffset,
       nextChapterNumber,
+      windowCharStart: plan.readStart,
       isLastBatch,
     };
 
@@ -1251,28 +1418,32 @@ export async function generateOutlines(
     //
     //   !saved                  — model never produced a usable tool call,
     //                              even after the one-shot RETRY_SUFFIX retry.
-    //   chaptersCommitted === 0 — tool ran but sliced nothing (all anchors
-    //                              missed); execute's early-return already left
-    //                              consumedOffset and the carried row untouched.
+    //   chaptersCommitted === 0 — tool ran but the slicer committed nothing
+    //                              (e.g. all endPara values were out of range
+    //                              or backwards); execute's early-return already
+    //                              left consumedOffset and the carried row
+    //                              untouched.
     //
     // We early-return BEFORE the finalize block, so: raw blob stays in DB,
     // consumedOffset holds the last successful round's value, and
     // finalChapterNumber stays null — exactly the resumable state ensureRange
     // re-enters on the next thread open.
     const newConsumedOffset = entertainmentService.getConsumedOffset(threadId);
-    const chaptersCommitted = saved ?
-      Math.max(
-        0,
-        entertainmentService.maxSourceChapterNumber(threadId) -
-          (nextChapterNumber - 1),
-      )
-    : 0;
+    const chaptersCommitted =
+      saved ?
+        Math.max(
+          0,
+          entertainmentService.maxSourceChapterNumber(threadId) -
+            (nextChapterNumber - 1),
+        )
+      : 0;
 
     if (!saved || chaptersCommitted === 0) {
       errored++;
-      const reason = !saved ?
-        "model did not call the outputChapters tool after retry"
-      : "tool committed nothing (all anchors missed)";
+      const reason =
+        !saved ?
+          "model did not call the outputChapters tool after retry"
+        : "tool committed nothing (slicer produced no bodies)";
       logger.error("outliner round failed; stopping for user retry", {
         threadId,
         round,
@@ -1294,7 +1465,25 @@ export async function generateOutlines(
 
     // Absorb + compress the cumulative prior outline for the next round.
     // Reads source chapters' outline data (co-located after the table merge).
+    //
+    // On a carry-merge round (model emitted endPara=-1), the carried row at
+    // `carryChapterNumber` had its outline CONCATENATED with the merge entry's
+    // outline — so we must re-read it to pick up the updated text. We include
+    // `carryChapterNumber` in the loop unconditionally when present: on a
+    // no-merge round its outline is unchanged (re-reading is a harmless no-op
+    // for the compressor); on a merge round it picks up the concatenated
+    // outline. Cheaper and more robust than threading the merge flag through
+    // the agent layer.
     const newOutlines: string[] = [];
+    if (carryChapterNumber != null) {
+      const carried = entertainmentService.getSourceChapter(
+        threadId,
+        carryChapterNumber,
+      );
+      if (carried && carried.outlineStatus === "outlined") {
+        newOutlines.push(`第 ${carryChapterNumber} 章：${carried.outline}`);
+      }
+    }
     for (
       let n = nextChapterNumber;
       n < nextChapterNumber + chaptersCommitted;
@@ -1362,16 +1551,33 @@ export async function generateOutlines(
 }
 
 /**
- * Build the user message for one round: optional compressed prior-outline
- * prefix + the raw excerpt. No resume/continuity note — the carry-forward
- * design feeds the previous round's last row verbatim into this round's
- * excerpt (one continuous stream, no boundary annotation), so there is no
- * chapter-edge to point the model at.
+ * Build the user message for one round. Up to three sections, joined by a blank
+ * line, in this fixed order:
+ *
+ *   1. (optional) 前情大纲 — the compressed cumulative outline of all earlier
+ *      chapters. Context only; the model is told not to produce results for it.
+ *   2. (optional, only when carrying) 前情衔接 — the previous chapter's outline
+ *      + its last N paragraphs (UNTAGGED — no ¶N¶ markers). If the new-text
+ *      section's opening continues this storyline, the model emits its first
+ *      entry with endPara=-1 to merge with the previous row.
+ *   3. (always) 本次需要处理的小说原文片段 — the new paragraphs, each tagged
+ *      `¶N¶` with N a 0-based local index. This is the ONLY section the model
+ *      emits results for; its endPara values index into these tagged paragraphs.
+ *
+ * The carry section is kept SEPARATE from the tagged excerpt (not concatenated)
+ * so the model can clearly distinguish "context you don't tag" from "new text
+ * you tag and index into". The previous design concatenated carried content
+ * onto the excerpt with no boundary, which worked when slicing was anchor-based
+ * but would be ambiguous under paragraph indexing (which paragraphs are new?).
  */
-function buildUserMessage(
-  priorOutline: string,
-  excerpt: string,
-): string {
+function buildUserMessage(params: {
+  priorOutline: string;
+  /** null/empty when there is no carry (first round). */
+  carrySection: string | null;
+  /** The new paragraphs, already tagged ¶0¶, ¶1¶, .... */
+  taggedExcerpt: string;
+}): string {
+  const { priorOutline, carrySection, taggedExcerpt } = params;
   const parts: string[] = [];
   if (priorOutline) {
     parts.push(
@@ -1379,6 +1585,16 @@ function buildUserMessage(
         priorOutline,
     );
   }
-  parts.push("本次需要处理的小说原文片段：\n" + excerpt);
+  if (carrySection) {
+    parts.push(
+      "前情衔接（上一章的大纲 + 上一章最后若干段原文，**未标记 ¶N¶**；" +
+        "如本次片段开头延续此故事线，请将**第一条**条目的 endPara 设为 **-1** 与上一章合并）：\n" +
+        carrySection,
+    );
+  }
+  parts.push(
+    "本次需要处理的小说原文片段（每段以 ¶N¶ 标记，N 为 0 起的本地段落序号）：\n" +
+      taggedExcerpt,
+  );
   return parts.join("\n\n");
 }
