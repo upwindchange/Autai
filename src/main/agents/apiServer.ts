@@ -49,7 +49,7 @@ export class ApiServer {
     // the auth gate below and every downstream handler still run unchanged.
     // ThreadId / chapter number are dynamic, so match by path shape, not value.
     const QUIET_PATH_RE =
-      /^\/(?:entertainment\/threads\/[^/]+\/(?:worker|chapters\/[^/]+|bookmarks)|events|health)$/;
+      /^\/(?:entertainment\/threads\/[^/]+\/(?:worker|chapters(?:\/[^/]+)?|bookmarks)|events|health)$/;
 
     this.app.use("*", async (c, next) => {
       if (!QUIET_PATH_RE.test(c.req.path)) {

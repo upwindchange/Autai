@@ -1178,7 +1178,10 @@ export async function generateOutlines(
   let fixedOverheadTokens = 0;
 
   // The outputChapters tool's description overhead — a constant char length
-  // for the whole run (the description string never changes).
+  // for the whole run (the description string never changes). Counted once:
+  // it's SDK-injected as the tool's schema overhead (system context), and the
+  // appended user-message recency block uses the full systemPrompt instead (see
+  // buildUserMessage).
   const toolDescriptionChars = OUTPUT_CHAPTERS_TOOL_DESCRIPTION.length;
 
   logger.info("outline run initialized", {
@@ -1295,9 +1298,13 @@ export async function generateOutlines(
 
     // Build this round's system prompt; measure all fixed overheads as CHAR
     // lengths for the input-budget math (everything is chars now — see
-    // planChunk).
+    // planChunk). The system prompt appears TWICE in the actual request:
+    //   1. As the `system` parameter (primacy position);
+    //   2. Appended at the END of the user message (recency protection — see
+    //      buildUserMessage docstring).
+    // Both copies occupy input budget, so systemPromptChars is doubled.
     const systemPrompt = buildOutlineSystemPrompt(crossChapter);
-    const systemPromptChars = systemPrompt.length;
+    const systemPromptChars = systemPrompt.length * 2;
     const priorOutlineChars = priorOutline.length;
 
     // --- plan the read window for this round (input-budget driven) ---
@@ -1328,21 +1335,21 @@ export async function generateOutlines(
     // deterministic body slicing; the tagged version goes into the prompt so
     // the model can reference paragraph indices.
     //
-    // TAGGING-OVERHEAD CORRECTION: the `¶N¶` markers add ~6.4 chars ×
-    // paragraphCount to the excerpt (~12% for a typical round). planChunk sized
-    // `excerptCharBudget` against the untagged length, but what actually ships
-    // in the user message is the tagged length. We tighten the paragraph list
-    // (pop trailing paragraphs + re-tag) until the tagged excerpt + every other
-    // fixed overhead fits inside `excerptCharBudget`. In practice the loop runs
-    // 0-1 times; a `while` is robustness against pathological paragraph counts.
+    // TAGGING-OVERHEAD CORRECTION: `planChunk` sized `excerptCharBudget` against
+    // the untagged length, but what actually ships in the user message is the
+    // tagged length (each paragraph gains `¶N¶` ≈ 6.4 chars, ~12% for a typical
+    // round). We tighten the paragraph list (pop trailing paragraphs + re-tag)
+    // until the tagged excerpt alone fits inside `excerptCharBudget`. The other
+    // overheads (system prompt, tool desc, prior outline, carry) are ALREADY
+    // subtracted inside planChunk — no double subtraction here. In practice the
+    // loop runs 0-1 times; a `while` is robustness against pathological
+    // paragraph counts.
     const paragraphs = newExcerpt.split("\n");
     let taggedExcerpt = paragraphs.map((p, i) => `¶${i}¶${p}`).join("\n");
-    const fixedOverheadChars =
-      priorOutlineChars + systemPromptChars + toolDescriptionChars + carryChars;
     let tightenPasses = 0;
     while (
       paragraphs.length > 1 &&
-      taggedExcerpt.length + fixedOverheadChars > plan.excerptCharBudget
+      taggedExcerpt.length > plan.excerptCharBudget
     ) {
       paragraphs.pop();
       taggedExcerpt = paragraphs.map((p, i) => `¶${i}¶${p}`).join("\n");
@@ -1380,6 +1387,7 @@ export async function generateOutlines(
       priorOutline,
       carrySection,
       taggedExcerpt,
+      systemPrompt,
     });
 
     // --- run the agent (one pass, single tool call) ---
@@ -1636,24 +1644,36 @@ export async function generateOutlines(
 }
 
 /**
- * Build the user message for one round. Up to three sections, joined by a blank
- * line, in this fixed order:
+ * Build the user message for one round. Up to four sections, joined by a blank
+ * line, in this RECENCY-OPTIMIZED order:
  *
- *   1. (optional) 前情大纲 — the compressed cumulative outline of all earlier
- *      chapters. Context only; the model is told not to produce results for it.
- *   2. (optional, only when carrying) 前情衔接 — the previous chapter's outline
+ *   1. (optional, only when carrying) 前情衔接 — the previous chapter's outline
  *      + its last N paragraphs (UNTAGGED — no ¶N¶ markers). If the new-text
  *      section's opening continues this storyline, the model emits its first
  *      entry with endPara=-1 to merge with the previous row.
- *   3. (always) 本次需要处理的小说原文片段 — the new paragraphs, each tagged
+ *   2. (always) 本次需要处理的小说原文片段 — the new paragraphs, each tagged
  *      `¶N¶` with N a 0-based local index. This is the ONLY section the model
  *      emits results for; its endPara values index into these tagged paragraphs.
+ *   3. (optional) 前情大纲 — the compressed cumulative outline of all earlier
+ *      chapters. Context only; the model is told not to produce results for it.
+ *   4. (always) the FULL system prompt — repeated at the END of the user message
+ *      as a RECENCY PROTECTION against attention dilution.
+ *
+ * RECENCY PROTECTION (Design B fix for attention dilution):
+ * The full system prompt also lives in the `system` prompt parameter (PRIMACY
+ * position, where the model's attention peaks at the start). But with ~900k
+ * tokens of excerpt between the system prompt and the model's generation point,
+ * the rules were being forgotten — round 0 failed ~50% of the time by emitting
+ * prose instead of calling the tool. Appending the SAME system prompt at the END
+ * (RECENCY position) reinforces every rule — role, deliverables, ¶N¶ indexing,
+ * -1 merge sentinel, cross-chapter merge tactics, output contract — at both
+ * attention peaks. The appended copy is the exact same string as the `system`
+ * parameter, so there is zero drift risk. Cost is ~5.7k tokens per round
+ * (negligible vs the ~900k excerpt); budget math counts systemPromptChars twice.
  *
  * The carry section is kept SEPARATE from the tagged excerpt (not concatenated)
  * so the model can clearly distinguish "context you don't tag" from "new text
- * you tag and index into". The previous design concatenated carried content
- * onto the excerpt with no boundary, which worked when slicing was anchor-based
- * but would be ambiguous under paragraph indexing (which paragraphs are new?).
+ * you tag and index into".
  */
 function buildUserMessage(params: {
   priorOutline: string;
@@ -1661,15 +1681,11 @@ function buildUserMessage(params: {
   carrySection: string | null;
   /** The new paragraphs, already tagged ¶0¶, ¶1¶, .... */
   taggedExcerpt: string;
+  /** The full system prompt, appended at the END for recency protection. */
+  systemPrompt: string;
 }): string {
-  const { priorOutline, carrySection, taggedExcerpt } = params;
+  const { priorOutline, carrySection, taggedExcerpt, systemPrompt } = params;
   const parts: string[] = [];
-  if (priorOutline) {
-    parts.push(
-      "前情大纲（之前章节的概括，作为上下文参考，本次无需为这些章节产出结果）：\n" +
-        priorOutline,
-    );
-  }
   if (carrySection) {
     parts.push(
       "前情衔接（上一章的大纲 + 上一章最后若干段原文，**未标记 ¶N¶**；" +
@@ -1681,5 +1697,15 @@ function buildUserMessage(params: {
     "本次需要处理的小说原文片段（每段以 ¶N¶ 标记，N 为 0 起的本地段落序号）：\n" +
       taggedExcerpt,
   );
+  if (priorOutline) {
+    parts.push(
+      "前情大纲（之前章节的概括，作为上下文参考，本次无需为这些章节产出结果）：\n" +
+        priorOutline,
+    );
+  }
+  // RECENCY PROTECTION: append the FULL system prompt at the very end so it's
+  // the last thing the model reads before generating. Identical to the `system`
+  // parameter string — primacy + recency, zero drift.
+  parts.push(systemPrompt);
   return parts.join("\n\n");
 }

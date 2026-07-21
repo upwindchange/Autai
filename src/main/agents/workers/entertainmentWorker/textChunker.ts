@@ -14,10 +14,10 @@ import { TIMEOUTS } from "@agents/utils";
  *   1. `planChunk` — given the model's context window, max output, fixed
  *      overheads (as CHARACTER counts), and how far we've already consumed,
  *      compute the next `[readStart, readEnd)` window of raw text to feed the
- *      agent. Sizing is driven by the INPUT budget (context window), NOT max
- *      output tokens: the model emits only short paragraph-index references
- *      (not full chapter prose), so the context window is the bottleneck. There
- *      is NO overlap — chapter continuity between back-to-back rounds is
+ *      agent. Sizing is driven by TWO ceilings — overflow prevention (the
+ *      context window minus output + reserved) and dilution prevention (a
+ *      target fraction of the window, Liu et al. 2023) — and takes the lower.
+ *      There is NO overlap — chapter continuity between back-to-back rounds is
  *      provided by the outliner's 前情衔接 section (previous chapter's outline +
  *      last N paragraphs, untagged, with a `-1` merge sentinel the model may
  *      emit on its first entry; see outliner.ts).
@@ -77,6 +77,27 @@ const RESERVED_BUFFER = 12_000;
  * than stalling.
  */
 const MIN_NEW_CHARS = 2000;
+
+/**
+ * Target fraction of the model's context window to use for the WHOLE request
+ * (excerpt + all overheads), as a guard against attention dilution. Research on
+ * lost-in-the-middle (Liu et al. 2023) shows attention degradation is mild
+ * below ~50% context utilization and accelerates above ~70%. Empirically, at
+ * ~93% utilization round 0 failed ~50% of the time by emitting prose instead of
+ * calling the tool.
+ *
+ * planChunk applies this as a SECOND ceiling alongside the overflow ceiling
+ * (maxContext − maxOutput − reserved) and takes the lower of the two. The
+ * overflow ceiling prevents overflow; the dilution ceiling keeps the request
+ * inside the mild-dilution regime. On small-context models (e.g. 32k) the
+ * overheads naturally eat most of the 50% target and MIN_NEW_CHARS forces the
+ * excerpt above the fraction when necessary — small contexts have no room to
+ * be conservative.
+ *
+ * Tunable: observe round-0 failure rate, adjust. 0.5 is research-informed but
+ * conservative; push to 0.6 to reclaim efficiency if failures drop to ~0.
+ */
+const TARGET_CONTEXT_UTILIZATION = 0.5;
 
 /**
  * Number of characters of raw text to send in the probe call. Enough to give
@@ -260,18 +281,44 @@ export interface SliceResult {
 /**
  * Plan one round's read window `[readStart, readEnd)` into rawText.
  *
- * The excerpt budget is derived from the INPUT context window, NOT max output.
- * Everything is computed in CHARACTERS — the input-token budget is converted to
- * a char budget once via `charsPerToken`, then every fixed overhead (system
- * prompt, tool description, prior outline, carry section) is subtracted in
- * chars from that single pool:
+ * The excerpt budget is derived from TWO ceilings, and we take the lower:
  *
- *   inputCharBudget  = (maxContext − maxOutputTokens − RESERVED_BUFFER) × charsPerToken
- *   excerptCharBudget = inputCharBudget
+ *   1. OVERFLOW CEILING — what the context window can actually hold:
+ *
+ *        overflowCharBudget = (maxContext − maxOutputTokens − RESERVED_BUFFER)
+ *                              × charsPerToken
+ *
+ *      Prevents the round from sending more tokens than the model can accept.
+ *      The chars-per-token calibration (probe + pooled accumulation) keeps this
+ *      accurate; it would otherwise be the only ceiling.
+ *
+ *   2. DILUTION CEILING — what keeps the request inside the mild-dilution
+ *      regime (Liu et al. 2023, lost-in-the-middle):
+ *
+ *        dilutionCharBudget = maxContext × TARGET_CONTEXT_UTILIZATION
+ *                              × charsPerToken
+ *
+ *      Attention quality degrades mildly below ~50% context utilization and
+ *      accelerates above ~70%. Empirically at ~93% utilization round 0 failed
+ *      ~50% of the time by emitting prose instead of calling the tool. This
+ *      ceiling keeps the WHOLE request (excerpt + all overheads) at or below
+ *      TARGET_CONTEXT_UTILIZATION of the window, independent of how big the
+ *      window is. Scales automatically across 1M / 128k / 32k models.
+ *
+ * The excerpt budget is then the lower ceiling minus every fixed overhead
+ * (system prompt, tool description, prior outline, carry section) — all in
+ * chars, single pool:
+ *
+ *   excerptCharBudget = min(overflowCharBudget, dilutionCharBudget)
  *                      − priorOutlineChars
  *                      − systemPromptChars
  *                      − toolDescriptionChars
  *                      − carryChars
+ *
+ * On small-context models the overheads may already exceed the dilution
+ * ceiling; MIN_NEW_CHARS (the floor on excerptCharBudget) then forces forward
+ * progress at the cost of slightly exceeding the target utilization. Small
+ * contexts have no room to be conservative.
  *
  * Keeping every term in chars (rather than subtracting tokens then converting
  * the remainder) makes the budget math uniform and makes the tagging-overhead
@@ -321,14 +368,26 @@ export function planChunk(params: {
     carryChars,
   } = params;
 
-  const inputCharBudget = Math.max(
+  // Ceiling 1: overflow prevention. How many chars the window can hold after
+  // reserving output + the framework/reasoning buffer.
+  const overflowCharBudget = Math.max(
     0,
     (maxContext - maxOutputTokens - RESERVED_BUFFER) * charsPerToken,
   );
+
+  // Ceiling 2: dilution prevention. Cap the WHOLE request at
+  // TARGET_CONTEXT_UTILIZATION of the window so attention quality stays in the
+  // mild-degradation regime. Scales with the model's context size.
+  const dilutionCharBudget = Math.max(
+    0,
+    maxContext * TARGET_CONTEXT_UTILIZATION * charsPerToken,
+  );
+
+  // Take the lower ceiling, then subtract every fixed overhead (all in chars).
   const excerptCharBudget = Math.max(
     MIN_NEW_CHARS,
     Math.floor(
-      inputCharBudget -
+      Math.min(overflowCharBudget, dilutionCharBudget) -
         priorOutlineChars -
         systemPromptChars -
         toolDescriptionChars -
