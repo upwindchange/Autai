@@ -1,8 +1,12 @@
 import { streamText, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import log from "electron-log/main";
-import { complexModel } from "@agents/providers";
-import type { LanguageModel } from "ai";
+import {
+  complexModel,
+  forwardSamplingParams,
+  reasoningProviderOptions,
+  type ResolvedModel,
+} from "@agents/providers";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
 import { settingsService, entertainmentService } from "@/services";
 import { sendAlert } from "@/utils/messageUtils";
@@ -1026,19 +1030,36 @@ function buildOutlineSystemPrompt(crossChapter: CrossChapterDehydrate): string {
  * output (clamped to MAX_OUTPUT_TOKENS_CAP upstream).
  */
 async function runOutlineAgent(params: {
-  model: LanguageModel;
+  resolved: ResolvedModel;
   maxOutputTokens?: number;
   systemPrompt: string;
   userContent: string;
   threadId: string;
   ctx: OutputChaptersContext;
 }): Promise<{ saved: boolean; inputTokens?: number }> {
-  const { model, maxOutputTokens, systemPrompt, userContent, threadId, ctx } =
-    params;
+  const {
+    resolved,
+    maxOutputTokens,
+    systemPrompt,
+    userContent,
+    threadId,
+    ctx,
+  } = params;
+  const model = resolved.model;
   logger.debug("outliner agent chunk start", {
     threadId,
     userContentLen: userContent.length,
   });
+  // Per-role sampling + reasoning (e.g. DeepSeek thinking disabled) from the
+  // complex role's stored params. Sampling excludes maxOutputTokens — that's
+  // clamped upstream and passed explicitly below.
+  const sampling = forwardSamplingParams(resolved.params);
+  const { maxOutputTokens: _omit, ...samplingSansMax } = sampling;
+  const reasoning = reasoningProviderOptions(
+    resolved.params,
+    model,
+    resolved.npm,
+  );
   const result = streamText({
     model,
     ...(maxOutputTokens != null && { maxOutputTokens }),
@@ -1051,6 +1072,8 @@ async function runOutlineAgent(params: {
     stopWhen: [hasSuccessfulToolResult("outputChapters"), stepCountIs(3)],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.chat,
+    ...samplingSansMax,
+    ...(reasoning && { providerOptions: reasoning }),
     experimental_context: ctx,
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
@@ -1405,7 +1428,7 @@ export async function generateOutlines(
     let retried = false;
     try {
       const r = await runOutlineAgent({
-        model: complex.model,
+        resolved: complex,
         maxOutputTokens,
         systemPrompt,
         userContent,
@@ -1424,7 +1447,7 @@ export async function generateOutlines(
           userContentLen: userContent.length,
         });
         const r2 = await runOutlineAgent({
-          model: complex.model,
+          resolved: complex,
           maxOutputTokens,
           systemPrompt: systemPrompt + RETRY_SUFFIX,
           userContent,

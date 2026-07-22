@@ -45,6 +45,7 @@ interface ModelToml {
   family?: string;
   attachment?: boolean;
   reasoning?: boolean;
+  reasoning_options?: ReasoningTomlOption[];
   temperature?: boolean;
   tool_call?: boolean;
   structured_output?: boolean;
@@ -69,6 +70,17 @@ interface ModelToml {
     field: string;
   };
 }
+
+/**
+ * The three primitive reasoning-control shapes a model may declare in its TOML
+ * `[[reasoning_options]]` block. Mirrors `ReasoningOptionSchema` in
+ * `@shared/providers` and the models.dev reference schema. `values` may contain
+ * `null`, which the catalog treats as "default".
+ */
+type ReasoningTomlOption =
+  | { type: "toggle" }
+  | { type: "effort"; values: (string | null)[] }
+  | { type: "budget_tokens"; min?: number; max?: number };
 
 // ──────────────────────────────────────────────
 // Initialization
@@ -141,6 +153,7 @@ function toModelDefinition(toml: ModelToml, file: string): ModelDefinition {
     family: toml.family,
     attachment: toml.attachment,
     reasoning: toml.reasoning,
+    reasoningOptions: toml.reasoning_options,
     temperature: toml.temperature,
     toolCall: toml.tool_call,
     structuredOutput: toml.structured_output,

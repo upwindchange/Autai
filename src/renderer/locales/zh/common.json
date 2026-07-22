@@ -146,5 +146,11 @@
   "threadSettings.presencePenalty": "存在惩罚",
   "threadSettings.presencePenaltyHint": "惩罚至少出现一次的 token。范围 -2 到 2。",
   "threadSettings.topK": "Top K",
-  "threadSettings.topKHint": "每步仅考虑概率最高的 K 个 token。留空使用模型默认值。"
+  "threadSettings.topKHint": "每步仅考虑概率最高的 K 个 token。留空使用模型默认值。",
+  "reasoning.title": "推理 / 思考",
+  "reasoning.hint": "控制模型的推理模式。可选项来自模型目录条目——未声明任何推理选项的模型在此不显示控件。",
+  "reasoning.toggle": "启用",
+  "reasoning.effort": "强度",
+  "reasoning.budgetTokens": "预算 tokens",
+  "reasoning.reset": "重置为默认"
 }

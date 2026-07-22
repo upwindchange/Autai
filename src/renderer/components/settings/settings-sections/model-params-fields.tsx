@@ -9,10 +9,12 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
+import { Switch } from "@/components/ui/switch";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Textarea } from "@/components/ui/textarea";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
 import { ChevronDown } from "lucide-react";
-import type { ModelParameters } from "@shared";
+import type { ModelParameters, ReasoningOption } from "@shared";
 
 /**
  * Shared editor for the model-parameters subset of ModelParameters + an
@@ -25,6 +27,13 @@ import type { ModelParameters } from "@shared";
  * in the placeholder, and `i18nNamespace` selects which locale group to read
  * (thread-level uses "common.threadSettings.*", system-level uses
  * "threads.defaultChatParams.*").
+ *
+ * `reasoningOptions` drives the reasoning/thinking controls from the selected
+ * model's catalog entry. When omitted (or the model declares none), no
+ * reasoning UI renders — the model simply has no caller-controllable thinking.
+ * The three catalog primitives each map to one control: `toggle` → Switch,
+ * `effort` → segmented ToggleGroup of the declared values, `budget_tokens` →
+ * Slider bounded by the catalog min/max. Multiple options stack vertically.
  */
 export interface ModelParamsValue {
   systemPrompt?: string | null;
@@ -35,9 +44,13 @@ export interface ModelParamsFieldsProps {
   value: ModelParamsValue;
   onChange: (next: ModelParamsValue) => void;
   systemPromptPlaceholder?: string;
-  i18nNamespace: "common" | "threads";
+  i18nNamespace: "common" | "threads" | "providers";
   /** Key prefix within the namespace: "threadSettings" or "defaultChatParams". */
   keyPrefix: string;
+  /** Selected model's catalog reasoning_options; omit to render no thinking UI. */
+  reasoningOptions?: ReasoningOption[];
+  /** Hide the system-prompt field (agent roles have no per-role prompt). */
+  hideSystemPrompt?: boolean;
 }
 
 export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
@@ -46,6 +59,8 @@ export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
   systemPromptPlaceholder,
   i18nNamespace,
   keyPrefix,
+  reasoningOptions,
+  hideSystemPrompt,
 }) => {
   const { t } = useTranslation(i18nNamespace);
   const p = value.params ?? {};
@@ -71,22 +86,53 @@ export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
     onChange({ ...value, systemPrompt: v.length > 0 ? v : null });
   };
 
+  const hasReasoningControls =
+    reasoningOptions && reasoningOptions.length > 0;
+
   return (
     <div className="space-y-5">
-      {/* System prompt */}
-      <div className="space-y-2">
-        <Label className="flex items-center gap-1.5 text-sm">
-          {t(k("systemPrompt"))}
-          <HelpTooltip content={t(k("systemPromptHint"))} maxWidth={240} />
-        </Label>
-        <Textarea
-          value={value.systemPrompt ?? ""}
-          onChange={(e) => setSystemPrompt(e.target.value)}
-          placeholder={systemPromptPlaceholder}
-          rows={4}
-          className="resize-y text-sm"
-        />
-      </div>
+      {/* System prompt (hidden for agent roles — no per-role prompt). */}
+      {!hideSystemPrompt && (
+        <div className="space-y-2">
+          <Label className="flex items-center gap-1.5 text-sm">
+            {t(k("systemPrompt"))}
+            <HelpTooltip content={t(k("systemPromptHint"))} maxWidth={240} />
+          </Label>
+          <Textarea
+            value={value.systemPrompt ?? ""}
+            onChange={(e) => setSystemPrompt(e.target.value)}
+            placeholder={systemPromptPlaceholder}
+            rows={4}
+            className="resize-y text-sm"
+          />
+        </div>
+      )}
+
+      {/* Reasoning / thinking — driven by the selected model's catalog entry.
+          Models that declare no reasoning_options render nothing here. */}
+      {hasReasoningControls && (
+        <>
+          <Separator />
+          <ReasoningControls
+            options={reasoningOptions}
+            enabled={p.reasoningEnabled ?? null}
+            effort={p.reasoningEffort ?? null}
+            budget={p.reasoningBudgetTokens ?? null}
+            t={t}
+            onChange={(patch) => {
+              const next = { ...p };
+              for (const [key, val] of Object.entries(patch)) {
+                if (val === null || val === undefined) delete next[key];
+                else next[key] = val;
+              }
+              onChange({
+                ...value,
+                params: Object.keys(next).length > 0 ? next : null,
+              });
+            }}
+          />
+        </>
+      )}
 
       <Separator />
 
@@ -269,3 +315,150 @@ const NumberParam: FC<NumberParamProps> = ({
     />
   </div>
 );
+
+// ──────────────────────────────────────────────
+// Reasoning controls — catalog-driven
+// ──────────────────────────────────────────────
+
+type TFunc = ReturnType<typeof useTranslation>["t"];
+
+interface ReasoningControlsProps {
+  options: ReasoningOption[];
+  enabled: boolean | null;
+  effort: string | null;
+  budget: number | null;
+  t: TFunc;
+  onChange: (patch: Partial<ModelParameters>) => void;
+}
+
+/**
+ * Renders one control per reasoning_options entry the model declares:
+ *  - {type: "toggle"}        → Switch (on/off/null)
+ *  - {type: "effort", values}→ ToggleGroup of the declared effort levels
+ *  - {type: "budget_tokens"} → Slider bounded by [min, max]
+ * Entries stack vertically; a model may declare several (e.g. Claude Opus 4.5
+ * has both effort and budget_tokens). `null`/absent values mean "unset" — the
+ * translator sends nothing and the model default applies.
+ */
+const ReasoningControls: FC<ReasoningControlsProps> = ({
+  options,
+  enabled,
+  effort,
+  budget,
+  t,
+  onChange,
+}) => {
+  const rk = (leaf: string) => `reasoning.${leaf}`;
+  const toggle = options.find((o) => o.type === "toggle");
+  const effortOpt = options.find((o) => o.type === "effort");
+  const budgetOpt = options.find((o) => o.type === "budget_tokens");
+
+  // For effort/budget controls without an explicit toggle, infer "enabled"
+  // from whether a value is set — the translator treats any selection as on.
+  const effectiveEnabled = enabled ?? (effort != null || budget != null);
+
+  return (
+    <div className="space-y-4">
+      <Label className="flex items-center gap-1.5 text-sm">
+        {t(rk("title"))}
+        <HelpTooltip content={t(rk("hint"))} maxWidth={240} />
+      </Label>
+
+      {/* Toggle (on/off) — only when the model declares {type: "toggle"} */}
+      {toggle && (
+        <div className="flex items-center justify-between gap-3">
+          <Label className="text-sm text-muted-foreground">
+            {t(rk("toggle"))}
+          </Label>
+          <div className="flex items-center gap-2">
+            {enabled !== null && (
+              <button
+                type="button"
+                onClick={() => onChange({ reasoningEnabled: null })}
+                className="text-xs text-muted-foreground/60 transition-colors hover:text-foreground"
+                aria-label={t(rk("reset"))}
+              >
+                ×
+              </button>
+            )}
+            <Switch
+              checked={effectiveEnabled === true}
+              onCheckedChange={(v) =>
+                onChange({ reasoningEnabled: effectiveEnabled === v ? null : v })
+              }
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Effort selector — segmented control of the model's declared values. */}
+      {effortOpt && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <Label className="text-sm text-muted-foreground">
+              {t(rk("effort"))}
+            </Label>
+            {effort !== null && (
+              <button
+                type="button"
+                onClick={() => onChange({ reasoningEffort: null })}
+                className="text-xs text-muted-foreground/60 transition-colors hover:text-foreground"
+                aria-label={t(rk("reset"))}
+              >
+                ×
+              </button>
+            )}
+          </div>
+          <ToggleGroup
+            type="single"
+            value={effort ?? ""}
+            onValueChange={(v) =>
+              onChange({ reasoningEffort: v || null })
+            }
+            variant="outline"
+            size="sm"
+            className="flex-wrap"
+          >
+            {effortOpt.values.map((val) => {
+              const id = val ?? "default";
+              return (
+                <ToggleGroupItem key={id} value={id}>
+                  {id}
+                </ToggleGroupItem>
+              );
+            })}
+          </ToggleGroup>
+        </div>
+      )}
+
+      {/* Budget tokens — slider bounded by the catalog min/max. */}
+      {budgetOpt && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <Label className="text-sm text-muted-foreground">
+              {t(rk("budgetTokens"))}
+            </Label>
+            <ValueBadge
+              text={budget != null ? String(budget) : "auto"}
+              onReset={
+                budget != null ?
+                  () => onChange({ reasoningBudgetTokens: null })
+                : undefined
+              }
+            />
+          </div>
+          <Slider
+            value={budget != null ? [budget] : [(budgetOpt.min ?? 1024)]}
+            min={budgetOpt.min ?? 1024}
+            max={budgetOpt.max ?? 65536}
+            step={1024}
+            onValueChange={(arr) =>
+              onChange({ reasoningBudgetTokens: arr[0] })
+            }
+            className="w-full"
+          />
+        </div>
+      )}
+    </div>
+  );
+};

@@ -45,12 +45,46 @@ export const ModelModalitiesSchema = z.object({
 });
 export type ModelModalities = z.infer<typeof ModelModalitiesSchema>;
 
+/**
+ * Reasoning control a model exposes to callers. Mirrors the models.dev catalog
+ * discriminated union (`reference/models.dev/packages/core/src/schema.ts`). An
+ * empty `reasoning_options = []` (always-on, no caller control) is represented
+ * by the model having `reasoningOptions: []`; absence of the field means the
+ * model has no reasoning support surfaced and the UI renders nothing.
+ *
+ * Three primitive option types may co-exist on one model (e.g. Claude Opus 4.5
+ * declares both `effort` and `budget_tokens`).
+ */
+export const ReasoningOptionSchema = z.discriminatedUnion("type", [
+  z
+    .object({
+      type: z.literal("toggle"),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("effort"),
+      // null ≡ "default" in the catalog vocabulary.
+      values: z.array(z.string().nullable()),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal("budget_tokens"),
+      min: z.number().optional(),
+      max: z.number().optional(),
+    })
+    .strict(),
+]);
+export type ReasoningOption = z.infer<typeof ReasoningOptionSchema>;
+
 export const ModelDefinitionSchema = z.object({
   name: z.string(), // display name: "Claude Sonnet 4.6"
   file: z.string(), // filename stem: "claude-sonnet-4-6"
   family: z.string().optional(),
   attachment: z.boolean().optional(),
   reasoning: z.boolean().optional(),
+  reasoningOptions: z.array(ReasoningOptionSchema).optional(),
   temperature: z.boolean().optional(),
   toolCall: z.boolean().optional(),
   structuredOutput: z.boolean().optional(),
@@ -93,6 +127,20 @@ export const ModelParametersSchema = z.object({
   frequencyPenalty: z.number().min(-2).max(2).optional(),
   presencePenalty: z.number().min(-2).max(2).optional(),
   stopSequences: z.array(z.string()).max(4).optional(),
+  /**
+   * Reasoning selection, expressed in catalog vocabulary (provider-agnostic).
+   * The translator in providers/index.ts maps these into the SDK-specific
+   * providerOptions shape. All three are nullable so the user can distinguish
+   * "unset" (use model default) from an explicit choice.
+   *
+   *  - reasoningEnabled: explicit on/off when the model offers a toggle.
+   *    `false` is the DeepSeek fix — emits thinking.type = "disabled".
+   *  - reasoningEffort: one of the model's declared effort values.
+   *  - reasoningBudgetTokens: token budget when the model offers budget_tokens.
+   */
+  reasoningEnabled: z.boolean().nullable().optional(),
+  reasoningEffort: z.string().nullable().optional(),
+  reasoningBudgetTokens: z.number().int().min(1).nullable().optional(),
 });
 export type ModelParameters = z.infer<typeof ModelParametersSchema>;
 

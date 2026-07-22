@@ -32,12 +32,27 @@ class SettingsService {
 
   public get settings(): SettingsState {
     if (this._settings.useSameModelForAgents) {
+      const chat = this._settings.modelAssignments.chat;
       return {
         ...this._settings,
         modelAssignments: {
           ...this._settings.modelAssignments,
-          simple: { ...this._settings.modelAssignments.chat, role: "simple" },
-          complex: { ...this._settings.modelAssignments.chat, role: "complex" },
+          // Mirror only the MODEL (provider + modelId) from chat into the agent
+          // roles. Each agent keeps its OWN params (temperature, reasoning, etc.)
+          // so agent vs chat params are always independently configurable even
+          // when they share the same model.
+          simple: {
+            ...this._settings.modelAssignments.simple,
+            role: "simple",
+            providerId: chat.providerId,
+            modelId: chat.modelId,
+          },
+          complex: {
+            ...this._settings.modelAssignments.complex,
+            role: "complex",
+            providerId: chat.providerId,
+            modelId: chat.modelId,
+          },
         },
       };
     }
@@ -255,15 +270,33 @@ class SettingsService {
           .run();
       }
 
-      // Model assignments
+      // Model assignments. When useSameModelForAgents is on, the `settings`
+      // getter mirrors chat's providerId/modelId onto simple/complex — but that
+      // mirroring is a READ-TIME transform and must NOT be persisted back, or
+      // toggling the switch off later would show stale chat-model values stuck
+      // in the agent selectors. So for agent roles under mirroring, preserve
+      // the previously-stored row's own identity and write only the params
+      // (which are always the agent's own — see the getter).
+      const existingAgentRows = db.select().from(modelAssignments).all();
+      const existingByRole = new Map(existingAgentRows.map((r) => [r.role, r]));
+
       tx.delete(modelAssignments).run();
       for (const assignment of Object.values(settingsState.modelAssignments)) {
-        if (assignment.providerId && assignment.modelId) {
+        let { providerId, modelId } = assignment;
+        if (
+          settingsState.useSameModelForAgents &&
+          assignment.role !== "chat"
+        ) {
+          const existing = existingByRole.get(assignment.role);
+          providerId = existing?.providerId ?? assignment.providerId;
+          modelId = existing?.modelId ?? assignment.modelId;
+        }
+        if (providerId && modelId) {
           tx.insert(modelAssignments)
             .values({
               role: assignment.role,
-              providerId: assignment.providerId,
-              modelId: assignment.modelId,
+              providerId,
+              modelId,
               params:
                 assignment.params ? JSON.stringify(assignment.params) : null,
             })

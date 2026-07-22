@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { X, Pencil, Check, Plus, RotateCcw, Loader2 } from "lucide-react";
+import { X, Pencil, Check, Plus, RotateCcw } from "lucide-react";
 import { useSettings } from "@/components/settings";
 import { useTranslation } from "react-i18next";
 import type { SettingsState } from "@shared";
@@ -22,10 +22,6 @@ import { getApiBase } from "@/lib/api";
 import { ColorPicker } from "@/components/ui/color-picker";
 import { getRandomPaletteColor } from "@/lib/tagColors";
 import { resetTagsToDefault } from "@/lib/tagApi";
-import {
-  ModelParamsFields,
-  type ModelParamsValue,
-} from "@/components/settings/settings-sections/model-params-fields";
 
 const logger = log.scope("ThreadsSection");
 
@@ -66,44 +62,6 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
       autoTagCreationEnabled: enabled,
     };
     await updateSettings(newSettings);
-  };
-
-  // --- Default chat params (system-level) ---
-  // Draft + Save (configured-provider-card pattern) — a textarea doesn't suit
-  // per-keystroke PUT. The draft seeds from live settings; Save commits the
-  // whole {systemPrompt, params} blob at once.
-  const [paramsDraft, setParamsDraft] = useState<ModelParamsValue>(() => ({
-    systemPrompt: settings.systemPrompt ?? null,
-    params: settings.defaultModelParams ?? null,
-  }));
-  const [paramsSaving, setParamsSaving] = useState(false);
-
-  // Re-seed when settings load/change externally (e.g. first load).
-  useEffect(() => {
-    setParamsDraft({
-      systemPrompt: settings.systemPrompt ?? null,
-      params: settings.defaultModelParams ?? null,
-    });
-  }, [settings.systemPrompt, settings.defaultModelParams]);
-
-  const handleSaveParams = async () => {
-    setParamsSaving(true);
-    logger.info("Saving system-level default chat params", {
-      hasSystemPrompt: !!paramsDraft.systemPrompt,
-      hasParams: !!paramsDraft.params,
-      paramKeys: paramsDraft.params ? Object.keys(paramsDraft.params) : [],
-    });
-    try {
-      await updateSettings({
-        ...settings,
-        systemPrompt: paramsDraft.systemPrompt ?? "",
-        defaultModelParams: paramsDraft.params ?? undefined,
-      });
-    } catch (err) {
-      logger.error("Failed to save default chat params:", err);
-    } finally {
-      setParamsSaving(false);
-    }
   };
 
   return (
@@ -155,31 +113,6 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("defaultChatParams.title")}</CardTitle>
-          <CardDescription>
-            {t("defaultChatParams.description")}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <ModelParamsFields
-            value={paramsDraft}
-            onChange={setParamsDraft}
-            systemPromptPlaceholder={t("defaultChatParams.systemPromptEmpty")}
-            i18nNamespace="threads"
-            keyPrefix="defaultChatParams"
-          />
-          <div className="flex justify-end pt-1">
-            <Button onClick={handleSaveParams} disabled={paramsSaving}>
-              {paramsSaving ?
-                <Loader2 className="size-4 animate-spin" />
-              : t("defaultChatParams.save")}
-            </Button>
-          </div>
         </CardContent>
       </Card>
 

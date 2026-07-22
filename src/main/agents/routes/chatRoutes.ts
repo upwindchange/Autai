@@ -55,7 +55,9 @@ chatRoutes.post("/", async (c) => {
       chatProviderId && chatModelId ?
         { providerId: chatProviderId, modelId: chatModelId }
       : undefined;
-    const chatLanguageModel = chatModel(chatSelection).model;
+    const chatResolved = chatModel(chatSelection);
+    const chatLanguageModel = chatResolved.model;
+    const chatNpm = chatResolved.npm;
 
     // Resolve effective model settings: thread-level override wins, else fall
     // back to the system-level defaults (settingsService is the single source
@@ -176,6 +178,7 @@ chatRoutes.post("/", async (c) => {
         messages,
         sessionId,
         chatLanguageModel,
+        chatNpm,
         effectiveSystem,
         tools as ToolSet | undefined,
         abortController.signal,

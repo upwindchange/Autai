@@ -19,7 +19,11 @@
 import { streamText, stepCountIs, tool } from "ai";
 import { z } from "zod";
 import log from "electron-log/main";
-import { complexModel } from "@agents/providers";
+import {
+  complexModel,
+  forwardSamplingParams,
+  reasoningProviderOptions,
+} from "@agents/providers";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
 import {
   settingsService,
@@ -126,8 +130,15 @@ async function runRewriteAgent(
   sourceText: string,
   threadId: string,
 ): Promise<boolean> {
+  const resolved = complexModel();
+  const sampling = forwardSamplingParams(resolved.params);
+  const reasoning = reasoningProviderOptions(
+    resolved.params,
+    resolved.model,
+    resolved.npm,
+  );
   const result = streamText({
-    model: complexModel().model,
+    model: resolved.model,
     system: systemPrompt,
     messages: [{ role: "user", content: sourceText }],
     tools: {
@@ -137,6 +148,8 @@ async function runRewriteAgent(
     stopWhen: [hasSuccessfulToolResult("outputContent"), stepCountIs(3)],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.chat,
+    ...sampling,
+    ...(reasoning && { providerOptions: reasoning }),
     experimental_context: { threadId },
     experimental_telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,

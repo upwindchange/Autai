@@ -11,6 +11,10 @@ import {
 import { repairToolCall, TIMEOUTS } from "@agents/utils";
 import { settingsService } from "@/services";
 import { mcpService } from "@/services/mcpService";
+import {
+  forwardSamplingParams,
+  reasoningProviderOptions,
+} from "@agents/providers";
 import type { MCPClient } from "@ai-sdk/mcp";
 import type { ModelParameters } from "@shared";
 import log from "electron-log/main";
@@ -31,6 +35,7 @@ export class ChatWorker {
     messages: UIMessage[],
     sessionId: string,
     chatLanguageModel: LanguageModel,
+    chatNpm: string,
     system?: string,
     tools?: ToolSet,
     signal?: AbortSignal,
@@ -86,33 +91,18 @@ export class ChatWorker {
       // Map ModelParameters → AI SDK v6 CallSettings. Only fields the user
       // explicitly set are forwarded (undefined ⇒ SDK/model default).
       // NOTE: ModelParameters.maxTokens → streamText.maxOutputTokens.
-      const forwardedParams =
-        params ?
-          {
-            ...(params.temperature != null && {
-              temperature: params.temperature,
-            }),
-            ...(params.maxTokens != null && {
-              maxOutputTokens: params.maxTokens,
-            }),
-            ...(params.topP != null && { topP: params.topP }),
-            ...(params.topK != null && { topK: params.topK }),
-            ...(params.frequencyPenalty != null && {
-              frequencyPenalty: params.frequencyPenalty,
-            }),
-            ...(params.presencePenalty != null && {
-              presencePenalty: params.presencePenalty,
-            }),
-            ...(params.stopSequences?.length && {
-              stopSequences: params.stopSequences,
-            }),
-          }
-        : {};
+      const forwardedParams = forwardSamplingParams(params);
+      const reasoningOptions = reasoningProviderOptions(
+        params,
+        chatLanguageModel,
+        chatNpm,
+      );
 
       this.logger.debug("creating stream with chat model", {
         systemLength: mergedSystem.length,
         hasUserSystemPrompt: !!system,
         forwardedParams,
+        reasoningOptions,
         toolCount: Object.keys(mergedTools).length,
       });
 
@@ -125,6 +115,7 @@ export class ChatWorker {
         timeout: TIMEOUTS.chat,
         abortSignal: signal,
         ...forwardedParams,
+        ...(reasoningOptions && { providerOptions: reasoningOptions }),
         ...(Object.keys(mergedTools).length > 0 && { tools: mergedTools }),
         experimental_repairToolCall: repairToolCall,
         experimental_telemetry: {
