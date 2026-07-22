@@ -13,6 +13,20 @@ import { httpClient } from "@/lib/httpClient";
 const fetchErrorMessage = (err: unknown, fallback: string): string =>
   err instanceof Error && err.message ? err.message : fallback;
 
+// Shallow comparison of two ChapterViews. ChapterView is a flat object
+// (chapterNumber, title, three status fields, phase, content) with no nested
+// references, so a field-by-field check is exact and cheap. Used by the
+// loaders to skip `set` when a poll returned byte-identical state, which
+// otherwise allocates fresh arrays/objects and re-renders every subscriber.
+const sameChapterView = (a: ChapterView, b: ChapterView): boolean =>
+  a.chapterNumber === b.chapterNumber &&
+  a.title === b.title &&
+  a.sourceStatus === b.sourceStatus &&
+  a.rewriteStatus === b.rewriteStatus &&
+  a.outlineStatus === b.outlineStatus &&
+  a.phase === b.phase &&
+  a.content === b.content;
+
 /**
  * Entertainment reader store — the reader's source of truth.
  *
@@ -104,17 +118,37 @@ export const useChaptersStore = create<ChaptersState>()(
             finalChapterNumber: number | null;
           }>(`/entertainment/threads/${threadId}/chapters`);
         set((state) => {
+          // The poll fires every 1500ms regardless of activity; without a
+          // change-check, a fresh `chapters` array (and fresh chapter objects)
+          // is allocated every tick and re-renders every subscriber (reader,
+          // TOC, footer) for nothing. Each ChapterView is a flat object, so a
+          // shallow field comparison is cheap and exact — skip the set when the
+          // polled state is byte-identical to what we already have.
           const prevByNum = new Map(
             state.chapters.map((c) => [c.chapterNumber, c]),
           );
+          let changed = false;
+          const merged = chapters.map((c) => {
+            const prev = prevByNum.get(c.chapterNumber);
+            if (!prev) {
+              changed = true;
+              return { ...c };
+            }
+            const next: ChapterView = { ...c, content: prev.content };
+            if (!sameChapterView(prev, next)) changed = true;
+            return next;
+          });
+          const stateChanged =
+            changed ||
+            state.currentThreadId !== threadId ||
+            state.novelType !== novelType ||
+            state.finalChapterNumber !== finalChapterNumber;
+          if (!stateChanged) return state;
           return {
             currentThreadId: threadId,
             novelType,
             finalChapterNumber,
-            chapters: chapters.map((c) => {
-              const prev = prevByNum.get(c.chapterNumber);
-              return prev ? { ...c, content: prev.content } : { ...c };
-            }),
+            chapters: merged,
             loading: false,
             error: null,
           };
@@ -134,14 +168,21 @@ export const useChaptersStore = create<ChaptersState>()(
         }>(`/entertainment/threads/${threadId}/chapters/${n}`);
         set((state) => {
           // Upsert: a network chapter may not be in the list yet (no source row).
-          const exists = state.chapters.some((c) => c.chapterNumber === n);
+          const idx = state.chapters.findIndex((c) => c.chapterNumber === n);
           const merged: ChapterView = { ...chapter, content: chapter.content };
-          const next =
-            exists ?
-              state.chapters.map((c) => (c.chapterNumber === n ? merged : c))
-            : [...state.chapters, merged].sort(
-                (a, b) => a.chapterNumber - b.chapterNumber,
-              );
+          // Same rationale as loadChapters: the poll fires every 1500ms; skip
+          // the set when this chapter's view is unchanged AND error is already
+          // null, so the detail poll doesn't re-render subscribers for nothing.
+          if (idx >= 0) {
+            if (sameChapterView(state.chapters[idx], merged) && state.error === null)
+              return state;
+            const next = state.chapters.slice();
+            next[idx] = merged;
+            return { chapters: next, error: null };
+          }
+          const next = [...state.chapters, merged].sort(
+            (a, b) => a.chapterNumber - b.chapterNumber,
+          );
           return { chapters: next, error: null };
         });
         return chapter;
