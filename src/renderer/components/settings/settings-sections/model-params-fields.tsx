@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Slider } from "@/components/ui/slider";
-import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Textarea } from "@/components/ui/textarea";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -332,13 +331,15 @@ interface ReasoningControlsProps {
 }
 
 /**
- * Renders one control per reasoning_options entry the model declares:
- *  - {type: "toggle"}        → Switch (on/off/null)
- *  - {type: "effort", values}→ ToggleGroup of the declared effort levels
- *  - {type: "budget_tokens"} → Slider bounded by [min, max]
- * Entries stack vertically; a model may declare several (e.g. Claude Opus 4.5
- * has both effort and budget_tokens). `null`/absent values mean "unset" — the
- * translator sends nothing and the model default applies.
+ * Renders the reasoning/thinking controls driven by the model's catalog entry.
+ *
+ * A single three-button group (Auto / On / Off) governs the mode and maps to
+ * `reasoningEnabled`: Auto (null) sends nothing → model default; On (true)
+ * enables thinking and reveals the effort/budget sub-controls; Off (false)
+ * explicitly disables thinking (the DeepSeek `tool_choice` fix). Effort and
+ * budget only render when the model declares them AND mode is On. A model may
+ * declare several primitives (e.g. Claude Opus 4.5 has both effort + budget);
+ * they stack as independent sub-controls under the mode selector.
  */
 const ReasoningControls: FC<ReasoningControlsProps> = ({
   options,
@@ -349,13 +350,16 @@ const ReasoningControls: FC<ReasoningControlsProps> = ({
   onChange,
 }) => {
   const rk = (leaf: string) => `reasoning.${leaf}`;
-  const toggle = options.find((o) => o.type === "toggle");
   const effortOpt = options.find((o) => o.type === "effort");
   const budgetOpt = options.find((o) => o.type === "budget_tokens");
 
-  // For effort/budget controls without an explicit toggle, infer "enabled"
-  // from whether a value is set — the translator treats any selection as on.
-  const effectiveEnabled = enabled ?? (effort != null || budget != null);
+  // Derive the mode from `enabled`. When a value-driven model has effort/budget
+  // set but no explicit enabled flag, treat it as On so the sub-controls show.
+  const mode: "auto" | "on" | "off" =
+    enabled === true ? "on"
+    : enabled === false ? "off"
+    : effort != null || budget != null ? "on"
+    : "auto";
 
   return (
     <div className="space-y-4">
@@ -364,100 +368,95 @@ const ReasoningControls: FC<ReasoningControlsProps> = ({
         <HelpTooltip content={t(rk("hint"))} maxWidth={240} />
       </Label>
 
-      {/* Toggle (on/off) — only when the model declares {type: "toggle"} */}
-      {toggle && (
-        <div className="flex items-center justify-between gap-3">
-          <Label className="text-sm text-muted-foreground">
-            {t(rk("toggle"))}
-          </Label>
-          <div className="flex items-center gap-2">
-            {enabled !== null && (
-              <button
-                type="button"
-                onClick={() => onChange({ reasoningEnabled: null })}
-                className="text-xs text-muted-foreground/60 transition-colors hover:text-foreground"
-                aria-label={t(rk("reset"))}
-              >
-                ×
-              </button>
-            )}
-            <Switch
-              checked={effectiveEnabled === true}
-              onCheckedChange={(v) =>
-                onChange({ reasoningEnabled: effectiveEnabled === v ? null : v })
-              }
-            />
-          </div>
-        </div>
-      )}
+      {/* Mode — Auto / On / Off. */}
+      <ToggleGroup
+        type="single"
+        value={mode}
+        onValueChange={(v) => {
+          if (!v) return; // re-clicking the active item clears it; ignore
+          const next =
+            v === "on" ? true : v === "off" ? false : null;
+          // Switching to Auto also clears effort/budget so nothing leaks.
+          const patch: Partial<ModelParameters> = { reasoningEnabled: next };
+          if (next === null || next === false) {
+            patch.reasoningEffort = null;
+            patch.reasoningBudgetTokens = null;
+          }
+          onChange(patch);
+        }}
+        variant="outline"
+        size="sm"
+        className="w-full"
+      >
+        <ToggleGroupItem value="auto" className="flex-1">
+          {t(rk("auto"))}
+        </ToggleGroupItem>
+        <ToggleGroupItem value="on" className="flex-1">
+          {t(rk("on"))}
+        </ToggleGroupItem>
+        <ToggleGroupItem value="off" className="flex-1">
+          {t(rk("off"))}
+        </ToggleGroupItem>
+      </ToggleGroup>
 
-      {/* Effort selector — segmented control of the model's declared values. */}
-      {effortOpt && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <Label className="text-sm text-muted-foreground">
-              {t(rk("effort"))}
-            </Label>
-            {effort !== null && (
-              <button
-                type="button"
-                onClick={() => onChange({ reasoningEffort: null })}
-                className="text-xs text-muted-foreground/60 transition-colors hover:text-foreground"
-                aria-label={t(rk("reset"))}
+      {/* Effort + budget — only meaningful when thinking is on. */}
+      {mode === "on" && (
+        <>
+          {effortOpt && (
+            <div className="space-y-2">
+              <Label className="text-sm text-muted-foreground">
+                {t(rk("effort"))}
+              </Label>
+              <ToggleGroup
+                type="single"
+                value={effort ?? ""}
+                onValueChange={(v) =>
+                  onChange({ reasoningEffort: v || null })
+                }
+                variant="outline"
+                size="sm"
+                className="flex-wrap"
               >
-                ×
-              </button>
-            )}
-          </div>
-          <ToggleGroup
-            type="single"
-            value={effort ?? ""}
-            onValueChange={(v) =>
-              onChange({ reasoningEffort: v || null })
-            }
-            variant="outline"
-            size="sm"
-            className="flex-wrap"
-          >
-            {effortOpt.values.map((val) => {
-              const id = val ?? "default";
-              return (
-                <ToggleGroupItem key={id} value={id}>
-                  {id}
-                </ToggleGroupItem>
-              );
-            })}
-          </ToggleGroup>
-        </div>
-      )}
+                {effortOpt.values.map((val) => {
+                  const id = val ?? "default";
+                  return (
+                    <ToggleGroupItem key={id} value={id}>
+                      {id}
+                    </ToggleGroupItem>
+                  );
+                })}
+              </ToggleGroup>
+            </div>
+          )}
 
-      {/* Budget tokens — slider bounded by the catalog min/max. */}
-      {budgetOpt && (
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-3">
-            <Label className="text-sm text-muted-foreground">
-              {t(rk("budgetTokens"))}
-            </Label>
-            <ValueBadge
-              text={budget != null ? String(budget) : "auto"}
-              onReset={
-                budget != null ?
-                  () => onChange({ reasoningBudgetTokens: null })
-                : undefined
-              }
-            />
-          </div>
-          <Slider
-            value={budget != null ? [budget] : [(budgetOpt.min ?? 1024)]}
-            min={budgetOpt.min ?? 1024}
-            max={budgetOpt.max ?? 65536}
-            step={1024}
-            onValueChange={(arr) =>
-              onChange({ reasoningBudgetTokens: arr[0] })
-            }
-            className="w-full"
-          />
-        </div>
+          {budgetOpt && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <Label className="text-sm text-muted-foreground">
+                  {t(rk("budgetTokens"))}
+                </Label>
+                <ValueBadge
+                  text={budget != null ? String(budget) : "auto"}
+                  onReset={
+                    budget != null ?
+                      () => onChange({ reasoningBudgetTokens: null })
+                    : undefined
+                  }
+                />
+              </div>
+              <Slider
+                value={budget != null ? [budget] : [(budgetOpt.min ?? 1024)]}
+                min={budgetOpt.min ?? 1024}
+                max={budgetOpt.max ?? 65536}
+                step={1024}
+                onValueChange={(arr) =>
+                  onChange({ reasoningBudgetTokens: arr[0] })
+                }
+                className="w-full"
+              />
+            </div>
+          )}
+        </>
       )}
     </div>
   );

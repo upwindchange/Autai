@@ -58,7 +58,9 @@
   "params.topKHint": "Only consider the top K tokens at each step. Leave empty for the model default.",
   "reasoning.title": "Reasoning / Thinking",
   "reasoning.hint": "Controls for the model's reasoning mode. Options come from the model's catalog entry — models that declare none show nothing here.",
-  "reasoning.toggle": "Enabled",
+  "reasoning.auto": "Auto",
+  "reasoning.on": "On",
+  "reasoning.off": "Off",
   "reasoning.effort": "Effort",
   "reasoning.budgetTokens": "Budget tokens",
   "reasoning.reset": "Reset to default"

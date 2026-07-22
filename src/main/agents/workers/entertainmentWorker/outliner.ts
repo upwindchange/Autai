@@ -95,31 +95,32 @@ const OUTPUT_CHAPTERS_TOOL_DESCRIPTION =
   "call this outputChapters tool with one entry per storyline unit you can " +
   "FULLY identify in the new-text section (you can see the unit's LAST " +
   "paragraph — its end is not cut off by the section's bottom edge). For each " +
-  "unit, provide its title, its endPara (the LOCAL paragraph index of the " +
-  "unit's last paragraph — see below), its outline, and its foreshadowing.\n\n" +
+  "unit, provide its title, its endMarker (the `¶N¶` tag of the unit's LAST " +
+  "paragraph — see below), its outline, and its foreshadowing.\n\n" +
   "PARAGRAPH INDEXING: the new-text section is split into paragraphs, each " +
   "tagged `¶N¶` with N a 0-based LOCAL index (re-numbered every excerpt, " +
-  "starting at ¶0¶). For each storyline unit, emit `endPara` = the index of " +
-  "the unit's LAST paragraph. The system slices the verbatim body as all " +
-  "paragraphs from the previous unit's end + 1 through `endPara`. You do NOT " +
-  "need to copy any text — just the integer index. The body is extracted " +
-  "deterministically by the system.\n" +
+  "starting at ¶0¶). For each storyline unit, emit `endMarker` = the EXACT " +
+  "`¶N¶` tag at the unit's LAST paragraph — copy the tag you see VERBATIM " +
+  "(including both pilcrows). The system slices the verbatim body as all " +
+  "paragraphs from the previous unit's end + 1 through the paragraph carrying " +
+  "your endMarker. You do NOT need to copy any text — just the tag.\n" +
   "- Only emit a unit when you can see its LAST paragraph in the new-text " +
   "section — if a unit's end runs off the bottom of the section, DO NOT emit " +
   "it (it will be covered in the next excerpt).\n" +
-  "- `endPara` values MUST be strictly increasing across entries (each unit " +
-  "starts where the previous one ended + 1). Gaps or backwards values are " +
-  "rejected.\n\n" +
-  "MERGE WITH PREVIOUS CHAPTER (-1 sentinel): if the new-text section's " +
+  "- The N in endMarker values MUST be strictly increasing across entries " +
+  "(each unit starts where the previous one ended + 1). Gaps or backwards " +
+  "values are rejected.\n\n" +
+  "MERGE WITH PREVIOUS CHAPTER (¶-1¶ sentinel): if the new-text section's " +
   "opening CONTINUES a storyline from the 前情衔接 section (the previous " +
   "chapter's outline + last paragraphs, shown untagged above the new text), " +
-  "emit your FIRST entry with `endPara: -1`. On `-1`, the system appends the " +
-  "next entry's body to the previous chapter's row and concatenates the " +
-  "outlines — i.e. the storyline cut at the chunk boundary is completed as " +
-  "ONE chapter. You MUST still provide title/outline/foreshadowing for the " +
-  "merged unit. Only the FIRST entry may carry `-1`; `-1` elsewhere is a hard " +
-  "error. If the new text does NOT continue the previous chapter, start " +
-  "normally at endPara >= 0.\n\n" +
+  'emit your FIRST entry with `endMarker: "¶-1¶"`. On `¶-1¶`, the system ' +
+  "appends the next entry's body to the previous chapter's row and " +
+  "concatenates the outlines — i.e. the storyline cut at the chunk boundary " +
+  "is completed as ONE chapter. You MUST still provide title/outline/" +
+  "foreshadowing for the merged unit. Only the FIRST entry may carry " +
+  "`¶-1¶`; `¶-1¶` elsewhere is a hard error. If the new text does NOT " +
+  "continue the previous chapter, start normally with endMarker `¶0¶` or " +
+  "higher.\n\n" +
   "You are NOT ALLOWED to output units as plain text and stop your output; " +
   "they must go through this outputChapters tool.";
 
@@ -222,28 +223,33 @@ function makeOutputChaptersTool() {
                   "title. A synthesized title is always expected for merged or " +
                   "title-less units — never leave this empty.",
               ),
-            endPara: z
-              .number()
-              .int()
+            endMarker: z
+              .string()
+              .regex(
+                /^¶-?\d+¶$/,
+                "Must be a paragraph tag like ¶0¶, ¶42¶, or ¶-1¶ (the merge sentinel)",
+              )
               .describe(
-                "The LOCAL paragraph index (0-based, counting only the tagged " +
-                  "¶N¶ paragraphs in the new-text section) of this storyline " +
-                  "unit's LAST paragraph. The system slices the verbatim body " +
-                  "as all paragraphs from the previous unit's end + 1 through " +
-                  "endPara — you do NOT copy any text, just emit the integer " +
-                  "index. Only emit a unit when you can see its LAST paragraph " +
-                  "in the new-text section. endPara values MUST be strictly " +
-                  "increasing across entries. " +
-                  "SPECIAL VALUE -1 (MERGE SENTINEL): emit -1 ONLY as the FIRST " +
-                  "entry, when this round's first storyline unit CONTINUES the " +
-                  "previous chapter's storyline from the 前情衔接 section (a " +
-                  "cross-chapter storyline cut at the chunk boundary). On -1 " +
-                  "the system appends the next entry's body to the previous " +
-                  "chapter's row and concatenates the outlines — the cut " +
-                  "storyline becomes one chapter. You MUST still provide " +
-                  "title/outline/foreshadowing for the merged unit. If the new " +
-                  "text does NOT continue the previous chapter, start normally " +
-                  "at endPara >= 0.",
+                "The EXACT `¶N¶` tag at this storyline unit's LAST paragraph, " +
+                  "copied VERBATIM from the new-text section (including both " +
+                  "pilcrows). The new-text section is split into paragraphs, " +
+                  "each tagged `¶N¶` with N a 0-based LOCAL index starting at " +
+                  "¶0¶. The system extracts the verbatim body as all paragraphs " +
+                  "from the previous unit's end + 1 through the paragraph " +
+                  "carrying your endMarker — YOU DO NOT COPY ANY TEXT, just " +
+                  "emit the tag. Only emit a unit when you can see its LAST " +
+                  "paragraph in the new-text section. The N in endMarker values " +
+                  "MUST be strictly increasing across entries. " +
+                  "SPECIAL VALUE ¶-1¶ (MERGE SENTINEL): emit `¶-1¶` ONLY as " +
+                  "the FIRST entry, when this round's first storyline unit " +
+                  "CONTINUES the previous chapter's storyline from the 前情衔接 " +
+                  "section (a cross-chapter storyline cut at the chunk " +
+                  "boundary). On `¶-1¶` the system appends the next entry's " +
+                  "body to the previous chapter's row and concatenates the " +
+                  "outlines — the cut storyline becomes one chapter. You MUST " +
+                  "still provide title/outline/foreshadowing for the merged " +
+                  "unit. If the new text does NOT continue the previous " +
+                  "chapter, start normally at endMarker `¶0¶` or higher.",
               ),
             outline: z
               .string()
@@ -255,9 +261,9 @@ function makeOutputChaptersTool() {
                   "empty; if the unit has no plot content, still summarize what " +
                   "is there. No explanations, asides, or preambles; do not copy " +
                   "the original prose. When this entry is the merge sentinel " +
-                  "(endPara=-1), write the outline so it concatenates naturally " +
-                  "onto the previous chapter's outline (the system joins them " +
-                  "with a newline).",
+                  "(endMarker=`¶-1¶`), write the outline so it concatenates " +
+                  "naturally onto the previous chapter's outline (the system " +
+                  "joins them with a newline).",
               ),
             foreshadowing: z
               .array(z.string())
@@ -275,9 +281,28 @@ function makeOutputChaptersTool() {
     }),
     execute: async (input, { experimental_context }) => {
       const ctx = experimental_context as OutputChaptersContext;
+
+      // Parse each entry's `endMarker` string ("¶N¶" or "¶-1¶") into the
+      // integer N that sliceChapters expects. The schema regex already rejected
+      // anything that doesn't match `^¶-?\d+¶$`, so parseInt is safe. The
+      // integer runs through the existing slicer unchanged.
+      const entries: ChapterEntry[] = [];
+      for (const raw of input.chapters) {
+        const n = parseInt(
+          raw.endMarker.replace(/^¶/, "").replace(/¶$/, ""),
+          10,
+        );
+        entries.push({
+          title: raw.title,
+          endPara: n,
+          outline: raw.outline,
+          foreshadowing: raw.foreshadowing,
+        });
+      }
+
       const result = sliceChapters({
         paragraphs: ctx.paragraphs,
-        entries: input.chapters as ChapterEntry[],
+        entries,
         nextChapterNumber: ctx.nextChapterNumber,
       });
 
@@ -439,12 +464,13 @@ instead, you stopped after emitting plain text. \
 Plain text is not accepted, so the result is invalid. \
 Please resubmit now: call the outputChapters tool with ONE entry per storyline \
 unit you can FULLY identify in the new-text section (you can see the unit's \
-LAST paragraph). Each entry carries: title (REQUIRED), endPara (the LOCAL 0-based \
-index of the unit's last ¶N¶-tagged paragraph; or -1 as the merge-with-previous-\
-chapter sentinel on the FIRST entry only), outline (non-empty factual summary), \
-and foreshadowing (string array; [] if none). The system extracts the body \
-deterministically from your endPara — you do not copy any text. Do not output \
-plain text, and do not write any content outside of the tool call.`;
+LAST paragraph). Each entry carries: title (REQUIRED), endMarker (the EXACT \
+¶N¶ tag of the unit's last paragraph, copied VERBATIM with both pilcrows; \
+or ¶-1¶ as the merge-with-previous-chapter sentinel on the FIRST entry only), \
+outline (non-empty factual summary), and foreshadowing (string array; [] if \
+none). The system extracts the body deterministically from your endMarker — \
+you do not copy any text. Do not output plain text, and do not write any \
+content outside of the tool call.`;
 
 // ---------------------------------------------------------------------------
 // Cross-chapter tactic lookup table (章节并写 rules).
@@ -916,19 +942,19 @@ function buildOutlineSystemPrompt(crossChapter: CrossChapterDehydrate): string {
       "**若该单元是单个有标题的原章**，直接沿用该原章标题" +
       "（如「第一章 风起」）；**若该单元由多个原章合并而成**，请为这条合并后的故事线**新拟一个简明标题**；" +
       "**若原小说本身不提供章节标题**，也请新拟一个简明标题。合并单元或无标题原文都必须给出新标题，不得留空。\n" +
-      "- endPara：该剧情单元最后一段在「本次需要处理的小说原文片段」中的**段落序号**。" +
+      "- endMarker：该剧情单元最后一段所附的 `¶N¶` 标记，**逐字复制你看到的标记字符串**（包含两侧的两个 ¶ 符号）。" +
       "片段中每一段都已用 `¶N¶` 标记，N 是从 0 开始的本地段落序号（每次片段都从 ¶0¶ 重新计数）。" +
-      "你只需给出该单元最后一段的 N 值（整数），系统会自动切取「上一单元结尾段 + 1」到 endPara 之间的所有段落作为该单元的正文。\n" +
-      "  · **你不需要复制任何正文文本**——只需给出段落序号，正文由系统按序号精确切取。\n" +
+      "系统会自动切取「上一单元结尾段 + 1」到 endMarker 所标段落之间的所有段落作为该单元的正文。\n" +
+      "  · **你不需要复制任何正文文本**——只需复制段落标记，正文由系统按标记精确切取。\n" +
       "  · **只有当你能看到该单元的最后一段时才提交它**——若某单元的结尾跑出了片段范围，不要提交它（它会在下一个片段中被覆盖）。\n" +
-      "  · 各条目的 endPara 必须**严格递增**（每个单元紧接上一个单元结束的下一段开始）。\n" +
-      "  · **特殊值 -1（合并哨兵）**：**仅作为第一条条目**，当本次片段开头延续「前情衔接」中给出的上一章故事线时，" +
-      "将第一条条目的 endPara 设为 -1。系统会把下一条条目的正文追加到上一章行，并把两份大纲拼接，" +
-      "从而把在切片边界被切断的故事线还原为一个完整章节。**即使 endPara=-1，仍必须给出该单元的标题/大纲/伏笔。**" +
-      "若本次片段开头并不延续上一章，按正常方式从 endPara ≥ 0 开始。\n" +
+      "  · 各条目的 endMarker 中的 N 必须**严格递增**（每个单元紧接上一个单元结束的下一段开始）。\n" +
+      "  · **特殊值 `¶-1¶`（合并哨兵）**：**仅作为第一条条目**，当本次片段开头延续「前情衔接」中给出的上一章故事线时，" +
+      "将第一条条目的 endMarker 设为 `¶-1¶`。系统会把下一条条目的正文追加到上一章行，并把两份大纲拼接，" +
+      "从而把在切片边界被切断的故事线还原为一个完整章节。**即使 endMarker=`¶-1¶`，仍必须给出该单元的标题/大纲/伏笔。**" +
+      "若本次片段开头并不延续上一章，按正常方式从 endMarker `¶0¶` 或更大开始。\n" +
       "- 大纲：该剧情单元主要事件、人物决定、状态变化的简明概括（2-5 句，只述事实与推进，不复述原文描写）。" +
       "存入数据库为非空 TEXT 字段，**必须给出非空内容**，不得为空字符串。" +
-      "当该条目是合并哨兵（endPara=-1）时，请写成可与上一章大纲自然拼接的形式（系统用换行连接）。\n" +
+      "当该条目是合并哨兵（endMarker=`¶-1¶`）时，请写成可与上一章大纲自然拼接的形式（系统用换行连接）。\n" +
       "- 伏笔/线索：字符串数组，用关键词列出该单元中出现、且后文会用到的线索与伏笔" +
       "（人物、物品、承诺、能力、关系、悬念等）。存入数据库为 JSON 字符串数组（NOT NULL，默认 '[]'），" +
       "**不接受 null**：若该单元没有伏笔，返回**空数组 []**，而非 null。每项为短语关键词，不是完整句子。" +
@@ -953,7 +979,7 @@ function buildOutlineSystemPrompt(crossChapter: CrossChapterDehydrate): string {
     sections.push(
       [
         "合并判断依据：下面列出的跨章套路。当连续多个原章属于同一种套路、" +
-          "共同构成一个完整故事线时，应将它们合并成一个剧情单元（endPara 取故事线最后一段的序号，" +
+          "共同构成一个完整故事线时，应将它们合并成一个剧情单元（endMarker 取故事线最后一段的标记，" +
           "起点自动紧接上一单元）。每条说明这是什么套路、哪些是可压缩的水、哪些才是有效信息，" +
           "作为你判断合并与识别的依据。不属于这些套路的独立原章保持单独成章。",
         ...tacticBlocks,
@@ -969,7 +995,7 @@ function buildOutlineSystemPrompt(crossChapter: CrossChapterDehydrate): string {
       "帮助你判断伏笔是否已埋、套路是否在重复。**本次无需为前情大纲中的章节产出结果。**\n" +
       "2. （可选，仅当本次不是首轮时）「前情衔接」——上一章的大纲 + 上一章的最后若干段原文" +
       "（**未标记 ¶N¶**）。如果「本次需要处理的小说原文片段」开头延续此故事线，" +
-      "请将**第一条**条目的 endPara 设为 **-1**，与上一章合并；否则按正常方式从 endPara ≥ 0 开始。\n" +
+      "请将**第一条**条目的 endMarker 设为 **`¶-1¶`**，与上一章合并；否则按正常方式从 endMarker `¶0¶` 或更大开始。\n" +
       "3. 「本次需要处理的小说原文片段」——每段以 `¶N¶` 标记（N 从 0 起的本地段落序号）。" +
       "只为「你能看到其最后一段的剧情单元」产出结果。",
   );
@@ -979,25 +1005,26 @@ function buildOutlineSystemPrompt(crossChapter: CrossChapterDehydrate): string {
     "The only thing you are allowed to do is to call the outputChapters tool:\n" +
       "- Place an array entry per storyline unit you can FULLY identify in the " +
       "new-text section (you can see the unit's LAST paragraph — its end is not " +
-      "cut off by the section's bottom edge), each carrying title, endPara, " +
+      "cut off by the section's bottom edge), each carrying title, endMarker, " +
       "outline, and foreshadowing (string array, may be empty);\n" +
       "- `title`: REQUIRED — must never be empty or null. Reuse the original " +
       "chapter heading VERBATIM if the unit is a single original chapter that " +
       "has one; WRITE A NEW concise title if the unit MERGES several original " +
       "chapters, OR if the source novel has no chapter titles at all. Merged " +
       "and title-less units must carry a synthesized title;\n" +
-      "- `endPara`: the LOCAL 0-based index of the unit's LAST paragraph, " +
-      "counting only the tagged ¶N¶ paragraphs in the new-text section. The " +
-      "system extracts the verbatim body deterministically as all paragraphs " +
-      "from the previous unit's end + 1 through endPara — YOU DO NOT COPY ANY " +
-      "TEXT, just emit the integer index. endPara values MUST be strictly " +
-      "increasing across entries. SPECIAL VALUE -1 (MERGE SENTINEL): emit -1 " +
-      "ONLY as the FIRST entry when this round's first unit CONTINUES the " +
-      "previous chapter's storyline from the 前情衔接 section; the system " +
-      "appends the next entry's body to the previous chapter's row and " +
-      "concatenates the outlines. You MUST still provide title/outline/" +
-      "foreshadowing for the merged unit. -1 anywhere except the first entry " +
-      "is a hard error;\n" +
+      "- `endMarker`: the EXACT `¶N¶` tag at the unit's LAST paragraph, copied " +
+      "VERBATIM from the new-text section (including both pilcrows). The new-" +
+      "text section is split into paragraphs, each tagged `¶N¶` with N a " +
+      "0-based LOCAL index starting at ¶0¶. The system extracts the verbatim " +
+      "body as all paragraphs from the previous unit's end + 1 through the " +
+      "paragraph carrying your endMarker — YOU DO NOT COPY ANY TEXT, just emit " +
+      "the tag. The N in endMarker values MUST be strictly increasing across " +
+      "entries. SPECIAL VALUE `¶-1¶` (MERGE SENTINEL): emit `¶-1¶` ONLY as the " +
+      "FIRST entry when this round's first unit CONTINUES the previous " +
+      "chapter's storyline from the 前情衔接 section; the system appends the " +
+      "next entry's body to the previous chapter's row and concatenates the " +
+      "outlines. You MUST still provide title/outline/foreshadowing for the " +
+      "merged unit. `¶-1¶` anywhere except the first entry is a hard error;\n" +
       "- Do NOT emit a unit whose end runs off the bottom of the new-text " +
       "section — it will be covered in the next excerpt;\n" +
       "- You are not allowed to output units anywhere other than the " +
@@ -1007,8 +1034,8 @@ function buildOutlineSystemPrompt(crossChapter: CrossChapterDehydrate): string {
       "- `outline` is stored as a NOT NULL TEXT column — it must be a non-empty " +
       "brief factual summary; no explanations, asides, or preambles; do not " +
       "copy the original prose. When this entry is the merge sentinel " +
-      "(endPara=-1), write the outline so it concatenates naturally onto the " +
-      "previous chapter's outline (the system joins them with a newline);\n" +
+      "(endMarker=`¶-1¶`), write the outline so it concatenates naturally onto " +
+      "the previous chapter's outline (the system joins them with a newline);\n" +
       "- `foreshadowing` is stored as a JSON string array in a NOT NULL column " +
       "(DB default '[]'). null is NOT accepted — return an empty array [] when " +
       "the unit plants none. Entries are short keywords/noun phrases, not " +
@@ -1712,7 +1739,7 @@ function buildUserMessage(params: {
   if (carrySection) {
     parts.push(
       "前情衔接（上一章的大纲 + 上一章最后若干段原文，**未标记 ¶N¶**；" +
-        "如本次片段开头延续此故事线，请将**第一条**条目的 endPara 设为 **-1** 与上一章合并）：\n" +
+        "如本次片段开头延续此故事线，请将**第一条**条目的 endMarker 设为 **`¶-1¶`** 与上一章合并）：\n" +
         carrySection,
     );
   }
