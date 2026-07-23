@@ -12,7 +12,7 @@ import { Slider } from "@/components/ui/slider";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Textarea } from "@/components/ui/textarea";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import type { ModelParameters, ReasoningOption } from "@shared";
 
 /**
@@ -87,6 +87,7 @@ export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
 
   const hasReasoningControls =
     reasoningOptions && reasoningOptions.length > 0;
+  const autoLabel = t(k("auto"));
 
   return (
     <div className="space-y-5">
@@ -143,6 +144,7 @@ export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
           label={t(k("temperature"))}
           hint={t(k("temperatureHint"))}
           value={p.temperature}
+          autoLabel={autoLabel}
           min={0}
           max={2}
           step={0.1}
@@ -153,6 +155,7 @@ export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
           label={t(k("topP"))}
           hint={t(k("topPHint"))}
           value={p.topP}
+          autoLabel={autoLabel}
           min={0}
           max={1}
           step={0.05}
@@ -163,7 +166,7 @@ export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
           label={t(k("maxTokens"))}
           hint={t(k("maxTokensHint"))}
           value={p.maxTokens}
-          placeholder="auto"
+          placeholder={autoLabel}
           min={1}
           onChange={(v) => setParam("maxTokens", v)}
         />
@@ -180,6 +183,7 @@ export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
             label={t(k("frequencyPenalty"))}
             hint={t(k("frequencyPenaltyHint"))}
             value={p.frequencyPenalty}
+            autoLabel={autoLabel}
             min={-2}
             max={2}
             step={0.1}
@@ -190,6 +194,7 @@ export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
             label={t(k("presencePenalty"))}
             hint={t(k("presencePenaltyHint"))}
             value={p.presencePenalty}
+            autoLabel={autoLabel}
             min={-2}
             max={2}
             step={0.1}
@@ -200,7 +205,7 @@ export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
             label={t(k("topK"))}
             hint={t(k("topKHint"))}
             value={p.topK}
-            placeholder="auto"
+            placeholder={autoLabel}
             min={1}
             onChange={(v) => setParam("topK", v)}
           />
@@ -210,7 +215,7 @@ export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
   );
 };
 
-/** Compact readout of a param's current value, with a reset affordance when set. */
+/** Compact readout of a param's current value, with a reset icon button when set. */
 const ValueBadge: FC<{ text: string; onReset?: () => void }> = ({
   text,
   onReset,
@@ -221,10 +226,10 @@ const ValueBadge: FC<{ text: string; onReset?: () => void }> = ({
       <button
         type="button"
         onClick={onReset}
-        className="text-muted-foreground/60 transition-colors hover:text-foreground"
+        className="inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground/60 transition-colors hover:bg-muted hover:text-foreground"
         aria-label="reset"
       >
-        ×
+        <X className="size-3" />
       </button>
     )}
   </span>
@@ -234,6 +239,8 @@ interface SliderParamProps {
   label: string;
   hint?: string;
   value: number | undefined;
+  /** Localized label shown when the value is unset (the badge readout). */
+  autoLabel: string;
   min: number;
   max: number;
   step: number;
@@ -245,6 +252,7 @@ const SliderParam: FC<SliderParamProps> = ({
   label,
   hint,
   value,
+  autoLabel,
   min,
   max,
   step,
@@ -258,7 +266,7 @@ const SliderParam: FC<SliderParamProps> = ({
         {hint && <HelpTooltip content={hint} maxWidth={240} />}
       </Label>
       <ValueBadge
-        text={value !== undefined ? format(value) : "auto"}
+        text={value !== undefined ? format(value) : autoLabel}
         onReset={value !== undefined ? () => onChange(undefined) : undefined}
       />
     </div>
@@ -363,41 +371,41 @@ const ReasoningControls: FC<ReasoningControlsProps> = ({
 
   return (
     <div className="space-y-4">
-      <Label className="flex items-center gap-1.5 text-sm">
-        {t(rk("title"))}
-        <HelpTooltip content={t(rk("hint"))} maxWidth={240} />
-      </Label>
-
-      {/* Mode — Auto / On / Off. */}
-      <ToggleGroup
-        type="single"
-        value={mode}
-        onValueChange={(v) => {
-          if (!v) return; // re-clicking the active item clears it; ignore
-          const next =
-            v === "on" ? true : v === "off" ? false : null;
-          // Switching to Auto also clears effort/budget so nothing leaks.
-          const patch: Partial<ModelParameters> = { reasoningEnabled: next };
-          if (next === null || next === false) {
-            patch.reasoningEffort = null;
-            patch.reasoningBudgetTokens = null;
-          }
-          onChange(patch);
-        }}
-        variant="outline"
-        size="sm"
-        className="w-full"
-      >
-        <ToggleGroupItem value="auto" className="flex-1">
-          {t(rk("auto"))}
-        </ToggleGroupItem>
-        <ToggleGroupItem value="on" className="flex-1">
-          {t(rk("on"))}
-        </ToggleGroupItem>
-        <ToggleGroupItem value="off" className="flex-1">
-          {t(rk("off"))}
-        </ToggleGroupItem>
-      </ToggleGroup>
+      {/* Title + mode selector on one line: label left, Auto/On/Off right. */}
+      <div className="flex items-center justify-between gap-3">
+        <Label className="flex items-center gap-1.5 text-sm">
+          {t(rk("title"))}
+          <HelpTooltip content={t(rk("hint"))} maxWidth={240} />
+        </Label>
+        <ToggleGroup
+          type="single"
+          value={mode}
+          onValueChange={(v) => {
+            if (!v) return; // re-clicking the active item clears it; ignore
+            const next =
+              v === "on" ? true : v === "off" ? false : null;
+            // Switching to Auto or Off also clears effort/budget so nothing leaks.
+            const patch: Partial<ModelParameters> = { reasoningEnabled: next };
+            if (next === null || next === false) {
+              patch.reasoningEffort = null;
+              patch.reasoningBudgetTokens = null;
+            }
+            onChange(patch);
+          }}
+          variant="outline"
+          size="sm"
+        >
+          <ToggleGroupItem value="auto">
+            {t(rk("auto"))}
+          </ToggleGroupItem>
+          <ToggleGroupItem value="on">
+            {t(rk("on"))}
+          </ToggleGroupItem>
+          <ToggleGroupItem value="off">
+            {t(rk("off"))}
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </div>
 
       {/* Effort + budget — only meaningful when thinking is on. */}
       {mode === "on" && (
@@ -436,7 +444,7 @@ const ReasoningControls: FC<ReasoningControlsProps> = ({
                   {t(rk("budgetTokens"))}
                 </Label>
                 <ValueBadge
-                  text={budget != null ? String(budget) : "auto"}
+                  text={budget != null ? String(budget) : t(rk("auto"))}
                   onReset={
                     budget != null ?
                       () => onChange({ reasoningBudgetTokens: null })

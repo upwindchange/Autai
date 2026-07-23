@@ -18,6 +18,7 @@
   "defaultChatParams.title": "默认聊天参数",
   "defaultChatParams.description": "系统提示词和模型参数的全局默认值。未单独设置的对话将回退到这些值。",
   "defaultChatParams.save": "保存",
+  "defaultChatParams.auto": "自动",
   "defaultChatParams.systemPrompt": "系统提示词",
   "defaultChatParams.systemPromptHint": "默认添加到每个对话开头的指令。",
   "defaultChatParams.systemPromptEmpty": "未设置系统默认",

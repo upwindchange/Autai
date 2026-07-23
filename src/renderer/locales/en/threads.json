@@ -18,6 +18,7 @@
   "defaultChatParams.title": "Default Chat Parameters",
   "defaultChatParams.description": "System-wide defaults for system prompt and model parameters. Conversations without a per-thread override fall back to these.",
   "defaultChatParams.save": "Save",
+  "defaultChatParams.auto": "auto",
   "defaultChatParams.systemPrompt": "System prompt",
   "defaultChatParams.systemPromptHint": "Default instructions added to the start of every conversation.",
   "defaultChatParams.systemPromptEmpty": "No system default set",

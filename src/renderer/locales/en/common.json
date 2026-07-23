@@ -134,6 +134,7 @@
   "threadSettings.systemPrompt": "System prompt",
   "threadSettings.systemPromptHint": "Optional instructions added to the start of every conversation.",
   "threadSettings.systemPromptEmptyDefault": "No system default set",
+  "threadSettings.auto": "auto",
   "threadSettings.temperature": "Temperature",
   "threadSettings.temperatureHint": "Higher values make output more random, lower values more focused. Range 0–2.",
   "threadSettings.maxTokens": "Max output tokens",

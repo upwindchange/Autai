@@ -134,6 +134,7 @@
   "threadSettings.systemPrompt": "系统提示词",
   "threadSettings.systemPromptHint": "添加到本对话每条消息之前的可选指令。",
   "threadSettings.systemPromptEmptyDefault": "未设置系统默认",
+  "threadSettings.auto": "自动",
   "threadSettings.temperature": "温度",
   "threadSettings.temperatureHint": "值越高输出越随机，越低越聚焦。范围 0–2。",
   "threadSettings.maxTokens": "最大输出长度",
