@@ -94,6 +94,8 @@ export const TimeoutsConfigSchema = z.object({
   interactive: z.number().int().min(30).max(3600).default(600),
   /** chunkMs for all agents (seconds) */
   streaming: z.number().int().min(30).max(3600).default(120),
+  /** stepMs for novel dehydration — pipeline ① one-pass chunk (seconds) */
+  novel: z.number().int().min(30).max(3600).default(1200),
 });
 export type TimeoutsConfig = z.infer<typeof TimeoutsConfigSchema>;
 

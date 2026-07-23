@@ -804,24 +804,12 @@ export type SourceChapterStatus = "fetching" | "fetched" | "error";
 export type RewrittenChapterStatus = "rewriting" | "rewritten" | "error";
 
 /**
- * Lifecycle of a source chapter's outline (co-located on `source_chapters`
- * after the table merge). The outliner (file-novel pipeline) sets this during
- * the outline pass: "pending" = not yet outlined (internet/non-novel sources
- * stay here — they have no outline step); "outlined" = outline + foreshadowing
- * populated; "error" = outline failed. `isOutlineComplete` checks every source
- * row is `"outlined"` (or there are none). The reader's phase derivation treats
- * `"pending"` as "connecting" (outline in progress) for file novels.
- */
-export type OutlineStatus = "pending" | "outlined" | "error";
-
-/**
- * Per-output pipeline progress — the reader's list/TOC view. After the
- * 3-pipeline refactor the spine is the REWRITE OUTPUT (one row may cover a
- * co-writing window of multiple source chapters), so `chapterNumber` here is
- * the OUTPUT's sequential number (1,2,3,…), NOT a source-chapter number.
- * `sourceStatus`/`outlineStatus` are aggregated across the output's source
- * range (worst-case wins); `rewriteStatus` is the output row's own status. A
- * `null` status means no row for that table yet within the output's range.
+ * Per-output pipeline progress — the reader's list/TOC view. `chapterNumber` is
+ * the REWRITE OUTPUT sequential number (the reader spine). `sourceStatus` comes
+ * from the source row at the same number (pipelines ②/③ only — pipeline ①
+ * produces outline + rewrite atomically so it has no source row); a `null`
+ * status means no row for that table yet. `rewriteStatus` is the output row's
+ * own status.
  */
 export interface ChapterProgress {
   /** REWRITE OUTPUT sequential number (reader spine). */
@@ -829,7 +817,6 @@ export interface ChapterProgress {
   title: string | null;
   sourceStatus: SourceChapterStatus | null;
   rewriteStatus: RewrittenChapterStatus | null;
-  outlineStatus: OutlineStatus | null;
 }
 
 /** Single-output detail: progress + the rewritten prose (null unless rewritten). */
@@ -840,12 +827,11 @@ export interface ChapterDetail extends ChapterProgress {
 /**
  * Reader-facing per-chapter indicator. Values deliberately match DotMatrix
  * state names so the renderer renders `phase` with no mapping. Derived on the
- * backend (in the REST routes) from the two lifecycle statuses + the scheduler's
+ * backend (in the REST routes) from the lifecycle statuses + the scheduler's
  * `inFlight` set, then sent to the renderer as a plain field.
  */
 export type ChapterPhase =
   | "loading" // acquiring 原文 (sourceStatus "fetching")
-  | "connecting" // 章节大纲生成中 (outlineStatus "outlining") — reuses DotMatrix "connecting" animation
   | "syncing" // rewriting 重写 (rewriteStatus "rewriting")
   | "error" // source or rewrite failed — terminal until Redo
   | "success" // rewritten — ready to read
@@ -869,13 +855,8 @@ export function deriveChapterPhase(
 ): ChapterPhase {
   if (ch.sourceStatus === "error" || ch.rewriteStatus === "error")
     return "error";
-  // Rewriting states take priority over outlining: once a chapter's outline
-  // lands, its rewrite is enqueued immediately (the outliner's progress
-  // callback fires `ensure` per chapter), so a chapter already rewriting must
-  // show syncing even while other chapters' outlines are still generating.
   if (ch.rewriteStatus === "rewriting") return "syncing";
   if (ch.rewriteStatus === "rewritten") return "success";
-  if (ch.outlineStatus === "pending") return "connecting";
   if (ch.sourceStatus === "fetching") return "loading";
   return inFlight.has(ch.chapterNumber) ? "paused" : "stopped";
 }

@@ -376,6 +376,24 @@ export const EntertainmentThread: FC = () => {
  *  (font, line-height, 2-em first-line indent, paragraph spacing) comes from
  *  the `.novel-reader` rules in novel-reader.css. */
 const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
+  // If the rewritten prose exists, show it right away — regardless of source
+  // status. Pipeline ① produces outline + rewrite in one pass and never writes
+  // a source_chapters row, so its chapters legitimately carry sourceStatus:
+  // null even when fully rewritten; gating on sourceStatus would wrongly show
+  // them as "fetching" forever.
+  if (chapter && chapter.rewriteStatus === "rewritten") {
+    // Split on newline (handles CRLF); blank lines add no node. Each <p> gets
+    // the first-line indent + spacing from .novel-reader p. Plain text nodes
+    // only, so React/Blink handles a chapter as a handful of elements.
+    const paragraphs = (chapter.content ?? "").split(/\r?\n/);
+    return (
+      <div className="novel-reader text-pretty">
+        {paragraphs.map((line, i) =>
+          line.trim() ? <p key={i}>{line}</p> : null,
+        )}
+      </div>
+    );
+  }
   if (
     !chapter ||
     chapter.sourceStatus === null ||
@@ -386,43 +404,20 @@ const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
   if (chapter.sourceStatus === "error" || chapter.rewriteStatus === "error") {
     return <ChapterState state="error" textLabel="reader.chapter.error" />;
   }
-  // Outline in progress — only for file-uploaded novels where the outliner is
-  // generating. Checked before the rewrite branches because the rewrite
-  // branches (syncing/success) take priority once they apply — but a chapter
-  // whose outline is still being generated won't have a rewriteStatus yet, so
-  // it reaches here. Uses the DotMatrix "connecting" animation.
-  if (chapter.outlineStatus === "pending") {
-    return (
-      <ChapterState state="connecting" keyLabel="reader.chapter.outlining" />
-    );
-  }
   if (chapter.rewriteStatus === "rewriting") {
     return <ChapterState state="syncing" keyLabel="reader.chapter.rewriting" />;
   }
-  if (chapter.rewriteStatus !== "rewritten") {
-    // Not rewriting and not done — either queued (paused) or not yet scheduled
-    // (stopped). Distinguish via the backend-derived `phase` field.
-    return (
-      <ChapterState
-        state={chapter.phase === "paused" ? "paused" : "stopped"}
-        keyLabel={
-          chapter.phase === "paused" ?
-            "reader.chapter.queued"
-          : "reader.chapter.stopped"
-        }
-      />
-    );
-  }
-  // Split on newline (handles CRLF); blank lines add no node. Each <p> gets the
-  // first-line indent + spacing from .novel-reader p. Plain text nodes only,
-  // so React/Blink handles a chapter as a handful of elements.
-  const paragraphs = (chapter.content ?? "").split(/\r?\n/);
+  // Not rewriting and not done — either queued (paused) or not yet scheduled
+  // (stopped). Distinguish via the backend-derived `phase` field.
   return (
-    <div className="novel-reader text-pretty">
-      {paragraphs.map((line, i) =>
-        line.trim() ? <p key={i}>{line}</p> : null,
-      )}
-    </div>
+    <ChapterState
+      state={chapter.phase === "paused" ? "paused" : "stopped"}
+      keyLabel={
+        chapter.phase === "paused" ?
+          "reader.chapter.queued"
+        : "reader.chapter.stopped"
+      }
+    />
   );
 };
 

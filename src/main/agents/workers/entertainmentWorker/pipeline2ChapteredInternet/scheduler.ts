@@ -39,8 +39,8 @@ import {
   type PipelineScheduler,
   type WorkerLiveness,
 } from "../shared/pipelineScheduler";
-import { fetchInternetChapter } from "../internetFetch";
-import { rewriteChapter } from "../rewriter";
+import { fetchInternetChapter } from "./internetFetch";
+import { rewriteChapter } from "./rewriter";
 
 const logger = log.scope("Dehydrate:Pipeline2:Internet");
 

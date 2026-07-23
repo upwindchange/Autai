@@ -23,7 +23,6 @@ const sameChapterView = (a: ChapterView, b: ChapterView): boolean =>
   a.title === b.title &&
   a.sourceStatus === b.sourceStatus &&
   a.rewriteStatus === b.rewriteStatus &&
-  a.outlineStatus === b.outlineStatus &&
   a.phase === b.phase &&
   a.content === b.content;
 

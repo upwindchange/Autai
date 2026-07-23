@@ -5,6 +5,7 @@ import {
   primaryKey,
   index,
   uniqueIndex,
+  foreignKey,
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import type { ThreadMode } from "@shared/tag";
@@ -12,7 +13,6 @@ import type {
   EntertainmentMode,
   SourceChapterStatus,
   RewrittenChapterStatus,
-  OutlineStatus,
   ChapterMetaKind,
 } from "@shared/entertainment";
 
@@ -180,19 +180,18 @@ export const entertainmentConfigs = sqliteTable("entertainment_configs", {
 });
 
 // --- Dehydration pipeline tables --------------------------------------------
-// Two tables in a strict 1:1 relationship keyed by (threadId, chapterNumber):
-//   - sourceChapters    原文 — acquired text (file ingestion OR network fetch).
-//                            For file novels, the outliner MERGES consecutive
-//                            raw chapters into single source rows (a cross-
-//                            chapter storyline becomes one row), so a source
-//                            row may cover multiple original chapter headings.
-//                            outline/foreshadowing are co-located here (the old
-//                            chapter_outlines table was merged in).
-//   - rewrittenChapters 重写 — the rewritten prose the reader shows. One row per
-//                            source row (1:1). sourceChapterId FK enforces this.
-// The reader only ever reads rewrittenChapters; sourceChapters feeds the
-// rewrite agent. Both accrue as the lookahead window (current chapter + 10)
-// advances. `id` is independent (crypto.randomUUID()), never a message id.
+// The reader's spine is `rewritten_chapters` (the dehydrated/rewritten prose),
+// keyed by (threadId, chapterNumber). Two feeder tables, each scoped to the
+// pipelines that need them:
+//   - sourceChapters  原文 — original-text storage for pipelines ②/③ (internet
+//                           per-chapter fetch + non-novel single-piece acquire).
+//                           Pipeline ① does NOT use this table: it reads the
+//                           decoded novel straight from entertainment_configs.rawText.
+//   - outlines           — pipeline ①'s per-chapter outline text, 1:1 with
+//                           rewritten_chapters by chapterNumber. A composite FK
+//                           (threadId, chapterNumber) → rewritten_chapters enforces it.
+// The reader only ever reads rewrittenChapters; sourceChapters feeds the ②/③
+// rewrite agents. `id` is independent (crypto.randomUUID()), never a message id.
 
 export const sourceChapters = sqliteTable(
   "source_chapters",
@@ -213,19 +212,6 @@ export const sourceChapters = sqliteTable(
       .notNull()
       .default("fetching")
       .$type<SourceChapterStatus>(),
-    // Outline-phase data (merged in from the former chapter_outlines table).
-    // outline: brief plot summary of this (possibly merged) source chapter.
-    // foreshadowing: JSON string array of clue/keyword tags (preserved through
-    //   rewriting so planted hooks are never dropped).
-    // outlineStatus: the outline step's lifecycle. "pending" = not yet outlined
-    //   (internet/non-novel sources never get outlined); "outlined" = done;
-    //   "error" = outline failed. isOutlineComplete checks this column.
-    outline: text("outline").notNull().default(""),
-    foreshadowing: text("foreshadowing").notNull().default("[]"),
-    outlineStatus: text("outline_status")
-      .notNull()
-      .default("pending")
-      .$type<OutlineStatus>(),
     createdAt: text("created_at")
       .notNull()
       .default(sql`(datetime('now'))`),
@@ -249,19 +235,12 @@ export const rewrittenChapters = sqliteTable(
     threadId: text("thread_id")
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
-    // chapterNumber is the reader's spine key. In the 1:1 model it mirrors the
-    // source chapter's number exactly (one rewrite row per source row).
+    // chapterNumber is the reader's spine key. For ②/③ it mirrors the source
+    // chapter's number (1:1); for ① it is the system-assigned sequential number
+    // of the dehydrated output (the `outlines` row at the same number pairs
+    // with it via the composite FK on `outlines`).
     chapterNumber: integer("chapter_number").notNull(),
     content: text("content"), // 重写 (rewritten prose); null while status='rewriting'
-    // FK to the source row this rewrite corresponds to (strict 1:1). Enforced
-    // at the DB level (foreign_keys pragma is ON in db/index.ts); ON DELETE
-    // CASCADE so deleting a source row (e.g. the carry-forward regeneration)
-    // removes its rewrite too. Nullable only for migration safety on pre-
-    // existing rows; new inserts always set it.
-    sourceChapterId: text("source_chapter_id").references(
-      () => sourceChapters.id,
-      { onDelete: "cascade" },
-    ),
     status: text("status")
       .notNull()
       .default("rewriting")
@@ -279,6 +258,39 @@ export const rewrittenChapters = sqliteTable(
       t.chapterNumber,
     ),
     index("rewritten_chapters_thread_id_idx").on(t.threadId),
+  ],
+);
+
+// Pipeline ①'s per-chapter outline text — produced in the SAME one-pass tool
+// call as its rewritten_chapters row, so the two are strictly 1:1 by
+// (threadId, chapterNumber). The composite FK points at rewritten_chapters
+// (the parent / reader spine); chapterNumber alone is not unique across
+// threads, so the FK is on the pair (the target pair is unique via
+// rewritten_chapters_thread_number_unique, which SQLite requires to enforce it).
+// Pipelines ②/③ never write here (they have no outline step).
+export const outlines = sqliteTable(
+  "outlines",
+  {
+    id: text("id").primaryKey(),
+    threadId: text("thread_id")
+      .notNull()
+      .references(() => threads.id, { onDelete: "cascade" }),
+    chapterNumber: integer("chapter_number").notNull(),
+    outline: text("outline").notNull(),
+    createdAt: text("created_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+    updatedAt: text("updated_at")
+      .notNull()
+      .default(sql`(datetime('now'))`),
+  },
+  (t) => [
+    uniqueIndex("outlines_thread_number_unique").on(t.threadId, t.chapterNumber),
+    index("outlines_thread_id_idx").on(t.threadId),
+    foreignKey({
+      columns: [t.threadId, t.chapterNumber],
+      foreignColumns: [rewrittenChapters.threadId, rewrittenChapters.chapterNumber],
+    }),
   ],
 );
 

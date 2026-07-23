@@ -148,7 +148,7 @@ async function runRewriteAgent(
     toolChoice: { type: "tool", toolName: "outputContent" },
     stopWhen: [hasSuccessfulToolResult("outputContent"), stepCountIs(3)],
     maxRetries: settingsService.settings.maxRetries,
-    timeout: TIMEOUTS.chat,
+    timeout: TIMEOUTS.novel,
     ...(signal && { abortSignal: signal }),
     ...sampling,
     ...(reasoning && { providerOptions: reasoning }),
@@ -187,7 +187,6 @@ async function rewriteNonNovel(
     entertainmentService.insertRewrittenChapter({
       threadId,
       chapterNumber: 1,
-      sourceChapterId: source?.id,
       status: "rewriting",
     });
   } else {

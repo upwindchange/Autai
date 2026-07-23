@@ -12,7 +12,7 @@ import { entertainmentService, threadPersistenceService } from "@/services";
 import { pipelineRouter } from "@agents/workers/entertainmentWorker/shared/pipelineRouter";
 import { LOOKAHEAD } from "@agents/workers/entertainmentWorker/shared/pipelineScheduler";
 import { chapteredFileScheduler } from "@agents/workers/entertainmentWorker/pipeline1ChapteredFile/scheduler";
-import { decodeNovelFile } from "@agents/workers/entertainmentWorker/fileDecoder";
+import { decodeNovelFile } from "@agents/workers/entertainmentWorker/pipeline1ChapteredFile/fileDecoder";
 import { deriveChapterPhase, EntertainmentConfigSchema } from "@shared";
 import log from "electron-log/main";
 
@@ -174,17 +174,16 @@ entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
       );
     }
 
-    // Kick off the outline run directly on Pipeline ① (upload is unambiguously a
-    // file thread, so it bypasses the router facade). The outliner streams
-    // source chapters in as it progresses; the reader-driven rewriter then
-    // produces each chapter's rewrite on demand via POST /worker (ensure) once
-    // the reader opens the thread. Fire-and-forget so the upload response
-    // returns at once — buildOutlines persists per-round errors itself and emits
-    // its own sendInfo/sendSuccess toasts.
+    // Kick off the one-pass dehydrate loop directly on Pipeline ① (upload is
+    // unambiguously a file thread, so it bypasses the router facade). The loop
+    // emits rewritten chapters + outlines as it progresses; the reader polls
+    // them via GET /chapters once it opens the thread. Fire-and-forget so the
+    // upload response returns at once — runDehydrate emits its own
+    // sendInfo/sendSuccess toasts.
     void chapteredFileScheduler
-      .buildOutlines(threadId)
+      .runDehydrate(threadId)
       .catch((err) =>
-        logger.error("outline generation failed", { threadId, err }),
+        logger.error("dehydrate generation failed", { threadId, err }),
       );
     return c.json({ ok: true }, 202);
   } catch (error) {

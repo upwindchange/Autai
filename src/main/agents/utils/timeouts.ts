@@ -11,6 +11,8 @@ const DEFAULT_TIMEOUTS = {
   interactive: 600,
   /** streaming chunk (shared) */
   streaming: 120,
+  /** novel dehydration — pipeline ① one-pass chunk (long single-step generation) */
+  novel: 1200,
 } as const;
 
 /**
@@ -22,6 +24,7 @@ export function getTimeouts(): {
   planning: TimeoutConfiguration;
   actionExecution: TimeoutConfiguration;
   hitlAgent: TimeoutConfiguration;
+  novel: TimeoutConfiguration;
 } {
   const t = settingsService.settings.timeouts ?? DEFAULT_TIMEOUTS;
 
@@ -29,6 +32,7 @@ export function getTimeouts(): {
   const actionMs = t.action * 1000;
   const interactiveMs = t.interactive * 1000;
   const streamingMs = t.streaming * 1000;
+  const novelMs = t.novel * 1000;
 
   return {
     /** Interactive chat, summaries — user is waiting */
@@ -39,6 +43,8 @@ export function getTimeouts(): {
     actionExecution: { stepMs: actionMs, chunkMs: streamingMs },
     /** HITL agent — user interaction sub-agent (includes user wait time) */
     hitlAgent: { stepMs: interactiveMs, chunkMs: streamingMs },
+    /** Novel dehydration (pipeline ①) — one-pass chunk, long single step */
+    novel: { stepMs: novelMs, chunkMs: streamingMs },
   };
 }
 
@@ -55,6 +61,9 @@ export const TIMEOUTS = {
   },
   get hitlAgent() {
     return getTimeouts().hitlAgent;
+  },
+  get novel() {
+    return getTimeouts().novel;
   },
 };
 

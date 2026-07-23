@@ -3,6 +3,7 @@ import {
   bookmarks,
   sourceChapters,
   rewrittenChapters,
+  outlines,
   entertainmentConfigs,
   threads,
 } from "@/db/schema";
@@ -12,7 +13,6 @@ import type {
   ChapterDetail,
   ChapterProgress,
   EntertainmentConfig,
-  OutlineStatus,
   RewrittenChapterStatus,
   SourceChapterStatus,
 } from "@shared";
@@ -76,10 +76,8 @@ class EntertainmentService {
     chapterNumber: number;
     title?: string | null;
     content?: string | null;
+    url?: string | null;
     status: SourceChapterStatus;
-    outline?: string;
-    foreshadowing?: string;
-    outlineStatus?: OutlineStatus;
   }): void {
     const db = getDb();
     db.insert(sourceChapters)
@@ -89,14 +87,8 @@ class EntertainmentService {
         chapterNumber: input.chapterNumber,
         title: input.title ?? null,
         content: input.content ?? null,
+        ...(input.url != null && { url: input.url }),
         status: input.status,
-        ...(input.outline != null && { outline: input.outline }),
-        ...(input.foreshadowing != null && {
-          foreshadowing: input.foreshadowing,
-        }),
-        ...(input.outlineStatus != null && {
-          outlineStatus: input.outlineStatus,
-        }),
       })
       .run();
   }
@@ -110,9 +102,6 @@ class EntertainmentService {
       content?: string | null;
       title?: string | null;
       url?: string | null;
-      outline?: string;
-      foreshadowing?: string;
-      outlineStatus?: OutlineStatus;
     },
   ): void {
     const db = getDb();
@@ -128,11 +117,11 @@ class EntertainmentService {
   }
 
   /**
-   * Delete a source row by (threadId, chapterNumber). The rewritten_chapters
-   * FK (sourceChapterId ON DELETE CASCADE) removes the corresponding rewrite
-   * row automatically. Used by: (a) the internet fetcher's FinalChapterError
-   * path (phantom row removal), (b) the outliner's carry-forward (deletes the
-   * last chapter to re-merge it with the next chunk). Cascade-safe, idempotent.
+   * Delete a source row by (threadId, chapterNumber). Used by the internet
+   * fetcher's FinalChapterError path (phantom row removal when chapter N-1
+   * turns out to be the last). Idempotent. NOTE: rewritten_chapters no longer
+   * has a source-chapter FK, so this does NOT cascade — callers manage the
+   * rewrite row separately when they need to.
    */
   deleteSourceChapter(threadId: string, chapterNumber: number): void {
     const db = getDb();
@@ -165,15 +154,14 @@ class EntertainmentService {
 
   /**
    * Insert a rewrite row (caller ensures it doesn't exist yet).
-   * `chapterNumber` mirrors the source chapter's number (strict 1:1).
-   * `sourceChapterId` is the FK to the source row — ON DELETE CASCADE ensures
-   * deleting a source row removes its rewrite too.
+   * `chapterNumber` is the reader spine key — for ②/③ it mirrors the source
+   * chapter's number (1:1); for ① it is the dehydrate output's sequential
+   * number (paired 1:1 with an `outlines` row at the same number).
    */
   insertRewrittenChapter(input: {
     threadId: string;
     chapterNumber: number;
     content?: string | null;
-    sourceChapterId?: string | null;
     status: RewrittenChapterStatus;
   }): void {
     const db = getDb();
@@ -183,9 +171,6 @@ class EntertainmentService {
         threadId: input.threadId,
         chapterNumber: input.chapterNumber,
         content: input.content ?? null,
-        ...(input.sourceChapterId != null && {
-          sourceChapterId: input.sourceChapterId,
-        }),
         status: input.status,
       })
       .run();
@@ -212,43 +197,41 @@ class EntertainmentService {
       .run();
   }
 
-  // --- outline data (co-located on source_chapters) ---------------------
-  // After the table merge, outline/foreshadowing/outlineStatus live ON the
-  // source row. The outliner (file-novel pipeline) populates them during the
-  // outline pass. These accessors read/write source chapters' outline columns.
+  // --- outlines (pipeline ① only) ----------------------------------------
+  // Pipeline ①'s per-chapter outline text, produced in the same one-pass tool
+  // call as its rewritten_chapters row (strict 1:1 by chapterNumber). Pipelines
+  // ②/³ never touch this table.
 
-  /**
-   * Whether every source chapter for the thread has outlineStatus "outlined".
-   * A chapter counts as done ONLY with `outlineStatus: "outlined"` — "pending"
-   * or "error" mean "not done". This is the true-completion check for the
-   * outline step. Used by the scheduler's re-entrancy guard + startup recovery.
-   */
-  isOutlineComplete(threadId: string): boolean {
-    const sources = this.listSourceChapters(threadId);
-    if (sources.length === 0) return true; // no chapters → vacuously complete
-    return sources.every((s) => s.outlineStatus === "outlined");
-  }
-
-  /** Count of source chapters with a given outline status for the thread. */
-  countSourceByOutlineStatus(threadId: string, status: OutlineStatus): number {
-    return this.listSourceChapters(threadId).filter(
-      (s) => s.outlineStatus === status,
-    ).length;
+  /** Insert an outline row (caller ensures it doesn't exist yet). */
+  insertOutline(input: {
+    threadId: string;
+    chapterNumber: number;
+    outline: string;
+  }): void {
+    const db = getDb();
+    db.insert(outlines)
+      .values({
+        id: crypto.randomUUID(),
+        threadId: input.threadId,
+        chapterNumber: input.chapterNumber,
+        outline: input.outline,
+      })
+      .run();
   }
 
   // --- merged reader view -------------------------------------------------
-  // The reader's SPINE is `rewritten_chapters`, in strict 1:1 with
-  // `source_chapters` (same chapterNumber). Each rewrite row joins its source
-  // row directly — title, sourceStatus, and outlineStatus all come from the
-  // source row at the same number. No range aggregation: one rewrite = one
-  // source. Source chapters with no rewrite row yet are NOT shown (the reader
-  // never rendered 原文); a not-yet-rewritten chapter shows as `paused`/
+  // The reader's SPINE is `rewritten_chapters`. Each rewrite row joins its
+  // source row directly (pipelines ②/³) — title + sourceStatus come from the
+  // source row at the same number. Pipeline ① has no source row (outline +
+  // rewrite are produced atomically from rawText), so its rows carry no
+  // sourceStatus. Source chapters with no rewrite row yet are NOT shown (the
+  // reader never renders 原文); a not-yet-rewritten chapter shows as `paused`/
   // `stopped` via its `phase`.
 
   /**
-   * Per-chapter pipeline progress, spine'd on `rewritten_chapters` (1:1 with
-   * source). title/sourceStatus/outlineStatus come from the source row at the
-   * same chapterNumber.
+   * Per-chapter pipeline progress, spine'd on `rewritten_chapters`.
+   * title/sourceStatus come from the source row at the same chapterNumber
+   * (absent for pipeline ①).
    */
   listChapterProgress(threadId: string): ChapterProgress[] {
     const outputs = this.listRewrittenChapters(threadId);
@@ -263,15 +246,14 @@ class EntertainmentService {
         title: s?.title ?? null,
         sourceStatus: s?.status ?? null,
         rewriteStatus: r.status,
-        outlineStatus: s?.outlineStatus ?? null,
       };
     });
   }
 
   /**
    * Single-chapter detail (1:1 keyed). Prose comes from the rewrite row (only
-   * when `rewritten`); title/sourceStatus/outlineStatus from the source row at
-   * the same number.
+   * when `rewritten`); title/sourceStatus from the source row at the same
+   * number (absent for pipeline ①).
    */
   getChapterDetail(threadId: string, chapterNumber: number): ChapterDetail {
     const r = this.getRewrittenChapter(threadId, chapterNumber);
@@ -283,7 +265,6 @@ class EntertainmentService {
         title: null,
         sourceStatus: null,
         rewriteStatus: null,
-        outlineStatus: null,
         content: null,
       };
     }
@@ -293,7 +274,6 @@ class EntertainmentService {
       title: s?.title ?? null,
       sourceStatus: s?.status ?? null,
       rewriteStatus: r.status,
-      outlineStatus: s?.outlineStatus ?? null,
       // Only expose rewritten prose to the reader (never 原文).
       content: r.status === "rewritten" ? r.content : null,
     };
@@ -537,30 +517,10 @@ class EntertainmentService {
   }
 
   /**
-   * Highest committed source chapterNumber for the thread, or 0 if none. The
-   * outliner derives `nextChapterNumber = maxSourceChapterNumber + 1` from this
-   * (read-time derivation, no counter column) so chapter numbering is gap-free
-   * and survives crash-resume: whatever chapters already landed in
-   * `source_chapters` define where the next one continues.
-   */
-  maxSourceChapterNumber(threadId: string): number {
-    const db = getDb();
-    const row = db
-      .select({
-        max: sql<number>`cast(max(${sourceChapters.chapterNumber}) as integer)`,
-      })
-      .from(sourceChapters)
-      .where(eq(sourceChapters.threadId, threadId))
-      .get();
-    return row?.max ?? 0;
-  }
-
-  /**
    * All rewrite OUTPUT rows for the thread, ordered by `chapterNumber` (the
-   * REWRITE OUTPUT sequential number — the reader's spine key, NOT a source
-   * chapter number after the 3-pipeline refactor). Used by the read-side spine
-   * (`listChapterProgress`/`getChapterDetail`) and by pipeline ①'s co-write
-   * windowing to find the next free output number.
+   * reader's spine key). Used by the read-side spine
+   * (`listChapterProgress`/`getChapterDetail`) and by pipeline ①'s dehydrate
+   * loop to find the next free output number.
    */
   listRewrittenChapters(threadId: string) {
     const db = getDb();

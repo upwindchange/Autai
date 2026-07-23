@@ -119,7 +119,7 @@ async function runRewriteAgent(
       stepCountIs(3),
     ],
     maxRetries: settingsService.settings.maxRetries,
-    timeout: TIMEOUTS.chat,
+    timeout: TIMEOUTS.novel,
     abortSignal: signal,
     ...sampling,
     ...(reasoning && { providerOptions: reasoning }),

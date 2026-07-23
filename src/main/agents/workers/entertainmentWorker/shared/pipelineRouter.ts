@@ -51,10 +51,10 @@ function pipelineForThread(threadId: string): AnyPipeline | null {
 /**
  * The route-facing facade the REST routes and the startup hook talk to. It is
  * NOT `PipelineScheduler` — it deliberately exposes only the generic
- * reader/lifecycle methods every pipeline shares. `buildOutlines` is absent:
- * the upload route calls `chapteredFileScheduler.buildOutlines` directly (upload
- * is unambiguously a file thread), and ②/③ have no outline step. Routes import
- * ONLY this object; the upload route is the sole direct pipeline caller.
+ * reader/lifecycle methods every pipeline shares. `runDehydrate` is absent:
+ * the upload route calls `chapteredFileScheduler.runDehydrate` directly (upload
+ * is unambiguously a file thread), and ②/③ have no dehydrate loop. Routes
+ * import ONLY this object; the upload route is the sole direct pipeline caller.
  */
 export interface PipelineRouterFacade {
   ensureRange(threadId: string, from: number, to: number): void;
