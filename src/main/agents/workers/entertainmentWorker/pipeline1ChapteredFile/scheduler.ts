@@ -107,6 +107,13 @@ export interface ChapteredFilePipeline {
   getInfo(threadId: string): WorkerLiveness;
   /** Snapshot of rewrite chapter numbers currently scheduled (enqueued or running). */
   getInFlight(threadId: string): Set<number>;
+  /**
+   * Stop all in-flight work on a thread: abort the running outline agent AND
+   * the running rewrite, drain the pending rewrite queue, and clear the
+   * in-flight set. No data is deleted; rows left mid-run self-heal on the next
+   * open. No-op for a thread with no worker.
+   */
+  stop(threadId: string): void;
 }
 
 interface ThreadWorker {
@@ -122,6 +129,9 @@ interface ThreadWorker {
    * `ensureRange` can preempt it (near chapters still queued are filtered out
    * by `needsWork` when their turn comes). Undefined when nothing is running. */
   abortController?: AbortController;
+  /** Abort controller for a running outline pass (`buildOutlines`), so `stop`
+   * can preempt the long-running outliner. Undefined when no outline is running. */
+  outlineAbortController?: AbortController;
 }
 
 class ChapteredFileScheduler implements ChapteredFilePipeline {
@@ -167,6 +177,11 @@ class ChapteredFileScheduler implements ChapteredFilePipeline {
       return;
     }
     w.outlineRunning = true;
+    // Fresh abort controller for this outline run so `stop` can preempt the
+    // long-running outliner mid-round. Cleared in `finally` regardless of
+    // outcome (success, failure, or abort).
+    const outlineAbort = new AbortController();
+    w.outlineAbortController = outlineAbort;
     sendInfo("大纲生成已开始", "正在为这本小说生成章节大纲，请稍候。");
     logger.info("phase 1: outline generation starting", {
       threadId,
@@ -174,7 +189,11 @@ class ChapteredFileScheduler implements ChapteredFilePipeline {
       resume: entertainmentService.getConsumedOffset(threadId) > 0,
     });
     try {
-      await generateOutlines(threadId, config.options.crossChapter);
+      await generateOutlines(
+        threadId,
+        config.options.crossChapter,
+        outlineAbort.signal,
+      );
       sendSuccess(
         i18n.t("entertainment.outlineSucceededTitle"),
         i18n.t("entertainment.outlineSucceededBody"),
@@ -191,6 +210,9 @@ class ChapteredFileScheduler implements ChapteredFilePipeline {
       );
     } finally {
       w.outlineRunning = false;
+      if (w.outlineAbortController === outlineAbort) {
+        w.outlineAbortController = undefined;
+      }
     }
   }
 
@@ -339,6 +361,26 @@ class ChapteredFileScheduler implements ChapteredFilePipeline {
         }),
       )
       .finally(() => w.inFlight.delete(c));
+  }
+
+  /**
+   * Stop all in-flight work on a thread: abort the running outline agent AND
+   * the running rewrite, drain the pending rewrite queue, and clear the
+   * in-flight set. Read-only on the DB — no rows are deleted or marked
+   * terminal. A row left in `"rewriting"`/`"outlining"` self-heals on the next
+   * `ensureRange` (its dirty flag is redone by `needsWork`). No-op for a thread
+   * with no worker (never touched).
+   */
+  stop(threadId: string): void {
+    const w = this.workers.get(threadId);
+    if (!w) return;
+    w.outlineAbortController?.abort();
+    w.outlineAbortController = undefined;
+    w.abortController?.abort();
+    w.abortController = undefined;
+    w.queue.clear();
+    w.inFlight.clear();
+    logger.info("stopped in-flight work", { threadId });
   }
 
   /**

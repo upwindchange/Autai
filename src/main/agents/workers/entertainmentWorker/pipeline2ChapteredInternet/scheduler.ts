@@ -48,6 +48,9 @@ interface ThreadWorker {
   queue: PQueue;
   inFlight: Set<number>; // dedup/lookup for enqueued+running chapter numbers
   target: number; // latest requested current chapter
+  /** Abort controller for the currently-RUNNING chapter rewrite, so `stop` can
+   * preempt it. Undefined when nothing is running. */
+  abortController?: AbortController;
 }
 
 /**
@@ -161,6 +164,22 @@ class ChapteredInternetScheduler implements PipelineScheduler {
   getInFlight(threadId: string): Set<number> {
     const w = this.workers.get(threadId);
     return w ? new Set(w.inFlight) : new Set<number>();
+  }
+
+  /**
+   * Stop all in-flight work on a thread: abort the running rewrite, drain the
+   * pending queue, and clear the in-flight set. No-op for a thread with no
+   * worker. Rows left mid-run self-heal on the next open (`needsWork` redoes a
+   * stuck `"fetching"`/`"rewriting"` row); no data is deleted or marked terminal.
+   */
+  stop(threadId: string): void {
+    const w = this.workers.get(threadId);
+    if (!w) return;
+    w.abortController?.abort();
+    w.abortController = undefined;
+    w.queue.clear();
+    w.inFlight.clear();
+    logger.info("stopped in-flight work", { threadId });
   }
 
   /**
@@ -314,8 +333,18 @@ class ChapteredInternetScheduler implements PipelineScheduler {
     // 2) Rewrite — the rewriter owns its row + content and reports a terminal
     //    status. For ② the rewrite row is 1:1 with the source chapter
     //    (sourceChapterStart/End fall back to chapterNumber on the read side
-    //    when null), so `rewriteChapter` is called as-is.
-    await rewriteChapter(threadId, c, config.options);
+    //    when null), so `rewriteChapter` is called as-is. The per-run
+    //    AbortController lets `stop` preempt the in-flight rewrite.
+    const w = this.workerFor(threadId);
+    const abortController = new AbortController();
+    w.abortController = abortController;
+    try {
+      await rewriteChapter(threadId, c, config.options, abortController.signal);
+    } finally {
+      if (w.abortController === abortController) {
+        w.abortController = undefined;
+      }
+    }
   }
 }
 

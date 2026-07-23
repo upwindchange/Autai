@@ -66,5 +66,11 @@
   "reader.process.next": "处理后续",
   "reader.process.all": "处理全部",
   "reader.process.toEnd": "处理全部（至第 {{n}} 章）",
-  "reader.process.retryFailed": "重试失败（{{count}}）"
+  "reader.process.retryFailed": "重试失败（{{count}}）",
+  "reader.options.open": "调整重写选项",
+  "reader.options.title": "重写选项",
+  "reader.options.save": "保存",
+  "reader.options.loadFailed": "无法加载此任务的选项",
+  "reader.stop.label": "停止并重新开始",
+  "reader.stop.hint": "停止所有任务并开始新任务"
 }

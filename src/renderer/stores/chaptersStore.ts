@@ -91,6 +91,25 @@ interface ChaptersState {
   ) => Promise<WorkerInfo>;
   /** Re-enqueue every errored chapter (the "Redo failed chapters" action). */
   reprocessFailed: (threadId: string) => Promise<WorkerInfo>;
+  /**
+   * Stop ALL in-flight work on a thread — abort the running outline + rewrite
+   * agents, drain the pending queue, clear the in-flight set. Called by the
+   * reader's "Stop" button before it abandons the thread for a new one. Rows
+   * left mid-run self-heal on the next open.
+   */
+  stopAgents: (threadId: string) => Promise<void>;
+  /** Read a thread's persisted entertainment config (seeds the in-flight settings editor). */
+  getThreadConfig: (threadId: string) => Promise<EntertainmentConfig | null>;
+  /**
+   * Update a thread's config mid-run WITHOUT re-running one-time setup. The
+   * next agent the pipeline enqueues re-reads config and rebuilds its prompt
+   * from the new options (immediate on pipeline ②; ①/③ pick it up once their
+   * settings-driven rewriters land). Does NOT touch novelSource/mode semantics.
+   */
+  updateThreadConfig: (
+    threadId: string,
+    config: EntertainmentConfig,
+  ) => Promise<void>;
   /** Last-read chapter (for resume-on-reopen). */
   getPosition: (threadId: string) => Promise<number | null>;
   /** Persist the reader's current chapter. */
@@ -227,6 +246,30 @@ export const useChaptersStore = create<ChaptersState>()(
         `/entertainment/threads/${threadId}/reprocess-failed`,
         {},
       ),
+
+    stopAgents: (threadId) =>
+      httpClient
+        .postJSON<{ ok: boolean }>(`/entertainment/threads/${threadId}/stop`, {})
+        .then(() => undefined),
+
+    getThreadConfig: async (threadId) => {
+      try {
+        const { config } = await httpClient.getJSON<{ config: EntertainmentConfig }>(
+          `/entertainment/threads/${threadId}/config`,
+        );
+        return config;
+      } catch {
+        // 404 (no config) or fetch error — either way nothing to edit.
+        return null;
+      }
+    },
+
+    updateThreadConfig: (threadId, config) =>
+      httpClient
+        .putJSON<{ ok: boolean }>(`/entertainment/threads/${threadId}/config`, {
+          config,
+        })
+        .then(() => undefined),
 
     getPosition: async (threadId) => {
       const { lastReadChapterNumber } = await httpClient.getJSON<{

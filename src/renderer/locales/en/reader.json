@@ -66,5 +66,11 @@
   "reader.process.next": "Process next",
   "reader.process.all": "Process all",
   "reader.process.toEnd": "Process all (to chapter {{n}})",
-  "reader.process.retryFailed": "Redo failed ({{count}})"
+  "reader.process.retryFailed": "Redo failed ({{count}})",
+  "reader.options.open": "Adjust rewrite options",
+  "reader.options.title": "Rewrite options",
+  "reader.options.save": "Save",
+  "reader.options.loadFailed": "Could not load options for this thread",
+  "reader.stop.label": "Stop and start over",
+  "reader.stop.hint": "Stop all agents and start a new task"
 }

@@ -364,6 +364,70 @@ entertainmentRoutes.post("/threads/:threadId/reprocess-failed", (c) => {
   }
 });
 
+// POST /entertainment/threads/:threadId/stop — stop ALL in-flight work on a
+// thread: abort the running outline agent AND the running rewrite, drain the
+// pending rewrite queue, and clear the in-flight set. Read-only on the DB (no
+// rows deleted/marked terminal); rows left mid-run self-heal on the next open.
+// The reader's "Stop" button calls this before abandoning the thread.
+entertainmentRoutes.post("/threads/:threadId/stop", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    pipelineRouter.stop(threadId);
+    logger.info("stopped thread work", { threadId });
+    return c.json({ ok: true });
+  } catch (error) {
+    logger.error("Error stopping thread:", error);
+    return c.json({ error: "Failed to stop thread" }, 500);
+  }
+});
+
+// GET /entertainment/threads/:threadId/config — read the thread's persisted
+// entertainment config (mode + novel source + options). Used by the reader's
+// in-flight settings editor to seed its form from the DB. Returns 404 when the
+// thread has no entertainment config.
+entertainmentRoutes.get("/threads/:threadId/config", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const config = entertainmentService.getParsedConfig(threadId);
+    if (!config) return c.json({ error: "No config for thread" }, 404);
+    return c.json({ config });
+  } catch (error) {
+    logger.error("Error reading config:", error);
+    return c.json({ error: "Failed to read config" }, 500);
+  }
+});
+
+// PUT /entertainment/threads/:threadId/config — update the thread's options
+// mid-run WITHOUT re-running one-time thread setup. The next agent the pipeline
+// enqueues re-reads config via `getParsedConfig` and rebuilds its prompt from
+// the new options, so a mid-run edit takes effect on the next rewrite/outline.
+// (On pipeline ② this is immediate; pipeline ①/③'s rewriters pick it up once
+// their settings-driven prompt builders land.) Validates the whole config with
+// the Zod schema. Does NOT touch novelSource/mode semantics.
+entertainmentRoutes.put("/threads/:threadId/config", async (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const body = await c.req.json().catch(() => ({}));
+    const parsed = SetupSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Invalid request body", details: parsed.error.issues },
+        400,
+      );
+    }
+    entertainmentService.upsertEntertainmentConfig(threadId, parsed.data.config);
+    logger.info("updated config", {
+      threadId,
+      mode: parsed.data.config.mode,
+      novelType: parsed.data.config.novel.type,
+    });
+    return c.json({ ok: true });
+  } catch (error) {
+    logger.error("Error updating config:", error);
+    return c.json({ error: "Failed to update config" }, 500);
+  }
+});
+
 // GET /entertainment/threads/:threadId/export?range=current|fromCurrent|all&chapter=<n>
 // — download rewritten chapters as plain text (.txt). `current` = just chapter;
 // `fromCurrent` = chapter → last ready; `all` = every ready chapter. The browser

@@ -129,6 +129,7 @@ async function runRewriteAgent(
   systemPrompt: string,
   sourceText: string,
   threadId: string,
+  signal?: AbortSignal,
 ): Promise<boolean> {
   const resolved = complexModel();
   const sampling = forwardSamplingParams(resolved.params);
@@ -148,6 +149,7 @@ async function runRewriteAgent(
     stopWhen: [hasSuccessfulToolResult("outputContent"), stepCountIs(3)],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.chat,
+    ...(signal && { abortSignal: signal }),
     ...sampling,
     ...(reasoning && { providerOptions: reasoning }),
     experimental_context: { threadId },
@@ -176,6 +178,7 @@ async function runRewriteAgent(
 async function rewriteNonNovel(
   threadId: string,
   _options: DehydrateConfig["options"],
+  signal?: AbortSignal,
 ): Promise<"rewritten" | "error"> {
   // Own the rewrite-row lifecycle: mark in-progress (insert fresh or reset stale).
   const source = entertainmentService.getSourceChapter(threadId, 1);
@@ -202,7 +205,7 @@ async function rewriteNonNovel(
 
   const basePrompt = `${REWRITE_SYSTEM_PROMPT}\n\n${OUTPUT_CONTRACT}`;
   try {
-    let saved = await runRewriteAgent(basePrompt, sourceText, threadId);
+    let saved = await runRewriteAgent(basePrompt, sourceText, threadId, signal);
     if (!saved) {
       // The agent stopped without calling the tool (typical: plain-text output).
       // Reinforce the ending condition and retry once.
@@ -213,6 +216,7 @@ async function rewriteNonNovel(
         `${basePrompt}${RETRY_SUFFIX}`,
         sourceText,
         threadId,
+        signal,
       );
     }
     if (saved) {
@@ -245,6 +249,9 @@ interface ThreadWorker {
   outlineRunning: boolean;
   /** Latest requested output number (always 1 here; backs GET /worker). */
   target: number;
+  /** Abort controller for a running rewrite pass, so `stop` can preempt it.
+   * Undefined when nothing is running. */
+  abortController?: AbortController;
 }
 
 /**
@@ -309,6 +316,9 @@ class NonNovelScheduler implements PipelineScheduler {
       return;
     }
     w.outlineRunning = true;
+    // Fresh abort controller for this pass so `stop` can preempt the rewrite.
+    const abortController = new AbortController();
+    w.abortController = abortController;
     try {
       // 1) Acquire source (fork by novel.type).
       const source = entertainmentService.getSourceChapter(threadId, 1);
@@ -357,7 +367,7 @@ class NonNovelScheduler implements PipelineScheduler {
       }
 
       // 2) Lightweight one-pass rewrite → single output (chapterNumber 1).
-      await rewriteNonNovel(threadId, config.options);
+      await rewriteNonNovel(threadId, config.options, abortController.signal);
 
       // 3) Single output — its finalChapterNumber is 1.
       if (entertainmentService.getFinalChapterNumber(threadId) == null) {
@@ -365,6 +375,9 @@ class NonNovelScheduler implements PipelineScheduler {
       }
     } finally {
       w.outlineRunning = false;
+      if (w.abortController === abortController) {
+        w.abortController = undefined;
+      }
     }
   }
 
@@ -420,6 +433,20 @@ class NonNovelScheduler implements PipelineScheduler {
    */
   getInFlight(_threadId: string): Set<number> {
     return new Set<number>();
+  }
+
+  /**
+   * Stop the in-flight rewrite pass for a thread by aborting its AbortController.
+   * No-op for a thread with no worker. There is no queue to drain (pipeline ③
+   * has a single mutex-guarded pass); the row left mid-run self-heals on the
+   * next open. No data is deleted or marked terminal.
+   */
+  stop(threadId: string): void {
+    const w = this.workers.get(threadId);
+    if (!w) return;
+    w.abortController?.abort();
+    w.abortController = undefined;
+    logger.info("stopped in-flight work", { threadId });
   }
 
   /**

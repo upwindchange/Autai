@@ -7,7 +7,7 @@ import {
   type FC,
   type MouseEvent as ReactMouseEvent,
 } from "react";
-import { ThreadPrimitive, useAuiState } from "@assistant-ui/react";
+import { ThreadPrimitive, useAui, useAuiState } from "@assistant-ui/react";
 import { useTranslation } from "react-i18next";
 import {
   DotMatrix,
@@ -64,10 +64,15 @@ export const EntertainmentThread: FC = () => {
   const setPosition = useChaptersStore((s) => s.setPosition);
   const ensureWorker = useChaptersStore((s) => s.ensureWorker);
   const setCurrentChapter = useChaptersStore((s) => s.setCurrentChapter);
+  const stopAgents = useChaptersStore((s) => s.stopAgents);
   // Last fetch error (chapter list or detail) — when set, the backend is/was
   // unreachable, which is otherwise indistinguishable from "still fetching".
   const fetchError = useChaptersStore((s) => s.error);
   const { t } = useTranslation("reader");
+
+  // assistant-ui runtime — used by the Stop button to switch to a fresh thread
+  // (mirrors ThreadListPrimitive.New) after killing the current thread's agents.
+  const aui = useAui();
 
   const viewportRef = useRef<HTMLDivElement>(null);
   // Common ancestor of BOTH the reading viewport and the ReaderFooter overlay.
@@ -259,6 +264,23 @@ export const EntertainmentThread: FC = () => {
     setFooterPinned((p) => !p);
   };
 
+  // Stop button: kill all agents on the current thread, then switch to a fresh
+  // thread so its wizard shows (the reader poll loop stops naturally — the
+  // component unmounts on thread switch, clearing its useEffect interval). The
+  // old thread stays in the sidebar; reopening it resumes/heals its agents.
+  const [stopping, setStopping] = useState(false);
+  const handleStop = async () => {
+    if (!mainThreadId || stopping) return;
+    setStopping(true);
+    try {
+      await stopAgents(mainThreadId);
+    } catch {
+      // Backend unreachable — still switch away so the user isn't stuck.
+    }
+    await aui.threads().switchToNewThread();
+    setStopping(false);
+  };
+
   return (
     <ThreadPrimitive.Root
       ref={rootRef}
@@ -340,6 +362,8 @@ export const EntertainmentThread: FC = () => {
           hovered={footerHovered}
           getScrollPercentile={getScrollPercentile}
           onJumpTo={jumpTo}
+          onStop={() => void handleStop()}
+          stopping={stopping}
         />
       )}
     </ThreadPrimitive.Root>

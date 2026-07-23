@@ -61,6 +61,13 @@ export interface PipelineRouterFacade {
   retryFailed(threadId: string): number;
   getInfo(threadId: string): WorkerLiveness;
   getInFlight(threadId: string): Set<number>;
+  /**
+   * Stop all in-flight work on a thread (abort running agent + drain queue +
+   * clear in-flight set). Dispatched to the thread's pipeline; no-op when the
+   * thread has no worker yet. Called by the reader's "Stop" button before it
+   * abandons the thread for a new one.
+   */
+  stop(threadId: string): void;
   /** Startup recovery. Fans out to ②/③ only — ① resumes on thread-open, never boot. */
   resumeAll(): void;
 }
@@ -83,6 +90,10 @@ export const pipelineRouter: PipelineRouterFacade = {
 
   getInFlight: (threadId: string): Set<number> =>
     pipelineForThread(threadId)?.getInFlight(threadId) ?? new Set<number>(),
+
+  stop: (threadId: string) => {
+    pipelineForThread(threadId)?.stop(threadId);
+  },
 
   resumeAll: () => {
     // ① is intentionally omitted: its outline runs only on upload/thread-open,

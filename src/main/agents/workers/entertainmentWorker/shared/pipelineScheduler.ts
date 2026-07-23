@@ -77,6 +77,16 @@ export interface PipelineScheduler {
   getInFlight(threadId: string): Set<number>;
 
   /**
+   * Stop ALL in-flight work for a thread: abort the running agent call, drain
+   * the pending queue, and clear the in-flight set. The reader-driven "Stop"
+   * button calls this before abandoning the thread. No-op for a thread that has
+   * never been touched. A row left mid-run stays in its in-progress status and
+   * self-heals on the next open (its `"rewriting"`/`"outlining"` dirty flag is
+   * redone by `needsWork`). It does NOT delete data or mark anything terminal.
+   */
+  stop(threadId: string): void;
+
+  /**
    * Startup recovery: resume interrupted work for the threads this pipeline
    * owns. Each pipeline filters threads by its own config shape. Safe on a
    * fresh install (no threads → no-op). Called once per pipeline after DB init.

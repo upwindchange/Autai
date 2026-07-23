@@ -1063,6 +1063,7 @@ async function runOutlineAgent(params: {
   userContent: string;
   threadId: string;
   ctx: OutputChaptersContext;
+  signal?: AbortSignal;
 }): Promise<{ saved: boolean; inputTokens?: number }> {
   const {
     resolved,
@@ -1071,6 +1072,7 @@ async function runOutlineAgent(params: {
     userContent,
     threadId,
     ctx,
+    signal,
   } = params;
   const model = resolved.model;
   logger.debug("outliner agent chunk start", {
@@ -1099,6 +1101,7 @@ async function runOutlineAgent(params: {
     stopWhen: [hasSuccessfulToolResult("outputChapters"), stepCountIs(3)],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.chat,
+    ...(signal && { abortSignal: signal }),
     ...samplingSansMax,
     ...(reasoning && { providerOptions: reasoning }),
     experimental_context: ctx,
@@ -1187,6 +1190,7 @@ async function runOutlineAgent(params: {
 export async function generateOutlines(
   threadId: string,
   crossChapter: CrossChapterDehydrate,
+  signal?: AbortSignal,
 ): Promise<{ outlined: number; errored: number; skipped: number }> {
   const rawText = entertainmentService.getRawNovelText(threadId);
   if (!rawText || rawText.length === 0) {
@@ -1260,6 +1264,12 @@ export async function generateOutlines(
   // Safety cap on iterations prevents an infinite loop if state goes bad.
   const MAX_ROUNDS = 10_000;
   for (let round = 0; round < MAX_ROUNDS; round++) {
+    // Stop was requested (reader's Stop button) — bail out of the round loop.
+    // The row left mid-outline self-heals on the next open; no cleanup needed.
+    if (signal?.aborted) {
+      logger.info("outline run aborted by stop", { threadId, round });
+      break;
+    }
     // --- read continuity fresh from DB (recovery point) ---
     const consumedOffset = entertainmentService.getConsumedOffset(threadId);
     if (consumedOffset >= rawText.length) {
@@ -1461,6 +1471,7 @@ export async function generateOutlines(
         userContent,
         threadId,
         ctx,
+        signal,
       });
       saved = r.saved;
       roundInputTokens = r.inputTokens;
@@ -1480,6 +1491,7 @@ export async function generateOutlines(
           userContent,
           threadId,
           ctx,
+          signal,
         });
         saved = r2.saved;
         roundInputTokens = r2.inputTokens;

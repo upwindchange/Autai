@@ -44,6 +44,16 @@ class HttpClient {
     return (await res.json()) as T;
   }
 
+  async putJSON<T>(path: string, body?: unknown): Promise<T> {
+    const res = await this.send(path, {
+      method: "PUT",
+      headers: this.jsonHeaders,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`PUT ${path} failed: ${res.status}`);
+    return (await res.json()) as T;
+  }
+
   /** Fire-and-forget command; expects 2xx, body ignored. */
   async postCommand(path: string, body?: unknown): Promise<void> {
     const res = await this.send(path, {
