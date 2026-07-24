@@ -4,19 +4,25 @@
  * Both rewrite agents — pipeline ① (chaptered-file, one-pass merge/re-chapter
  * dehydrate over a chunk) and pipeline ② (chaptered-internet, single-chapter
  * rewrite) — share the SAME option→prompt logic. The wizard options
- * (basic / situation / depth / language / customInstruction) mean exactly the
- * same thing in both pipelines, so the prompt body that translates them into
- * instructions is identical. Only two things differ:
+ * (basic / situation / crossChapter / depth / language / customInstruction) all
+ * feed one builder; the prompt body that translates them into instructions is
+ * identical except for four variant-specific pieces:
  *
  *   1. The ROLE line — ① re-chapters + merges + dehydrates a chunk into N
  *      chapters; ② rewrites one already-chaptered chapter in place.
- *   2. The OUTPUT CONTRACT — ① must hand back an array of `{ title, content,
+ *   2. The CORE INVARIANTS — the chapter-boundary rule differs: ② stays within
+ *      this one chapter; ① may weld chapters together but not invent beyond the
+ *      source material.
+ *   3. The OUTPUT CONTRACT — ① must hand back an array of `{ title, content,
  *      outline }` via the `outputChapters` tool; ② must hand back a single
  *      `content` via the `outputProcessedContent` tool.
+ *   4. The 脱水块 tactic sources — ② uses only `situation.tactics`; ① merges
+ *      `situation.tactics` + `crossChapter.tactics` into one array (cross-
+ *      chapter 套路 need multi-chapter context, which only ① has).
  *
- * Everything between those two is built here, once, by injection: every enabled
- * feature contributes its piece, disabled features are silent (no "don't do X"
- * noise). See `buildDehydrateSystemPrompt(options, variant)`.
+ * Everything else is built here, once, by injection: every enabled feature
+ * contributes its piece, disabled features are silent (no "don't do X" noise).
+ * See `buildDehydrateSystemPrompt(options, variant)`.
  *
  * Design philosophy (mirrors the wizard's UX): the per-tactic checkboxes under
  * 按情境脱水 / 章节并写 are OPTIONAL ENFORCEMENT — recommended OFF. The strength
@@ -29,13 +35,14 @@
  */
 
 import type {
+  CrossChapterTactics,
   DehydrateBasic,
   DehydrateConfig,
   DehydrateDepth,
   SituationCategory,
   SituationTactics,
 } from "@shared";
-import { SITUATION_CATEGORIES } from "@shared";
+import { CROSS_CHAPTER_CATEGORIES, SITUATION_CATEGORIES } from "@shared";
 
 // ---------------------------------------------------------------------------
 // Level labels + emission orders
@@ -54,7 +61,7 @@ const BASIC_RULES: Record<keyof DehydrateBasic, string> = {
   grammarFix:
     "错别字、病句、标点：修正错别字与语病；中文文本里混入的日语、英语标点一律改成中文标点；补齐单边引号、括号等残缺配对。",
   webSlangFilter:
-    "烂词与反和谐：清理“倒吸一口凉气”“嘴角勾起一抹冷笑”之类被用烂的套话；还原被标点打码的字词，写出本来的写法。",
+    "烂词与反和谐：清理“倒吸一口凉气”“嘴角勾起一抹冷笑”之类被用烂的套话；还原被标点打码的字词。",
 };
 
 // ---------------------------------------------------------------------------
@@ -420,6 +427,231 @@ const SITUATION_TACTICS: Record<
   },
 };
 
+// ---------------------------------------------------------------------------
+// Cross-chapter filler-stripping rules (章节并写 · 跨章情境脱水).
+//
+// Mirror of `SITUATION_TACTICS`, but for the 34 tactics whose 套路 can only be
+// judged across multiple chapters (e.g. whether a setup was already explained
+// earlier, whether a scenario is repeating). `Record<keyof CrossChapterTactics,
+// …>` so a new cross tactic in the schema surfaces here as a missing-key error.
+// Category labels reuse `SITUATION_CATEGORY_LABELS` (cross tactics fall under
+// the same 16 `TacticCategory`s). Same `rule` discipline: identify the 套路 and
+// the purge direction only — never HOW or to what EXTENT (the strength dial's
+// job). Injected by `buildDehydrateSystemPrompt` ONLY in the `multi` variant
+// (single chapter has no cross-chapter context), merged into the same tactic
+// array as the situation tactics under one shared strength dial.
+// ---------------------------------------------------------------------------
+
+const CROSS_CHAPTER_TACTICS: Record<
+  keyof CrossChapterTactics,
+  { label: string; rule: string }
+> = {
+  tournamentLoop: {
+    label: "擂台赛/排名赛循环",
+    rule:
+      "一场场无关配角上场的擂台、排名、大比武、联赛、才艺比试。其中无关配角的上场、与主线资源无关的场次" +
+      "，是水；与主角或核心对手有关、会改变资源分配或引出更强对手的场次，才是有效信息。",
+  },
+  escalatingElders: {
+    label: "“护短长辈”逐级登场",
+    rule:
+      "“打了小的来老的”：弟子→长老→宗主→太上长老→背后圣地逐级登场。其中相似层级的重复上位者、不改变冲突规模的人" +
+      "，是水；逼出新选择、改变冲突规模或揭示新势力关系的上位者，才是有效信息。",
+  },
+  misunderstandings: {
+    label: "误会拉扯",
+    rule:
+      "看见半句话就误会、彼此都不解释、朋友反复劝、冷战多章。其中纯靠“不解释”硬拖的拉扯、没有信息增量的循环" +
+      "，是水；首次暴露真实需求、推动关系升级或导向行动的误会，才是有效信息。",
+  },
+  jealousyCycles: {
+    label: "吃醋桥段循环",
+    rule:
+      "白月光/青梅/前任一出现就误会、冷脸、追问、暧昧升级。其中每次换人却重复同一套流程的循环" +
+      "，是水；推动关系升级或暴露人物真实需求的部分，才是有效信息。",
+  },
+  familyGossip: {
+    label: "家长里短/亲戚群像",
+    rule:
+      "婆媳、妯娌、分家、彩礼、邻里闲话、亲戚借钱等家长里短。其中不影响主角处境、资源、名声或情感的闲话" +
+      "，是水；会改变主角处境、资源或关系的冲突，才是有效信息。",
+  },
+  braindeadVillains: {
+    label: "降智反派反复送人头",
+    rule:
+      "“上次是意外！”“这次他必死！”反派每次都不吸取教训、用同一套自信宣言再送一次。其中无新策略的重复失败、反复的自信宣言" +
+      "，是水；带来新威胁、新代价或逼出主角新手段的部分，才是有效信息。",
+  },
+  questDungeon: {
+    label: "做任务/刷副本",
+    rule:
+      "接任务、看说明、备道具、清小怪、支线、NPC对话、解谜、BOSS、结算的完整副本流程。其中重复的清怪、无关支线、模板化的结算" +
+      "，是水；主线目标、关键选择、BOSS对决和最终奖励，才是有效信息。",
+  },
+  climaxPovSwitch: {
+    label: "卡高潮前切视角",
+    rule:
+      "主角刚要出手就切反派、切路人、切女主，下一章才回来。其中无关键反转或危险升级的视角切换" +
+      "，是水；新视角提供新信息、新后果或危险升级的部分，才是有效信息。",
+  },
+  multiPovReplay: {
+    label: "多视角重复同一事件",
+    rule:
+      "同一件事从主角、反派、路人、女主、新闻视角各讲一遍。其中未提供新信息或新后果的重复视角" +
+      "，是水；每个视角带来新信息、新后果或新判断的部分，才是有效信息。",
+  },
+  dreamIllusionTrial: {
+    label: "梦境/幻境/试炼",
+    rule:
+      "心魔幻境、前世梦、轮回试炼、秘境幻象、精神世界。其中无剧情推进的纯场景漫游、重复的恐惧渲染" +
+      "，是水；揭示人物恐惧欲望、给出关键线索或推动现实选择的内容，才是有效信息。",
+  },
+  secretRealm: {
+    label: "秘境/遗迹探索",
+    rule:
+      "入口争夺、规则说明、遇机关妖兽草药传承旧敌、最后抢宝的完整秘境流程。其中重复的环节、模板化的机关与战斗" +
+      "，是水；核心宝物、主角的关键选择与由此引发的冲突，才是有效信息。",
+  },
+  auction: {
+    label: "拍卖会",
+    rule:
+      "进场被看不起、包厢等级、拍卖师出场、逐件拍品、竞价、捡漏、截杀。其中与主角目标无关的逐件拍品、重复的竞价流程" +
+      "，是水；与主角目标或主线有关的拍品、引发冲突或改变资源的竞价，才是有效信息。",
+  },
+  entranceExam: {
+    label: "宗门/学院/公司考核",
+    rule:
+      "入门测试、天赋灵根精神力体能测试、笔试实战面试、排名公布的完整考核。其中不区分能力、不决定资源分配的环节" +
+      "，是水；区分能力、决定资源分配或引出对手的环节，才是有效信息。",
+  },
+  identityReveals: {
+    label: "反复“身份揭露”",
+    rule:
+      "神医、黑客、豪门继承人、战神、影帝……每揭一个马甲就水一轮震惊。其中无剧情后果的纯震惊、重复的揭露流程" +
+      "，是水；每次揭露带来的新剧情后果、新敌人或新关系，才是有效信息。",
+  },
+  nobodyKnowsMc: {
+    label: "别人不知道主角是谁",
+    rule:
+      "柜员、同学、亲戚、反派、上司、未婚妻家人都不认识主角，每换场景就重新打脸。其中不造成实际阻碍、纯为打脸而打脸的重复" +
+      "，是水；造成实际阻碍、改变关系或引发冲突的部分，才是有效信息。",
+  },
+  heiressDrama: {
+    label: "真假千金家庭拉扯",
+    rule:
+      "真千金回家、假千金委屈、父母偏心、哥哥误会、宴会出丑、才艺打脸、家人后悔的完整拉扯。其中重复的委屈、误会与打脸流程" +
+      "，是水；推动身份真相、改变家庭关系或主角处境的冲突，才是有效信息。",
+  },
+  evilSidekick: {
+    label: "恶毒女配作妖",
+    rule:
+      "故意摔倒、诬陷偷东西、抢功劳、装可怜、买水军、设计误会。其中重复的作妖手段、无新意的陷害" +
+      "，是水；新手段、主角的反制以及由此改变的关系或处境，才是有效信息。",
+  },
+  varietyLivestream: {
+    label: "综艺/直播任务",
+    rule:
+      "嘉宾入场、分组、做饭游戏采访、弹幕黑粉热搜CP粉、导演组反应的完整综艺流程。其中无关的游戏环节、刷屏的弹幕" +
+      "，是水；任务规则、人物冲突和舆论后果，才是有效信息。",
+  },
+  engagementHumiliation: {
+    label: "退婚/羞辱/三年之约",
+    rule:
+      "被羞辱、立誓、修炼、比试、打脸、对方后悔、更强势力登场的完整退婚流。其中过长的嘲讽铺垫、重复的羞辱" +
+      "，是水；核心矛盾、誓言以及由此推动的修炼与冲突，才是有效信息。",
+  },
+  recruitingMinions: {
+    label: "收小弟",
+    rule:
+      "小弟不服、见识实力、震惊、纳头便拜、介绍背景、家族麻烦、主角顺手解决的完整收服流程。其中“不服—拜服”的重复流程、模板化的背景介绍" +
+      "，是水；改变势力格局、带来新麻烦或新资源的部分，才是有效信息。",
+  },
+  haremRotation: {
+    label: "后宫/暧昧角色轮番出场",
+    rule:
+      "每个新地图一个新女性角色、身份各异、都对主角特殊、原有角色吃醋。其中无新信息、纯凑数的出场、重复的吃醋" +
+      "，是水；对主线或关系格局有影响的互动，才是有效信息。",
+  },
+  baseBuilding: {
+    label: "基地建设",
+    rule:
+      "修围墙、分配房间、制定规则、招募人员、物资统计、防御体系、种植养殖、内部矛盾的完整基地流。其中模板化的建设细节、无关的内部琐事" +
+      "，是水；关键的建设决策、资源矛盾以及由此引发的冲突，才是有效信息。",
+  },
+  puzzleTrialError: {
+    label: "解谜反复试错",
+    rule:
+      "发现线索、推翻猜想、重新讨论、又发现线索、玩家争论、主角沉思、最后揭示。其中无效猜想、重复的讨论与推翻" +
+      "，是水；关键线索、决定性的推断与最终结论，才是有效信息。",
+  },
+  corporateMeetings: {
+    label: "商战会议",
+    rule:
+      "市场分析、股东争论、投资人施压、对手公司动作、财报数据、公关方案、法务风险的完整会议。其中不导向决策的争论、无关的数据罗列" +
+      "，是水；决策冲突、主角的关键判断以及由此改变的商业格局，才是有效信息。",
+  },
+  projectCompetition: {
+    label: "公司对赌/项目竞争",
+    rule:
+      "两组竞争、方案比拼、上司偏心、同事使绊、客户刁难、主角逆袭的完整项目流。其中重复的使绊、无关的比拼环节" +
+      "，是水；竞争目标、阻碍、破局与最终结果，才是有效信息。",
+  },
+  fandomWars: {
+    label: "粉圈撕番/控评",
+    rule:
+      "粉丝争番位、营销号带节奏、对家下黑稿、工作室声明、CP粉狂欢、黑粉破防的完整粉圈流。其中刷屏的控评、无关的撕扯" +
+      "，是水；舆论转向以及对主角事业有实质影响的部分，才是有效信息。",
+  },
+  mapProgressionTemplate: {
+    label: "“小地图升大地图”重复模板",
+    rule:
+      "每到新地图都“被看不起—惹小反派—打小反派—惹大反派—升级—换地图”。其中重复的前半段套路" +
+      "，是水；新地图提供的新规则、新冲突或新选择，才是有效信息。",
+  },
+  escalatingCrisis: {
+    label: "“危机—解决—更大危机”机械循环",
+    rule:
+      "刚打完妖兽秘境崩塌、刚逃出仇家堵门、刚进宗门发现内鬼，危机机械堆叠。其中无代价、无人物变化的机械危机" +
+      "，是水；每个危机带来的代价、人物变化或新选择，才是有效信息。",
+  },
+  infinitePrep: {
+    label: "“准备阶段”无限拉长",
+    rule:
+      "大战/婚礼/比赛/考试前的装备、药品、计划、阵法、谈心、反派准备的完整准备阶段。其中不影响最终结果的准备细节、重复的备战" +
+      "，是水；影响最终结果的准备、核心事件的尽快开场，才是有效信息。",
+  },
+  palaceEtiquette: {
+    label: "宫斗：请安/赏赐/规矩",
+    rule:
+      "每日请安、位份、赏赐单子、宫规解释、传话、座次、行礼的完整宫斗日常。其中不体现权力变化的流水账式礼仪" +
+      "，是水；体现权力变化、设置陷阱或引发冲突的礼仪细节，才是有效信息。",
+  },
+  householdAccounts: {
+    label: "宅斗：账本/嫁妆/管家权",
+    rule:
+      "查账、管铺子、月例、整顿下人、克扣银钱、嫁妆单子、庶嫡规矩的完整宅斗日常。其中无关的账目流水、重复的规矩说明" +
+      "，是水；关键账目问题、利益冲突以及由此改变的家庭格局，才是有效信息。",
+  },
+  farmingRoutine: {
+    label: "种田：农活流程",
+    rule:
+      "翻地、播种、浇水、施肥、收割、做饭、赶集、卖货、盖房的完整农活流程。其中重复的农活细节、无关的流程" +
+      "，是水；体现生产变化、生活改善或引发冲突的步骤，才是有效信息。",
+  },
+  eraFictionCoupons: {
+    label: "年代文：票证/物资/邻里",
+    rule:
+      "粮票布票工分、大院邻居、厂里评优、相亲、婆婆妈妈议论的年代文日常。其中不体现时代约束、不引发资源冲突的流水账" +
+      "，是水；体现时代约束、资源冲突以及由此推动的剧情，才是有效信息。",
+  },
+  cthulhuDelaying: {
+    label: "克苏鲁/悬疑：不可名状拖延",
+    rule:
+      "无法描述的恐惧、难以理解的低语、诡异符号、似乎被注视、说不上哪里不对。其中纯渲染氛围、不形成线索的不可名状描写" +
+      "，是水；形成线索、推动恐惧升级或导向发现的描写，才是有效信息。",
+  },
+};
+
 const DEPTH_ORDER: (keyof DehydrateDepth)[] = [
   "dialoguePacing",
   "sceneEnhance",
@@ -483,21 +715,45 @@ const DEPTH_ASPECTS: Record<keyof DehydrateDepth, DepthAspectText> = {
 };
 
 // ---------------------------------------------------------------------------
-// Variant-specific role lines + output contracts
+// Variant-specific role lines + core invariants + output contracts
 // ---------------------------------------------------------------------------
 
 type DehydrateVariant = "single" | "multi";
 
+// Core invariants — the "do not break" bottom line. Both variants share the
+// first and last invariants (no new plot/facts, only "how it's written";
+// preserve dialogue information & subtext). They differ on the chapter
+// boundary: single stays strictly within the one given chapter, while multi is
+// free to heavily rewrite the seams between chapters to weld them into one
+// organic chapter (it merges/re-chapters by design), only forbidding invented
+// plot/facts and unrequested continuation/ending.
+const CORE_INVARIANTS: Record<DehydrateVariant, string> = {
+  // Pipeline ② — single-chapter rewrite: respect this one chapter's boundary.
+  single:
+    "无论后续如何改写，以下底线始终不可破坏：\n" +
+    "- 不增加情节、不改写事实，你改的是“怎么写”，不是“写了什么”。\n" +
+    "- 守住本章的边界与视角：不要补写前后章节的内容，不要擅自续写或收尾。\n" +
+    "- 保留对话的信息量与潜台词：只在表达层面优化，不要让人物说出原本没说过的话。",
+  // Pipeline ① — multi-chapter merge/re-chapter: chapters are free to merge,
+  // but the source material is the limit.
+  multi:
+    "无论后续如何合并改写，以下底线始终不可破坏：\n" +
+    "- 不增加情节、不改写事实，你改的是“怎么写”，不是“写了什么”。\n" +
+    "- 可以大幅改写章节接口处的文字，把原本割裂的章节合并成有机的一章；" +
+    "但不要补写原文没有的情节或事实，不要擅自续写或收尾。\n" +
+    "- 保留对话的信息量与潜台词：只在表达层面优化，不要让人物说出原本没说过的话。",
+};
+
 const ROLE_LINE: Record<DehydrateVariant, string> = {
   // Pipeline ② — single-chapter rewrite (one already-chaptered chapter).
   single:
-    "你是一名资深的中文小说重写编辑。你的任务是把给定的一章原文，重写成阅读体验显著更好的版本——同一个故事，换一种更好的讲法。",
+    "你是一名资深的中文小说重写编辑。你的任务是把给定的一章原文，重写成阅读体验显著更好的版本。",
   // Pipeline ① — multi-chapter merge/re-chapter dehydrate over a chunk of raw
   // text (no original chapter boundaries to respect).
   multi:
-    "你是一名资深的小说脱水编辑。给定一段小说原文，请合并并脱水重写：忽略原章节边界，" +
-    "按剧情自然重新分章（通常应产出比原文更少的章节），去掉套话、水字数、重复描写与无意义反应，" +
-    "保留所有情节走向、关键事件、人物决策与伏笔。对每一章，同时给出该章的简明标题、脱水重写后的正文与该章的简明大纲。",
+    "你是一名资深的小说脱水编辑。给定一段小说原文，请合并重写：忽略原章节边界，" +
+    "按剧情自然重新分章（通常应产出比原文更少的章节）。" +
+    "对每一章，同时给出该章的简明标题、脱水重写后的正文与该章的简明大纲。",
 };
 
 const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
@@ -537,7 +793,7 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
     "- Keep the output language the same as the source unless translation/" +
     "localization is requested above.\n" +
     "- You are NOT allowed to output prose as plain text; it must go through " +
-    "outputChapters. Emitting plain text without the tool is fatal.",
+    "outputChapters tool call. Emitting plain text without the tool is fatal.",
 };
 
 // ---------------------------------------------------------------------------
@@ -547,39 +803,47 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
 /**
  * Build the Chinese system prompt for a dehydrate rewrite agent from the wizard
  * options. Sections are injected in a fixed editorial order and joined into one
- * organic brief: role → core invariants → 基础清洗 → 情境脱水 → 打磨文笔 →
- * 语言与翻译 → 自定义指令 → output contract. Optional sections appear only when
- * they have something to say.
+ * organic brief: role → core invariants → 基础清洗 → 脱水块（情境，multi 下含
+ * 跨章）→ 打磨文笔 → 语言与翻译 → 自定义指令 → output contract. Optional
+ * sections appear only when they have something to say.
  *
- * `variant` selects the role line + output contract:
+ * `variant` selects three variant-specific pieces (role line, core invariants,
+ * output contract):
  *   - `"single"` — pipeline ② (one already-chaptered chapter → outputProcessedContent).
  *   - `"multi"`  — pipeline ① (raw chunk → merge/re-chapter → outputChapters).
- * The shared body between them is identical: the same wizard options mean the
- * same thing in both pipelines.
+ * The shared body between them is otherwise identical.
+ *
+ * Core invariants differ on the chapter-boundary rule: single stays strictly
+ * within this one chapter; multi may weld chapters together but not invent
+ * beyond the source.
+ *
+ * 脱水块: `situation.strength` is the single on/off + intensity dial for the
+ * whole block in both variants. Tactic sources are variant-specific — single
+ * uses only `situation.tactics`; multi merges `situation.tactics` +
+ * `crossChapter.tactics` into one array (cross-chapter 套路 need multi-chapter
+ * context, which only the multi variant provides). `crossChapter.strength` is
+ * not used by the prompt.
  *
  * Per-tactic checkboxes are OPTIONAL ENFORCEMENT (recommended OFF). When none
- * are checked, the situational block still appears if `strength > 0` (driven
- * purely by the strength dial + the脱水 philosophy), but lists no individual
- * tactics — a clean, noise-free prompt. Checked tactics only add identification
- * hints.
+ * are checked, the block still appears if `strength > 0` (driven purely by the
+ * strength dial + the脱水 philosophy), but lists no individual tactics — a
+ * clean, noise-free prompt. Checked tactics only add identification hints.
  */
 export function buildDehydrateSystemPrompt(
   options: DehydrateConfig["options"],
   variant: DehydrateVariant,
 ): string {
-  const { basic, situation, depth, language, customInstruction } = options;
+  const { basic, situation, crossChapter, depth, language, customInstruction } =
+    options;
   const sections: string[] = [];
 
   // Role + goal (always on) — gives the brief its voice and purpose.
   sections.push(ROLE_LINE[variant]);
 
-  // Core invariants (always on) — the "do not break" bottom line.
-  sections.push(
-    "无论后续如何改写，以下底线始终不可破坏：\n" +
-      "- 剧情、人物、设定与关键信息一律保留：不增删情节、不改写事实，你改的是“怎么写”，不是“写了什么”。\n" +
-      "- 守住本章的边界与视角：不要补写前后章节的内容，不要擅自续写或收尾。\n" +
-      "- 保留对话的信息量与潜台词：只在表达层面优化，不要让人物说出原本没说过的话。",
-  );
+  // Core invariants (always on) — the "do not break" bottom line, variant-
+  // specific on the chapter-boundary rule (single stays within this chapter;
+  // multi may weld chapters together but not invent beyond the source).
+  sections.push(CORE_INVARIANTS[variant]);
 
   // 基础清洗 — one bullet per enabled toggle; all-off → section omitted.
   const basicRules = BASIC_ORDER.filter((k) => basic[k]).map(
@@ -589,10 +853,19 @@ export function buildDehydrateSystemPrompt(
     sections.push(["基础清洗：", ...basicRules].join("\n"));
   }
 
-  // 情境脱水 — situational filler-stripping. `situation.strength` is the
+  // 脱水块 — situational filler-stripping. `situation.strength` is the
   // on/off + intensity control. 0 (off) → the WHOLE feature is skipped: no
-  // situational block (not even the framing) appears, regardless of which
-  // tactics are checked. 1/2/3 → handled at that intensity.
+  // block (not even the framing) appears, regardless of which tactics are
+  // checked. 1/2/3 → handled at that intensity. This strength is the SINGLE
+  // dial for the whole block in both variants.
+  //
+  // Tactic sources are variant-specific:
+  //   - single: only `situation.tactics` (single-chapter context).
+  //   - multi:  `situation.tactics` + `crossChapter.tactics` merged into ONE
+  //     array — cross-chapter tactics can only be judged when multiple chapters
+  //     are visible, which only the multi variant (raw-chunk merge) provides.
+  // Both sources share the category labels (`SITUATION_CATEGORY_LABELS`) and
+  // the strength dial above.
   //
   // Prompt design — three cleanly separated concerns, so they never conflict:
   //   1. General direction: the脱水 philosophy (what counts as effective info
@@ -602,13 +875,13 @@ export function buildDehydrateSystemPrompt(
   //      for how deep the purge goes. All three levels are listed so the model
   //      has a calibrated sense of the dial, then the chosen level is named and
   //      its description reprinted so the active strength is unambiguous.
-  //   3. Situation tactics (SITUATION_TACTICS): OPTIONAL identification hints.
-  //      Each only identifies a 套路 and the direction of purging within it
-  //      (what's filler vs. what's the valuable core). They deliberately say
-  //      NOTHING about HOW to purge or to what EXTENT — that is the strength
-  //      dial's job alone. When NONE are checked (the recommended default),
-  //      this list is empty and the agent dehydrates purely by the strength
-  //      dial + philosophy — a clean, noise-free prompt.
+  //   3. Tactics (SITUATION_TACTICS / CROSS_CHAPTER_TACTICS): OPTIONAL
+  //      identification hints. Each only identifies a 套路 and the direction of
+  //      purging within it (what's filler vs. what's the valuable core). They
+  //      deliberately say NOTHING about HOW to purge or to what EXTENT — that is
+  //      the strength dial's job alone. When NONE are checked (the recommended
+  //      default), this list is empty and the agent dehydrates purely by the
+  //      strength dial + philosophy — a clean, noise-free prompt.
   const situationBlocks: string[] = [];
   for (const cat of SITUATION_CATEGORIES) {
     const on = cat.tactics.filter((k) => situation.tactics[k]);
@@ -619,6 +892,20 @@ export function buildDehydrateSystemPrompt(
     situationBlocks.push(
       `- ${SITUATION_CATEGORY_LABELS[cat.key]}：\n${items.join("\n")}`,
     );
+  }
+  // Cross-chapter tactics only contribute in the multi variant.
+  if (variant === "multi") {
+    for (const cat of CROSS_CHAPTER_CATEGORIES) {
+      const on = cat.tactics.filter((k) => crossChapter.tactics[k]);
+      if (!on.length) continue;
+      const items = on.map(
+        (k) =>
+          `  · ${CROSS_CHAPTER_TACTICS[k].label}：${CROSS_CHAPTER_TACTICS[k].rule}`,
+      );
+      situationBlocks.push(
+        `- ${SITUATION_CATEGORY_LABELS[cat.key]}：\n${items.join("\n")}`,
+      );
+    }
   }
   if (situation.strength > 0) {
     const lvl = situation.strength as 1 | 2 | 3;
@@ -637,10 +924,13 @@ export function buildDehydrateSystemPrompt(
     ];
     // Only inject the per-tactic hints when the user actually checked some —
     // otherwise the agent follows the philosophy + strength dial alone (the
-    // blessed default: leave the checkboxes off).
+    // blessed default: leave the checkboxes off). The lead sentence notes, in
+    // the multi variant, that the list may include cross-chapter 套路.
     if (situationBlocks.length) {
       strengthLines.push(
-        "下面是你勾选、需要识别并处理的具体情境套路。" +
+        (variant === "multi" ?
+          "下面是你勾选、需要识别并处理的具体情境套路（含需跨章判断的套路）。"
+        : "下面是你勾选、需要识别并处理的具体情境套路。") +
           "每条只说明「这是什么套路、其中哪些是水、哪些才是有效信息」，作为你识别与判断的依据；" +
           "遇到后压缩或删除到什么程度，一律套用上方所选强度。",
         ...situationBlocks,
