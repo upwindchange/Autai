@@ -69,11 +69,11 @@ const zh = {
       "在第 {{round}} 轮处理时未能产出章节（常见原因：模型提供商临时限流或网络问题）。已完成的大纲已保存，请稍后重新打开本书，系统将从断点处自动继续。",
   },
   agents: {
-    searchingTitle: "同步查找多个话题：{{title}}",
+    searchingTitle: "同时查找多个话题：{{title}}",
     searchLabel: '查找："{{query}}"',
     extractingTitle: "整理结果",
-    extractingDescription: "正在同步阅读多个网页并整理内容",
-    readLabel: "同步阅读：{{title}}",
+    extractingDescription: "正在同时阅读多个网页并整理内容",
+    readLabel: "同时阅读：{{title}}",
     extractionFailed: "提取内容失败：{{error}}",
     extractionLlmFailed: "模型无法提取内容",
     extractionGenericFailed: "提取失败：{{error}}",
@@ -105,7 +105,7 @@ const zh = {
     preResearchDescription: "正在快速调研",
     preResearchScanning: "正在扫描网页获取项目背景",
     noResultsFound:
-      "未找到与您查询相关的搜索结果，请尝试换个说法或使用不同的关键词。",
+      "未找到与你查询相关的搜索结果，请尝试换个说法或使用不同的关键词。",
     timeoutErrorTitle: "请求超时",
     timeoutErrorBody: "请求耗时过长已自动取消，请重试。",
   },
