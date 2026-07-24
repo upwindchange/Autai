@@ -222,16 +222,17 @@ class EntertainmentService {
   // --- merged reader view -------------------------------------------------
   // The reader's SPINE is `rewritten_chapters`. Each rewrite row joins its
   // source row directly (pipelines ②/³) — title + sourceStatus come from the
-  // source row at the same number. Pipeline ① has no source row (outline +
-  // rewrite are produced atomically from rawText), so its rows carry no
-  // sourceStatus. Source chapters with no rewrite row yet are NOT shown (the
-  // reader never renders 原文); a not-yet-rewritten chapter shows as `paused`/
-  // `stopped` via its `phase`.
+  // source row at the same number. Pipeline ① now also writes a source row
+  // (title only, status="fetched"); its rows carry a title via that join.
+  // Source chapters with no rewrite row yet are NOT shown (the reader never
+  // renders 原文); a not-yet-rewritten chapter shows as `paused`/`stopped` via
+  // its `phase`.
 
   /**
    * Per-chapter pipeline progress, spine'd on `rewritten_chapters`.
    * title/sourceStatus come from the source row at the same chapterNumber
-   * (absent for pipeline ①).
+   * (for pipeline ① the title is set by the dehydrate tool, sourceStatus is
+   * the benign "fetched" placeholder).
    */
   listChapterProgress(threadId: string): ChapterProgress[] {
     const outputs = this.listRewrittenChapters(threadId);
@@ -253,7 +254,8 @@ class EntertainmentService {
   /**
    * Single-chapter detail (1:1 keyed). Prose comes from the rewrite row (only
    * when `rewritten`); title/sourceStatus from the source row at the same
-   * number (absent for pipeline ①).
+   * number (for pipeline ① the title is set by the dehydrate tool, sourceStatus
+   * is the benign "fetched" placeholder).
    */
   getChapterDetail(threadId: string, chapterNumber: number): ChapterDetail {
     const r = this.getRewrittenChapter(threadId, chapterNumber);

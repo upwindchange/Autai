@@ -16,6 +16,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
+import { Field, FieldContent, FieldDescription } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,8 +32,6 @@ import type {
 import {
   CROSS_CHAPTER_CATEGORIES,
   CROSS_CHAPTER_TACTIC_KEYS,
-  fillCrossChapterTactics,
-  fillSituationTactics,
   SITUATION_CATEGORIES,
   SITUATION_TACTIC_KEYS,
 } from "@shared";
@@ -245,7 +244,6 @@ const TacticBlock: FC<{
   tactics: Record<string, boolean>;
   onStrength: (segment: DepthSegment) => void;
   onTactic: (tactic: string, value: boolean) => void;
-  onAll: (value: boolean) => void;
   disabled?: boolean;
   disabledHintKey?: string;
 }> = ({
@@ -256,14 +254,12 @@ const TacticBlock: FC<{
   tactics,
   onStrength,
   onTactic,
-  onAll,
   disabled = false,
   disabledHintKey,
 }) => {
   const { t } = useTranslation("entertainment");
   const [open, setOpen] = useState(false);
   const enabledCount = allTacticKeys.filter((k) => tactics[k]).length;
-  const allOn = enabledCount === allTacticKeys.length;
   // strength 0 = off (关); 1/2/3 → light/medium/heavy.
   const segment: DepthSegment =
     strength === 0 ? "off" : (DEPTH_LEVELS[strength - 1] ?? "medium");
@@ -306,7 +302,7 @@ const TacticBlock: FC<{
               {t(disabledHintKey)}
             </p>
           )
-        : <div className="flex flex-wrap items-center justify-between gap-2">
+        : <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center gap-1.5">
               <span className="text-xs text-muted-foreground">
                 {t(`options.${blockKey}.strength.label`)}
@@ -340,25 +336,13 @@ const TacticBlock: FC<{
                 </ToggleGroupItem>
               </ToggleGroup>
             </div>
-            <div className="flex items-center gap-2">
-              <Label
-                htmlFor={`ent-${blockKey}-all`}
-                className="cursor-pointer text-xs text-muted-foreground"
-              >
-                {t(`options.${blockKey}.enableAll`)}
-              </Label>
-              <Switch
-                id={`ent-${blockKey}-all`}
-                checked={allOn}
-                onCheckedChange={onAll}
-                size="sm"
-              />
-            </div>
           </div>
         }
       </div>
-      {/* Body: grouped tactic-checkbox grids. When the strength dial is 关,
-          nothing in this block takes effect — dim the grid to make that clear. */}
+      {/* Body: enforcement note + grouped tactic-checkbox grids. The note
+          frames the checkboxes as OPTIONAL enforcement (recommended off) — the
+          strength dial is the primary control. When the dial is 关, nothing in
+          this block takes effect — dim the grid to make that clear. */}
       {!disabled && (
         <CollapsibleContent className="border-t">
           <div
@@ -367,6 +351,13 @@ const TacticBlock: FC<{
               !active && "pointer-events-none opacity-50",
             )}
           >
+            <Field>
+              <FieldContent>
+                <FieldDescription>
+                  {t(`options.${blockKey}.enforcement.note`)}
+                </FieldDescription>
+              </FieldContent>
+            </Field>
             {categories.map((cat) => {
               const catEnabled = cat.tactics.filter((k) => tactics[k]);
               return (
@@ -463,15 +454,6 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
       patchSharedOptions(prev, { situation: { tactics: { [key]: value } } }),
     );
 
-  // Master switch: set every tactic on/off at once. Passing a complete
-  // SituationTactics through the patcher's tactics merge replaces all keys.
-  const setAllSituation = (value: boolean) =>
-    setConfig((prev) =>
-      patchSharedOptions(prev, {
-        situation: { tactics: fillSituationTactics(value) },
-      }),
-    );
-
   // The strength dial (off/light/medium/heavy ↔ 0/1/2/3) gates the whole
   // situational feature: 0 = no situational dehydration at all, even with
   // tactics checked; 1–3 = strip the checked tactics at that intensity.
@@ -490,13 +472,6 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
     setConfig((prev) =>
       patchSharedOptions(prev, {
         crossChapter: { tactics: { [key]: value } },
-      }),
-    );
-
-  const setAllCrossChapter = (value: boolean) =>
-    setConfig((prev) =>
-      patchSharedOptions(prev, {
-        crossChapter: { tactics: fillCrossChapterTactics(value) },
       }),
     );
 
@@ -703,7 +678,6 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
         tactics={config.options.situation.tactics}
         onStrength={setSituationStrength}
         onTactic={(k, v) => setSituation(k as keyof SituationTactics, v)}
-        onAll={setAllSituation}
       />
 
       <TacticBlock
@@ -714,7 +688,6 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
         tactics={config.options.crossChapter.tactics}
         onStrength={setCrossChapterStrength}
         onTactic={(k, v) => setCrossChapter(k as keyof CrossChapterTactics, v)}
-        onAll={setAllCrossChapter}
         disabled={!crossChapterAvailable}
         disabledHintKey="options.crossChapter.disabled.hint"
       />

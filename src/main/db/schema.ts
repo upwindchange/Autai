@@ -185,13 +185,17 @@ export const entertainmentConfigs = sqliteTable("entertainment_configs", {
 // pipelines that need them:
 //   - sourceChapters  原文 — original-text storage for pipelines ②/③ (internet
 //                           per-chapter fetch + non-novel single-piece acquire).
-//                           Pipeline ① does NOT use this table: it reads the
-//                           decoded novel straight from entertainment_configs.rawText.
+//                           Pipeline ① also writes here, but only the `title`
+//                           column (its `outputChapters` tool emits a per-chapter
+//                           title; `content`/`url` stay null — it reads decoded
+//                           novel text straight from entertainment_configs.rawText
+//                           and never stores 原文).
 //   - outlines           — pipeline ①'s per-chapter outline text, 1:1 with
 //                           rewritten_chapters by chapterNumber. A composite FK
 //                           (threadId, chapterNumber) → rewritten_chapters enforces it.
 // The reader only ever reads rewrittenChapters; sourceChapters feeds the ②/③
-// rewrite agents. `id` is independent (crypto.randomUUID()), never a message id.
+// rewrite agents AND carries ①'s chapter titles for the reader joins. `id` is
+// independent (crypto.randomUUID()), never a message id.
 
 export const sourceChapters = sqliteTable(
   "source_chapters",

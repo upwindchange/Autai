@@ -4,11 +4,12 @@
  * Replaces the old two-step outliner + reader-driven rewriter with a single
  * autonomous loop. Each pass reads a bounded chunk of the decoded novel
  * (`entertainment_configs.rawText`) and runs ONE agent call whose terminal
- * `outputChapters` tool emits an array of `{ content, outline }` pairs — the
- * agent re-chapters, merges, and dehydrates as it sees fit (typically producing
- * FEWER chapters than the source). Outline + rewrite are produced together in
- * that one tool call; there is no separate outline step and no per-chapter
- * rewrite queue.
+ * `outputChapters` tool emits an array of `{ title, content, outline }` triples
+ * — the agent re-chapters, merges, and dehydrates as it sees fit (typically
+ * producing FEWER chapters than the source). Title + outline + rewrite are
+ * produced together in that one tool call; there is no separate outline step
+ * and no per-chapter rewrite queue. The title lands in `source_chapters` so the
+ * reader's TOC + app header can show it.
  *
  * Resumable + recoverable: every pass advances `rawConsumedOffset` (inside the
  * tool, deterministically), so a crashed/killed run picks up from the last
@@ -41,7 +42,7 @@ import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
 import { settingsService, entertainmentService } from "@/services";
 import { sendAlert } from "@/utils/messageUtils";
 import { i18n } from "@/i18n";
-import type { DehydrateConfig } from "@shared";
+import { buildDehydrateSystemPrompt } from "../shared/dehydratePrompt";
 
 const logger = log.scope("Dehydrate:Pipeline1:Runner");
 
@@ -172,13 +173,15 @@ interface OutputChaptersContext {
 
 /**
  * `outputChapters` — the ONLY way the agent delivers its result. One call per
- * pass: an array of `{ content, outline }`, one entry per chapter the agent
- * chose to produce from the chunk. Execute is fully deterministic:
+ * pass: an array of `{ title, content, outline }`, one entry per chapter the
+ * agent chose to produce from the chunk. Execute is fully deterministic:
  *   - assigns sequential chapter numbers continuing from the last one in the DB
  *     (`maxRewrittenChapterNumber + 1`, read at execute time → gap-free across
  *     passes and crash-resume);
  *   - inserts the rewritten_chapters row FIRST, then the outlines row (the
- *     composite FK on outlines → rewritten_chapters requires the parent first);
+ *     composite FK on outlines → rewritten_chapters requires the parent first),
+ *     and the source_chapters row (which carries the title the reader joins in
+ *     for the TOC + app header);
  *   - advances `rawConsumedOffset` to `chunkStart + chunkLength` (the recovery
  *     checkpoint — recoverable after power-off);
  *   - on the last batch, sets `finalChapterNumber` (the full chapter count is
@@ -190,13 +193,24 @@ const outputChaptersTool = tool({
   description:
     "The ONLY way to end your output and deliver the chapters — " +
     "call this outputChapters tool with an array of chapters, each carrying " +
-    "`content` (the full dehydrated/rewritten prose) and `outline` (a brief " +
-    "factual summary). You are NOT ALLOWED to output the prose as plain text " +
-    "and stop; it must go through this outputChapters tool.",
+    "`title` (a short reader-facing chapter name), `content` (the full " +
+    "dehydrated/rewritten prose), and `outline` (a brief factual summary). " +
+    "You are NOT ALLOWED to output the prose as plain text and stop; it must " +
+    "go through this outputChapters tool.",
   inputSchema: z.object({
     chapters: z
       .array(
         z.object({
+          title: z
+            .string()
+            .min(1)
+            .describe(
+              "A short, reader-facing chapter title for THIS dehydrated " +
+                "chapter (the chapter you just produced, NOT the source's). " +
+                "The evocative name only — e.g. '风起天南'; do NOT include any " +
+                "'第N章' / 'Chapter N' number prefix (the app renders the " +
+                "number separately, so a prefix would be duplicated).",
+            ),
           content: z
             .string()
             .min(1)
@@ -234,6 +248,18 @@ const outputChaptersTool = tool({
         chapterNumber: n,
         outline: ch.outline,
       });
+      // The source_chapters row carries the chapter title, which the reader
+      // joins in for the TOC + app header. status="fetched" is benign here —
+      // the reader's phase derivation returns "success" for rewritten chapters
+      // before ever consulting sourceStatus, and there is no "view original"
+      // affordance. url/content stay null: pipeline ① has no source URL and the
+      // reader never renders 原文.
+      entertainmentService.insertSourceChapter({
+        threadId: ctx.threadId,
+        chapterNumber: n,
+        title: ch.title,
+        status: "fetched",
+      });
     }
     const newOffset = ctx.chunkStart + ctx.chunkLength;
     entertainmentService.setConsumedOffset(ctx.threadId, newOffset);
@@ -254,95 +280,6 @@ const outputChaptersTool = tool({
   },
 });
 
-// ---------------------------------------------------------------------------
-// System prompt (simple, config-driven)
-// ---------------------------------------------------------------------------
-
-/**
- * Build a SIMPLE dehydrate system prompt from the wizard options. Re-built each
- * pass from the live config so a mid-run Options edit (PUT /config) takes
- * effect on the next pass. Deliberately compact — no 85-tactic enumeration; the
- * user iterates the real prompt later. Summarizes the enabled option groups at
- * a high level + appends `customInstruction` when present, then the output
- * contract.
- */
-function buildDehydrateSystemPrompt(
-  options: DehydrateConfig["options"],
-): string {
-  const sections: string[] = [];
-
-  sections.push(
-    "你是一名资深的小说脱水编辑。给定一段小说原文，请合并并脱水重写：忽略原章节边界，" +
-      "按剧情自然重新分章（通常应产出比原文更少的章节），去掉套话、水字数、重复描写与无意义反应，" +
-      "保留所有情节走向、关键事件、人物决策与伏笔。对每一章，同时给出脱水重写后的正文与该章的简明大纲。",
-  );
-
-  const { basic, situation, depth, language, customInstruction } = options;
-  const optLines: string[] = [];
-
-  const basicLabels: Record<"grammarFix" | "webSlangFilter", string> = {
-    grammarFix: "修正错别字/病句/标点",
-    webSlangFilter: "清理烂词与反和谐",
-  };
-  const basicOn = (["grammarFix", "webSlangFilter"] as const).filter(
-    (k) => basic[k],
-  );
-  if (basicOn.length) {
-    optLines.push(
-      "- 基础清洗：" + basicOn.map((k) => basicLabels[k]).join("；"),
-    );
-  }
-
-  if (situation.strength > 0) {
-    const lvl = ["", "轻", "中", "重"][situation.strength];
-    optLines.push(`- 情境脱水强度：${lvl}（${situation.strength}）`);
-  }
-
-  const depthOn = (
-    [
-      "dialoguePacing",
-      "sceneEnhance",
-      "combatEnhance",
-      "emotionEnhance",
-      "literaryEnhance",
-    ] as const
-  ).filter((k) => depth[k].enabled);
-  if (depthOn.length) optLines.push("- 文笔打磨：" + depthOn.join("、"));
-
-  const langBits: string[] = [];
-  if (language.translate.enabled) {
-    langBits.push(`翻译为${language.targetLanguage || "目标语言"}`);
-  }
-  if (language.nameLocalization.enabled) langBits.push("本地化姓名");
-  if (language.dialogueSubject.enabled) langBits.push("补回对话主语");
-  if (langBits.length) optLines.push("- 语言：" + langBits.join("；"));
-
-  if (optLines.length) {
-    sections.push(
-      "请按以下脱水选项执行（用户可能随时调整，请严格遵循）：\n" +
-        optLines.join("\n"),
-    );
-  }
-
-  const ci = customInstruction.trim();
-  if (ci) {
-    sections.push("用户额外要求（在不破坏剧情的前提下尽量满足）：\n" + ci);
-  }
-
-  sections.push(
-    [
-      "The only thing you are allowed to do is to call the outputChapters tool:",
-      "- Pass an array of chapters; each entry has `content` (the full dehydrated chapter prose) and `outline` (a brief factual summary).",
-      "- Re-chapter freely — merge and dehydrate; produce FEWER chapters than the source where appropriate.",
-      "- `content` must contain only the prose itself: no explanations, no Markdown, no chapter titles; preserve sensible paragraph breaks.",
-      "- Keep the output language the same as the source unless translation/localization is requested above.",
-      "- You are NOT allowed to output prose as plain text; it must go through outputChapters. Emitting plain text without the tool is fatal.",
-    ].join("\n"),
-  );
-
-  return sections.join("\n\n");
-}
-
 /**
  * Reinforcement appended on the one-shot retry when the agent stopped without
  * calling `outputChapters` (it streamed prose as plain text). Tells the model
@@ -352,7 +289,7 @@ function buildDehydrateSystemPrompt(
 const RETRY_SUFFIX = `
 
 ## ⚠ Your previous submission was invalid — you must resubmit through the tool
-Your last response did not call the outputChapters tool; instead, you stopped after emitting plain text. Plain text is not accepted, so the result is invalid. Please resubmit now: call the outputChapters tool with an array of chapters, each carrying \`content\` (the full dehydrated prose) and \`outline\` (a brief factual summary). Do not output plain text, and do not write any prose outside of the tool call.`;
+Your last response did not call the outputChapters tool; instead, you stopped after emitting plain text. Plain text is not accepted, so the result is invalid. Please resubmit now: call the outputChapters tool with an array of chapters, each carrying \`title\` (the bare chapter name, no '第N章' prefix), \`content\` (the full dehydrated prose), and \`outline\` (a brief factual summary). Do not output plain text, and do not write any prose outside of the tool call.`;
 
 // ---------------------------------------------------------------------------
 // One agent pass
@@ -481,7 +418,7 @@ export async function runDehydrateLoop(
     const chunkEnd = Math.min(rawText.length, chunkStart + budget);
     const chunk = rawText.slice(chunkStart, chunkEnd);
     const isLastBatch = chunkEnd >= rawText.length;
-    const systemPrompt = buildDehydrateSystemPrompt(config.options);
+    const systemPrompt = buildDehydrateSystemPrompt(config.options, "multi");
     const ctx: OutputChaptersContext = {
       threadId,
       chunkStart,

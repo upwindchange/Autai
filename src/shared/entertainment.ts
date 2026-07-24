@@ -15,16 +15,22 @@ import { z } from "zod";
  *     placeholder with no backend yet.
  *   - `novel` is mode-dependent: `dehydrate` accepts file OR internet;
  *     `interactive` accepts a text file ONLY.
- *   - Both modes share Module 1 (basic toggles) + Module 1b (情境脱水 — a
- *     `strength` dial that gates the whole feature, plus 65 per-tactic toggles
- *     selecting which single-chapter padding patterns to strip) + Module 1c
- *     (章节并写 — same shape, over the 20 padding patterns whose rule needs
- *     cross-chapter context; accepted by the backend but not yet acted on) +
- *     each `{ enabled, level }`, defaulting off) + Module 3 (language
- *     adaptation) + a `nonNovelSource` flag (single-source storyline vs.
+ *   - Both modes share the option blocks: `basic` (cleanup toggles) +
+ *     `situation` (情境脱水 — a `strength` dial that gates the whole feature,
+ *     plus 51 per-tactic toggles, all default OFF, selecting which
+ *     single-chapter padding patterns to force) + `crossChapter` (章节并写 —
+ *     same shape over 34 cross-chapter-only tactics, all default OFF; accepted
+ *     by the backend but not yet acted on) + `depth` (5 rewrite-intensity
+ *     aspects, each `{ enabled, level }`, defaulting off) + `language`
+ *     (adaptation) + a `nonNovelSource` flag (single-source storyline vs.
  *     chaptered novel) + a free-form `customInstruction` (user guidance applied
- *     on top of all three). `interactive` additionally carries
+ *     on top of everything). `interactive` additionally carries
  *     `interactionFrequency`.
+ *
+ *     The per-tactic checkboxes under `situation`/`crossChapter` are OPTIONAL
+ *     ENFORCEMENT — recommended OFF. The `strength` dial alone drives
+ *     intelligent dehydration; a tactic is only ticked when the user comes back
+ *     to force a specific 套路 that keeps slipping through.
  */
 
 // --- Novel inputs ----------------------------------------------------------
@@ -401,8 +407,10 @@ export const TACTIC_CATEGORIES: readonly {
 /**
  * All tactic keys that appear in the脱水提速 (single-chapter) view: the 36
  * `single` tactics plus the 15 `both` tactics (51 total). A tactic keyed `both`
- * appears here AND in `CROSS_CHAPTER_TACTIC_KEYS`, so the user can toggle its
- * single-chapter and cross-chapter stripping independently.
+ * appears here AND used to appear in the cross-chapter view, but the
+ * cross-chapter view now excludes `both` (see `CROSS_CHAPTER_TACTIC_KEYS`) to
+ * avoid surfacing the same tactic under two blocks — the single-chapter view
+ * is where scene-module tactics are controlled.
  */
 export const SITUATION_TACTIC_KEYS = TACTIC_CATEGORIES.flatMap((c) =>
   c.tactics.filter((k) => TACTIC_SCOPE[k] !== "cross"),
@@ -410,11 +418,13 @@ export const SITUATION_TACTIC_KEYS = TACTIC_CATEGORIES.flatMap((c) =>
 
 /**
  * All tactic keys that appear in the 章节并写 (cross-chapter) view: the 34
- * `cross` tactics plus the 15 `both` tactics (49 total). See
- * `SITUATION_TACTIC_KEYS` for the shared-key rationale.
+ * pure-`cross` tactics ONLY. The 15 `both` scene-module tactics are deliberately
+ * excluded — they already live under 脱水提速, and showing them in both blocks
+ * was redundant duplication. So a tactic appears in exactly one of the two
+ * blocks (never both): `single`/`both` → 脱水提速, `cross` → 章节并写.
  */
 export const CROSS_CHAPTER_TACTIC_KEYS = TACTIC_CATEGORIES.flatMap((c) =>
-  c.tactics.filter((k) => TACTIC_SCOPE[k] !== "single"),
+  c.tactics.filter((k) => TACTIC_SCOPE[k] === "cross"),
 ) as TacticKey[];
 
 /** The 脱水提速 view of the 16 content-genre categories (empty categories dropped). */
@@ -426,7 +436,7 @@ export const SITUATION_CATEGORIES = TACTIC_CATEGORIES.map((c) => ({
 /** The 章节并写 view of the 16 content-genre categories (empty categories dropped). */
 export const CROSS_CHAPTER_CATEGORIES = TACTIC_CATEGORIES.map((c) => ({
   key: c.key,
-  tactics: c.tactics.filter((k) => TACTIC_SCOPE[k] !== "single"),
+  tactics: c.tactics.filter((k) => TACTIC_SCOPE[k] === "cross"),
 })).filter((c) => c.tactics.length > 0);
 
 // Kept for back-compat with the old per-block category-key tuples — the two
@@ -440,10 +450,14 @@ export type CrossChapterCategory = TacticCategory;
 /**
  * The tactics table for 脱水提速 (single-chapter filler stripping) — one
  * boolean per tactic that can be correctly applied WITHIN a single chapter
- * (51 keys: 36 `single` + 15 `both`). The 15 `both` tactics also appear in
- * `CrossChapterTacticsSchema`, so the user controls their single-chapter and
- * cross-chapter stripping independently. All default ON — the脱水 feature is
- * opt-OUT by tactic. The rewriter only consumes a tactic when the enclosing
+ * (51 keys: 36 `single` + 15 `both`). The 15 `both` scene-module tactics live
+ * here only (they used to also appear in `CrossChapterTacticsSchema`, but that
+ * duplicated them across two blocks; 章节并写 is now `cross`-only).
+ *
+ * All default OFF — the per-tactic checkboxes are OPTIONAL ENFORCEMENT, not the
+ * primary control. The strength dial alone drives intelligent dehydration; a
+ * tactic is only checked when the user comes back to force a specific 套路 that
+ * keeps slipping through. The rewriter only consumes a tactic when the enclosing
  * `strength` is non-zero (see `SituationDehydrateSchema`).
  *
  * Keys are listed explicitly (not derived from `TACTIC_SCOPE`) so the inferred
@@ -454,145 +468,135 @@ export type CrossChapterCategory = TacticCategory;
  */
 const SituationTacticsSchema = z.object({
   // combatCompetition
-  mobGrinding: z.boolean().default(true),
-  combatFrameByFrame: z.boolean().default(true),
-  skillNameSpam: z.boolean().default(true),
-  powerLevelLecture: z.boolean().default(true),
-  fakeDisadvantage: z.boolean().default(true),
+  mobGrinding: z.boolean().default(false),
+  combatFrameByFrame: z.boolean().default(false),
+  skillNameSpam: z.boolean().default(false),
+  powerLevelLecture: z.boolean().default(false),
+  fakeDisadvantage: z.boolean().default(false),
   // crowdReaction
-  crowdShock: z.boolean().default(true),
-  bystanderExposition: z.boolean().default(true),
-  groupPsychology: z.boolean().default(true),
-  danmakuSpam: z.boolean().default(true),
-  mediaReports: z.boolean().default(true),
+  crowdShock: z.boolean().default(false),
+  bystanderExposition: z.boolean().default(false),
+  groupPsychology: z.boolean().default(false),
+  danmakuSpam: z.boolean().default(false),
+  mediaReports: z.boolean().default(false),
   // loreDump
-  worldbuildingEncyclopedia: z.boolean().default(true),
-  itemProfiles: z.boolean().default(true),
-  mapTours: z.boolean().default(true),
-  genealogy: z.boolean().default(true),
-  cultivationRoutine: z.boolean().default(true),
-  systemPanels: z.boolean().default(true),
-  gachaCheckin: z.boolean().default(true),
+  worldbuildingEncyclopedia: z.boolean().default(false),
+  itemProfiles: z.boolean().default(false),
+  mapTours: z.boolean().default(false),
+  genealogy: z.boolean().default(false),
+  cultivationRoutine: z.boolean().default(false),
+  systemPanels: z.boolean().default(false),
+  gachaCheckin: z.boolean().default(false),
   // romanceDrag
-  innerMonologueLoop: z.boolean().default(true),
-  outfitDescriptions: z.boolean().default(true),
-  banquetFiller: z.boolean().default(true),
-  appearanceRedescription: z.boolean().default(true),
+  innerMonologueLoop: z.boolean().default(false),
+  outfitDescriptions: z.boolean().default(false),
+  banquetFiller: z.boolean().default(false),
+  appearanceRedescription: z.boolean().default(false),
   // villainFaceSlap
-  villainMockery: z.boolean().default(true),
-  narratedConspiracy: z.boolean().default(true),
-  trialReveal: z.boolean().default(true),
+  villainMockery: z.boolean().default(false),
+  narratedConspiracy: z.boolean().default(false),
+  trialReveal: z.boolean().default(false),
   // dailyLife
-  mealDescriptions: z.boolean().default(true),
-  travelFiller: z.boolean().default(true),
-  shoppingFiller: z.boolean().default(true),
-  trainingStudy: z.boolean().default(true),
+  mealDescriptions: z.boolean().default(false),
+  travelFiller: z.boolean().default(false),
+  shoppingFiller: z.boolean().default(false),
+  trainingStudy: z.boolean().default(false),
   // dialogueFiller
-  circularArguments: z.boolean().default(true),
-  leadingQuestions: z.boolean().default(true),
-  rollCallStatements: z.boolean().default(true),
-  repeatedConfirmations: z.boolean().default(true),
+  circularArguments: z.boolean().default(false),
+  leadingQuestions: z.boolean().default(false),
+  rollCallStatements: z.boolean().default(false),
+  repeatedConfirmations: z.boolean().default(false),
   // structuralDelay
-  flashbacks: z.boolean().default(true),
+  flashbacks: z.boolean().default(false),
   // thrillLoop
-  hiddenPowerLoops: z.boolean().default(true),
-  rankingBoards: z.boolean().default(true),
-  rewardSettlement: z.boolean().default(true),
+  hiddenPowerLoops: z.boolean().default(false),
+  rankingBoards: z.boolean().default(false),
+  rewardSettlement: z.boolean().default(false),
   // femaleAudience
-  ceoControlMinutiae: z.boolean().default(true),
-  cuteBabyAssist: z.boolean().default(true),
+  ceoControlMinutiae: z.boolean().default(false),
+  cuteBabyAssist: z.boolean().default(false),
   // maleAudience
-  treasureAppraisal: z.boolean().default(true),
-  medicalRescue: z.boolean().default(true),
+  treasureAppraisal: z.boolean().default(false),
+  medicalRescue: z.boolean().default(false),
   // sciFiApocalypse
-  techSpecs: z.boolean().default(true),
-  apocalypseSupplies: z.boolean().default(true),
-  instanceRules: z.boolean().default(true),
+  techSpecs: z.boolean().default(false),
+  apocalypseSupplies: z.boolean().default(false),
+  instanceRules: z.boolean().default(false),
   // workplaceIndustry
-  actingAudition: z.boolean().default(true),
+  actingAudition: z.boolean().default(false),
   // prosePadding
-  chapterRecap: z.boolean().default(true),
-  forcedCliffhanger: z.boolean().default(true),
-  synonymStacking: z.boolean().default(true),
-  adjectivePiling: z.boolean().default(true),
-  atmosphereRedressing: z.boolean().default(true),
-  numberPiling: z.boolean().default(true),
+  chapterRecap: z.boolean().default(false),
+  forcedCliffhanger: z.boolean().default(false),
+  synonymStacking: z.boolean().default(false),
+  adjectivePiling: z.boolean().default(false),
+  atmosphereRedressing: z.boolean().default(false),
+  numberPiling: z.boolean().default(false),
   // plotLoop
-  waitingForResults: z.boolean().default(true),
+  waitingForResults: z.boolean().default(false),
 });
 
 /**
  * The tactics table for 章节并写 (cross-chapter filler stripping) — one boolean
- * per tactic that needs cross-chapter context to apply (49 keys: 34 `cross` +
- * 15 `both`). The wizard surfaces these under a dedicated 章节并写 block with
- * the same strength-dial + master-switch + grouped-checkbox UX as 脱水提速. The
+ * per tactic that needs cross-chapter context to apply (34 `cross`-only keys).
+ * The 15 `both` scene-module tactics are deliberately NOT here — they live under
+ * 脱水提速 (`SituationTacticsSchema`) so each tactic appears under exactly one
+ * block (no duplication). The wizard surfaces these under a dedicated 章节并写
+ * block with the same strength-dial + grouped-checkbox UX as 脱水提速. The
  * backend ACCEPTS this config (it round-trips through the `options` JSON blob)
  * but the current rewriter does NOT yet act on it — a real cross-chapter context
- * mechanism is the intended follow-up. Defaults to on so the UI presents the
- * feature as implemented; it ships as a no-op until that mechanism exists.
+ * mechanism is the intended follow-up; it ships as a no-op until then.
+ *
+ * All default OFF — same OPTIONAL-ENFORCEMENT philosophy as 脱水提速: the
+ * strength dial is the primary control, the checkboxes are manual overrides for
+ * stubborn 套路.
  */
 const CrossChapterTacticsSchema = z.object({
   // combatCompetition
-  tournamentLoop: z.boolean().default(true),
-  mobGrinding: z.boolean().default(true),
-  fakeDisadvantage: z.boolean().default(true),
-  escalatingElders: z.boolean().default(true),
+  tournamentLoop: z.boolean().default(false),
+  escalatingElders: z.boolean().default(false),
   // romanceDrag
-  misunderstandings: z.boolean().default(true),
-  jealousyCycles: z.boolean().default(true),
-  banquetFiller: z.boolean().default(true),
-  familyGossip: z.boolean().default(true),
+  misunderstandings: z.boolean().default(false),
+  jealousyCycles: z.boolean().default(false),
+  familyGossip: z.boolean().default(false),
   // villainFaceSlap
-  braindeadVillains: z.boolean().default(true),
-  trialReveal: z.boolean().default(true),
+  braindeadVillains: z.boolean().default(false),
   // dailyLife
-  travelFiller: z.boolean().default(true),
-  shoppingFiller: z.boolean().default(true),
-  questDungeon: z.boolean().default(true),
-  trainingStudy: z.boolean().default(true),
+  questDungeon: z.boolean().default(false),
   // structuralDelay
-  climaxPovSwitch: z.boolean().default(true),
-  multiPovReplay: z.boolean().default(true),
-  flashbacks: z.boolean().default(true),
-  dreamIllusionTrial: z.boolean().default(true),
-  secretRealm: z.boolean().default(true),
-  auction: z.boolean().default(true),
-  entranceExam: z.boolean().default(true),
+  climaxPovSwitch: z.boolean().default(false),
+  multiPovReplay: z.boolean().default(false),
+  dreamIllusionTrial: z.boolean().default(false),
+  secretRealm: z.boolean().default(false),
+  auction: z.boolean().default(false),
+  entranceExam: z.boolean().default(false),
   // thrillLoop
-  hiddenPowerLoops: z.boolean().default(true),
-  identityReveals: z.boolean().default(true),
-  nobodyKnowsMc: z.boolean().default(true),
+  identityReveals: z.boolean().default(false),
+  nobodyKnowsMc: z.boolean().default(false),
   // femaleAudience
-  heiressDrama: z.boolean().default(true),
-  evilSidekick: z.boolean().default(true),
-  ceoControlMinutiae: z.boolean().default(true),
-  cuteBabyAssist: z.boolean().default(true),
-  varietyLivestream: z.boolean().default(true),
+  heiressDrama: z.boolean().default(false),
+  evilSidekick: z.boolean().default(false),
+  varietyLivestream: z.boolean().default(false),
   // maleAudience
-  engagementHumiliation: z.boolean().default(true),
-  recruitingMinions: z.boolean().default(true),
-  haremRotation: z.boolean().default(true),
-  treasureAppraisal: z.boolean().default(true),
-  medicalRescue: z.boolean().default(true),
+  engagementHumiliation: z.boolean().default(false),
+  recruitingMinions: z.boolean().default(false),
+  haremRotation: z.boolean().default(false),
   // sciFiApocalypse
-  baseBuilding: z.boolean().default(true),
-  puzzleTrialError: z.boolean().default(true),
+  baseBuilding: z.boolean().default(false),
+  puzzleTrialError: z.boolean().default(false),
   // workplaceIndustry
-  corporateMeetings: z.boolean().default(true),
-  projectCompetition: z.boolean().default(true),
-  actingAudition: z.boolean().default(true),
-  fandomWars: z.boolean().default(true),
+  corporateMeetings: z.boolean().default(false),
+  projectCompetition: z.boolean().default(false),
+  fandomWars: z.boolean().default(false),
   // plotLoop
-  mapProgressionTemplate: z.boolean().default(true),
-  escalatingCrisis: z.boolean().default(true),
-  infinitePrep: z.boolean().default(true),
-  waitingForResults: z.boolean().default(true),
+  mapProgressionTemplate: z.boolean().default(false),
+  escalatingCrisis: z.boolean().default(false),
+  infinitePrep: z.boolean().default(false),
   // genreSpecific
-  palaceEtiquette: z.boolean().default(true),
-  householdAccounts: z.boolean().default(true),
-  farmingRoutine: z.boolean().default(true),
-  eraFictionCoupons: z.boolean().default(true),
-  cthulhuDelaying: z.boolean().default(true),
+  palaceEtiquette: z.boolean().default(false),
+  householdAccounts: z.boolean().default(false),
+  farmingRoutine: z.boolean().default(false),
+  eraFictionCoupons: z.boolean().default(false),
+  cthulhuDelaying: z.boolean().default(false),
 });
 
 /** Build a `SituationTactics` with every tactic set to `value` (master switch). */
@@ -805,11 +809,11 @@ export type RewrittenChapterStatus = "rewriting" | "rewritten" | "error";
 
 /**
  * Per-output pipeline progress — the reader's list/TOC view. `chapterNumber` is
- * the REWRITE OUTPUT sequential number (the reader spine). `sourceStatus` comes
- * from the source row at the same number (pipelines ②/③ only — pipeline ①
- * produces outline + rewrite atomically so it has no source row); a `null`
- * status means no row for that table yet. `rewriteStatus` is the output row's
- * own status.
+ * the REWRITE OUTPUT sequential number (the reader spine). `title` and
+ * `sourceStatus` come from the source row at the same number — for pipelines
+ * ②/③ that's the fetched original; for pipeline ① the dehydrate tool writes the
+ * row carrying only the title (status="fetched"). `rewriteStatus` is the
+ * output row's own status (the only signal that matters for "prose ready").
  */
 export interface ChapterProgress {
   /** REWRITE OUTPUT sequential number (reader spine). */

@@ -41,6 +41,7 @@ import {
   ResizableHandle,
 } from "@/components/ui/resizable";
 import { useTagStore } from "@/stores/tagStore";
+import { useChaptersStore } from "@/stores/chaptersStore";
 import { useThreadModelStore } from "@/stores/threadModelStore";
 import { useRemoteThreadListRuntime } from "@assistant-ui/react";
 import { backendThreadListAdapter } from "@/adapters/backendThreadListAdapter";
@@ -148,6 +149,15 @@ function AppContent() {
       (s.threads.find((th) => th.remoteId === mainThreadId)?.title ?? null)
     : null,
   );
+  // In entertainment mode, prefer the CURRENT chapter's title over the thread
+  // (novel) title in the app header — it updates live as the reader navigates
+  // chapters. Falls back to the thread title when no chapter is open, the
+  // chapter has no title, or we're outside entertainment mode.
+  const chapterTitle = useChaptersStore((s) => {
+    const n = s.currentChapterNumber;
+    if (!n) return null;
+    return s.chapters.find((c) => c.chapterNumber === n)?.title ?? null;
+  });
 
   // Load this thread's saved chat model from the DB once (cached in RAM).
   // Keyed by mainThreadId — the active thread id. (threadListItem.remoteId is
@@ -241,14 +251,22 @@ function AppContent() {
     }
   }, [showSplitView, setContainerRef]);
 
-  const headerTitle =
-    showSettings ?
-      t("header.settings")
-    : (threadTitle ?? `${t("app.title")} ${t("header.aiAssistant")}`);
+  // Header title priority: settings title (when settings open) → current
+  // chapter title (entertainment mode, while reading) → thread/novel title →
+  // app default. The chapter title wins only in entertainment mode and only
+  // when present, so the wizard/options page still shows the thread title.
+  const headerTitle = showSettings ?
+    t("header.settings")
+  : appMode === "entertainment" && chapterTitle ?
+    chapterTitle
+  : (threadTitle ?? `${t("app.title")} ${t("header.aiAssistant")}`);
   // Compact form for medium header widths: drop the " AI Assistant" suffix from
-  // the default title (thread/settings titles have no shorter form).
-  const headerTitleShort =
-    showSettings ? t("header.settings") : (threadTitle ?? t("app.title"));
+  // the default title (chapter/thread/settings titles have no shorter form).
+  const headerTitleShort = showSettings ?
+    t("header.settings")
+  : appMode === "entertainment" && chapterTitle ?
+    chapterTitle
+  : (threadTitle ?? t("app.title"));
 
   // Effective zen: hide sidebar + header so the reader fills the window. Only
   // in entertainment mode without settings open.

@@ -27,18 +27,21 @@ export const DEFAULT_BASIC: DehydrateBasic = {
   webSlangFilter: true,
 };
 
-// 情境脱水 ships active: medium strength, every tactic on (opt-OUT per tactic).
+// 情境脱水 ships active: medium strength, all tactics OFF (opt-IN per tactic).
+// The per-tactic checkboxes are optional enforcement — the strength dial alone
+// drives intelligent dehydration. Tactics stay off by default; the user ticks
+// one only when a 套路 keeps slipping through.
 export const DEFAULT_SITUATION: SituationDehydrate = {
   strength: 2,
-  tactics: fillSituationTactics(true),
+  tactics: fillSituationTactics(false),
 };
 
-// 章节并写 ships active too (medium strength, all tactics on), mirroring 情境脱水.
+// 章节并写 mirrors 情境脱水: medium strength, all tactics OFF (opt-IN per tactic).
 // The backend accepts this but does not yet act on it — see
 // `CrossChapterTacticsSchema` in the shared schema.
 export const DEFAULT_CROSS_CHAPTER: CrossChapterDehydrate = {
   strength: 2,
-  tactics: fillCrossChapterTactics(true),
+  tactics: fillCrossChapterTactics(false),
 };
 
 // Rewrite-intensity aspects default OFF — the user opts into each enhancement.

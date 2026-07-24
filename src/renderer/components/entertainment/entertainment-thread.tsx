@@ -438,10 +438,10 @@ export const EntertainmentThread: FC = () => {
  *  the `.novel-reader` rules in novel-reader.css. */
 const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
   // If the rewritten prose exists, show it right away — regardless of source
-  // status. Pipeline ① produces outline + rewrite in one pass and never writes
-  // a source_chapters row, so its chapters legitimately carry sourceStatus:
-  // null even when fully rewritten; gating on sourceStatus would wrongly show
-  // them as "fetching" forever.
+  // status. Pipeline ① produces title + outline + rewrite in one pass; its
+  // source_chapters row carries only the title (status="fetched"), so gating on
+  // sourceStatus would be meaningless. Rewrite status is the only signal that
+  // matters for "is there prose to read".
   if (chapter && chapter.rewriteStatus === "rewritten") {
     // Split on newline (handles CRLF); blank lines add no node. Each <p> gets
     // the first-line indent + spacing from .novel-reader p. Plain text nodes
