@@ -38,5 +38,6 @@ native/
 #project tools
 .roo/
 .claude/
+.zcode/
 .crush/
 .env
