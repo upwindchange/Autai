@@ -29,7 +29,7 @@ export type RewriteOutcome = "rewritten" | "error";
  */
 const outputProcessedContentTool = tool({
   description:
-    "The ONLY way to end your output and deliver the rewritten content — " +
+    "Calling this tool is the ONLY way to end your output and deliver the rewritten content — " +
     "call this outputProcessedContent tool with the full rewritten prose as `content`. " +
     "You are NOT ALLOWED output the prose as plain text and stop your output; " +
     "it must go through this outputProcessedContent tool.",
@@ -229,4 +229,3 @@ export async function rewriteChapter(
     return "error";
   }
 }
-
