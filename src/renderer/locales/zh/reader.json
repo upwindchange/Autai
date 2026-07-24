@@ -69,7 +69,9 @@
   "reader.process.retryFailed": "重试失败（{{count}}）",
   "reader.options.open": "调整重写选项",
   "reader.options.title": "重写选项",
+  "reader.options.subtitle": "更改将在下一个处理的章节生效——当前正在运行的任务不受影响。",
   "reader.options.save": "保存",
+  "reader.options.back": "返回阅读",
   "reader.options.loadFailed": "无法加载此任务的选项",
   "reader.stop.label": "停止并重新开始",
   "reader.stop.hint": "停止所有任务并开始新任务"

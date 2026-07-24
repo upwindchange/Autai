@@ -5,21 +5,27 @@ import {
   useRef,
   useState,
   type FC,
+  type Dispatch,
   type MouseEvent as ReactMouseEvent,
+  type SetStateAction,
 } from "react";
 import { ThreadPrimitive, useAui, useAuiState } from "@assistant-ui/react";
 import { useTranslation } from "react-i18next";
+import { ArrowLeft, Loader2 } from "lucide-react";
 import {
   DotMatrix,
   type DotMatrixState,
 } from "@/components/assistant-ui/dot-matrix";
+import { Button } from "@/components/ui/button";
 import { useUiStore } from "@/stores/uiStore";
 import { useReaderSettings } from "@/stores/readerSettingsStore";
 import { useChaptersStore, type ChapterView } from "@/stores/chaptersStore";
 import { useChapterReadiness } from "@/hooks/useChapterReadiness";
 import { useReaderHotkeys } from "@/hooks/useReaderHotkeys";
 import { useIsMobile } from "@/hooks/use-mobile";
+import type { EntertainmentConfig } from "@shared";
 import { EntertainmentWizard } from "./wizard/EntertainmentWizard";
+import { StepOptions } from "./wizard/steps/StepOptions";
 import { buildReaderCssVars } from "./reader/reader-settings/reader-theme";
 import { ReaderFooter } from "./reader/ReaderFooter";
 
@@ -65,6 +71,8 @@ export const EntertainmentThread: FC = () => {
   const ensureWorker = useChaptersStore((s) => s.ensureWorker);
   const setCurrentChapter = useChaptersStore((s) => s.setCurrentChapter);
   const stopAgents = useChaptersStore((s) => s.stopAgents);
+  const getThreadConfig = useChaptersStore((s) => s.getThreadConfig);
+  const updateThreadConfig = useChaptersStore((s) => s.updateThreadConfig);
   // Last fetch error (chapter list or detail) — when set, the backend is/was
   // unreachable, which is otherwise indistinguishable from "still fetching".
   const fetchError = useChaptersStore((s) => s.error);
@@ -281,6 +289,48 @@ export const EntertainmentThread: FC = () => {
     setStopping(false);
   };
 
+  // Options page — a full-page view of the same StepOptions the wizard uses,
+  // editing the current thread's persisted config on the fly. Opened from the
+  // footer's Settings button. Save writes via PUT /config; the next agent the
+  // pipeline enqueues re-reads config and rebuilds its prompt from the new
+  // options. Does NOT affect currently-running agents. The page replaces the
+  // reader while open (full-page, like the wizard) — NOT an overlay popover.
+  const [showOptionsPage, setShowOptionsPage] = useState(false);
+  const [optionsConfig, setOptionsConfig] =
+    useState<EntertainmentConfig | null>(null);
+  const [optionsLoading, setOptionsLoading] = useState(false);
+  const [optionsLoadFailed, setOptionsLoadFailed] = useState(false);
+  const [optionsSaving, setOptionsSaving] = useState(false);
+  const openOptionsPage = () => {
+    setShowOptionsPage(true);
+    setOptionsConfig(null);
+    setOptionsLoadFailed(false);
+    if (!mainThreadId) return;
+    setOptionsLoading(true);
+    void getThreadConfig(mainThreadId)
+      .then((cfg) => {
+        if (cfg) setOptionsConfig(cfg);
+        else setOptionsLoadFailed(true);
+      })
+      .catch(() => setOptionsLoadFailed(true))
+      .finally(() => setOptionsLoading(false));
+  };
+  const closeOptionsPage = () => {
+    setShowOptionsPage(false);
+    setOptionsConfig(null);
+    setOptionsLoadFailed(false);
+  };
+  const handleSaveOptions = async () => {
+    if (!mainThreadId || !optionsConfig) return;
+    setOptionsSaving(true);
+    try {
+      await updateThreadConfig(mainThreadId, optionsConfig);
+      closeOptionsPage();
+    } finally {
+      setOptionsSaving(false);
+    }
+  };
+
   return (
     <ThreadPrimitive.Root
       ref={rootRef}
@@ -309,10 +359,10 @@ export const EntertainmentThread: FC = () => {
           // Reader theme background is scoped to the reading surface and
           // applied on the full-width viewport (not the centered prose column)
           // so the theme color fills the whole window. Only while a chapter is
-          // open (currentChapterNumber != null) — a fresh thread's wizard keeps
-          // the app theme.
+          // open (currentChapterNumber != null) AND the options page isn't up —
+          // a fresh thread's wizard and the options page keep the app theme.
           backgroundColor:
-            currentChapterNumber != null ?
+            currentChapterNumber != null && !showOptionsPage ?
               "var(--reader-background)"
             : undefined,
         }}
@@ -323,6 +373,16 @@ export const EntertainmentThread: FC = () => {
           // column's --reader-margin (which would crush it on mobile). Its own
           // container handles width + centering.
           <EntertainmentWizard />
+        : showOptionsPage ?
+          <OptionsPage
+            loading={optionsLoading}
+            loadFailed={optionsLoadFailed}
+            config={optionsConfig}
+            setConfig={setOptionsConfig}
+            saving={optionsSaving}
+            onSave={() => void handleSaveOptions()}
+            onBack={closeOptionsPage}
+          />
         : <div
             onClick={handleReadingClick}
             className="flex w-full flex-1 flex-col pt-4 pb-24"
@@ -352,7 +412,7 @@ export const EntertainmentThread: FC = () => {
           </div>
         }
       </ThreadPrimitive.Viewport>
-      {currentChapterNumber != null && (
+      {currentChapterNumber != null && !showOptionsPage && (
         <ReaderFooter
           canGoPrev={canGoPrev}
           canGoNext={canGoNext}
@@ -364,6 +424,7 @@ export const EntertainmentThread: FC = () => {
           onJumpTo={jumpTo}
           onStop={() => void handleStop()}
           stopping={stopping}
+          onOpenOptions={openOptionsPage}
         />
       )}
     </ThreadPrimitive.Root>
@@ -435,3 +496,88 @@ const ChapterState: FC<{
     </div>
   );
 };
+
+/**
+ * Full-page rewrite-options editor for an open thread. Renders the SAME
+ * StepOptions the wizard uses (no duplication), editing the thread's persisted
+ * config live — a full page, NOT an overlay popover (the dense 85-tactic grid
+ * is unreadable in a popover). Mirrors the wizard's width container + nav. Save
+ * writes via PUT /config; the next agent picks up the new options. Back returns
+ * to the reader without writing (the draft is discarded).
+ */
+const OptionsPage: FC<{
+  loading: boolean;
+  loadFailed: boolean;
+  config: EntertainmentConfig | null;
+  setConfig: Dispatch<SetStateAction<EntertainmentConfig | null>>;
+  saving: boolean;
+  onSave: () => void;
+  onBack: () => void;
+}> = ({ loading, loadFailed, config, setConfig, saving, onSave, onBack }) => {
+  const { t } = useTranslation("reader");
+  return (
+    <div className="my-auto mx-auto flex w-full flex-col gap-4 px-4 pb-10 sm:max-w-2xl sm:gap-6 lg:max-w-5xl xl:max-w-7xl 2xl:max-w-[96rem]">
+      <div className="flex flex-col gap-1 xl:max-w-5xl">
+        <h1 className="fade-in slide-in-from-bottom-1 animate-in fill-mode-both font-semibold text-2xl duration-200">
+          {t("reader.options.title")}
+        </h1>
+        <p className="fade-in slide-in-from-bottom-1 animate-in fill-mode-both text-muted-foreground text-sm delay-75 duration-200">
+          {t("reader.options.subtitle")}
+        </p>
+      </div>
+
+      {loading ?
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </div>
+      : loadFailed || !config ?
+        <p className="py-20 text-center text-sm text-muted-foreground">
+          {t("reader.options.loadFailed")}
+        </p>
+      : <StepOptions
+          config={config}
+          setConfig={(updater) =>
+            setOptionsConfigSetter(setConfig, updater, config)
+          }
+        />
+      }
+
+      <div className="flex items-center gap-2">
+        <Button type="button" variant="ghost" onClick={onBack} disabled={saving}>
+          <ArrowLeft className="size-4" />
+          {t("reader.options.back")}
+        </Button>
+        {config && !loading && !loadFailed && (
+          <Button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className="self-start"
+          >
+            {saving ?
+              <Loader2 className="size-4 animate-spin" />
+            : t("reader.options.save")}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Adapter so the host's nullable-config setter can feed StepOptions' non-null
+ * setter contract. `config` is the current non-null draft (the page only
+ * renders StepOptions when config is non-null), so a functional updater is
+ * applied to it and the result written back.
+ */
+function setOptionsConfigSetter(
+  setConfig: Dispatch<SetStateAction<EntertainmentConfig | null>>,
+  updater: EntertainmentConfig | ((prev: EntertainmentConfig) => EntertainmentConfig),
+  current: EntertainmentConfig,
+): void {
+  setConfig(
+    typeof updater === "function" ?
+      (updater as (prev: EntertainmentConfig) => EntertainmentConfig)(current)
+    : updater,
+  );
+}

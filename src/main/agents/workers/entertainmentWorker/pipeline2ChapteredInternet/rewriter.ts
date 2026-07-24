@@ -308,9 +308,9 @@ const SITUATION_CATEGORY_LABELS: Record<SituationCategory, string> = {
  * kept here (not in DEPTH_ASPECTS, which no longer has a `dehydrate` entry).
  */
 const SITUATION_STRENGTH_LEVELS: Record<1 | 2 | 3, string> = {
-  1: "只删明显重复的与明显水字数的内容，不删除内容走向和基本剧情。",
-  2: "精炼水字数的剧情，保留但是显著加快内容，使描写更加精炼，显著提升阅读体验。",
-  3: "完全删除有水字数特性的内容，把被删除的剧情高度精炼概括，概括越短越好。",
+  1: "只加快明显水字数的**剧情**，对水字数的**内容**则简化精炼，提高阅读体验，让即使是水字数的部分也能有好的阅读节奏。",
+  2: "保留但是精炼加快水字数的**剧情**，对于不是剧情的水字数的**内容**则直接用一句话概括。",
+  3: "完全删除有水字数特性的**内容**和**剧情**。把被删除的剧情高度精炼概括，概括越短越好。内容则完全删除，不留痕迹。",
 };
 
 const SITUATION_TACTICS: Record<

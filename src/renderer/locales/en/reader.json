@@ -69,7 +69,9 @@
   "reader.process.retryFailed": "Redo failed ({{count}})",
   "reader.options.open": "Adjust rewrite options",
   "reader.options.title": "Rewrite options",
+  "reader.options.subtitle": "Changes apply to the next chapter the agent processes — current runs are unaffected.",
   "reader.options.save": "Save",
+  "reader.options.back": "Back to reading",
   "reader.options.loadFailed": "Could not load options for this thread",
   "reader.stop.label": "Stop and start over",
   "reader.stop.hint": "Stop all agents and start a new task"

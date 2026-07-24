@@ -6,7 +6,7 @@ import {
   List,
   Maximize2,
   Minimize2,
-  Settings2,
+  SlidersHorizontal,
   Sparkles,
   Square,
   Loader2,
@@ -26,11 +26,9 @@ import { useUiStore } from "@/stores/uiStore";
 import { cn } from "@/lib/utils";
 import { getApiBase } from "@/lib/api";
 import { Label } from "@/components/ui/label";
-import type { EntertainmentConfig } from "@shared";
 import { ReaderSettingsPanel } from "./reader-settings/ReaderSettingsPanel";
 import { TableOfContents } from "./table-of-contents/TableOfContents";
 import { Bookmarks } from "./bookmarks/Bookmarks";
-import { StepOptions } from "../wizard/steps/StepOptions";
 
 // Refresh cadence for the chapter list while the footer is shown.
 const POLL_MS = 1500;
@@ -54,6 +52,8 @@ interface ReaderFooterProps {
   onStop: () => void;
   /** True while the stop+switch sequence is in flight (disables the button). */
   stopping: boolean;
+  /** Open the full-page rewrite-options editor (replaces the reader, like the wizard). */
+  onOpenOptions: () => void;
 }
 
 /**
@@ -85,6 +85,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   onJumpTo,
   onStop,
   stopping,
+  onOpenOptions,
 }) => {
   const { t } = useTranslation("reader");
   const zenMode = useUiStore((s) => s.zenMode);
@@ -96,7 +97,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   const [downloadOpen, setDownloadOpen] = useState(false);
   const [processOpen, setProcessOpen] = useState(false);
   const [processCount, setProcessCount] = useState(5);
-  const [optionsOpen, setOptionsOpen] = useState(false);
 
   // TOC data comes from the chapters store (this footer lives inside the
   // entertainment tree, so the active thread is already loaded). Chapter jumps
@@ -108,8 +108,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   const finalChapterNumber = useChaptersStore((s) => s.finalChapterNumber);
   const processChapters = useChaptersStore((s) => s.processChapters);
   const reprocessFailed = useChaptersStore((s) => s.reprocessFailed);
-  const getThreadConfig = useChaptersStore((s) => s.getThreadConfig);
-  const updateThreadConfig = useChaptersStore((s) => s.updateThreadConfig);
 
   // Bookmarks for the active thread. Loaded once per thread switch (no poll —
   // bookmarks only change via this client); add/remove mutate the store directly.
@@ -125,8 +123,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     tocOpen ||
     bookmarksOpen ||
     downloadOpen ||
-    processOpen ||
-    optionsOpen;
+    processOpen;
 
   // Poll the chapter list WHILE the footer is shown, so the TOC rows and the
   // next-chapter nav indicator track backend progress. Stops the instant it
@@ -253,49 +250,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     setProcessOpen(false);
   };
 
-  // In-flight thread options editor (the Options button). Loads the thread's
-  // persisted config on first open and keeps a local editable copy; Save writes
-  // it back via PUT /config without re-running one-time setup. The next agent
-  // the pipeline enqueues re-reads config and rebuilds its prompt from the new
-  // options (immediate on pipeline ②; ①/③ pick it up once their settings-driven
-  // rewriters land). This does NOT affect currently-running agents.
-  const [optionsConfig, setOptionsConfig] =
-    useState<EntertainmentConfig | null>(null);
-  const [optionsLoading, setOptionsLoading] = useState(false);
-  const [optionsLoadFailed, setOptionsLoadFailed] = useState(false);
-  const [optionsSaving, setOptionsSaving] = useState(false);
-  useEffect(() => {
-    if (!optionsOpen || !currentThreadId || optionsConfig) return;
-    setOptionsLoading(true);
-    setOptionsLoadFailed(false);
-    void getThreadConfig(currentThreadId)
-      .then((cfg) => {
-        if (cfg) setOptionsConfig(cfg);
-        else setOptionsLoadFailed(true); // no config / 404
-      })
-      .catch(() => setOptionsLoadFailed(true))
-      .finally(() => setOptionsLoading(false));
-  }, [optionsOpen, currentThreadId, optionsConfig, getThreadConfig]);
-  const handleOptionsOpenChange = (open: boolean) => {
-    setOptionsOpen(open);
-    if (!open) {
-      // drop the draft so reopening re-reads fresh from the DB
-      setOptionsConfig(null);
-      setOptionsLoadFailed(false);
-    }
-  };
-  const handleSaveOptions = async () => {
-    if (!currentThreadId || !optionsConfig) return;
-    setOptionsSaving(true);
-    try {
-      await updateThreadConfig(currentThreadId, optionsConfig);
-      setOptionsOpen(false);
-      setOptionsConfig(null);
-    } finally {
-      setOptionsSaving(false);
-    }
-  };
-
   const settingsTrigger = (
     <Button
       type="button"
@@ -364,17 +318,19 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     </Button>
   );
 
-  // In-flight thread options editor (the Options button). Opens the same
-  // StepOptions the wizard uses, editing the current thread's config live.
+  // Options button — opens the full-page rewrite-options editor (replaces the
+  // reader, like the wizard). Not a popover: the dense tactics grid is
+  // unreadable in an overlay. Wrapped in a tooltip like the other controls.
   const optionsTrigger = (
     <Button
       type="button"
       variant="ghost"
       size="icon"
+      onClick={onOpenOptions}
       aria-label={t("reader.options.open")}
       className="size-9 rounded-full"
     >
-      <Settings2 className="size-5" />
+      <SlidersHorizontal className="size-5" />
     </Button>
   );
 
@@ -510,51 +466,15 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
             </div>
           </ResponsivePanel>
 
-          {/* In-flight options editor (left) — the same StepOptions the wizard
-              uses, editing the current thread's persisted config. Save writes
-              via PUT /config; the next agent picks up the new options. Does NOT
-              affect currently-running agents. */}
-          <ResponsivePanel
-            title={t("reader.options.title")}
-            tooltip={t("reader.options.open")}
-            open={optionsOpen}
-            onOpenChange={handleOptionsOpenChange}
-            trigger={optionsTrigger}
-          >
-            <div className="flex flex-col gap-3">
-              {optionsLoading ?
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="size-5 animate-spin text-muted-foreground" />
-                </div>
-              : optionsLoadFailed || !optionsConfig ?
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  {t("reader.options.loadFailed")}
-                </p>
-              : <>
-                  <StepOptions
-                    config={optionsConfig}
-                    setConfig={(updater) =>
-                      setOptionsConfig(
-                        typeof updater === "function" ?
-                          (updater as (prev: EntertainmentConfig) => EntertainmentConfig)(optionsConfig)
-                        : updater,
-                      )
-                    }
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={() => void handleSaveOptions()}
-                    disabled={optionsSaving}
-                  >
-                    {optionsSaving ?
-                      <Loader2 className="size-4 animate-spin" />
-                    : t("reader.options.save")}
-                  </Button>
-                </>
-              }
-            </div>
-          </ResponsivePanel>
+          {/* Options (left) — opens the full-page rewrite-options editor. Not a
+              popover: the dense tactics grid is unreadable in an overlay, so the
+              host swaps to a full-page view (like the wizard) instead. */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {optionsTrigger}
+            </TooltipTrigger>
+            <TooltipContent side="top">{t("reader.options.open")}</TooltipContent>
+          </Tooltip>
 
           {/* Chapter nav (center) */}
           <div className="flex items-center">
