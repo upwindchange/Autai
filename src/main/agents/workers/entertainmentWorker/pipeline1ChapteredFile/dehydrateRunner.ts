@@ -71,6 +71,18 @@ const PROBE_FALLBACK_CHARS_PER_TOKEN = 0.5;
 /** Safety cap on passes so a state bug can't loop forever. */
 const MAX_PASSES = 10_000;
 
+/**
+ * Fast start-up: the first few batches ingest only this many chars each — a
+ * touch over one ~3000-char source chapter (≈1:1 chars-per-token for Chinese) —
+ * so the reader gets opening chapters to read almost immediately instead of
+ * waiting for a full-size batch to finish. After `FAST_STARTUP_PASSES` batches
+ * the loop switches to the model's full computed budget for the rest of the
+ * book. Gated on consumed offset (not the pass index), so it is resume-safe: a
+ * reopened run never re-triggers fast start-up once the opening batches are done.
+ */
+const FAST_STARTUP_CHARS = 4000;
+const FAST_STARTUP_PASSES = 3;
+
 // ---------------------------------------------------------------------------
 // chars-per-token probe (one-shot, preserved from the former textChunker)
 // ---------------------------------------------------------------------------
@@ -413,7 +425,17 @@ export async function runDehydrateLoop(
       return;
     }
 
-    const budget = computeBudget(resolved, charsPerToken);
+    // Fast start-up: while the opening batches are still within the first
+    // FAST_STARTUP_PASSES × FAST_STARTUP_CHARS chars, cap each batch to
+    // FAST_STARTUP_CHARS so the reader gets chapters quickly. After that the
+    // model's full computed budget takes over. Gated on offset (not pass) so a
+    // resumed run never re-triggers fast start-up past the opening batches.
+    const fullBudget = computeBudget(resolved, charsPerToken);
+    const fastStartup =
+      consumedOffset < FAST_STARTUP_CHARS * FAST_STARTUP_PASSES;
+    const budget = fastStartup ?
+      Math.min(fullBudget, FAST_STARTUP_CHARS)
+    : fullBudget;
     const chunkStart = consumedOffset;
     const chunkEnd = Math.min(rawText.length, chunkStart + budget);
     const chunk = rawText.slice(chunkStart, chunkEnd);
@@ -433,6 +455,7 @@ export async function runDehydrateLoop(
       chunkEnd,
       chunkLen: chunk.length,
       budget,
+      fastStartup,
       isLastBatch,
       charsPerToken,
     });
