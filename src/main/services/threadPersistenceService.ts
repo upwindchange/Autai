@@ -68,20 +68,18 @@ class ThreadPersistenceService {
     }));
   }
 
-  deleteAllThreads(status?: "regular" | "archived"): void {
+  deleteAllThreads(status: "regular" | "archived", mode: ThreadMode): void {
     const db = getDb();
-    if (status) {
-      db.delete(threads).where(eq(threads.status, status)).run();
-    } else {
-      db.delete(threads).run();
-    }
+    db.delete(threads)
+      .where(and(eq(threads.status, status), eq(threads.mode, mode)))
+      .run();
   }
 
-  archiveAllThreads(): void {
+  archiveAllThreads(mode: ThreadMode): void {
     const db = getDb();
     db.update(threads)
       .set({ status: "archived", updatedAt: sql`(datetime('now'))` })
-      .where(eq(threads.status, "regular"))
+      .where(and(eq(threads.status, "regular"), eq(threads.mode, mode)))
       .run();
   }
 

@@ -59,10 +59,12 @@ threadRoutes.post("/", async (c) => {
   }
 });
 
-// POST /threads/archive-all - archive all regular threads
-threadRoutes.post("/archive-all", (c) => {
+// POST /threads/archive-all - archive all regular threads of a mode
+threadRoutes.post("/archive-all", async (c) => {
   try {
-    threadPersistenceService.archiveAllThreads();
+    const body = await c.req.json().catch(() => ({}));
+    const mode = (body?.mode as "chat" | "entertainment") ?? "chat";
+    threadPersistenceService.archiveAllThreads(mode);
     eventBus.emitEvent("threads:listChanged", null);
     return c.json({ success: true });
   } catch (error) {
@@ -71,12 +73,16 @@ threadRoutes.post("/archive-all", (c) => {
   }
 });
 
-// DELETE /threads/bulk - bulk delete threads by status
+// DELETE /threads/bulk - bulk delete threads by status within a mode
 threadRoutes.delete("/bulk", async (c) => {
   try {
     const body = await c.req.json();
     const status = body?.status as "regular" | "archived" | undefined;
-    threadPersistenceService.deleteAllThreads(status);
+    const mode = (body?.mode as "chat" | "entertainment") ?? "chat";
+    if (!status) {
+      return c.json({ error: "status is required" }, 400);
+    }
+    threadPersistenceService.deleteAllThreads(status, mode);
     eventBus.emitEvent("threads:listChanged", null);
     return c.json({ success: true });
   } catch (error) {

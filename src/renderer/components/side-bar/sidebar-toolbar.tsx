@@ -46,6 +46,7 @@ import {
   AlertDialogMedia,
 } from "@/components/ui/alert-dialog";
 import { useTagStore, type ViewMode } from "@/stores/tagStore";
+import { useUiStore } from "@/stores/uiStore";
 import { useThreadListRefresh } from "@/hooks/useThreadListRefresh";
 import {
   deleteAllThreads,
@@ -79,6 +80,7 @@ export function SidebarToolbar() {
   const setMultiSelectMode = useTagStore((s) => s.setMultiSelectMode);
   const clearSearch = useTagStore((s) => s.clearSearch);
   const fetchTags = useTagStore((s) => s.fetchTags);
+  const appMode = useUiStore((s) => s.appMode);
   const refreshThreads = useThreadListRefresh();
 
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
@@ -122,10 +124,13 @@ export function SidebarToolbar() {
   ) => {
     switch (action) {
       case "delete":
-        await deleteAllThreads(viewingArchive ? "archived" : "regular");
+        await deleteAllThreads(
+          viewingArchive ? "archived" : "regular",
+          appMode,
+        );
         break;
       case "archive":
-        await archiveAllThreads();
+        await archiveAllThreads(appMode);
         break;
       case "restore":
         await bulkUpdateThreadStatus(allVisibleThreadIds, "regular");

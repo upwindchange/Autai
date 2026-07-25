@@ -103,17 +103,22 @@ export async function setThreadChatOverride(
 }
 
 export async function deleteAllThreads(
-  status?: "regular" | "archived",
+  status: "regular" | "archived",
+  mode: ThreadMode,
 ): Promise<void> {
   await fetch(`${getApiBase()}/threads/bulk`, {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
+    body: JSON.stringify({ status, mode }),
   });
 }
 
-export async function archiveAllThreads(): Promise<void> {
-  await fetch(`${getApiBase()}/threads/archive-all`, { method: "POST" });
+export async function archiveAllThreads(mode: ThreadMode): Promise<void> {
+  await fetch(`${getApiBase()}/threads/archive-all`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ mode }),
+  });
 }
 
 export async function bulkUpdateThreadStatus(
