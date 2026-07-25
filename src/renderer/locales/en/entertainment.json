@@ -104,7 +104,7 @@
   "options.customInstruction.placeholder": "Change it however you like — just tell me.",
   "options.customInstruction.tooltip": "Put any instruction you'd like to add that is not included in the options above. Make sure this doesn't conflict with the options above.",
   "terms.label": "I agree to the usage terms",
-  "terms.body": "I will use this software in accordance with the laws of my jurisdiction and only access content I have the right to read. Content sources are fetched from third-party websites; this software does not host, control, or endorse that content and is not responsible for it. This software is licensed under the MIT License and is provided \"as is\", without warranty of any kind; the author assumes no legal liability for its use.",
+  "terms.body": "I will use this software in accordance with the laws of my jurisdiction and only access content I have the right to read. Contents are fetched from third-party websites or provided by the user; this software does not host, control, or endorse that content and is not responsible for it. This software is licensed under the MIT License and is provided \"as is\", without warranty of any kind; the author assumes no legal liability for its use.",
   "options.category.combatCompetition": "Combat & tournament",
   "options.category.crowdReaction": "Crowd reactions",
   "options.category.loreDump": "Lore & setting",

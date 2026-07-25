@@ -104,7 +104,7 @@
   "options.customInstruction.placeholder": "想怎么改都行，告诉我就好",
   "options.customInstruction.tooltip": "任何以上功能没覆盖到的指令，都可以写在这里。请确保不要和上面选项冲突。例如：“翻译过程中保留原文的诗词韵文（如定场诗、判词、引诗）”",
   "terms.label": "我同意使用条款",
-  "terms.body": "我将遵守所在司法管辖区的法律合法使用本软件，并仅访问我有权阅读的内容。小说来源均抓取自第三方网站，本软件不托管、不控制、不背书这些内容，也不对其负责。本软件基于 MIT 协议开源，按「现状」提供，不附任何担保；作者不因其使用承担任何法律责任。",
+  "terms.body": "我将遵守所在司法管辖区的法律合法使用本软件，并仅访问我有权阅读的内容。内容均抓取自第三方网站或者由用户提供，本软件不托管、不控制、不背书这些内容，也不对其负责。本软件基于 MIT 协议开源，按「现状」提供，不附任何担保；作者不因其使用承担任何法律责任。",
   "options.category.combatCompetition": "战斗/竞技类",
   "options.category.crowdReaction": "群众反应类",
   "options.category.loreDump": "设定解释类",
