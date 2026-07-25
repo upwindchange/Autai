@@ -11,7 +11,6 @@ import { z } from "zod";
 import { entertainmentService, threadPersistenceService } from "@/services";
 import { pipelineRouter } from "@agents/workers/entertainmentWorker/shared/pipelineRouter";
 import { LOOKAHEAD } from "@agents/workers/entertainmentWorker/shared/pipelineScheduler";
-import { chapteredFileScheduler } from "@agents/workers/entertainmentWorker/pipeline1ChapteredFile/scheduler";
 import { decodeNovelFile } from "@agents/workers/entertainmentWorker/pipeline1ChapteredFile/fileDecoder";
 import { deriveChapterPhase, EntertainmentConfigSchema } from "@shared";
 import log from "electron-log/main";
@@ -35,13 +34,12 @@ const ProcessSchema = z.object({
   all: z.boolean().optional(),
 });
 
-const UploadSchema = z.object({
+const IngestSchema = z.object({
   config: EntertainmentConfigSchema,
   // Native pick: backend reads the file by path → detects encoding. Browser
   // fallback: renderer sends base64 bytes. Exactly one is present.
   fsPath: z.string().optional(),
   fileBytesBase64: z.string().optional(),
-  filename: z.string().optional(),
 });
 
 const SetupSchema = z.object({
@@ -107,14 +105,19 @@ entertainmentRoutes.post("/threads/:threadId/setup", async (c) => {
   }
 });
 
-// POST /entertainment/threads/:threadId/upload — file wizard submit: backend
-// detects encoding + decodes (iconv), splits into chapters, bulk-inserts source
-// rows, then kicks off rewriting chapter 1 (+lookahead).
-entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
+// POST /entertainment/threads/:threadId/ingest — file wizard "Upload &
+// Continue": backend detects encoding + decodes (iconv) and persists the raw
+// text + zero consumed offset. Chapter SPLITTING is done by the outliner later;
+// this step only stores the decoded blob. The dehydrate loop is NOT kicked here
+// — Start's `ensureWorker → ensureRange` does that, by which point raw text is
+// guaranteed committed (the wizard gates Start on this response). The response
+// resolves only after the DB write, so the renderer can rely on raw text being
+// present when this returns.
+entertainmentRoutes.post("/threads/:threadId/ingest", async (c) => {
   try {
     const threadId = c.req.param("threadId");
     const body = await c.req.json().catch(() => ({}));
-    const parsed = UploadSchema.safeParse(body);
+    const parsed = IngestSchema.safeParse(body);
     if (!parsed.success) {
       return c.json(
         { error: "Invalid request body", details: parsed.error.issues },
@@ -122,16 +125,15 @@ entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
       );
     }
     const { config, fsPath, fileBytesBase64 } = parsed.data;
-    // The upload route serves file novels only (internet novels use /setup).
-    // Also narrows `config.novel` to FileNovel for the ingestion call below.
+    // Ingest serves file novels only (internet novels use /setup).
     if (config.novel.type !== "file") {
-      return c.json({ error: "Upload requires a file novel" }, 400);
+      return c.json({ error: "Ingest requires a file novel" }, 400);
     }
     if (!fsPath && !fileBytesBase64) {
       return c.json({ error: "fsPath or fileBytesBase64 is required" }, 400);
     }
 
-    logger.info("upload request", {
+    logger.info("ingest request", {
       threadId,
       novelType: config.novel.type,
       via: fsPath ? "fsPath" : "base64",
@@ -139,56 +141,34 @@ entertainmentRoutes.post("/threads/:threadId/upload", async (c) => {
       crossChapterStrength: config.options.crossChapter.strength,
       filename: config.novel.filename,
     });
+    // applyConfig runs first (synchronous) → setupEntertainmentThread on the
+    // first config write emits `threads:metadataUpdated`, so the sidebar shows
+    // the filename-based title immediately while decode is still running.
     applyConfig(threadId, config);
 
-    // One-time ingestion. Guard against double-upload for an existing thread.
-    if (entertainmentService.listSourceChapters(threadId).length === 0) {
-      const decoded = decodeNovelFile({ fsPath, base64: fileBytesBase64 });
-      // Reject an empty file before any DB write / LLM call.
-      if (!decoded.trim()) {
-        logger.warn("upload rejected — decoded file is empty", { threadId });
-        return c.json({ error: "The file is empty" }, 400);
-      }
-      // Persist the full decoded text + zero consumed offset. Chapter SPLITTING
-      // is no longer done here by a regex parser — the outliner now splits +
-      // outlines in a single LLM pass, reading rawText chunk-by-chunk. The blob
-      // is held in the DB only for the outline run's duration (cleared at EOF)
-      // so crash-resume can re-read it without touching the (possibly moved)
-      // source file. finalChapterNumber is NOT set here — it's unknown until
-      // the LLM finishes splitting; the outliner sets it at EOF.
-      entertainmentService.setRawNovelText(threadId, decoded);
-      entertainmentService.setLastReadChapterNumber(threadId, 1);
-      logger.info("file decoded + raw text persisted", {
-        threadId,
-        charLen: decoded.length,
-        byteEstimate: fsPath ? "(fsPath)" : (fileBytesBase64?.length ?? 0),
-      });
-    } else {
-      logger.info(
-        "upload skipped — source chapters already exist (re-upload)",
-        {
-          threadId,
-          existingCount:
-            entertainmentService.listSourceChapters(threadId).length,
-        },
-      );
+    // One-time ingestion. The blob is held in the DB only for the outline
+    // run's duration (cleared at EOF by the runner) so crash-resume can re-read
+    // it without touching the (possibly moved) source file. rawConsumedOffset
+    // is reset to 0 here. finalChapterNumber is NOT set — unknown until the
+    // outliner finishes splitting; it sets it at EOF.
+    const decoded = await decodeNovelFile({ fsPath, base64: fileBytesBase64 });
+    // Reject an empty file before any DB write / LLM call.
+    if (!decoded.trim()) {
+      logger.warn("ingest rejected — decoded file is empty", { threadId });
+      return c.json({ error: "The file is empty" }, 400);
     }
+    entertainmentService.setRawNovelText(threadId, decoded);
+    entertainmentService.setLastReadChapterNumber(threadId, 1);
+    logger.info("file decoded + raw text persisted", {
+      threadId,
+      charLen: decoded.length,
+      byteEstimate: fsPath ? "(fsPath)" : (fileBytesBase64?.length ?? 0),
+    });
 
-    // Kick off the one-pass dehydrate loop directly on Pipeline ① (upload is
-    // unambiguously a file thread, so it bypasses the router facade). The loop
-    // emits rewritten chapters + outlines as it progresses; the reader polls
-    // them via GET /chapters once it opens the thread. Fire-and-forget so the
-    // upload response returns at once — runDehydrate emits its own
-    // sendInfo/sendSuccess toasts.
-    void chapteredFileScheduler
-      .runDehydrate(threadId)
-      .catch((err) =>
-        logger.error("dehydrate generation failed", { threadId, err }),
-      );
-    return c.json({ ok: true }, 202);
+    return c.json({ ok: true });
   } catch (error) {
-    logger.error("Error in upload:", error);
-    return c.json({ error: "Failed to upload novel" }, 500);
+    logger.error("Error in ingest:", error);
+    return c.json({ error: "Failed to ingest novel" }, 500);
   }
 });
 

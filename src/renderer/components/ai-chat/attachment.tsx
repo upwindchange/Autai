@@ -305,7 +305,11 @@ export const ComposerAddAttachment: FC = () => {
   const aui = useAui();
 
   const handleClick = async () => {
+    // withBytes defaults to true — attachments need the bytes (image preview,
+    // upload). A pick without `file` can only happen if a future caller flips
+    // that default; skip defensively.
     for (const { file, fsPath, name } of await pickFiles()) {
+      if (!file) continue;
       if (fsPath) filePathStore.set(name, fsPath);
       await aui.composer().addAttachment(file);
     }

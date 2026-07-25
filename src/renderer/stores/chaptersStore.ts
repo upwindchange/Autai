@@ -73,8 +73,10 @@ interface ChaptersState {
     threadId: string,
     config: EntertainmentConfig,
   ) => Promise<void>;
-  /** File wizard submit: upload (backend detects encoding + ingests + starts rewrite). */
-  uploadFile: (
+  /** File wizard "Upload & Continue": decode + persist raw text in the
+   * background (the dehydrate loop is NOT kicked here — Start does that via
+   * ensureWorker → ensureRange). Resolves once raw text is committed to DB. */
+  ingestFile: (
     threadId: string,
     config: EntertainmentConfig,
     payload: { fsPath?: string; fileBytesBase64?: string },
@@ -216,8 +218,8 @@ export const useChaptersStore = create<ChaptersState>()(
       });
     },
 
-    uploadFile: async (threadId, config, payload) => {
-      await httpClient.postJSON(`/entertainment/threads/${threadId}/upload`, {
+    ingestFile: async (threadId, config, payload) => {
+      await httpClient.postJSON(`/entertainment/threads/${threadId}/ingest`, {
         config,
         ...payload,
       });

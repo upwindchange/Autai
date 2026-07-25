@@ -1,8 +1,9 @@
 import { type FC, useEffect, useRef, useState } from "react";
-import { useAuiState } from "@assistant-ui/react";
+import { useAui, useAuiState } from "@assistant-ui/react";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, ChevronLeft } from "lucide-react";
+import { ArrowRight, ChevronLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { httpClient } from "@/lib/httpClient";
 import { useUiStore } from "@/stores/uiStore";
 import { useChaptersStore } from "@/stores/chaptersStore";
 import { toFileTransfer } from "@/lib/fileTransfer";
@@ -17,16 +18,26 @@ const STEPS = 3;
 
 /**
  * Entertainment wizard — the only "composer" surface in this mode, shown on an
- * empty thread. Three steps (mode → novel → options), advanced by the Next
- * button or Enter (in text inputs / the source textarea). On the final step the
- * action becomes Start, which uploads the file (the backend detects encoding +
- * ingests chapters) or saves the internet config via the chapters store, then
- * opens chapter 1. The dehydrate scheduler rewrites chapters (current + 10) in
- * the background; the reader polls each chapter until it's ready.
+ * empty thread. Three steps (mode → novel → options), advanced by the Next/
+ * Upload button or Enter (in text inputs / the source textarea).
+ *
+ * FILE novels are ingested at the novel step's "Upload & Continue": the backend
+ * decodes (iconv) + persists raw text in the background while the wizard jumps
+ * to the options page instantly. The sidebar shows the filename-based title the
+ * moment the request lands (applyConfig emits `threads:metadataUpdated`). The
+ * Start button stays disabled ("Preparing…") until that ingest promise
+ * resolves — guaranteeing raw text is in the DB before Start kicks the dehydrate
+ * loop (via ensureWorker → ensureRange). Once uploaded the thread is locked to
+ * that file: no Back button on the options page, no re-pick — the only redo is
+ * delete-thread + new-thread ("Start over").
+ *
+ * INTERNET novels keep the old path: config is saved at Start (`setupInternet`),
+ * acquisition starts when the reader opens chapter 1.
  */
 export const EntertainmentWizard: FC = () => {
   const { t } = useTranslation("entertainment");
   const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
+  const aui = useAui();
 
   const [config, setConfig] = useState<EntertainmentConfig>(INITIAL_DEHYDRATE);
   const [pendingFile, setPendingFile] = useState<File | undefined>(undefined);
@@ -35,42 +46,72 @@ export const EntertainmentWizard: FC = () => {
   // Legal acknowledgment — UI-only (not sent to the backend or persisted). Gates
   // forward navigation to reduce the author's legal exposure.
   const [agreed, setAgreed] = useState(false);
-  // Submission error surfaced inline (empty file, backend unreachable, …).
+  // Submission error surfaced inline (Start failure, backend unreachable, …).
   // Set on failure; cleared at the start of the next submit attempt.
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Background file ingest state. `ingesting` is true between the "Upload &
+  // Continue" click and the backend committing raw text; Start is disabled
+  // while this is true. `ingestError` surfaces a failed/empty-file ingest on
+  // the options page with a "Start over" reset.
+  const [ingesting, setIngesting] = useState(false);
+  const [ingestError, setIngestError] = useState<string | null>(null);
 
   const isLast = step === STEPS - 1;
+  const isFile = config.novel.type === "file";
+
+  // Fire background file ingestion and advance to the options page WITHOUT
+  // awaiting — the wizard jumps forward instantly. The Start button gates on
+  // `ingesting` so the dehydrate loop can't be kicked before raw text exists.
+  // On failure, surfaces an error + "Start over" on the options page.
+  const ingestAndAdvance = async () => {
+    if (!mainThreadId || ingesting) return;
+    // Only ever called when isFile (guarded in advance()), but TS can't carry
+    // the union narrowing into this closure — narrow explicitly.
+    if (config.novel.type !== "file") return;
+    setIngestError(null);
+    setIngesting(true);
+    // Advance immediately — the options page is usable while decode runs.
+    setStep(STEPS - 1);
+    try {
+      const transfer = await toFileTransfer({
+        fsPath: config.novel.fsPath,
+        file: pendingFile,
+      });
+      await useChaptersStore.getState().ingestFile(
+        mainThreadId,
+        config,
+        transfer,
+      );
+    } catch {
+      // Empty file / decode failure / backend unreachable. The thread is now
+      // locked to a bad source — only reset is delete + new thread.
+      setIngestError(t("wizard.error.ingestFailed"));
+    } finally {
+      setIngesting(false);
+    }
+  };
 
   const submit = async () => {
     if (submitted || !mainThreadId) return;
+    // File: never start if ingestion hasn't finished (or failed). The guard is
+    // belt-and-suspenders — Start is disabled in the UI during ingest too.
+    if (isFile && (ingesting || ingestError)) return;
     setSubmitError(null);
     // Keep sessionId aligned with the active thread (mirrors the old start form).
     useUiStore.getState().setSessionId(mainThreadId);
     const store = useChaptersStore.getState();
     try {
-      // File: send fsPath (or base64) so the BACKEND detects encoding + ingests.
-      // Internet: just save config; acquisition starts when the reader polls ch1.
-      if (config.novel.type === "file") {
-        if (!pendingFile) return;
-        // Fail fast on an empty file client-side. Otherwise the upload either
-        // 400s at the backend (the throw is unhandled here, so it'd vanish) or
-        // — if a guard ever regressed — become a hallucinated garbage chapter.
-        if (pendingFile.size === 0) {
-          setSubmitError(t("wizard.error.emptyFile"));
-          return;
-        }
-        const transfer = await toFileTransfer({
-          fsPath: config.novel.fsPath,
-          file: pendingFile,
-        });
-        await store.uploadFile(mainThreadId, config, transfer);
-      } else {
+      // File raw text is already in the DB (ingested at the novel step). For
+      // internet, save config now; acquisition starts when the reader polls ch1.
+      if (!isFile) {
         await store.setupInternet(mainThreadId, config);
       }
       // Load novelType (+ all chapters for file) so canGoNext + the reader work.
       await store.loadChapters(mainThreadId);
       store.setCurrentChapter(1);
       void store.setPosition(mainThreadId, 1);
+      // ensureWorker → ensureRange kicks runDehydrate for file threads (raw text
+      // is guaranteed present since Start was gated on ingest completion).
       void store.ensureWorker(mainThreadId, 1);
       setSubmitted(true);
     } catch {
@@ -84,9 +125,15 @@ export const EntertainmentWizard: FC = () => {
     if (!isStepValid(step, config) || submitted || !agreed) return;
     if (isLast) {
       void submit();
-    } else {
-      setStep((s) => Math.min(s + 1, STEPS - 1));
+      return;
     }
+    // Step 1 → 2: file novels trigger background ingest + advance instantly;
+    // internet novels advance plainly (their work happens at Start).
+    if (step === 1 && isFile) {
+      void ingestAndAdvance();
+      return;
+    }
+    setStep((s) => Math.min(s + 1, STEPS - 1));
   };
 
   // Keep the latest advance() in a ref so the keydown listener (bound once)
@@ -126,13 +173,46 @@ export const EntertainmentWizard: FC = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
+  // Delete the current (bad/abandoned) thread + switch to a fresh one so the
+  // wizard shows again. Mirrors the reader's Stop button flow. The only redo
+  // path for a file thread once "Upload & Continue" has been clicked.
+  const startOver = async () => {
+    if (!mainThreadId) return;
+    try {
+      await httpClient.postJSON(`/entertainment/threads/${mainThreadId}/stop`);
+    } catch {
+      // Best-effort stop; proceed to delete regardless.
+    }
+    try {
+      await httpClient.delete(`/threads/${mainThreadId}`);
+    } catch {
+      // If delete fails the user is stuck — surface a generic error.
+      setSubmitError(t("wizard.error.failed"));
+      return;
+    }
+    // Reset local wizard state for the fresh thread.
+    setConfig(INITIAL_DEHYDRATE);
+    setPendingFile(undefined);
+    setStep(0);
+    setSubmitted(false);
+    setAgreed(false);
+    setSubmitError(null);
+    setIngesting(false);
+    setIngestError(null);
+    await aui.threads().switchToNewThread();
+  };
+
   const valid = isStepValid(step, config);
 
-  // Width scales up across breakpoints so the wizard fills desktop screens
-  // instead of collapsing to a narrow strip. Caps at 96rem (1536px) on very
-  // wide displays — wide enough for the dense situational-tactics grid to
-  // spread out, while section cards stay at a readable column width. This
-  // container wraps every step, so all three benefit from the same scale.
+  // File thread on the options page is locked to its uploaded source — no Back.
+  // Internet + step 0/1 keep Back as before.
+  const canGoBack = step > 0 && !(step === STEPS - 1 && isFile);
+
+  // The primary button: on step 1 file mode it's "Upload & Continue" (triggers
+  // ingest); on the last step it's "Start" (gated on ingest for file); else Next.
+  const isUploadButton = step === 1 && isFile;
+  const startBlocked = isLast && isFile && ingesting;
+
   return (
     <div className="my-auto mx-auto flex w-full flex-col gap-4 px-4 pb-10 sm:max-w-2xl sm:gap-6 lg:max-w-5xl xl:max-w-7xl 2xl:max-w-[96rem]">
       <div className="flex flex-col gap-1 xl:max-w-5xl">
@@ -164,18 +244,26 @@ export const EntertainmentWizard: FC = () => {
         <StepNovel
           config={config}
           setConfig={setConfig}
-          pendingFile={pendingFile}
           setPendingFile={setPendingFile}
         />
       )}
       {step === 2 && <StepOptions config={config} setConfig={setConfig} />}
 
-      {submitError && (
+      {ingestError && (
+        <div className="flex flex-col items-center gap-3">
+          <p className="text-center text-sm text-destructive">{ingestError}</p>
+          <Button type="button" variant="outline" onClick={() => void startOver()}>
+            {t("wizard.action.startOver")}
+          </Button>
+        </div>
+      )}
+
+      {submitError && !ingestError && (
         <p className="text-center text-sm text-destructive">{submitError}</p>
       )}
 
       <div className="flex items-center gap-2">
-        {step > 0 && (
+        {canGoBack && (
           <Button
             type="button"
             variant="ghost"
@@ -189,11 +277,16 @@ export const EntertainmentWizard: FC = () => {
         <Button
           type="button"
           onClick={advance}
-          disabled={!valid || submitted || !agreed}
+          disabled={!valid || submitted || !agreed || startBlocked}
           className="self-start"
         >
-          {isLast ? t("nav.start") : t("nav.next")}
-          {!isLast && <ArrowRight className="size-4" />}
+          {isUploadButton && t("nav.uploadAndContinue")}
+          {isLast && (ingesting ? t("nav.preparing") : t("nav.start"))}
+          {!isUploadButton && !isLast && t("nav.next")}
+          {ingesting && <Loader2 className="size-4 animate-spin" />}
+          {!isLast && !isUploadButton && !ingesting && (
+            <ArrowRight className="size-4" />
+          )}
         </Button>
       </div>
     </div>

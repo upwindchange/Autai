@@ -35,11 +35,19 @@ const MIME_MAP: Record<string, string> = {
   css: "text/css",
 };
 
-// POST /dialog/open-files — native file picker, returns base64-encoded files
+// POST /dialog/open-files — native file picker. Body `{ withBytes?: boolean }`
+// (default true). When false, only { path, name } is returned and the file is
+// NOT read into memory — used by callers that only need the filesystem path
+// (the novel wizard sends `fsPath` to the backend, which reads the file itself,
+// so dragging the full base64 payload back to the renderer would be wasted work
+// that blocks the picker's return).
 dialogRoutes.post("/open-files", async (c) => {
   try {
     const win = BrowserWindow.getFocusedWindow();
     if (!win) return c.json([]);
+
+    const body = await c.req.json().catch(() => ({} as { withBytes?: boolean }));
+    const withBytes = body?.withBytes !== false;
 
     const result = await dialog.showOpenDialog(win, {
       properties: ["openFile", "multiSelections"],
@@ -49,12 +57,14 @@ dialogRoutes.post("/open-files", async (c) => {
 
     const files = await Promise.all(
       result.filePaths.map(async (filePath) => {
+        const name = path.basename(filePath);
+        if (!withBytes) return { path: filePath, name };
         const buffer = await readFile(filePath);
         const ext = filePath.slice(filePath.lastIndexOf(".") + 1).toLowerCase();
         const mimeType = MIME_MAP[ext] ?? "application/octet-stream";
         return {
           path: filePath,
-          name: path.basename(filePath),
+          name,
           data: buffer.toString("base64"),
           mimeType,
         };

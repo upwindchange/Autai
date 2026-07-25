@@ -21,14 +21,12 @@ import { patchSharedOptions } from "../wizardSteps";
 interface StepNovelProps {
   config: EntertainmentConfig;
   setConfig: Dispatch<SetStateAction<EntertainmentConfig>>;
-  pendingFile: File | undefined;
   setPendingFile: (f: File | undefined) => void;
 }
 
 export const StepNovel: FC<StepNovelProps> = ({
   config,
   setConfig,
-  pendingFile,
   setPendingFile,
 }) => {
   const { t } = useTranslation("entertainment");
@@ -41,8 +39,13 @@ export const StepNovel: FC<StepNovelProps> = ({
     setConfig((prev) => patchSharedOptions(prev, { nonNovelSource: value }));
 
   // File acquisition — same path for both modes; unified native/browser pick.
+  // withBytes:false in native mode: the wizard only needs the filesystem path
+  // (the backend reads + decodes the file itself on upload), so we skip having
+  // the backend read + base64-encode the whole file just to throw the bytes
+  // away in the renderer. The browser fallback has no path and always yields
+  // the bytes, which become the upload source there.
   const onPick = async () => {
-    const picked = await pickFiles();
+    const picked = await pickFiles({ withBytes: false });
     // Spec = single novel; ignore any extras.
     const first = picked[0];
     if (!first) return;
@@ -173,7 +176,7 @@ export const StepNovel: FC<StepNovelProps> = ({
             <Upload className="size-4" />
             {t("novel.file.pick")}
           </Button>
-          {pendingFile && (
+          {config.novel.filename && (
             <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
               <FileText className="size-4 shrink-0 text-muted-foreground" />
               <span className="truncate">{config.novel.filename}</span>

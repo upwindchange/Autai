@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import jschardet from "jschardet";
 import * as iconv from "iconv-lite";
 import log from "electron-log/main";
@@ -16,6 +16,11 @@ const logger = log.scope("Dehydrate:FileDecoder");
  * Electron picker yields it) or as base64 (`base64`, browser fallback where no
  * path exists).
  *
+ * Async so the disk read doesn't block the route handler — ingestion runs as a
+ * background task from the novel step's "Upload & Continue" button. The CPU-
+ * bound parts (jschardet.detect, iconv.decode, normalizeText) remain sync; they
+ * are fast relative to the read for multi-MB files.
+ *
  * After decoding, the text is run through `normalizeText` (shared with the
  * outliner's anchor matcher) — NFKC + whitespace/newline canonicalisation.
  * This is the file-upload mode only — the canonicalised text is what gets
@@ -24,13 +29,13 @@ const logger = log.scope("Dehydrate:FileDecoder");
  * stay in the same canonical form. See `utils/textNormalize.ts` for the full
  * rationale.
  */
-export function decodeNovelFile(input: {
+export async function decodeNovelFile(input: {
   fsPath?: string;
   base64?: string;
-}): string {
+}): Promise<string> {
   const bytes =
     input.fsPath ?
-      readFileSync(input.fsPath)
+      await readFile(input.fsPath)
     : Buffer.from(input.base64 ?? "", "base64");
 
   const detected = jschardet.detect(bytes)?.encoding ?? "utf8";
