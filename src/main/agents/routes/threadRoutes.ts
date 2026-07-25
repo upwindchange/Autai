@@ -1,7 +1,12 @@
 import { Hono } from "hono";
+import { eq } from "drizzle-orm";
 import { threadPersistenceService, searchService } from "@/services";
 import { eventBus } from "@/utils/eventBus";
-import { resolveChatOverride } from "@agents/utils/threadChatOverride";
+import { userProviders } from "@/db/schema";
+import { getDb } from "@/db";
+import * as registry from "@agents/providers/registry";
+import { sendInfo } from "@/utils/messageUtils";
+import { i18n } from "@/i18n";
 import {
   CreateThreadSchema,
   UpdateThreadSchema,
@@ -35,16 +40,6 @@ threadRoutes.get("/", (c) => {
 });
 
 // POST /threads - create thread
-//
-// assistant-ui's runtime calls `adapter.initialize(localId)` with a transient
-// `__LOCALID_<rand>` placeholder when switching to a new thread. The contract is
-// that this returns a NEW, stable `remoteId`; the runtime then remaps its
-// mainThreadId from the placeholder to the real one. Echoing the placeholder
-// back (as this route once did) breaks that contract: mainThreadId stays a
-// `__LOCALID_`, which is deliberately not remembered across mode-switch /
-// restart (main.tsx's lastActiveByMode guard), so the runtime generates a fresh
-// placeholder on the next switch and orphaned the previous thread's chapters.
-// Generate a real UUID here so the runtime holds a stable, restorable id.
 threadRoutes.post("/", async (c) => {
   try {
     const body = await c.req.json();
@@ -52,9 +47,8 @@ threadRoutes.post("/", async (c) => {
     if (!parsed.success) {
       return c.json({ error: "Thread id is required" }, 400);
     }
-    const id = crypto.randomUUID();
     const thread = threadPersistenceService.createThread(
-      id,
+      parsed.data.id,
       parsed.data.mode ?? "chat",
     );
     eventBus.emitEvent("threads:listChanged", null);
@@ -256,16 +250,75 @@ threadRoutes.get("/:id/messages", (c) => {
 // (chat_model_params JSON, chat_system_prompt text), so the renderer can
 // repopulate the thread-level settings panel on load.
 threadRoutes.get("/:id/model", (c) => {
+  const empty = {
+    providerId: null,
+    modelId: null,
+    params: null,
+    systemPrompt: null,
+  };
   try {
-    return c.json(resolveChatOverride(c.req.param("id")));
+    const id = c.req.param("id");
+    const thread = threadPersistenceService.getThread(id);
+    if (!thread || !thread.chatProviderId || !thread.chatModelId) {
+      return c.json(empty);
+    }
+
+    const db = getDb();
+    const providerRow = db
+      .select()
+      .from(userProviders)
+      .where(eq(userProviders.id, thread.chatProviderId))
+      .get();
+    const valid =
+      !!providerRow &&
+      registry
+        .getModels(providerRow.providerDir)
+        .some((m) => m.file === thread.chatModelId);
+
+    const params =
+      thread.chatModelParams ?
+        (() => {
+          try {
+            return JSON.parse(thread.chatModelParams);
+          } catch {
+            return null;
+          }
+        })()
+      : null;
+    const systemPrompt = thread.chatSystemPrompt;
+
+    if (!valid) {
+      sendInfo(
+        i18n.t("agents.modelUnavailableTitle"),
+        i18n.t("agents.modelUnavailableBody"),
+      );
+      // Purge the invalid provider/model but keep params/systemPrompt — they're
+      // independent of the model identity and the user may re-pick a model.
+      threadPersistenceService.setThreadChatOverride(id, {
+        providerId: null,
+        modelId: null,
+        params,
+        systemPrompt,
+      });
+      return c.json({ providerId: null, modelId: null, params, systemPrompt });
+    }
+
+    logger.debug("Thread model override loaded", {
+      id,
+      providerId: thread.chatProviderId,
+      modelId: thread.chatModelId,
+      hasParams: !!params,
+      hasSystemPrompt: !!systemPrompt,
+    });
+    return c.json({
+      providerId: thread.chatProviderId,
+      modelId: thread.chatModelId,
+      params,
+      systemPrompt,
+    });
   } catch (error) {
     logger.error("Error loading thread model:", error);
-    return c.json({
-      providerId: null,
-      modelId: null,
-      params: null,
-      systemPrompt: null,
-    });
+    return c.json(empty);
   }
 });
 

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowRight, ChevronLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { httpClient } from "@/lib/httpClient";
+import { useUiStore } from "@/stores/uiStore";
 import { useChaptersStore } from "@/stores/chaptersStore";
 import { toFileTransfer } from "@/lib/fileTransfer";
 import type { EntertainmentConfig } from "@shared";
@@ -96,6 +97,8 @@ export const EntertainmentWizard: FC = () => {
     // belt-and-suspenders — Start is disabled in the UI during ingest too.
     if (isFile && (ingesting || ingestError)) return;
     setSubmitError(null);
+    // Keep sessionId aligned with the active thread (mirrors the old start form).
+    useUiStore.getState().setSessionId(mainThreadId);
     const store = useChaptersStore.getState();
     try {
       // File raw text is already in the DB (ingested at the novel step). For
