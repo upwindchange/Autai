@@ -1,12 +1,15 @@
 import { useState, useEffect } from "react";
 import { getApiBase } from "@/lib/api";
+import type { ReasoningOption } from "@shared";
 
 /**
  * One model entry per (configured provider, model) pair.
  * `providerId` is the userProviders.id needed to persist a per-thread override;
  * `logo` is the inline provider SVG for display. `limit` is the resolved
  * context/output caps — from the TOML catalog, or a manual override for
- * openai-compatible models that have no TOML.
+ * openai-compatible models that have no TOML. `reasoningOptions` is forwarded
+ * verbatim from the catalog so both the system-level and thread-level settings
+ * UIs can render the model's thinking controls from the same source.
  */
 export type ConfiguredModelOption = {
   providerId: string;
@@ -16,6 +19,7 @@ export type ConfiguredModelOption = {
   modelId: string;
   modelName: string;
   limit?: { context: number; output?: number };
+  reasoningOptions?: ReasoningOption[];
 };
 
 /**

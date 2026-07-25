@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 import { useThreadModelStore } from "@/stores/threadModelStore";
 import { setThreadChatOverride } from "@/lib/tagApi";
 import { useSettings } from "@/components/settings";
+import { useThreadModelReasoning } from "@/hooks/useThreadModelReasoning";
 import { cn } from "@/lib/utils";
 import { ResponsivePanel } from "@/components/responsive-panel";
 import {
@@ -42,6 +43,10 @@ export const ThreadChatSettings: FC = () => {
     threadId ? s.map[threadId] : undefined,
   );
   const { settings } = useSettings();
+  // Resolve the active model's catalog reasoning_options so the shared editor
+  // renders thinking controls identical to the system-level settings card. The
+  // hook mirrors the picker: per-thread override wins, else the chat assignment.
+  const reasoningOptions = useThreadModelReasoning();
 
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<ModelParamsValue>({});
@@ -173,6 +178,7 @@ export const ThreadChatSettings: FC = () => {
           systemPromptPlaceholder={defaultPromptPlaceholder}
           i18nNamespace="common"
           keyPrefix="threadSettings"
+          reasoningOptions={reasoningOptions}
         />
       </div>
     </ResponsivePanel>

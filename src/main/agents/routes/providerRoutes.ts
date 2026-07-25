@@ -7,6 +7,7 @@
 import { Hono } from "hono";
 import * as registry from "@agents/providers/registry";
 import { settingsService } from "@/services/settingsService";
+import type { ReasoningOption } from "@shared";
 
 export const providerRoutes = new Hono();
 
@@ -20,6 +21,9 @@ providerRoutes.get("/", (c) => {
 // persist a per-thread model override, plus the provider's logo for display.
 // `limit` is the resolved context/output caps: TOML catalog `limit` if present,
 // else the user-entered manual override (for no-TOML openai-compatible models).
+// `reasoningOptions` is forwarded verbatim from the catalog entry so the
+// thread-level settings panel can render the same thinking controls the
+// system-level settings card does (omitted when the catalog declares none).
 // Registered before /:dir/models so Hono doesn't capture "configured" as a dir.
 providerRoutes.get("/configured/models", async (c) => {
   const providers = settingsService.settings.providers;
@@ -31,6 +35,7 @@ providerRoutes.get("/configured/models", async (c) => {
     modelId: string;
     modelName: string;
     limit?: { context: number; output?: number };
+    reasoningOptions?: ReasoningOption[];
   }[] = [];
 
   for (const p of providers) {
@@ -62,6 +67,7 @@ providerRoutes.get("/configured/models", async (c) => {
         modelId: m.file,
         modelName: m.name,
         ...(limit && { limit }),
+        ...(m.reasoningOptions && { reasoningOptions: m.reasoningOptions }),
       });
     }
   }
