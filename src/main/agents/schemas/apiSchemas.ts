@@ -5,20 +5,18 @@ import {
   ModelParametersSchema,
 } from "@shared";
 
-// Chat request body schema
+// Chat request body schema. Per-thread model override (provider/model/params/
+// systemPrompt) is resolved server-side from the thread row via
+// resolveChatOverride — it is NOT carried in the request body. Only the message
+// payload and tools travel here.
 export const ChatRequestSchema = z.object({
-  id: z.string().optional(),
   messages: z.array(z.any()), // UIMessage[] - structurally validated by AI SDK
-  system: z.string().optional(),
-  // Per-thread model parameters override. Absent ⇒ backend falls back to the
-  // system-level defaultModelParams from settings.
-  modelParams: ModelParametersSchema.optional(),
   tools: z.any().optional(), // ToolSet[] - complex, validated at runtime
 });
 
-// Thread creation schema
+// Thread creation schema. The id is generated server-side (UUID) — see
+// POST /threads. Only the mode is client-supplied.
 export const CreateThreadSchema = z.object({
-  id: z.string().min(1),
   mode: z.enum(["chat", "entertainment"]).optional(),
 });
 

@@ -32,13 +32,16 @@ const DEFAULT_ICON = <Cpu className="size-4 text-muted-foreground" />;
 
 /**
  * Header model selector: lets the active thread pick its own chat model from
- * the configured providers. The selection lives in RAM (threadModelStore) and
- * is sent live to the backend per request; the PATCH only persists it for the
- * next reload (and is a no-op for a brand-new, not-yet-saved thread — the
- * first-save write covers that). The trigger updates INSTANTLY on pick.
+ * the configured providers. The selection lives in RAM (threadModelStore) as a
+ * DISPLAY cache and is persisted to the thread row immediately via PATCH on
+ * every pick (awaited, so the server's DB read at send time always sees it).
+ * The backend resolves the override server-side from the thread id — this store
+ * no longer participates in the send path, only in the picker's instant render.
+ * The trigger updates INSTANTLY on pick (synchronous Zustand set).
  *
- * Keyed by `threads.mainThreadId` (the active thread id) — the same value the
- * transport sends as `sessionId` at send time, so store key and request key match.
+ * Keyed by `threads.mainThreadId` (the active thread id) — the same id the
+ * transport sends as `X-Session-Id`, which the server uses to resolve the
+ * override.
  *
  * Responsive: the trigger keeps its logo + model name at all header widths
  * (truncating if needed); the narrow-layout disclosure is handled by the
@@ -87,21 +90,24 @@ export function HeaderModelSelector() {
       effectiveId
     : USE_DEFAULT_ID;
 
-  const handleSelect = (compositeId: string) => {
+  const handleSelect = async (compositeId: string) => {
     if (!currentRemoteId) return;
     // Preserve the existing params/systemPrompt so picking a model doesn't
     // silently wipe an unrelated thread-level override.
     const prev = useThreadModelStore.getState().get(currentRemoteId);
 
+    // The server resolves the override from the DB at send time (no longer from
+    // client-injected headers), so the PATCH must land before the next send can
+    // read it. Instant UI update first (the picker closes on select anyway), then
+    // await the persist — a sub-100ms cost that closes the pick-then-send race.
     if (compositeId === USE_DEFAULT_ID) {
-      // Instant UI first, then persist.
       useThreadModelStore.getState().set(currentRemoteId, {
         providerId: null,
         modelId: null,
         params: prev?.params ?? null,
         systemPrompt: prev?.systemPrompt ?? null,
       });
-      void setThreadChatOverride(currentRemoteId, {
+      await setThreadChatOverride(currentRemoteId, {
         providerId: null,
         modelId: null,
         params: prev?.params ?? null,
@@ -120,7 +126,7 @@ export function HeaderModelSelector() {
       params: prev?.params ?? null,
       systemPrompt: prev?.systemPrompt ?? null,
     });
-    void setThreadChatOverride(currentRemoteId, {
+    await setThreadChatOverride(currentRemoteId, {
       providerId,
       modelId,
       params: prev?.params ?? null,

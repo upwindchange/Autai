@@ -29,7 +29,6 @@ import {
   ThreadPrimitive,
   unstable_useSlashCommandAdapter,
   type Unstable_SlashCommand,
-  useAuiEvent,
   useAuiState,
 } from "@assistant-ui/react";
 import {
@@ -72,15 +71,6 @@ const isNewChatView = (s: AssistantState) =>
   s.thread.messages.length === 0 &&
   (!s.thread.isLoading || s.threads.isLoading);
 
-// --- custom: session tracking ---
-function ThreadIdTracker() {
-  const setSessionId = useUiStore((state) => state.setSessionId);
-  useAuiEvent("composer.send", (event) => {
-    setSessionId(event.threadId);
-  });
-  return null;
-}
-
 export const Thread: FC = () => {
   return (
     <ThreadPrimitive.Root
@@ -92,8 +82,7 @@ export const Thread: FC = () => {
         ["--composer-padding" as string]: "10px",
       }}
     >
-      {/* --- custom: session tracking + selection toolbar --- */}
-      <ThreadIdTracker />
+      {/* --- custom: selection toolbar --- */}
       <SelectionToolbar />
       <ThreadPrimitive.Viewport
         turnAnchor="top"

@@ -155,42 +155,11 @@ class ThreadPersistenceService {
     db.delete(threads).where(eq(threads.id, id)).run();
   }
 
-  saveMessages(
-    threadId: string,
-    msgs: UIMessage[],
-    selection?: {
-      providerId: string;
-      modelId: string;
-      params?: ModelParameters | null;
-      systemPrompt?: string | null;
-    },
-  ): void {
+  saveMessages(threadId: string, msgs: UIMessage[]): void {
     const db = getDb();
     db.transaction((tx) => {
       tx.update(threads)
-        .set({
-          updatedAt: sql`(datetime('now'))`,
-          // Persist the per-thread chat model + params + system prompt on every
-          // save (covers a new conversation's first save + reaffirms existing
-          // threads). Only written when the request carried an explicit
-          // selection — the raw thread-level override, never a resolved
-          // system-default fallback.
-          ...(selection && {
-            // Only overwrite provider/model when the request carried a real
-            // selection — an empty string would wipe an existing override.
-            ...(selection.providerId && {
-              chatProviderId: selection.providerId,
-            }),
-            ...(selection.modelId && { chatModelId: selection.modelId }),
-            ...(selection.params !== undefined && {
-              chatModelParams:
-                selection.params ? JSON.stringify(selection.params) : null,
-            }),
-            ...(selection.systemPrompt !== undefined && {
-              chatSystemPrompt: selection.systemPrompt,
-            }),
-          }),
-        })
+        .set({ updatedAt: sql`(datetime('now'))` })
         .where(eq(threads.id, threadId))
         .run();
 

@@ -339,11 +339,20 @@ function App() {
     readonly { prompt: string }[]
   >([]);
 
-  // Clear suggestions when switching threads
-  const sessionId = useUiStore((s) => s.sessionId);
-  useEffect(() => {
-    setSuggestions([]);
-  }, [sessionId]);
+  // NOTE: App() builds the runtime and sits ABOVE AssistantRuntimeProvider, so
+  // useAuiState can't be called here. The active thread id is read imperatively
+  // from the runtime's thread store instead (runtime.threads.getState()), both
+  // reactively (for the suggestions-clear effect below) and inside the
+  // transport's async closures (headers / SSE callback) which can't use hooks.
+
+  // runtimeRef lets the transport's async closures (headers / SSE callback)
+  // read the active thread id imperatively. App() sits above the runtime
+  // provider so useAuiState is unavailable here; the runtime object itself
+  // exposes threads.getState().mainThreadId once constructed. The ref is
+  // populated immediately after useRemoteThreadListRuntime returns.
+  const runtimeRef = useRef<ReturnType<
+    typeof useRemoteThreadListRuntime
+  > | null>(null);
 
   // Create runtime with thread list support (persistence via REST backend)
   const runtime = useRemoteThreadListRuntime({
@@ -358,67 +367,47 @@ function App() {
               webSearch,
               deepResearch,
               quickSearch,
-              sessionId,
               enabledMcpServerIds,
             } = useUiStore.getState();
-            const chatSelection = useThreadModelStore.getState().get(sessionId);
+            // The runtime awaits initialize() before any send, so mainThreadId
+            // is the stable server UUID by the time a request goes out.
+            const sessionId =
+              runtimeRef.current?.threads.getState().mainThreadId ?? "";
             return {
               "X-Use-Browser": String(useBrowser),
               "X-Use-Planned-Browser": String(usePlannedBrowser),
               "X-Web-Search": String(webSearch),
               "X-Deep-Research": String(deepResearch),
               "X-Quick-Search": String(quickSearch),
-              "X-Session-Id": sessionId || "",
+              "X-Session-Id": sessionId,
               "X-Mcp-Servers": enabledMcpServerIds.join(","),
-              ...(chatSelection?.providerId ?
-                { "X-Chat-Provider-Id": chatSelection.providerId }
-              : {}),
-              ...(chatSelection?.modelId ?
-                { "X-Chat-Model-Id": chatSelection.modelId }
-              : {}),
             };
           },
           // The body must be reconstructed here — providing this hook replaces
-          // the default body synthesis (which injects messages/id/trigger/
-          // messageId), so we mirror that shape to avoid dropping the messages
-          // payload. Entertainment mode has no chat composer — it drives the
-          // backend through the REST chapter routes (chaptersStore) — so every
-          // chat send targets /chat.
+          // the default body synthesis (which injects messages/trigger/
+          // messageId), so we mirror that shape. The per-thread model override
+          // (provider/model/params/systemPrompt) is resolved server-side from
+          // the thread row — it is NOT injected here. Entertainment mode has no
+          // chat composer; it drives the backend through the REST chapter
+          // routes (chaptersStore), so every chat send targets /chat.
           prepareSendMessagesRequest: ({
-            id,
             messages,
             body,
             headers,
             credentials,
             trigger,
             messageId,
-          }) => {
-            // Inject per-thread system prompt + model params ONLY when the
-            // thread carries an override. Absent ⇒ backend falls back to the
-            // system-level default (resolved server-side, not here).
-            const threadSel = useThreadModelStore.getState().get(id);
-            logger.debug("prepareSendMessagesRequest", {
-              threadId: id,
-              injectedSystemPrompt: !!threadSel?.systemPrompt,
-              injectedModelParams: !!threadSel?.params,
-            });
-            return {
-              body: {
-                ...body,
-                id,
-                messages,
-                trigger,
-                messageId,
-                ...(threadSel?.systemPrompt && {
-                  system: threadSel.systemPrompt,
-                }),
-                ...(threadSel?.params && { modelParams: threadSel.params }),
-              },
-              headers,
-              credentials,
-              api: `${getApiBase()}/chat`,
-            };
-          },
+          }) => ({
+            body: {
+              ...body,
+              messages,
+              trigger,
+              messageId,
+            },
+            headers,
+            credentials,
+            api: `${getApiBase()}/chat`,
+          }),
         }),
         adapters: {
           speech: new WebSpeechSynthesisAdapter(),
@@ -431,6 +420,16 @@ function App() {
       }),
     adapter: backendThreadListAdapter,
   });
+  runtimeRef.current = runtime;
+
+  // Clear suggestions when the active thread changes. App() is above the runtime
+  // provider, so subscribe to the runtime's thread store directly instead of
+  // using useAuiState.
+  useEffect(() => {
+    return runtime.threads.subscribe(() => {
+      setSuggestions([]);
+    });
+  }, [runtime]);
 
   // Listen for backend thread metadata updates and update tagStore directly
   useEffect(() => {
@@ -441,11 +440,10 @@ function App() {
     });
   }, []);
 
-  // Listen for backend suggestion updates
+  // Listen for backend suggestion updates — only apply to the active thread.
   useEffect(() => {
     return serverEvents.on("threads:suggestionsUpdated", (data) => {
-      const currentSessionId = useUiStore.getState().sessionId;
-      if (data.threadId === currentSessionId) {
+      if (data.threadId === runtimeRef.current?.threads.getState().mainThreadId) {
         setSuggestions(data.suggestions);
       }
     });

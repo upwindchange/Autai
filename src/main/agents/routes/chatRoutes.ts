@@ -4,12 +4,12 @@ import { chatModel } from "@agents/providers";
 import { ChatWorker } from "@agents/workers";
 import { BrowserWorker } from "@agents/workers/browserWorker/worker";
 import {
-  SessionTabService,
   threadPersistenceService,
   threadIntelligenceService,
   settingsService,
 } from "@/services";
 import { sendAlert } from "@/utils";
+import { resolveChatOverride } from "@agents/utils/threadChatOverride";
 import { ChatRequestSchema } from "../schemas/apiSchemas";
 import log from "electron-log/main";
 
@@ -29,7 +29,7 @@ chatRoutes.post("/", async (c) => {
       );
     }
 
-    const { messages, system, modelParams, tools } = parsed.data;
+    const { messages, tools } = parsed.data;
 
     // Read metadata from headers
     const useBrowser = c.req.header("x-use-browser") === "true";
@@ -43,62 +43,56 @@ chatRoutes.post("/", async (c) => {
     const mcpServerIds =
       mcpServerIdsHeader ? mcpServerIdsHeader.split(",").filter(Boolean) : [];
 
-    const sessionTabService = SessionTabService.getInstance();
-    const sessionId =
-      c.req.header("x-session-id") ?? sessionTabService.activeSessionId;
-
-    // Per-thread chat model selection, threaded live from the UI. Absent ⇒
-    // the global "chat" assignment is used (chatModel falls back internally).
-    const chatProviderId = c.req.header("x-chat-provider-id");
-    const chatModelId = c.req.header("x-chat-model-id");
-    const chatSelection =
-      chatProviderId && chatModelId ?
-        { providerId: chatProviderId, modelId: chatModelId }
-      : undefined;
-    const chatResolved = chatModel(chatSelection);
-    const chatLanguageModel = chatResolved.model;
-    const chatNpm = chatResolved.npm;
-
-    // Resolve effective model settings: thread-level override wins, else fall
-    // back to the system-level defaults (settingsService is the single source
-    // of truth — keeps fallback logic out of the renderer). The raw thread
-    // override (not the resolved fallback) is what gets persisted on finish.
-    const sysDefault = settingsService.settings;
-    const effectiveSystem = system ?? (sysDefault.systemPrompt || undefined);
-    const effectiveParams = modelParams ?? sysDefault.defaultModelParams;
-
-    logger.info("Chat request received", {
-      messagesCount: messages?.length,
-      hasSystem: !!system,
-      hasTools: !!tools,
-      useBrowser,
-      webSearch,
-      mcpServerIds: mcpServerIds.length,
-      sessionId,
-      // Effective settings after thread-override → system-default resolution.
-      // Logs the *source* of each setting so "why did temperature apply?" is
-      // diagnosable without re-deriving the fallback chain from the request.
-      chatModel: chatSelection,
-      systemPromptSource:
-        system ? "thread"
-        : sysDefault.systemPrompt ? "system-default"
-        : "none",
-      systemPromptLength: effectiveSystem?.length ?? 0,
-      modelParamsSource:
-        modelParams ? "thread"
-        : sysDefault.defaultModelParams ? "system-default"
-        : "none",
-      effectiveParams,
-    });
+    const sessionId = c.req.header("x-session-id");
 
     if (!sessionId) {
-      logger.error("No session ID available from headers or SessionTabService");
+      logger.error("No session ID in X-Session-Id header");
       sendAlert(
         "Chat Error",
         "No session ID found. Please start a new chat session.",
       );
       return c.json({ error: "No session ID" }, 400);
     }
+
+    // Resolve the per-thread chat override from the DB (single source of truth
+    // — the renderer persists it immediately via PATCH /threads/:id on every
+    // picker/settings change, so reading it here replaces the old client-
+    // injected X-Chat-* headers and system/modelParams body fields). Provider/
+    // model are validated against the live registry and purged if stale.
+    const override = resolveChatOverride(sessionId);
+    const chatSelection =
+      override.providerId && override.modelId ?
+        { providerId: override.providerId, modelId: override.modelId }
+      : undefined;
+    const chatResolved = chatModel(chatSelection);
+    const chatLanguageModel = chatResolved.model;
+    const chatNpm = chatResolved.npm;
+
+    // Effective model settings: thread override wins, else system default.
+    const sysDefault = settingsService.settings;
+    const effectiveSystem =
+      override.systemPrompt ?? (sysDefault.systemPrompt || undefined);
+    const effectiveParams = override.params ?? sysDefault.defaultModelParams;
+
+    logger.info("Chat request received", {
+      messagesCount: messages?.length,
+      hasTools: !!tools,
+      useBrowser,
+      webSearch,
+      mcpServerIds: mcpServerIds.length,
+      sessionId,
+      chatModel: chatSelection,
+      systemPromptSource:
+        override.systemPrompt ? "thread"
+        : sysDefault.systemPrompt ? "system-default"
+        : "none",
+      systemPromptLength: effectiveSystem?.length ?? 0,
+      modelParamsSource:
+        override.params ? "thread"
+        : sysDefault.defaultModelParams ? "system-default"
+        : "none",
+      effectiveParams,
+    });
 
     // Detect first message and trigger thread enrichment immediately (fire-and-forget)
     if (messages?.length === 1 && messages[0].role === "user") {
@@ -143,11 +137,7 @@ chatRoutes.post("/", async (c) => {
         quickSearch,
         chatLanguageModel,
         (finalMessages) => {
-          threadPersistenceService.saveMessages(
-            sessionId,
-            finalMessages,
-            chatSelection,
-          );
+          threadPersistenceService.saveMessages(sessionId, finalMessages);
           threadIntelligenceService
             .generateSuggestions(sessionId, finalMessages)
             .catch((err) => {
@@ -212,33 +202,7 @@ chatRoutes.post("/", async (c) => {
             sessionId,
             messageCount: finalMessages.length,
           });
-          // Persist the raw thread-level override (not the resolved fallback) —
-          // system-default values belong to settings, not the thread row.
-          // providerId/modelId are only written when the request carried an
-          // explicit selection (matches the pre-existing pattern); params and
-          // systemPrompt are written whenever the request carried them.
-          const hasOverride =
-            !!chatSelection ||
-            system !== undefined ||
-            modelParams !== undefined;
-          logger.debug("Persisting thread chat override on chat finish", {
-            sessionId,
-            hasOverride,
-            persistedSystemPrompt: system ?? null,
-            persistedParams: modelParams ?? null,
-          });
-          threadPersistenceService.saveMessages(
-            sessionId,
-            finalMessages,
-            hasOverride ?
-              {
-                providerId: chatSelection?.providerId ?? "",
-                modelId: chatSelection?.modelId ?? "",
-                ...(system !== undefined && { systemPrompt: system }),
-                ...(modelParams !== undefined && { params: modelParams }),
-              }
-            : undefined,
-          );
+          threadPersistenceService.saveMessages(sessionId, finalMessages);
           threadIntelligenceService
             .generateSuggestions(sessionId, finalMessages)
             .catch((err) => {

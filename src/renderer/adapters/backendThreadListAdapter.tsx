@@ -125,14 +125,17 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
     };
   },
 
-  async initialize(threadId: string) {
-    // The runtime calls initialize(threadId) with only an id, so the mode must
-    // be read from the global store — new conversations inherit the active mode.
+  async initialize(_threadId: string) {
+    // The runtime calls initialize(threadId) with a transient __LOCALID_
+    // placeholder; the backend generates the real id (UUID) and returns it as
+    // remoteId, which the runtime then remaps mainThreadId to. The placeholder
+    // itself is unused here — the server owns id generation. Mode is read from
+    // the global store — new conversations inherit the active mode.
     const mode = useUiStore.getState().appMode;
     const res = await fetch(`${getApiBase()}/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: threadId, mode }),
+      body: JSON.stringify({ mode }),
     });
     return res.json();
   },

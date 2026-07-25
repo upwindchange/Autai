@@ -9,6 +9,7 @@
 import { Hono } from "hono";
 import { z } from "zod";
 import { entertainmentService, threadPersistenceService } from "@/services";
+import { eventBus } from "@/utils/eventBus";
 import { pipelineRouter } from "@agents/workers/entertainmentWorker/shared/pipelineRouter";
 import { LOOKAHEAD } from "@agents/workers/entertainmentWorker/shared/pipelineScheduler";
 import { decodeNovelFile } from "@agents/workers/entertainmentWorker/pipeline1ChapteredFile/fileDecoder";
@@ -71,7 +72,17 @@ function applyConfig(
   }
   const isFirst = !entertainmentService.getEntertainmentConfig(threadId);
   entertainmentService.upsertEntertainmentConfig(threadId, config);
-  if (isFirst) entertainmentService.setupEntertainmentThread(threadId, config);
+  if (isFirst) {
+    // The thread row existed before this (created at switchToNewThread time
+    // with a generic title), so POST /threads's `threads:listChanged` already
+    // fired and was processed — with the placeholder title. setupEntertainment
+    // Thread renames it + emits only `threads:metadataUpdated`, which patches
+    // tagStore titles but NOT assistant-ui's flat-list cache. Emit listChanged
+    // here too so the flat sidebar reloads and picks up the real title — the
+    // same mechanism chat mode relies on for new-thread visibility.
+    entertainmentService.setupEntertainmentThread(threadId, config);
+    eventBus.emitEvent("threads:listChanged", null);
+  }
   logger.info("applied config", {
     threadId,
     mode: config.mode,

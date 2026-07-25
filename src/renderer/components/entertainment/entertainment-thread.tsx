@@ -17,7 +17,6 @@ import {
   type DotMatrixState,
 } from "@/components/assistant-ui/dot-matrix";
 import { Button } from "@/components/ui/button";
-import { useUiStore } from "@/stores/uiStore";
 import { useReaderSettings } from "@/stores/readerSettingsStore";
 import { useChaptersStore, type ChapterView } from "@/stores/chaptersStore";
 import { useChapterReadiness } from "@/hooks/useChapterReadiness";
@@ -44,17 +43,6 @@ const HOVER_BAND_PX = 120;
  * derived from the source+rewrite statuses, and only the rewritten prose once
  * ready. The assistant-ui shell is kept only for layout + the active thread id.
  */
-
-// Sync sessionId from the active thread id (kept from the message-based version).
-function ThreadIdTracker() {
-  const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
-  useEffect(() => {
-    if (mainThreadId) {
-      useUiStore.getState().setSessionId(mainThreadId);
-    }
-  }, [mainThreadId]);
-  return null;
-}
 
 export const EntertainmentThread: FC = () => {
   const settings = useReaderSettings();
@@ -345,7 +333,6 @@ export const EntertainmentThread: FC = () => {
         ...buildReaderCssVars(settings),
       }}
     >
-      <ThreadIdTracker />
       <ThreadPrimitive.Viewport
         ref={viewportRef}
         turnAnchor="top"
