@@ -163,7 +163,18 @@ export const useChaptersStore = create<ChaptersState>()(
             state.currentThreadId !== threadId ||
             state.novelType !== novelType ||
             state.finalChapterNumber !== finalChapterNumber;
-          if (!stateChanged) return state;
+          if (!stateChanged) {
+            // No chapter data changed — keep every reference identical so
+            // chapter subscribers (reader, TOC, footer) don't re-render. But
+            // the guard MUST be cleared: this fetch set `loading` true at the
+            // top, and the footer's poll tick skips while loading===true.
+            // Returning `state` unchanged would wedge loading at true forever,
+            // stalling the poll so chapters committed after the first never
+            // reach the store (TOC + next-button stuck on chapter 1).
+            return state.loading || state.error ?
+                { ...state, loading: false, error: null }
+              : state;
+          }
           return {
             currentThreadId: threadId,
             novelType,
@@ -194,7 +205,10 @@ export const useChaptersStore = create<ChaptersState>()(
           // the set when this chapter's view is unchanged AND error is already
           // null, so the detail poll doesn't re-render subscribers for nothing.
           if (idx >= 0) {
-            if (sameChapterView(state.chapters[idx], merged) && state.error === null)
+            if (
+              sameChapterView(state.chapters[idx], merged) &&
+              state.error === null
+            )
               return state;
             const next = state.chapters.slice();
             next[idx] = merged;
@@ -250,14 +264,17 @@ export const useChaptersStore = create<ChaptersState>()(
 
     stopAgents: (threadId) =>
       httpClient
-        .postJSON<{ ok: boolean }>(`/entertainment/threads/${threadId}/stop`, {})
+        .postJSON<{ ok: boolean }>(
+          `/entertainment/threads/${threadId}/stop`,
+          {},
+        )
         .then(() => undefined),
 
     getThreadConfig: async (threadId) => {
       try {
-        const { config } = await httpClient.getJSON<{ config: EntertainmentConfig }>(
-          `/entertainment/threads/${threadId}/config`,
-        );
+        const { config } = await httpClient.getJSON<{
+          config: EntertainmentConfig;
+        }>(`/entertainment/threads/${threadId}/config`);
         return config;
       } catch {
         // 404 (no config) or fetch error — either way nothing to edit.
