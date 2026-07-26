@@ -233,6 +233,11 @@ const TacticCheckbox: FC<{
 // 关 dim: 关 means "off until you pick an intensity", `disabled` means "not
 // available for this source at all". When disabled, the control row (dial +
 // master switch) is hidden and replaced by a one-line explanation.
+//
+// `hideTactics` drops the per-pattern checkbox grid but keeps the strength dial
+// — used for non-Chinese locales, where the genre-specific scenario taxonomy
+// (web-novel tropes like 拔剑/打脸/水字数) doesn't apply. The strength dial alone
+// still drives intelligent dehydration.
 const TacticBlock: FC<{
   blockKey: "situation" | "crossChapter";
   categories: readonly {
@@ -246,6 +251,7 @@ const TacticBlock: FC<{
   onTactic: (tactic: string, value: boolean) => void;
   disabled?: boolean;
   disabledHintKey?: string;
+  hideTactics?: boolean;
 }> = ({
   blockKey,
   categories,
@@ -256,6 +262,7 @@ const TacticBlock: FC<{
   onTactic,
   disabled = false,
   disabledHintKey,
+  hideTactics = false,
 }) => {
   const { t } = useTranslation("entertainment");
   const [open, setOpen] = useState(false);
@@ -277,11 +284,13 @@ const TacticBlock: FC<{
               {t(`options.section.${blockKey}.title`)}
             </h3>
             <HelpTooltip content={t(`options.section.${blockKey}.hint`)} />
-            <span className="text-xs text-muted-foreground">
-              ({enabledCount}/{allTacticKeys.length})
-            </span>
+            {!hideTactics && (
+              <span className="text-xs text-muted-foreground">
+                ({enabledCount}/{allTacticKeys.length})
+              </span>
+            )}
           </div>
-          {!disabled && (
+          {!disabled && !hideTactics && (
             <CollapsibleTrigger asChild>
               <Button variant="ghost" size="icon" className="size-7">
                 <ChevronDownIcon
@@ -342,8 +351,9 @@ const TacticBlock: FC<{
       {/* Body: enforcement note + grouped tactic-checkbox grids. The note
           frames the checkboxes as OPTIONAL enforcement (recommended off) — the
           strength dial is the primary control. When the dial is 关, nothing in
-          this block takes effect — dim the grid to make that clear. */}
-      {!disabled && (
+          this block takes effect — dim the grid to make that clear. Skipped
+          entirely when `hideTactics` is set (non-Chinese locales). */}
+      {!disabled && !hideTactics && (
         <CollapsibleContent className="border-t">
           <div
             className={cn(
@@ -438,8 +448,12 @@ const DepthRow: FC<{
 // --- step ------------------------------------------------------------------
 
 export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
-  const { t } = useTranslation("entertainment");
+  const { t, i18n } = useTranslation("entertainment");
   const lang = config.options.language;
+  // The genre-specific scenario taxonomy (web-novel tropes: 拔剑/打脸/水字数…)
+  // only applies to Chinese source text — hide the per-pattern checkbox grids
+  // for other locales. The strength dial stays; it alone drives dehydration.
+  const hideTactics = !i18n.language.startsWith("zh");
   // 章节并写 needs fast access to all chapters' content, which only a local
   // file upload provides — grey it out (with an explanation) otherwise.
   const crossChapterAvailable = isCrossChapterAvailable(config);
@@ -678,6 +692,7 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
         tactics={config.options.situation.tactics}
         onStrength={setSituationStrength}
         onTactic={(k, v) => setSituation(k as keyof SituationTactics, v)}
+        hideTactics={hideTactics}
       />
 
       <TacticBlock
@@ -690,6 +705,7 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
         onTactic={(k, v) => setCrossChapter(k as keyof CrossChapterTactics, v)}
         disabled={!crossChapterAvailable}
         disabledHintKey="options.crossChapter.disabled.hint"
+        hideTactics={hideTactics}
       />
 
       {/* Rewrite intensity + custom instruction pair on wide screens — both
