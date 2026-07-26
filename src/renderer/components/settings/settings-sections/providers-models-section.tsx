@@ -163,6 +163,10 @@ export function ProvidersModelsSection({
   // params are the agent's own), so resolve reasoning options from chat.
   const effectiveSimple = useSameModelForAgents ? chatModelConfig : simpleModelConfig;
   const effectiveComplex = useSameModelForAgents ? chatModelConfig : complexModelConfig;
+  const chatReasoning = useReasoningOptions(
+    providerDirForRole(chatModelConfig, providers),
+    chatModelConfig.modelId || undefined,
+  );
   const simpleReasoning = useReasoningOptions(
     providerDirForRole(effectiveSimple, providers),
     effectiveSimple.modelId || undefined,
@@ -429,6 +433,7 @@ export function ProvidersModelsSection({
                 )}
                 i18nNamespace="threads"
                 keyPrefix="defaultChatParams"
+                reasoningOptions={chatReasoning}
               />
               <div className="flex justify-end pt-1">
                 <Button
