@@ -12,6 +12,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import { entertainmentService, threadPersistenceService } from "@/services";
+import { eventBus } from "@/utils/eventBus";
 import { pipelineRouter } from "@agents/workers/entertainmentWorker/shared/pipelineRouter";
 import { LOOKAHEAD } from "@agents/workers/entertainmentWorker/shared/pipelineScheduler";
 import { deriveChapterPhase, EntertainmentConfigSchema } from "@shared";
@@ -115,13 +116,22 @@ const CreateBookmarkSchema = z.object({
  * Persist config + first-time thread setup (title/tag). Shared by the upload
  * (file) and setup (internet) wizard paths. Idempotent: setupEntertainmentThread
  * only fires on the thread's first config.
+ *
+ * The wizard submits before the thread is initialized via POST /threads (the
+ * runtime only initializes on first message send), so this is often the call
+ * that first persists the row. Emit `threads:listChanged` on that first create
+ * so other clients — and this client's flat thread list (which reads assistant-
+ * ui's cache, not tagStore) — reload and see the new thread immediately,
+ * instead of waiting until the next reboot forces a list().
  */
 function applyConfig(
   threadId: string,
   config: z.infer<typeof EntertainmentConfigSchema>,
 ): void {
-  if (!threadPersistenceService.getThread(threadId)) {
+  const isNew = !threadPersistenceService.getThread(threadId);
+  if (isNew) {
     threadPersistenceService.createThread(threadId, "entertainment");
+    eventBus.emitEvent("threads:listChanged", null);
   }
   const isFirst = !entertainmentService.getEntertainmentConfig(threadId);
   entertainmentService.upsertEntertainmentConfig(threadId, config);
