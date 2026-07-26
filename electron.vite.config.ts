@@ -10,11 +10,14 @@ import type { Plugin } from "vite";
 
 const require = createRequire(import.meta.url);
 
-export default defineConfig({
+export default defineConfig(async () => ({
   main: {
     plugins: [
       bindingSqlite3(),
       copyMigrations(),
+      // Built separately via esbuild (see buildDecodeWorker) — NOT as a second
+      // rollupOptions.input, which disables externalizeDeps and breaks the app.
+      await buildDecodeWorker(),
       {
         name: "watch-main-reload",
         closeBundle() {
@@ -67,7 +70,7 @@ export default defineConfig({
     },
     plugins: [react(), tailwindcss()],
   },
-});
+}));
 
 // Adapted from reference/electron-vite-samples/better-sqlite3-main-process/vite.config.ts
 // Copies better-sqlite3 native binding to the main process output directory
@@ -227,6 +230,64 @@ function copyMigrations(): Plugin {
 
       fs.cpSync(sourceDir, outputDir, { recursive: true });
       console.log(`${TAG} Copied migrations to ${outputDir}`);
+    },
+  };
+}
+
+// Builds the novel-decode `worker_threads` worker as a STANDALONE bundle and
+// drops it at out/main/decodeWorker.cjs, a sibling of the main index.js. The
+// main build can't take a second rollupOptions.input — that path disables
+// electron-vite's externalizeDeps and inlines electron (which then crashes on
+// __dirname under ESM), so the worker is compiled out-of-band with esbuild
+// instead. esbuild is a transitive dep of Vite (no new dependency) and runs in
+// the closeBundle hook alongside bindingSqlite3/copyMigrations.
+//
+// The worker is pure CPU work (jschardet + iconv + normalize) with no Electron
+// or DB access, so it bundles cleanly: iconv-lite/jschardet are inlined, only
+// node: builtins stay external, and the result is a single self-contained file.
+// CJS (`.cjs`) not ESM: package.json has "type": "module" so `.js` would be
+// treated as ESM, but iconv-lite is CommonJS and its `require("buffer")` calls
+// can't be satisfied under ESM (esbuild's __require shim throws). The `.cjs`
+// extension forces Node to treat it as CommonJS, where native require works.
+// fileDecoder.ts spawns it by absolute path; no asarUnpack needed.
+async function buildDecodeWorker(): Promise<Plugin> {
+  // esbuild is a transitive dep of Vite, not a direct one, so under pnpm's
+  // strict hoisting a bare `import "esbuild"` won't resolve from this file.
+  // Anchor a require at Vite's location (Vite depends on esbuild) and resolve
+  // through it. Avoids adding esbuild as a direct dependency.
+  const viteRequire = createRequire(require.resolve("vite"));
+  const esbuild = viteRequire("esbuild");
+  const TAG = "[vite-plugin-build-decode-worker]";
+  const ENTRY =
+    "src/main/agents/workers/entertainmentWorker/pipeline1ChapteredFile/decodeWorker.ts";
+  const OUT_FILE = "out/main/decodeWorker.cjs";
+
+  return {
+    name: "build-decode-worker",
+    async closeBundle() {
+      const resolvedRoot = process.cwd();
+      const entryPath = path.resolve(resolvedRoot, ENTRY);
+      const outPath = path.resolve(resolvedRoot, OUT_FILE);
+
+      if (!fs.existsSync(entryPath)) {
+        console.warn(`${TAG} Worker entry not found: ${entryPath}`);
+        return;
+      }
+
+      await esbuild.build({
+        entryPoints: [entryPath],
+        bundle: true,
+        outfile: outPath,
+        platform: "node",
+        format: "cjs",
+        // Inline everything except node: builtins so the file is self-
+        // contained. iconv-lite + jschardet together are ~400KB — fine inline.
+        external: ["node:*"],
+        target: "esnext",
+        sourcemap: true,
+        logLevel: "silent",
+      });
+      console.log(`${TAG} Built worker → ${outPath}`);
     },
   };
 }

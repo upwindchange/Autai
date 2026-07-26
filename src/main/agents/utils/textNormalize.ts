@@ -5,10 +5,11 @@
  * Applied in TWO places that MUST use the SAME transform, so that the model's
  * emitted anchors can be compared against the excerpt it was shown:
  *
- *   1. `fileDecoder.decodeNovelFile` — on the raw bytes after iconv decoding,
- *      BEFORE persisting the novel text to DB. Everything downstream (chunk
- *      planning, the excerpt handed to the outliner, the body that ends up in
- *      `source_chapters.content`) reads this canonicalised form.
+ *   1. Novel file ingestion (`decodeViaWorker` in entertainmentRoutes.ts, run
+ *      in the decode worker_threads worker) — on the raw bytes after iconv
+ *      decoding, BEFORE persisting the novel text to DB. Everything downstream
+ *      (chunk planning, the excerpt handed to the outliner, the body that ends
+ *      up in `source_chapters.content`) reads this canonicalised form.
  *   2. `textChunker.locateAnchor` — on the model's `firstTextChunk` /
  *      `lastTextChunk` BEFORE exact/fuzzy matching. The model *saw* canonical
  *      text (the excerpt was normalised at ingestion), so its verbatim copies

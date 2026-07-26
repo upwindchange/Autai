@@ -8,14 +8,68 @@
  */
 import { Hono } from "hono";
 import { z } from "zod";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { Worker } from "node:worker_threads";
 import { entertainmentService, threadPersistenceService } from "@/services";
 import { pipelineRouter } from "@agents/workers/entertainmentWorker/shared/pipelineRouter";
 import { LOOKAHEAD } from "@agents/workers/entertainmentWorker/shared/pipelineScheduler";
-import { decodeNovelFile } from "@agents/workers/entertainmentWorker/pipeline1ChapteredFile/fileDecoder";
 import { deriveChapterPhase, EntertainmentConfigSchema } from "@shared";
 import log from "electron-log/main";
 
 const logger = log.scope("ApiServer:Entertainment");
+
+// Path to the compiled novel-decode worker (`decodeWorker.cjs` in out/main/,
+// built by the `buildDecodeWorker` vite plugin via esbuild). The main bundle's
+// __dirname is out/main/, so this resolves to a sibling file. `.cjs` because
+// iconv-lite is CommonJS and needs native require (ESM — the default for `.js`
+// under package.json "type":"module" — can't satisfy its `require("buffer")`).
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DECODE_WORKER_PATH = path.join(__dirname, "decodeWorker.cjs");
+
+/**
+ * Decode a novel file's raw bytes to a string by offloading the CPU-bound work
+ * (jschardet.detect + iconv.decode + normalizeText) to a `worker_threads`
+ * Worker, OFF the main-process event loop. Previously this ran inline and
+ * blocked the loop for hundreds of ms to seconds on large files, freezing the
+ * whole UI (window paint, the Start button's animation, options toggles).
+ *
+ * Auto-detects encoding (jschardet) — not every text file is UTF-8
+ * (GBK/GB2312/GB18030 are common for Chinese-language novels). Bytes arrive
+ * from a native filesystem path (`fsPath`, the Electron picker) or as base64
+ * (`base64`, browser fallback). The worker is a pure function: bytes in →
+ * normalized string out. Spawn-on-demand, terminated after it replies.
+ */
+async function decodeViaWorker(input: {
+  fsPath?: string;
+  base64?: string;
+}): Promise<string> {
+  const worker = new Worker(DECODE_WORKER_PATH, {
+    workerData: { fsPath: input.fsPath, base64: input.base64 },
+  });
+  try {
+    const result = await new Promise<{
+      ok: boolean;
+      decoded?: string;
+      error?: string;
+    }>((resolve, reject) => {
+      worker.once("message", (msg) => resolve(msg));
+      worker.once("error", (err: Error) => reject(err));
+      // A runaway decode on a pathological file should never hang the upload —
+      // 30s is well beyond any realistic multi-MB novel.
+      const timer = setTimeout(() => {
+        void worker.terminate();
+        reject(new Error("novel decode timed out"));
+      }, 30_000);
+      worker.once("message", () => clearTimeout(timer));
+      worker.once("error", () => clearTimeout(timer));
+    });
+    if (!result.ok) throw new Error(result.error);
+    return result.decoded ?? "";
+  } finally {
+    void worker.terminate();
+  }
+}
 
 export const entertainmentRoutes = new Hono();
 
@@ -151,7 +205,7 @@ entertainmentRoutes.post("/threads/:threadId/ingest", async (c) => {
     // it without touching the (possibly moved) source file. rawConsumedOffset
     // is reset to 0 here. finalChapterNumber is NOT set — unknown until the
     // outliner finishes splitting; it sets it at EOF.
-    const decoded = await decodeNovelFile({ fsPath, base64: fileBytesBase64 });
+    const decoded = await decodeViaWorker({ fsPath, base64: fileBytesBase64 });
     // Reject an empty file before any DB write / LLM call.
     if (!decoded.trim()) {
       logger.warn("ingest rejected — decoded file is empty", { threadId });
