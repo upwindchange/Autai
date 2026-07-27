@@ -307,6 +307,15 @@ class NonNovelScheduler implements PipelineScheduler {
       logger.info("buildOutlines skipped — already complete", { threadId });
       return;
     }
+    // Persisted stop gate: a thread the user stopped stays stopped. This is the
+    // single chokepoint — `ensureRange` (reader poll) and `retryFailed` both
+    // funnel through `buildOutlines`, so gating here covers every reader-driven
+    // resurrection path. Cleared only by an explicit user "go" (Process/Redo/
+    // wizard Start), which runs before this is reached.
+    if (entertainmentService.getStopStatus(threadId) === "stopped") {
+      logger.info("buildOutlines skipped — thread stopped", { threadId });
+      return;
+    }
     const w = this.workerFor(threadId);
     if (w.outlineRunning) {
       logger.info("buildOutlines skipped — run already in progress", {
@@ -435,10 +444,13 @@ class NonNovelScheduler implements PipelineScheduler {
   }
 
   /**
-   * Stop the in-flight rewrite pass for a thread by aborting its AbortController.
-   * No-op for a thread with no worker. There is no queue to drain (pipeline ③
-   * has a single mutex-guarded pass); the row left mid-run self-heals on the
-   * next open. No data is deleted or marked terminal.
+   * Stop the in-flight rewrite pass — the IMMEDIATE layer: abort its
+   * AbortController. No-op for a thread with no worker. There is no queue to
+   * drain (pipeline ③ has a single mutex-guarded pass). The DURABLE layer
+   * (`stopStatus = "stopped"`) is set by the `/stop` route, which gates
+   * `buildOutlines` so the reader poll can't re-run the pass. The row left
+   * mid-run self-heals only when the flag is cleared (by Process/Redo); no data
+   * is deleted or marked terminal.
    */
   stop(threadId: string): void {
     const w = this.workers.get(threadId);
@@ -474,6 +486,11 @@ class NonNovelScheduler implements PipelineScheduler {
       // Resume only if the single output is missing or not yet rewritten.
       const rewrite = entertainmentService.getRewrittenChapter(threadId, 1);
       if (rewrite?.status === "rewritten") {
+        skipped++;
+        continue;
+      }
+      // A user-stopped thread stays parked — no auto-resume on boot.
+      if (entertainmentService.getStopStatus(threadId) === "stopped") {
         skipped++;
         continue;
       }

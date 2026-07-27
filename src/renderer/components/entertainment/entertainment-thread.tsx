@@ -9,13 +9,10 @@ import {
   type MouseEvent as ReactMouseEvent,
   type SetStateAction,
 } from "react";
-import { ThreadPrimitive, useAui, useAuiState } from "@assistant-ui/react";
+import { ThreadPrimitive, useAuiState } from "@assistant-ui/react";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Loader2 } from "lucide-react";
-import {
-  DotMatrix,
-  type DotMatrixState,
-} from "@/components/assistant-ui/dot-matrix";
+import { DotMatrix } from "@/components/assistant-ui/dot-matrix";
 import { Button } from "@/components/ui/button";
 import { useUiStore } from "@/stores/uiStore";
 import { useReaderSettings } from "@/stores/readerSettingsStore";
@@ -23,7 +20,8 @@ import { useChaptersStore, type ChapterView } from "@/stores/chaptersStore";
 import { useChapterReadiness } from "@/hooks/useChapterReadiness";
 import { useReaderHotkeys } from "@/hooks/useReaderHotkeys";
 import { useIsMobile } from "@/hooks/use-mobile";
-import type { EntertainmentConfig } from "@shared";
+import { useEntertainmentNewConversation } from "@/hooks/useEntertainmentNewConversation";
+import type { ChapterStatus, EntertainmentConfig } from "@shared";
 import { EntertainmentWizard } from "./wizard/EntertainmentWizard";
 import { StepOptions } from "./wizard/steps/StepOptions";
 import { buildReaderCssVars } from "./reader/reader-settings/reader-theme";
@@ -70,17 +68,12 @@ export const EntertainmentThread: FC = () => {
   const setPosition = useChaptersStore((s) => s.setPosition);
   const ensureWorker = useChaptersStore((s) => s.ensureWorker);
   const setCurrentChapter = useChaptersStore((s) => s.setCurrentChapter);
-  const stopAgents = useChaptersStore((s) => s.stopAgents);
   const getThreadConfig = useChaptersStore((s) => s.getThreadConfig);
   const updateThreadConfig = useChaptersStore((s) => s.updateThreadConfig);
   // Last fetch error (chapter list or detail) — when set, the backend is/was
   // unreachable, which is otherwise indistinguishable from "still fetching".
   const fetchError = useChaptersStore((s) => s.error);
   const { t } = useTranslation("reader");
-
-  // assistant-ui runtime — used by the Stop button to switch to a fresh thread
-  // (mirrors ThreadListPrimitive.New) after killing the current thread's agents.
-  const aui = useAui();
 
   const viewportRef = useRef<HTMLDivElement>(null);
   // Common ancestor of BOTH the reading viewport and the ReaderFooter overlay.
@@ -272,22 +265,19 @@ export const EntertainmentThread: FC = () => {
     setFooterPinned((p) => !p);
   };
 
-  // Stop button: kill all agents on the current thread, then switch to a fresh
-  // thread so its wizard shows (the reader poll loop stops naturally — the
-  // component unmounts on thread switch, clearing its useEffect interval). The
-  // old thread stays in the sidebar; reopening it resumes/heals its agents.
-  const [stopping, setStopping] = useState(false);
-  const handleStop = async () => {
-    if (!mainThreadId || stopping) return;
-    setStopping(true);
-    try {
-      await stopAgents(mainThreadId);
-    } catch {
-      // Backend unreachable — still switch away so the user isn't stuck.
-    }
-    await aui.threads().switchToNewThread();
-    setStopping(false);
-  };
+  // Stop button: delegates to the shared `useEntertainmentNewConversation`
+  // hook (same one the sidebar's New Conversation button uses in entertainment
+  // mode). In reader mode the hook stops in-flight work (the backend sets the
+  // durable stopStatus flag + aborts), resets the chapter cache, and switches
+  // to a fresh wizard thread. The chapter store is reset BEFORE the switch —
+  // this component does NOT unmount on thread switch (only `appMode` toggles
+  // it), so without the reset the previous thread's `currentChapterNumber`
+  // would linger and block the wizard (`showWizard` requires
+  // `currentChapterNumber == null`). The reader poll loop stops naturally: the
+  // readiness hook sees the thread's stopped status and bails. The old thread
+  // stays in the sidebar; reopening it stays stopped until Process/Redo.
+  const { abandon: abandonThread, stopping } =
+    useEntertainmentNewConversation();
 
   // Options page — a full-page view of the same StepOptions the wizard uses,
   // editing the current thread's persisted config on the fly. Opened from the
@@ -422,7 +412,7 @@ export const EntertainmentThread: FC = () => {
           hovered={footerHovered}
           getScrollPercentile={getScrollPercentile}
           onJumpTo={jumpTo}
-          onStop={() => void handleStop()}
+          onStop={() => void abandonThread()}
           stopping={stopping}
           onOpenOptions={openOptionsPage}
         />
@@ -455,44 +445,35 @@ const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
       </div>
     );
   }
-  if (
-    !chapter ||
-    chapter.sourceStatus === null ||
-    chapter.sourceStatus === "fetching"
-  ) {
-    return <ChapterState state="loading" keyLabel="reader.chapter.fetching" />;
-  }
-  if (chapter.sourceStatus === "error" || chapter.rewriteStatus === "error") {
-    return <ChapterState state="error" textLabel="reader.chapter.error" />;
-  }
-  if (chapter.rewriteStatus === "rewriting") {
-    return <ChapterState state="syncing" keyLabel="reader.chapter.rewriting" />;
-  }
-  // Not rewriting and not done — either queued (paused) or not yet scheduled
-  // (stopped). Distinguish via the backend-derived `phase` field.
-  return (
-    <ChapterState
-      state={chapter.phase === "paused" ? "paused" : "stopped"}
-      keyLabel={
-        chapter.phase === "paused" ?
-          "reader.chapter.queued"
-        : "reader.chapter.stopped"
-      }
-    />
-  );
+  // Not yet rewritten — render the backend-derived status placeholder. The
+  // status (phase + pipeline-aware message key/params) is the single source of
+  // truth: the TOC, footer next-chapter indicator, and this body all read from
+  // the same derived field, so they can never disagree. No client-side status
+  // branching — the message is `t(status.messageKey, status.messageParams)`.
+  return <ChapterStatusPlaceholder status={chapter?.status} />;
 };
 
-/** Fetching/rewriting/error placeholder. `state` selects the indicator phase. */
-const ChapterState: FC<{
-  state?: DotMatrixState;
-  keyLabel?: string;
-  textLabel?: string;
-}> = ({ state, keyLabel, textLabel }) => {
+/**
+ * Status placeholder for a chapter that isn't ready to read yet. Renders the
+ * DotMatrix indicator for `status.phase` (DotMatrix natively draws a glyph per
+ * state — `loading`, `syncing`, `error`, `paused`, `stopped` — so no custom
+ * icon is needed) plus the pipeline-aware message from `status.messageKey`.
+ */
+const ChapterStatusPlaceholder: FC<{ status: ChapterStatus | undefined }> = ({
+  status,
+}) => {
   const { t } = useTranslation("reader");
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-20 text-center text-muted-foreground">
-      {state && <DotMatrix state={state} className="size-6" />}
-      <p className="text-sm">{t(keyLabel ?? textLabel ?? "")}</p>
+      <DotMatrix
+        state={status?.phase ?? "loading"}
+        className="size-6"
+      />
+      {status && (
+        <p className="text-sm max-w-md">
+          {t(status.messageKey, status.messageParams ?? {})}
+        </p>
+      )}
     </div>
   );
 };

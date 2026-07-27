@@ -15,6 +15,7 @@ import type {
   EntertainmentConfig,
   RewrittenChapterStatus,
   SourceChapterStatus,
+  StopStatus,
 } from "@shared";
 import { EntertainmentConfigSchema } from "@shared";
 import type { EntertainmentConfigRow } from "@/db/types";
@@ -516,6 +517,33 @@ class EntertainmentService {
       })
       .where(eq(entertainmentConfigs.threadId, threadId))
       .run();
+  }
+
+  /**
+   * The thread's runtime stop intent (null = running / never started;
+   * "stopped" = parked until an explicit Process/Redo). Backs the reader's Stop
+   * button: the `/stop` route sets it, the `/process` + `/reprocess-failed` +
+   * wizard-start routes clear it. Schedulers gate their entry points on it.
+   */
+  getStopStatus(threadId: string): StopStatus | null {
+    return this.getEntertainmentConfig(threadId)?.stopStatus ?? null;
+  }
+
+  /** Persist (or clear) the thread's stop intent. */
+  setStopStatus(threadId: string, status: StopStatus | null): void {
+    const db = getDb();
+    db.update(entertainmentConfigs)
+      .set({
+        stopStatus: status,
+        updatedAt: sql`(datetime('now'))`,
+      })
+      .where(eq(entertainmentConfigs.threadId, threadId))
+      .run();
+  }
+
+  /** Clear the thread's stop intent — the resume path for Process/Redo/wizard. */
+  clearStopStatus(threadId: string): void {
+    this.setStopStatus(threadId, null);
   }
 
   /**

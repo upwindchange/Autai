@@ -36,9 +36,20 @@ export function useThreadListRefresh(): (opts?: {
 
     // If the active thread is no longer in the list, restore the target thread
     // (e.g. a mode switch's last-active thread) when it exists, else new thread.
+    // BUT skip recovery when the active thread is a fresh local thread
+    // (`__LOCALID_*`): those are never in the DB-backed `threadIds` (they're
+    // persisted lazily on first chat send), so their absence is expected, not a
+    // signal to bounce the user off the wizard they intentionally switched to.
+    // Without this guard, any `threads:listChanged` (e.g. a lazy initialize of
+    // the just-left thread) would see the local thread "missing" and switch away,
+    // making the reader's Stop→wizard flash and revert.
     const newState = runtime.threads.getState();
     const allThreadIds = [...newState.threadIds, ...newState.archivedThreadIds];
-    if (previousMainThreadId && !allThreadIds.includes(previousMainThreadId)) {
+    if (
+      previousMainThreadId &&
+      !previousMainThreadId.startsWith("__LOCALID") &&
+      !allThreadIds.includes(previousMainThreadId)
+    ) {
       const target = opts?.restoreTarget ?? null;
       if (target && allThreadIds.includes(target)) {
         await runtime.threads.switchToThread(target);

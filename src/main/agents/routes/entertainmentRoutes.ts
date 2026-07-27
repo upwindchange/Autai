@@ -15,7 +15,11 @@ import { entertainmentService, threadPersistenceService } from "@/services";
 import { eventBus } from "@/utils/eventBus";
 import { pipelineRouter } from "@agents/workers/entertainmentWorker/shared/pipelineRouter";
 import { LOOKAHEAD } from "@agents/workers/entertainmentWorker/shared/pipelineScheduler";
-import { deriveChapterPhase, EntertainmentConfigSchema } from "@shared";
+import {
+  deriveChapterStatus,
+  resolvePipelineType,
+  EntertainmentConfigSchema,
+} from "@shared";
 import log from "electron-log/main";
 
 const logger = log.scope("ApiServer:Entertainment");
@@ -237,17 +241,23 @@ entertainmentRoutes.post("/threads/:threadId/ingest", async (c) => {
 });
 
 // GET /entertainment/threads/:threadId/chapters — per-chapter pipeline progress
-// (source + rewrite statuses merged), ordered, with a derived reader-facing
-// `phase` (a DotMatrix state string computed from the statuses + the scheduler's
-// inFlight set). Drives the TOC + reader states.
+// (source + rewrite statuses merged), ordered, each carrying a derived
+// `status` ({ phase, messageKey, messageParams }) computed from the statuses +
+// the scheduler's inFlight set + the thread's stopStatus + its pipeline. Drives
+// the TOC + reader states; the renderer renders `status.phase` via DotMatrix and
+// `t(status.messageKey, status.messageParams)` for the copy, with no mapping.
 entertainmentRoutes.get("/threads/:threadId/chapters", (c) => {
   try {
     const threadId = c.req.param("threadId");
     const progress = entertainmentService.listChapterProgress(threadId);
     const inFlight = pipelineRouter.getInFlight(threadId);
+    const stopStatus = entertainmentService.getStopStatus(threadId);
+    const pipeline = resolvePipelineType(
+      entertainmentService.getParsedConfig(threadId),
+    );
     const chapters = progress.map((ch) => ({
       ...ch,
-      phase: deriveChapterPhase(ch, inFlight),
+      status: deriveChapterStatus(ch, { inFlight, stopStatus, pipeline }),
     }));
     const novelType = entertainmentService.getNovelType(threadId);
     const finalChapterNumber =
@@ -270,8 +280,19 @@ entertainmentRoutes.get("/threads/:threadId/chapters/:n", (c) => {
     }
     const chapter = entertainmentService.getChapterDetail(threadId, n);
     const inFlight = pipelineRouter.getInFlight(threadId);
+    const stopStatus = entertainmentService.getStopStatus(threadId);
+    const pipeline = resolvePipelineType(
+      entertainmentService.getParsedConfig(threadId),
+    );
     return c.json({
-      chapter: { ...chapter, phase: deriveChapterPhase(chapter, inFlight) },
+      chapter: {
+        ...chapter,
+        status: deriveChapterStatus(chapter, {
+          inFlight,
+          stopStatus,
+          pipeline,
+        }),
+      },
     });
   } catch (error) {
     logger.error("Error getting chapter:", error);
@@ -359,7 +380,9 @@ entertainmentRoutes.post("/threads/:threadId/worker", async (c) => {
 
 // POST /entertainment/threads/:threadId/process — batch-process chapters:
 // "process next N" (count) or "process all" (all). `from` is the anchor
-// chapter; ensureRange caps `to` at the book's final chapter and enqueues.
+// chapter; ensureRange caps `to` at the book's final chapter and enqueues. This
+// is an explicit user "go", so it clears the persisted stop flag FIRST — a
+// stopped thread resumes from here.
 entertainmentRoutes.post("/threads/:threadId/process", async (c) => {
   try {
     const threadId = c.req.param("threadId");
@@ -373,6 +396,7 @@ entertainmentRoutes.post("/threads/:threadId/process", async (c) => {
     }
     const { from, count, all } = parsed.data;
     const to = all ? Number.MAX_SAFE_INTEGER : from + (count ?? 1) - 1;
+    entertainmentService.clearStopStatus(threadId);
     pipelineRouter.ensureRange(threadId, from, to);
     const info = pipelineRouter.getInfo(threadId);
     logger.debug("process range", {
@@ -393,10 +417,12 @@ entertainmentRoutes.post("/threads/:threadId/process", async (c) => {
 // POST /entertainment/threads/:threadId/reprocess-failed — re-enqueue every
 // errored chapter (source or rewrite status "error") for the thread. The ONLY
 // path that retries failed chapters: needsWork treats "error" as terminal, so
-// the lookahead/poll path and /process skip them. Returns worker liveness.
+// the lookahead/poll path and /process skip them. This is an explicit user "go",
+// so it clears the persisted stop flag FIRST. Returns worker liveness.
 entertainmentRoutes.post("/threads/:threadId/reprocess-failed", (c) => {
   try {
     const threadId = c.req.param("threadId");
+    entertainmentService.clearStopStatus(threadId);
     pipelineRouter.retryFailed(threadId);
     const info = pipelineRouter.getInfo(threadId);
     logger.debug("reprocess failed", { threadId, ...info });
@@ -408,14 +434,18 @@ entertainmentRoutes.post("/threads/:threadId/reprocess-failed", (c) => {
 });
 
 // POST /entertainment/threads/:threadId/stop — stop ALL in-flight work on a
-// thread: abort the running outline agent AND the running rewrite, drain the
-// pending rewrite queue, and clear the in-flight set. Read-only on the DB (no
-// rows deleted/marked terminal); rows left mid-run self-heal on the next open.
-// The reader's "Stop" button calls this before abandoning the thread.
+// thread. Two layers: (1) IMMEDIATE — `pipelineRouter.stop` aborts the running
+// agent + drains the queue + clears the in-flight set; (2) DURABLE — set
+// `stopStatus = "stopped"` so the schedulers' entry points (`ensureRange`/
+// `runDehydrate`/`buildOutlines`) no-op and the reader poll can't resurrect the
+// work. The flag survives reload; cleared only by an explicit user "go"
+// (Process/Redo/wizard Start). Read-only on the chapter DB (no rows
+// deleted/marked terminal); rows left mid-run self-heal once the flag clears.
 entertainmentRoutes.post("/threads/:threadId/stop", (c) => {
   try {
     const threadId = c.req.param("threadId");
     pipelineRouter.stop(threadId);
+    entertainmentService.setStopStatus(threadId, "stopped");
     logger.info("stopped thread work", { threadId });
     return c.json({ ok: true });
   } catch (error) {

@@ -51,10 +51,12 @@ function pipelineForThread(threadId: string): AnyPipeline | null {
 /**
  * The route-facing facade the REST routes and the startup hook talk to. It is
  * NOT `PipelineScheduler` — it deliberately exposes only the generic
- * reader/lifecycle methods every pipeline shares. `runDehydrate` is absent:
- * the upload route calls `chapteredFileScheduler.runDehydrate` directly (upload
- * is unambiguously a file thread), and ②/③ have no dehydrate loop. Routes
- * import ONLY this object; the upload route is the sole direct pipeline caller.
+ * reader/lifecycle methods every pipeline shares. `runDehydrate` is absent: the
+ * loop is kicked via `ensureRange` (the wizard's Start → `ensureWorker` →
+ * `POST /worker` → `ensureRange` → `runDehydrate`, and thread-open resume the
+ * same way); the `/ingest` route only persists decoded raw text and does NOT
+ * call `runDehydrate`. ②/③ have no dehydrate loop. Routes import ONLY this
+ * object — no route is a direct pipeline caller.
  */
 export interface PipelineRouterFacade {
   ensureRange(threadId: string, from: number, to: number): void;
@@ -62,13 +64,17 @@ export interface PipelineRouterFacade {
   getInfo(threadId: string): WorkerLiveness;
   getInFlight(threadId: string): Set<number>;
   /**
-   * Stop all in-flight work on a thread (abort running agent + drain queue +
-   * clear in-flight set). Dispatched to the thread's pipeline; no-op when the
-   * thread has no worker yet. Called by the reader's "Stop" button before it
-   * abandons the thread for a new one.
+   * Stop all in-flight work on a thread — the IMMEDIATE layer (abort running
+   * agent + drain queue + clear in-flight set). Dispatched to the thread's
+   * pipeline; no-op when the thread has no worker yet. The `/stop` route calls
+   * this AND sets the durable `stopStatus` flag. Called by the reader's Stop
+   * button before it abandons the thread for a new one.
    */
   stop(threadId: string): void;
-  /** Startup recovery. Fans out to ②/③ only — ① resumes on thread-open, never boot. */
+  /**
+   * Startup recovery. Fans out to ②/③ only — ① resumes on thread-open, never
+   * boot. Threads with `stopStatus === "stopped"` are skipped (user-parked).
+   */
   resumeAll(): void;
 }
 

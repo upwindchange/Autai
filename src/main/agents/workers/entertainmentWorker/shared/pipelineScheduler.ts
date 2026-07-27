@@ -71,18 +71,25 @@ export interface PipelineScheduler {
 
   /**
    * Snapshot of the output numbers currently scheduled (enqueued or running),
-   * read-only (does NOT create a worker). Drives the `paused` vs `stopped`
-   * distinction in `deriveChapterPhase`.
+   * read-only (does NOT create a worker). Drives the `paused` vs `pending`
+   * distinction in `deriveChapterStatus` (a chapter in the set is `paused`;
+   * one not in the set and not user-stopped is `pending`).
    */
   getInFlight(threadId: string): Set<number>;
 
   /**
-   * Stop ALL in-flight work for a thread: abort the running agent call, drain
-   * the pending queue, and clear the in-flight set. The reader-driven "Stop"
-   * button calls this before abandoning the thread. No-op for a thread that has
-   * never been touched. A row left mid-run stays in its in-progress status and
-   * self-heals on the next open (its `"rewriting"`/`"outlining"` dirty flag is
-   * redone by `needsWork`). It does NOT delete data or mark anything terminal.
+   * Stop ALL in-flight work for a thread — the IMMEDIATE layer: abort the
+   * running agent call, drain the pending queue, and clear the in-flight set.
+   * The reader's Stop button calls this (via the `/stop` route) before
+   * abandoning the thread. No-op for a thread that has never been touched. The
+   * DURABLE layer is the persisted `entertainment_configs.stopStatus = "stopped"`
+   * flag, set by the same route, which gates `ensureRange`/`buildOutlines`/
+   * `runDehydrate` so the reader poll can't resurrect the work. The flag is
+   * cleared ONLY by an explicit user "go" (Process/Redo/wizard Start); until
+   * then a stopped thread stays stopped across reload and reopen. A row left
+   * mid-run self-heals once the flag clears (its `"rewriting"`/`"fetching"`
+   * dirty flag is redone by `needsWork`). This method does NOT delete data or
+   * mark anything terminal.
    */
   stop(threadId: string): void;
 

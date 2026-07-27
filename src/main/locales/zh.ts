@@ -59,7 +59,9 @@ const zh = {
     // the seeded entertainment tag names (重写 / 互动).
     dehydrate: "重写",
     interactive: "互动",
-    // Outline pipeline toasts (file-upload novels).
+    // Dehydrate pipeline toasts (file-upload novels).
+    dehydrateStartedTitle: "重写已开始",
+    dehydrateStartedBody: "正在为这本小说脱水重写，请稍候。",
     outlineSucceededTitle: "大纲已生成",
     outlineSucceededBody: "章节大纲已生成至全文末尾，可以开始阅读。",
     outlineFailedTitle: "大纲生成失败",

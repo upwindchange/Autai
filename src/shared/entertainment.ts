@@ -808,6 +808,18 @@ export type SourceChapterStatus = "fetching" | "fetched" | "error";
 export type RewrittenChapterStatus = "rewriting" | "rewritten" | "error";
 
 /**
+ * Thread-scoped runtime stop intent on `entertainment_configs.stopStatus`.
+ *   - `"stopped"`: the user pressed the reader's Stop button. The thread is
+ *     parked — every scheduler entry point (`ensureRange`/`runDehydrate`/
+ *     `retryFailed`) no-ops, and `resumeAll` skips it on boot. Cleared ONLY by
+ *     an explicit user "go" (Process next N / all, Redo failed, or a fresh
+ *     wizard Start). Reopening a stopped thread does NOT clear it.
+ *   - `null`: running, or never started. Crash-recovery behaviour is unchanged
+ *     (mid-run rows self-heal on the next open via `needsWork`).
+ */
+export type StopStatus = "stopped";
+
+/**
  * Per-output pipeline progress — the reader's list/TOC view. `chapterNumber` is
  * the REWRITE OUTPUT sequential number (the reader spine). `title` and
  * `sourceStatus` come from the source row at the same number — for pipelines
@@ -829,40 +841,148 @@ export interface ChapterDetail extends ChapterProgress {
 }
 
 /**
- * Reader-facing per-chapter indicator. Values deliberately match DotMatrix
- * state names so the renderer renders `phase` with no mapping. Derived on the
- * backend (in the REST routes) from the lifecycle statuses + the scheduler's
- * `inFlight` set, then sent to the renderer as a plain field.
+ * Which of the three pipelines owns a thread — the message-vocabulary selector.
+ * Mirrors `pipelineForConfig`'s branching but returns a tag instead of a
+ * scheduler instance (the routes need the tag for status derivation without
+ * pulling the schedulers into the shared layer).
  */
-export type ChapterPhase =
-  | "loading" // acquiring 原文 (sourceStatus "fetching")
-  | "syncing" // rewriting 重写 (rewriteStatus "rewriting")
-  | "error" // source or rewrite failed — terminal until Redo
-  | "success" // rewritten — ready to read
-  | "paused" // scheduled (auto lookahead OR manual Process/Redo), waiting to be picked up
-  | "stopped"; // not scheduled (e.g. far down a long file)
+export type ChapterPipeline = "file" | "internet" | "nonNovel";
 
 /**
- * Map a chapter's DB statuses + whether it's currently scheduled (inFlight) to a
- * single DotMatrix-state phase. Pure — the single source of the status→indicator
- * mapping, run on the backend; the renderer never maps. `inFlight` covers both
- * the auto-lookahead (`ensure`) and manual "Process next N / all / Redo failed"
- * (`ensureRange` / `retryFailed`), which all go through `enqueue` →
- * `inFlight.add`; a chapter leaves the set only when its job finishes. So a
- * queued-but-not-started chapter is `paused` however it was scheduled; the
- * running chapter is already `loading`/`syncing` by status priority; a finished
- * chapter is `success`/`error`.
+ * Reader-facing per-chapter DotMatrix state. Values deliberately match DotMatrix
+ * state names so `ChapterStatus.phase` renders with no client mapping:
+ *   - `loading`  acquiring 原文 (sourceStatus "fetching") — pipelines ②/③ only;
+ *                pipeline ① never fetches (it reads decoded text straight from
+ *                `entertainment_configs.rawText`), so this state is unreachable
+ *                for file-chaptered threads.
+ *   - `syncing`  rewriting 重写 (rewriteStatus "rewriting").
+ *   - `error`    source or rewrite failed — terminal until Redo.
+ *   - `success`  rewritten — ready to read.
+ *   - `paused`   scheduled (auto lookahead OR manual Process/Redo), waiting.
+ *   - `stopped`  either user-stopped (the persisted `stopStatus` flag is set)
+ *                or simply not yet scheduled (no row, not in the inFlight set).
+ *                `ChapterStatus.messageKey` disambiguates the two for the user.
  */
-export function deriveChapterPhase(
+export type ChapterPhase =
+  | "loading"
+  | "syncing"
+  | "error"
+  | "success"
+  | "paused"
+  | "stopped";
+
+/**
+ * Reader-facing per-chapter status — the single source the renderer renders from.
+ * Derived on the backend (in the REST routes) per chapter and sent to the
+ * renderer as a plain field. Carries everything the UI needs to show an
+ * accurate, pipeline-aware message:
+ *   - `phase`         DotMatrix state (drives the indicator animation/glyph).
+ *   - `messageKey`    i18n key under `reader.status.{pipeline}.*` for the text.
+ *   - `messageParams` optional interpolation params (e.g. `{ n: chapterNumber }`).
+ *
+ * The renderer NEVER maps status→message itself — it renders `phase` via
+ * DotMatrix and `t(messageKey, messageParams)` for the copy. Because the backend
+ * owns the whole derivation, the TOC, the footer's next-chapter indicator, and
+ * the chapter body all read from the same source and can never disagree.
+ */
+export interface ChapterStatus {
+  phase: ChapterPhase;
+  messageKey: string;
+  messageParams?: Record<string, string | number>;
+}
+
+/**
+ * Derive a chapter's reader-facing status from its DB lifecycle statuses plus
+ * the thread's scheduling context. Pure — the single source of the
+ * status→indicator+message mapping, run on the backend; the renderer never maps.
+ *
+ * Inputs:
+ *   - `ch`         the chapter's progress (source/rewrite statuses).
+ *   - `inFlight`   the scheduler's snapshot of chapter numbers currently
+ *                  enqueued-or-running. Covers both the auto-lookahead
+ *                  (`ensureRange`) and manual "Process next N / all / Redo"
+ *                  (`retryFailed`) paths — all funnel through `enqueue` →
+ *                  `inFlight.add`; a chapter leaves the set only when its job
+ *                  finishes.
+ *   - `stopStatus` the thread's persisted stop intent. When `"stopped"`, a
+ *                  not-yet-done chapter renders the explicit "stopped by user"
+ *                  state (distinct from "not yet scheduled") and points the user
+ *                  at Process to resume. Cleared only by an explicit user "go".
+ *   - `pipeline`   which pipeline owns the thread — selects the message
+ *                  vocabulary so each pipeline shows accurate copy (e.g.
+ *                  pipeline ① "Rewriting chapter N…" never "Fetching…").
+ *
+ * Priority order (first match wins): terminal error → done → actively working
+ * (rewriting/fetching) → queued (inFlight) → user-stopped → pending.
+ */
+export function deriveChapterStatus(
   ch: ChapterProgress,
-  inFlight: Set<number>,
-): ChapterPhase {
-  if (ch.sourceStatus === "error" || ch.rewriteStatus === "error")
-    return "error";
-  if (ch.rewriteStatus === "rewriting") return "syncing";
-  if (ch.rewriteStatus === "rewritten") return "success";
-  if (ch.sourceStatus === "fetching") return "loading";
-  return inFlight.has(ch.chapterNumber) ? "paused" : "stopped";
+  ctx: {
+    inFlight: Set<number>;
+    stopStatus: StopStatus | null;
+    pipeline: ChapterPipeline;
+  },
+): ChapterStatus {
+  const n = ch.chapterNumber;
+  const p = ctx.pipeline;
+  // 1. Terminal failure (source OR rewrite errored) — only Redo re-enqueues.
+  if (ch.sourceStatus === "error" || ch.rewriteStatus === "error") {
+    return { phase: "error", messageKey: `reader.status.${p}.error` };
+  }
+  // 2. Done — rewritten prose is ready to read.
+  if (ch.rewriteStatus === "rewritten") {
+    return { phase: "success", messageKey: `reader.status.${p}.success` };
+  }
+  // 3. Actively rewriting (the in-flight agent is producing the prose).
+  if (ch.rewriteStatus === "rewriting") {
+    return {
+      phase: "syncing",
+      messageKey: `reader.status.${p}.rewriting`,
+      messageParams: { n },
+    };
+  }
+  // 4. Actively acquiring 原文 (pipelines ②/③-internet only — pipeline ① has no
+  //    fetch step; its source row is written title-only with status="fetched").
+  if (ch.sourceStatus === "fetching") {
+    return {
+      phase: "loading",
+      messageKey: `reader.status.${p}.fetching`,
+      messageParams: { n },
+    };
+  }
+  // 5. Queued — scheduled (lookahead or manual Process/Redo) but not started.
+  if (ctx.inFlight.has(n)) {
+    return {
+      phase: "paused",
+      messageKey: `reader.status.${p}.queued`,
+      messageParams: { n },
+    };
+  }
+  // 6. Not scheduled. If the user explicitly stopped the thread, show the
+  //    resume guidance; otherwise this chapter just hasn't been reached yet.
+  if (ctx.stopStatus === "stopped") {
+    return { phase: "stopped", messageKey: `reader.status.${p}.stopped` };
+  }
+  return {
+    phase: "stopped",
+    messageKey: `reader.status.${p}.pending`,
+  };
+}
+
+/**
+ * Resolve which pipeline owns a thread from its config — the message-vocabulary
+ * selector used by status derivation. Mirrors `pipelineForConfig`'s branching
+ * (in pipelineRouter.ts) but returns the tag instead of a scheduler instance.
+ * Non-dehydrate / missing config resolves to `"file"` as a harmless default
+ * (status derivation is read-only; a mis-typed pipeline only affects copy).
+ */
+export function resolvePipelineType(
+  config: EntertainmentConfig | null,
+): ChapterPipeline {
+  if (!config || config.mode !== "dehydrate") return "file";
+  if (config.options.nonNovelSource) return "nonNovel";
+  if (config.novel.type === "file") return "file";
+  return "internet";
 }
 
 /**

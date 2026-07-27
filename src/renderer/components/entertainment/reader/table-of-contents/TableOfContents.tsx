@@ -97,10 +97,14 @@ export const TableOfContents: FC<TableOfContentsProps> = ({
                 {c.chapterNumber}
               </span>
               {c.title && <span className="truncate">{c.title}</span>}
-              {/* phase is derived on the backend (DotMatrix state string) — render
-                  directly with no mapping. Always shown so every row carries an
-                  indicator: loading/syncing/error/success/paused/stopped. */}
-              <DotMatrix state={c.phase} className="ml-auto size-4 shrink-0" />
+              {/* `status` is derived on the backend per chapter (phase +
+                  pipeline-aware message). Render `status.phase` via DotMatrix
+                  directly with no mapping; the message is exposed as a title
+                  tooltip. Always shown so every row carries an indicator. */}
+              <DotMatrix
+                state={c.status.phase}
+                className="ml-auto size-4 shrink-0"
+              />
             </button>
           </li>
         );

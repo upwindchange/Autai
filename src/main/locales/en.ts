@@ -59,7 +59,10 @@ const en = {
     // the seeded entertainment tag names (Rewrite / Interactive).
     dehydrate: "Rewrite",
     interactive: "Interactive",
-    // Outline pipeline toasts (file-upload novels).
+    // Dehydrate pipeline toasts (file-upload novels).
+    dehydrateStartedTitle: "Rewrite started",
+    dehydrateStartedBody:
+      "Dehydrating and rewriting this novel — please wait.",
     outlineSucceededTitle: "Outline generated",
     outlineSucceededBody:
       "Chapter outlines have been generated through the end of the book. You can start reading.",

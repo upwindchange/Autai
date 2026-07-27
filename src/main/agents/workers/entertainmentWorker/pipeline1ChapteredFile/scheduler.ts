@@ -11,21 +11,28 @@
  * are produced together, so this scheduler is just the lifecycle shell
  * (kick / stop / resume / liveness) around the loop.
  *
- * TRIGGERS. The loop runs on two events: file upload (the upload route calls
- *   `runDehydrate` directly) and thread-open (folded into `ensureRange`: when a
- *   previously-uploaded thread is opened, the reader's first `ensureRange` kicks
- *   `runDehydrate` if the book isn't done yet). It NEVER runs on boot — this
- *   pipeline has no `resumeAll` (the router's `resumeAll` fans out to ②/③ only).
+ * TRIGGERS. The loop is kicked by `runDehydrate`, which is itself fired from
+ *   two places: the wizard's Start (`ensureWorker → ensureRange → runDehydrate`)
+ *   and thread-open resume (`ensureRange` re-kicks `runDehydrate` if the book
+ *   isn't done yet). The `/ingest` route does NOT kick it — it only persists the
+ *   decoded raw text; Start is what launches the loop. This pipeline has no
+ *   `resumeAll` and NEVER runs on boot (the router's `resumeAll` fans out to
+ *   ②/③ only); ① resumes on the next thread-open via `ensureRange`.
  *
  * RESUMABLE + RECOVERABLE. Every pass advances `rawConsumedOffset` inside the
- *   tool (a deterministic checkpoint). A crashed/killed/stopped run picks up
- *   from the last committed chunk on the next thread-open — same loop, same
- *   offset. `rawText` is held in the DB until EOF so crash-resume can re-read it.
+ *   tool (a deterministic checkpoint). A crashed/killed run picks up from the
+ *   last committed chunk on the next thread-open — same loop, same offset.
+ *   `rawText` is held in the DB until EOF so crash-resume can re-read it.
  *
- * STOP. `stop` aborts the loop's AbortController; the in-flight pass aborts and
- *   the loop returns. No data is mutated — rows already written stay. After the
- *   reader's Stop button the frontend switches to a fresh wizard thread, so no
- *   auto-resume is triggered; reopening the stopped thread is what resumes it.
+ * STOP — two layers. (1) Immediate: `stop` aborts the loop's AbortController;
+ *   the in-flight pass aborts and the loop returns. (2) Durable: the `/stop`
+ *   route also sets `entertainment_configs.stopStatus = "stopped"`, and
+ *   `runDehydrate` gates on it — so the reader's poll-driven `ensureRange` can
+ *   no longer resurrect the loop. The flag survives reload; reopening a stopped
+ *   thread stays stopped. It is cleared ONLY by an explicit user "go"
+ *   (Process/Redo/wizard Start), which the route runs before enqueuing. No data
+ *   is mutated on stop — rows already written stay; crash-recovery (a null
+ *   stopStatus) still self-heals on open.
  *
  * The spine key is `chapterNumber` on `rewritten_chapters` (1:1 with `outlines`
  * by chapterNumber). The reader navigates by this number.
@@ -78,9 +85,11 @@ export interface ChapteredFilePipeline {
    */
   getInFlight(threadId: string): Set<number>;
   /**
-   * Stop the in-flight loop: abort its AbortController. No data is deleted or
-   * marked terminal; the loop returns and `loopRunning` clears. No-op for a
-   * thread with no worker.
+   * Stop the in-flight loop: abort its AbortController. This is the IMMEDIATE
+   * layer — the loop's current pass aborts and `loopRunning` clears. The
+   * DURABLE layer (`stopStatus = "stopped"`) is set by the `/stop` route, which
+   * gates `runDehydrate` so the loop can't be resurrected by the reader poll.
+   * No data is deleted or marked terminal. No-op for a thread with no worker.
    */
   stop(threadId: string): void;
 }
@@ -123,6 +132,15 @@ class ChapteredFileScheduler implements ChapteredFilePipeline {
       logger.info("runDehydrate skipped — already complete", { threadId });
       return;
     }
+    // Persisted stop gate: a thread the user stopped stays stopped. This is the
+    // single chokepoint — `ensureRange` (reader poll / thread-open resume) and
+    // `retryFailed` both funnel through `runDehydrate`, so gating here covers
+    // every reader-driven resurrection path. Cleared only by an explicit user
+    // "go" (Process/Redo/wizard Start), which runs before this is reached.
+    if (entertainmentService.getStopStatus(threadId) === "stopped") {
+      logger.info("runDehydrate skipped — thread stopped", { threadId });
+      return;
+    }
     const w = this.workerFor(threadId);
     if (w.loopRunning) {
       logger.info("runDehydrate skipped — loop already running", { threadId });
@@ -133,7 +151,10 @@ class ChapteredFileScheduler implements ChapteredFilePipeline {
     // mid-pass. Cleared in `finally` regardless of outcome.
     const abort = new AbortController();
     w.abortController = abort;
-    sendInfo("脱水重写已开始", "正在为这本小说脱水重写，请稍候。");
+    sendInfo(
+      i18n.t("entertainment.dehydrateStartedTitle"),
+      i18n.t("entertainment.dehydrateStartedBody"),
+    );
     logger.info("phase 1: dehydrate loop starting", {
       threadId,
       resume: entertainmentService.getConsumedOffset(threadId) > 0,

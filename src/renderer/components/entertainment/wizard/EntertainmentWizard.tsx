@@ -1,5 +1,5 @@
 import { type FC, useEffect, useRef, useState } from "react";
-import { useAui, useAuiState } from "@assistant-ui/react";
+import { useAuiState } from "@assistant-ui/react";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, ChevronLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -37,7 +37,6 @@ const STEPS = 3;
 export const EntertainmentWizard: FC = () => {
   const { t } = useTranslation("entertainment");
   const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
-  const aui = useAui();
 
   const [config, setConfig] = useState<EntertainmentConfig>(INITIAL_DEHYDRATE);
   const [pendingFile, setPendingFile] = useState<File | undefined>(undefined);
@@ -55,6 +54,26 @@ export const EntertainmentWizard: FC = () => {
   // the options page with a "Start over" reset.
   const [ingesting, setIngesting] = useState(false);
   const [ingestError, setIngestError] = useState<string | null>(null);
+  // Tracks the thread this wizard instance is bound to. On a genuine thread
+  // switch (New Conversation, sidebar click) the whole local state is wiped and
+  // the wizard restarts at step 0 with INITIAL_DEHYDRATE — a brand-new wizard
+  // for the brand-new thread, with nothing carried over from the prior thread's
+  // in-progress selections. The shared abandon hook ensures switchToNewThread
+  // always produces a fresh id (materializing the current "new" thread first if
+  // needed), so this effect reliably fires on every abandon.
+  const boundThreadId = useRef<string | null>(mainThreadId);
+  useEffect(() => {
+    if (boundThreadId.current === mainThreadId) return;
+    boundThreadId.current = mainThreadId;
+    setConfig(INITIAL_DEHYDRATE);
+    setPendingFile(undefined);
+    setStep(0);
+    setSubmitted(false);
+    setAgreed(false);
+    setSubmitError(null);
+    setIngesting(false);
+    setIngestError(null);
+  }, [mainThreadId]);
 
   const isLast = step === STEPS - 1;
   const isFile = config.novel.type === "file";
@@ -173,9 +192,11 @@ export const EntertainmentWizard: FC = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // Delete the current (bad/abandoned) thread + switch to a fresh one so the
-  // wizard shows again. Mirrors the reader's Stop button flow. The only redo
-  // path for a file thread once "Upload & Continue" has been clicked.
+  // The only redo path for a file thread once "Upload & Continue" has been
+  // clicked: stop any in-flight work, DELETE the abandoned thread (purge its
+  // config + rawText from the DB and remove it from the sidebar), then reset
+  // the wizard to step 0. The current thread is the "new" thread, so there's no
+  // thread to switch away from — just wipe local state in place.
   const startOver = async () => {
     if (!mainThreadId) return;
     try {
@@ -190,7 +211,6 @@ export const EntertainmentWizard: FC = () => {
       setSubmitError(t("wizard.error.failed"));
       return;
     }
-    // Reset local wizard state for the fresh thread.
     setConfig(INITIAL_DEHYDRATE);
     setPendingFile(undefined);
     setStep(0);
@@ -199,7 +219,6 @@ export const EntertainmentWizard: FC = () => {
     setSubmitError(null);
     setIngesting(false);
     setIngestError(null);
-    await aui.threads().switchToNewThread();
   };
 
   const valid = isStepValid(step, config);

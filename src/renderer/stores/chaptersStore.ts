@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import type {
   ChapterDetail,
-  ChapterPhase,
+  ChapterStatus,
   ChapterProgress,
   EntertainmentConfig,
 } from "@shared";
@@ -13,17 +13,38 @@ import { httpClient } from "@/lib/httpClient";
 const fetchErrorMessage = (err: unknown, fallback: string): string =>
   err instanceof Error && err.message ? err.message : fallback;
 
+// Shallow comparison of two ChapterStatus objects. `ChapterStatus` is flat
+// (phase + messageKey) plus a small optional `messageParams` record, so a
+// field-by-field check (with a shallow params sweep) is exact and cheap.
+const sameStatus = (
+  a: ChapterStatus | undefined,
+  b: ChapterStatus | undefined,
+): boolean => {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  if (a.phase !== b.phase || a.messageKey !== b.messageKey) return false;
+  const ap = a.messageParams;
+  const bp = b.messageParams;
+  if (ap === bp) return true;
+  if (!ap || !bp) return false;
+  const ak = Object.keys(ap);
+  const bk = Object.keys(bp);
+  if (ak.length !== bk.length) return false;
+  for (const k of ak) if (ap[k] !== bp[k]) return false;
+  return true;
+};
+
 // Shallow comparison of two ChapterViews. ChapterView is a flat object
-// (chapterNumber, title, three status fields, phase, content) with no nested
-// references, so a field-by-field check is exact and cheap. Used by the
-// loaders to skip `set` when a poll returned byte-identical state, which
-// otherwise allocates fresh arrays/objects and re-renders every subscriber.
+// (chapterNumber, title, three status fields, status, content); `status` is a
+// small nested object compared via `sameStatus`. Used by the loaders to skip
+// `set` when a poll returned byte-identical state, which otherwise allocates
+// fresh arrays/objects and re-renders every subscriber.
 const sameChapterView = (a: ChapterView, b: ChapterView): boolean =>
   a.chapterNumber === b.chapterNumber &&
   a.title === b.title &&
   a.sourceStatus === b.sourceStatus &&
   a.rewriteStatus === b.rewriteStatus &&
-  a.phase === b.phase &&
+  sameStatus(a.status, b.status) &&
   a.content === b.content;
 
 /**
@@ -35,9 +56,11 @@ const sameChapterView = (a: ChapterView, b: ChapterView): boolean =>
  * truth; this store is just a cache the reader renders from.
  */
 export interface ChapterView extends ChapterProgress {
-  // Reader-facing indicator (a DotMatrix state string), derived on the backend
-  // from the statuses + the scheduler's inFlight set. Rendered directly.
-  phase: ChapterPhase;
+  // Reader-facing status — derived on the backend per chapter (phase +
+  // pipeline-aware message key/params). The renderer renders `status.phase`
+  // via DotMatrix and `t(status.messageKey, status.messageParams)` for the copy,
+  // with NO client-side mapping.
+  status: ChapterStatus;
   // Cached rewritten prose (undefined = not fetched yet; null = not rewritten).
   content?: string | null;
 }
@@ -63,11 +86,13 @@ interface ChaptersState {
 
   /** Re-read the chapter list (statuses); preserves cached content. */
   loadChapters: (threadId: string) => Promise<void>;
-  /** Re-read one chapter's detail (statuses + content) and merge it in. */
+  /** Re-read one chapter's detail (statuses + content + derived status) and
+   *  merge it in. Returns the fetched chapter (with its `status`) or undefined
+   *  on fetch failure. */
   loadChapterDetail: (
     threadId: string,
     n: number,
-  ) => Promise<ChapterDetail | undefined>;
+  ) => Promise<(ChapterDetail & { status: ChapterStatus }) | undefined>;
   /** Internet wizard submit: save config + set up the thread. */
   setupInternet: (
     threadId: string,
@@ -116,6 +141,15 @@ interface ChaptersState {
   /** Persist the reader's current chapter. */
   setPosition: (threadId: string, n: number) => Promise<void>;
   setCurrentChapter: (n: number | null) => void;
+  /**
+   * Clear all cached chapter state — the thread switch / stop path. The reader
+   * component does NOT unmount on thread switch (only `appMode` toggles it), so
+   * without this the previous thread's `currentChapterNumber` lingers and blocks
+   * the wizard from showing on a fresh thread (`showWizard` requires
+   * `currentChapterNumber == null`). Called by `handleStop` before switching to
+   * a new thread so the wizard evaluates against a clean slate.
+   */
+  reset: () => void;
 }
 
 export const useChaptersStore = create<ChaptersState>()(
@@ -133,7 +167,7 @@ export const useChaptersStore = create<ChaptersState>()(
       try {
         const { chapters, novelType, finalChapterNumber } =
           await httpClient.getJSON<{
-            chapters: (ChapterProgress & { phase: ChapterPhase })[];
+            chapters: (ChapterProgress & { status: ChapterStatus })[];
             novelType: "file" | "internet" | null;
             finalChapterNumber: number | null;
           }>(`/entertainment/threads/${threadId}/chapters`);
@@ -195,7 +229,7 @@ export const useChaptersStore = create<ChaptersState>()(
     loadChapterDetail: async (threadId, n) => {
       try {
         const { chapter } = await httpClient.getJSON<{
-          chapter: ChapterDetail & { phase: ChapterPhase };
+          chapter: ChapterDetail & { status: ChapterStatus };
         }>(`/entertainment/threads/${threadId}/chapters/${n}`);
         set((state) => {
           // Upsert: a network chapter may not be in the list yet (no source row).
@@ -302,5 +336,16 @@ export const useChaptersStore = create<ChaptersState>()(
       }),
 
     setCurrentChapter: (n) => set({ currentChapterNumber: n }),
+
+    reset: () =>
+      set({
+        currentThreadId: null,
+        chapters: [],
+        currentChapterNumber: null,
+        novelType: null,
+        finalChapterNumber: null,
+        loading: false,
+        error: null,
+      }),
   })),
 );

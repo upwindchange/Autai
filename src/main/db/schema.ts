@@ -13,6 +13,7 @@ import type {
   EntertainmentMode,
   SourceChapterStatus,
   RewrittenChapterStatus,
+  StopStatus,
   ChapterMetaKind,
 } from "@shared/entertainment";
 
@@ -171,6 +172,14 @@ export const entertainmentConfigs = sqliteTable("entertainment_configs", {
   // max(0, rawConsumedOffset − overlap) and re-covers the deferred straddler.
   // 0 on a fresh upload; stays 0 for internet novels (no rawText).
   rawConsumedOffset: integer("raw_consumed_offset").notNull().default(0),
+  // Thread-scoped runtime stop intent. "stopped" = the user pressed the reader's
+  // Stop button and the thread is parked until an explicit Process/Redo; null =
+  // running (or never started). A separate column (not in the options JSON)
+  // because this is runtime state, not wizard config — same rationale as
+  // lastReadChapterNumber/finalChapterNumber. Survives reload so a stopped
+  // thread stays stopped on reopen; crash-recovery (null stopStatus) is
+  // unchanged and still self-heals on open.
+  stopStatus: text("stop_status").$type<StopStatus>(),
   createdAt: text("created_at")
     .notNull()
     .default(sql`(datetime('now'))`),

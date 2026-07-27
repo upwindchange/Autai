@@ -97,6 +97,15 @@ class ChapteredInternetScheduler implements PipelineScheduler {
    * target, so chapters nearer it process first (enqueue priority).
    */
   ensureRange(threadId: string, from: number, to: number): void {
+    // Persisted stop gate: a thread the user stopped stays stopped. The reader's
+    // poll loop (`useChapterReadiness`) calls this every tick to prefetch the
+    // lookahead window — without this gate it would resurrect the queue the
+    // instant `stop` drained it. Cleared only by an explicit user "go"
+    // (Process/Redo/wizard Start), which runs before this is reached.
+    if (entertainmentService.getStopStatus(threadId) === "stopped") {
+      logger.debug("ensureRange skipped — thread stopped", { threadId, from });
+      return;
+    }
     const w = this.workerFor(threadId);
     w.target = from;
     const final = entertainmentService.getFinalChapterNumber(threadId);
@@ -167,10 +176,12 @@ class ChapteredInternetScheduler implements PipelineScheduler {
   }
 
   /**
-   * Stop all in-flight work on a thread: abort the running rewrite, drain the
-   * pending queue, and clear the in-flight set. No-op for a thread with no
-   * worker. Rows left mid-run self-heal on the next open (`needsWork` redoes a
-   * stuck `"fetching"`/`"rewriting"` row); no data is deleted or marked terminal.
+   * Stop all in-flight work on a thread — the IMMEDIATE layer: abort the running
+   * rewrite, drain the pending queue, and clear the in-flight set. No-op for a
+   * thread with no worker. The DURABLE layer (`stopStatus = "stopped"`) is set
+   * by the `/stop` route, which gates `ensureRange` so the reader poll can't
+   * refill the queue. Rows left mid-run self-heal only when the flag is cleared
+   * (by Process/Redo); no data is deleted or marked terminal.
    */
   stop(threadId: string): void {
     const w = this.workers.get(threadId);
@@ -186,15 +197,18 @@ class ChapteredInternetScheduler implements PipelineScheduler {
    * Startup recovery: resume interrupted work for the threads this pipeline
    * owns — config `mode === "dehydrate" && novel.type === "internet"`. Fetch is
    * lazy per-chapter, so resuming is just kicking the lookahead via
-   * `ensure(threadId, 1)`; `needsWork` + idempotency sort out what still needs
-   * doing (and a fully-complete thread is a no-op). Fire-and-forget per thread.
-   * Safe on a fresh install (no threads → no-op).
+   * `ensureRange(threadId, 1, 1 + LOOKAHEAD)`; `needsWork` + idempotency sort
+   * out what still needs doing (and a fully-complete thread is a no-op). A
+   * thread with `stopStatus === "stopped"` is skipped — the user explicitly
+   * stopped it, so it must NOT auto-resume on boot; it stays parked until an
+   * explicit Process/Redo. Fire-and-forget per thread. Safe on a fresh install.
    */
   resumeAll(): void {
     const allThreads =
       threadPersistenceService.listThreadsByMode("entertainment");
     let resumed = 0;
     let skipped = 0;
+    let stopped = 0;
     for (const t of allThreads) {
       const threadId = t.id;
       const config = entertainmentService.getParsedConfig(threadId);
@@ -204,6 +218,10 @@ class ChapteredInternetScheduler implements PipelineScheduler {
         config.novel.type !== "internet"
       ) {
         skipped++; // not this pipeline's thread
+        continue;
+      }
+      if (entertainmentService.getStopStatus(threadId) === "stopped") {
+        stopped++; // user-parked — leave it alone until Process/Redo
         continue;
       }
       resumed++;
@@ -217,6 +235,7 @@ class ChapteredInternetScheduler implements PipelineScheduler {
       totalThreads: allThreads.length,
       resumed,
       skipped,
+      stopped,
     });
   }
 

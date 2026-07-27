@@ -149,13 +149,16 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     void loadBookmarks(currentThreadId);
   }, [currentThreadId, loadBookmarks]);
 
-  // Next chapter's pipeline phase — derived on the backend (same `phase` the
-  // TOC renders). Only swap the chevron for a dot while it's actively working.
+  // Next chapter's pipeline phase — derived on the backend (same `status.phase`
+  // the TOC renders). Only swap the chevron for a dot while it's actively
+  // working (loading = acquiring 原文, syncing = rewriting).
   const next = chapters.find(
     (c) => c.chapterNumber === (currentChapterNumber ?? 0) + 1,
   );
   const nextPhase =
-    next?.phase === "loading" || next?.phase === "syncing" ? next.phase : null;
+    next?.status.phase === "loading" || next?.status.phase === "syncing" ?
+      next.status.phase
+    : null;
 
   // Jumping via the TOC goes through the host's shared jump path (percentile 0 →
   // chapter top), then closes the TOC so the reader takes over (e-reader
