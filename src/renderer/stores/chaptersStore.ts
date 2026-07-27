@@ -93,8 +93,11 @@ interface ChaptersState {
     threadId: string,
     n: number,
   ) => Promise<(ChapterDetail & { status: ChapterStatus }) | undefined>;
-  /** Internet wizard submit: save config + set up the thread. */
-  setupInternet: (
+  /** Internet wizard "Fetch & Continue": materialize the thread + kick the
+   * per-chapter fetcher AHEAD of rewrite (fire-and-forget; resolves once the
+   * fetch is enqueued, not when fetching completes). Mirrors `ingestFile`'s
+   * role for file mode at the same wizard step. */
+  prefetchInternet: (
     threadId: string,
     config: EntertainmentConfig,
   ) => Promise<void>;
@@ -110,6 +113,14 @@ interface ChaptersState {
   queryWorker: (threadId: string) => Promise<WorkerInfo>;
   /** Ensure a worker is processing chapter n's window (start-if-absent). */
   ensureWorker: (threadId: string, n: number) => Promise<WorkerInfo>;
+  /** Wizard "Start" (both modes): finalize the user's StepOptions choices and
+   * kick the pipeline (file → runDehydrate, internet → rewrite the prefetched
+   * source rows, non-novel → its single pass). Replaces the per-step
+   * ensureWorker kick that previously happened at Start. */
+  startRewrite: (
+    threadId: string,
+    config: EntertainmentConfig,
+  ) => Promise<WorkerInfo>;
   /** Batch-process: next `count` chapters from `from`, or all to the book's end. */
   processChapters: (
     threadId: string,
@@ -260,8 +271,8 @@ export const useChaptersStore = create<ChaptersState>()(
       }
     },
 
-    setupInternet: async (threadId, config) => {
-      await httpClient.postJSON(`/entertainment/threads/${threadId}/setup`, {
+    prefetchInternet: async (threadId, config) => {
+      await httpClient.postJSON(`/entertainment/threads/${threadId}/prefetch`, {
         config,
       });
     },
@@ -282,6 +293,12 @@ export const useChaptersStore = create<ChaptersState>()(
       httpClient.postJSON<WorkerInfo>(
         `/entertainment/threads/${threadId}/worker`,
         { chapterNumber: n },
+      ),
+
+    startRewrite: (threadId, config) =>
+      httpClient.postJSON<WorkerInfo>(
+        `/entertainment/threads/${threadId}/start`,
+        { config },
       ),
 
     processChapters: (threadId, { from, count, all }) =>

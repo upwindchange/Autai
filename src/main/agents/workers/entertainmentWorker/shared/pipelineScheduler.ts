@@ -5,7 +5,7 @@
  * INDEPENDENT scheduling core — there is NO shared scheduler. `pipelineRouter`
  * (./pipelineRouter.ts) inspects a thread's config, picks the right pipeline's
  * scheduler, and delegates — so every scheduler must expose these identical
- * six methods. The REST routes (`entertainmentRoutes`) and the startup hook
+ * seven methods. The REST routes (`entertainmentRoutes`) and the startup hook
  * (`main/index.ts`) only ever talk to the router, never a pipeline directly.
  *
  * Concurrency model (replicated per pipeline — NOT shared): each thread gets a
@@ -58,6 +58,26 @@ export interface PipelineScheduler {
    * its known final chapter.
    */
   ensureRange(threadId: string, from: number, to: number): void;
+
+  /**
+   * Ensure every chapter in [from, to] that still needs FETCHING is enqueued —
+   * a fetch-only path that runs AHEAD of rewrite. Meaningful ONLY for ②
+   * (chaptered-internet), where source acquisition is a separate network phase
+   * from rewrite; ③ no-ops (its single-piece acquire is bundled into its one
+   * rewrite pass) and ① no-ops (file decode happens at `/ingest`, no fetch
+   * phase). The wizard's internet "Fetch & Continue" calls this to overlap the
+   * per-chapter crawl with the user configuring options on the next step.
+   *
+   * Unlike `ensureRange`, this does NOT gate on the persisted `stopStatus`:
+   * there is none to gate on at prefetch time (the thread was never parked), and
+   * `resumeAll` already skips zero-rewrite threads so a prefetched-but-not-yet-
+   * started thread can't be auto-resumed on boot. The rewriter is kicked later
+   * by the wizard's "Start" (→ `ensureRange`), whose `needsWork` + the fetch
+   * guard in `processChapter` make it skip already-fetched chapters and go
+   * straight to rewrite — so the two entry points synchronize purely through
+   * the `source_chapters` row statuses.
+   */
+  prefetchRange(threadId: string, from: number, to: number): void;
 
   /**
    * Re-enqueue every errored output for the thread. Returns the count actually

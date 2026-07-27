@@ -405,6 +405,16 @@ class NonNovelScheduler implements PipelineScheduler {
   }
 
   /**
+   * No-op for ③. The single-page acquire is bundled into `buildOutlines` (one
+   * acquire → one rewrite pass), so there is no separate fetch phase to run
+   * ahead of rewrite. The interface requires it; only ② implements a real
+   * prefetch.
+   */
+  prefetchRange(_threadId: string, _from: number, _to: number): void {
+    // intentional no-op
+  }
+
+  /**
    * Re-run if the single source or rewrite row is `"error"`. The re-run's own
    * sub-steps reset the errored row (the fetcher resets source → "fetching"; the
    * rewriter resets rewrite → "rewriting"), so this just fire-and-forgets

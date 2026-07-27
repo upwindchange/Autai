@@ -60,6 +60,13 @@ function pipelineForThread(threadId: string): AnyPipeline | null {
  */
 export interface PipelineRouterFacade {
   ensureRange(threadId: string, from: number, to: number): void;
+  /**
+   * Fetch-only prefetch — the wizard's internet "Fetch & Continue". Enqueues
+   * source acquisition for the window WITHOUT rewriting, so the crawl overlaps
+   * with the user configuring options on the next step. Real only on ②; ①/③
+   * no-op (no separate fetch phase). Dispatched to the thread's pipeline.
+   */
+  prefetchRange(threadId: string, from: number, to: number): void;
   retryFailed(threadId: string): number;
   getInfo(threadId: string): WorkerLiveness;
   getInFlight(threadId: string): Set<number>;
@@ -81,6 +88,10 @@ export interface PipelineRouterFacade {
 export const pipelineRouter: PipelineRouterFacade = {
   ensureRange: (threadId: string, from: number, to: number) => {
     pipelineForThread(threadId)?.ensureRange(threadId, from, to);
+  },
+
+  prefetchRange: (threadId: string, from: number, to: number) => {
+    pipelineForThread(threadId)?.prefetchRange(threadId, from, to);
   },
 
   retryFailed: (threadId: string) =>

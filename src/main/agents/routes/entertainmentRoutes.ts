@@ -101,7 +101,10 @@ const IngestSchema = z.object({
   fileBytesBase64: z.string().optional(),
 });
 
-const SetupSchema = z.object({
+/** `{ config }` body shared by the wizard's `/prefetch` (internet "Fetch &
+ * Continue"), `/start` (both modes' "Start"), and the reader's `PUT /config`
+ * (mid-run option edits). */
+const ConfigBodySchema = z.object({
   config: EntertainmentConfigSchema,
 });
 
@@ -148,28 +151,81 @@ function applyConfig(
   });
 }
 
-// POST /entertainment/threads/:threadId/setup — internet wizard submit: save
-// config + set up the thread. Acquisition/rewriting start when the reader opens
-// chapter 1 and polls the worker.
-entertainmentRoutes.post("/threads/:threadId/setup", async (c) => {
+// POST /entertainment/threads/:threadId/prefetch — internet wizard "Fetch &
+// Continue": materialize the thread (applyConfig → it appears in the sidebar
+// immediately, mirroring file upload's /ingest) and kick the per-chapter
+// fetcher AHEAD of rewrite. The fetcher writes `source_chapters` rows as
+// "fetched"; rewriting does NOT start here — Start's `/start` → ensureRange
+// does that, by which point the source rows are already acquired (processChapter
+// skips the fetch and goes straight to rewrite). Fire-and-forget: prefetchRange
+// just enqueues on the per-thread queue and this returns 202 at once, so the UI
+// advances to the options page without waiting.
+entertainmentRoutes.post("/threads/:threadId/prefetch", async (c) => {
   try {
     const threadId = c.req.param("threadId");
     const body = await c.req.json().catch(() => ({}));
-    const parsed = SetupSchema.safeParse(body);
+    const parsed = ConfigBodySchema.safeParse(body);
     if (!parsed.success) {
       return c.json(
         { error: "Invalid request body", details: parsed.error.issues },
         400,
       );
     }
-    applyConfig(threadId, parsed.data.config);
-    // The internet fetcher discovers the book's final chapter during the crawl
-    // (phase 1's FinalChapterError when no next chapter is found), so no
-    // finalChapterNumber is set up front.
+    const { config } = parsed.data;
+    if (config.novel.type !== "internet") {
+      return c.json({ error: "Prefetch requires an internet novel" }, 400);
+    }
+    // Materialize (idempotent): creates the thread row + config + title, emits
+    // threads:listChanged so the sidebar shows it now.
+    applyConfig(threadId, config);
+    // Kick the fetcher. No stopStatus to manage: resumeAll skips zero-rewrite
+    // threads, so a prefetched-but-not-started thread won't auto-rewrite on
+    // boot; it resumes on thread-open via the reader's ensureWorker.
+    pipelineRouter.prefetchRange(threadId, 1, 1 + LOOKAHEAD);
+    logger.info("prefetch kicked", {
+      threadId,
+      title: config.novel.title,
+    });
     return c.json({ ok: true }, 202);
   } catch (error) {
-    logger.error("Error in setup:", error);
-    return c.json({ error: "Failed to set up thread" }, 500);
+    logger.error("Error in prefetch:", error);
+    return c.json({ error: "Failed to prefetch" }, 500);
+  }
+});
+
+// POST /entertainment/threads/:threadId/start — wizard "Start" (both file and
+// internet): finalize the user's StepOptions choices, then kick the pipeline.
+// The config persisted at "next" (/ingest for file, /prefetch for internet)
+// held the StepNovel-era state; this overwrites it with the final options right
+// before the pipeline reads them (for file this also closes the gap where
+// StepOptions edits were previously dropped). ensureRange then kicks: file →
+// runDehydrate, internet → processChapter (skips already-fetched source rows),
+// non-novel → buildOutlines. Returns worker liveness.
+entertainmentRoutes.post("/threads/:threadId/start", async (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const body = await c.req.json().catch(() => ({}));
+    const parsed = ConfigBodySchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Invalid request body", details: parsed.error.issues },
+        400,
+      );
+    }
+    const { config } = parsed.data;
+    entertainmentService.upsertEntertainmentConfig(threadId, config);
+    pipelineRouter.ensureRange(threadId, 1, 1 + LOOKAHEAD);
+    const info = pipelineRouter.getInfo(threadId);
+    logger.info("start kicked", {
+      threadId,
+      mode: config.mode,
+      novelType: config.novel.type,
+      ...info,
+    });
+    return c.json(info);
+  } catch (error) {
+    logger.error("Error in start:", error);
+    return c.json({ error: "Failed to start" }, 500);
   }
 });
 
@@ -177,10 +233,10 @@ entertainmentRoutes.post("/threads/:threadId/setup", async (c) => {
 // Continue": backend detects encoding + decodes (iconv) and persists the raw
 // text + zero consumed offset. Chapter SPLITTING is done by the outliner later;
 // this step only stores the decoded blob. The dehydrate loop is NOT kicked here
-// — Start's `ensureWorker → ensureRange` does that, by which point raw text is
-// guaranteed committed (the wizard gates Start on this response). The response
-// resolves only after the DB write, so the renderer can rely on raw text being
-// present when this returns.
+// — Start's `/start` route does that, by which point raw text is guaranteed
+// committed (the wizard gates Start on this response). The response resolves
+// only after the DB write, so the renderer can rely on raw text being present
+// when this returns.
 entertainmentRoutes.post("/threads/:threadId/ingest", async (c) => {
   try {
     const threadId = c.req.param("threadId");
@@ -193,7 +249,7 @@ entertainmentRoutes.post("/threads/:threadId/ingest", async (c) => {
       );
     }
     const { config, fsPath, fileBytesBase64 } = parsed.data;
-    // Ingest serves file novels only (internet novels use /setup).
+    // Ingest serves file novels only (internet novels use /prefetch).
     if (config.novel.type !== "file") {
       return c.json({ error: "Ingest requires a file novel" }, 400);
     }
@@ -481,7 +537,7 @@ entertainmentRoutes.put("/threads/:threadId/config", async (c) => {
   try {
     const threadId = c.req.param("threadId");
     const body = await c.req.json().catch(() => ({}));
-    const parsed = SetupSchema.safeParse(body);
+    const parsed = ConfigBodySchema.safeParse(body);
     if (!parsed.success) {
       return c.json(
         { error: "Invalid request body", details: parsed.error.issues },

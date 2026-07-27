@@ -34,6 +34,7 @@
 import PQueue from "p-queue";
 import log from "electron-log/main";
 import { entertainmentService, threadPersistenceService } from "@/services";
+import type { EntertainmentConfig } from "@shared";
 import {
   LOOKAHEAD,
   type PipelineScheduler,
@@ -113,6 +114,43 @@ class ChapteredInternetScheduler implements PipelineScheduler {
       final != null ? Math.min(to, final) : Math.min(to, from + LOOKAHEAD);
     const enqueued = this.enqueueWindow(threadId, w, from, end);
     logger.debug("ensureRange", {
+      threadId,
+      fromN: from,
+      toN: to,
+      end,
+      enqueued,
+      inFlight: w.inFlight.size,
+      queueSize: w.queue.size,
+    });
+  }
+
+  /**
+   * Ensure every chapter in [from, to] that still needs FETCHING is enqueued —
+   * the fetch-only "prefetch" path run by the wizard's internet "Fetch &
+   * Continue" to overlap the per-chapter crawl with option configuration. NO
+   * stop gate: prefetch is an explicit fetch kick (the thread is never parked),
+   * and `resumeAll` already skips zero-rewrite threads so a prefetched thread
+   * can't be auto-resumed on boot. `to` is capped at the known final chapter
+   * (else `from + LOOKAHEAD` when final is unknown), mirroring `ensureRange` so
+   * a stray MAX_SAFE_INTEGER can't enqueue an unbounded range.
+   *
+   * Fetch jobs share the SAME per-thread serial queue + `inFlight` set as
+   * `processChapter` — the crawl tab (`ent-fetch-${threadId}`) is one browser
+   * session reused across chapters, so two concurrent fetchers would corrupt
+   * it. Sharing the queue serializes them; sharing `inFlight` dedups a chapter
+   * whether it was enqueued fetch-only here or fetch+rewrite via `ensureRange`.
+   * When "Start" later calls `ensureRange`, `needsWork` finds the fetched rows
+   * and enqueues rewrite-only jobs; the one-poll-tick lag for a chapter that
+   * was mid-fetch at "Start" is self-healing (the next reader poll re-checks).
+   */
+  prefetchRange(threadId: string, from: number, to: number): void {
+    const w = this.workerFor(threadId);
+    w.target = from;
+    const final = entertainmentService.getFinalChapterNumber(threadId);
+    const end =
+      final != null ? Math.min(to, final) : Math.min(to, from + LOOKAHEAD);
+    const enqueued = this.enqueueFetchWindow(threadId, w, from, end);
+    logger.debug("prefetchRange", {
       threadId,
       fromN: from,
       toN: to,
@@ -224,6 +262,16 @@ class ChapteredInternetScheduler implements PipelineScheduler {
         stopped++; // user-parked — leave it alone until Process/Redo
         continue;
       }
+      // A thread whose rewrite phase never began — materialized + prefetched at
+      // the wizard's "Fetch & Continue" but "Start" was never clicked — has zero
+      // rewritten chapters. Don't auto-start its rewriter on boot: the user
+      // hasn't committed to options yet. It resumes on thread-open instead (the
+      // reader's ensureWorker → ensureRange), mirroring how pipeline ① resumes on
+      // open rather than boot.
+      if (entertainmentService.maxRewrittenChapterNumber(threadId) === 0) {
+        skipped++; // prefetched but never started — resume on open, not boot
+        continue;
+      }
       resumed++;
       logger.info("resuming chaptered-internet on startup", {
         threadId,
@@ -303,14 +351,84 @@ class ChapteredInternetScheduler implements PipelineScheduler {
   }
 
   /**
-   * One chapter, serial per thread: acquire 原文 (network) → rewrite 重写.
-   * The scheduler does NO DB writes — it only reads (to make scheduling
-   * decisions) and branches on the status each worker reports back. The fetcher
-   * owns the source-row lifecycle + final-chapter bookkeeping; the rewriter
-   * owns the rewrite-row lifecycle + content. Both persist their own terminal
-   * status, so this just decides whether to proceed to the next phase.
+   * Decide whether chapter `c` still needs FETCHING (the fetch-only analog of
+   * `needsWork`). Fetches any chapter whose source row is missing, stuck
+   * `"fetching"`, or errored — anything that isn't already `"fetched"`. Errored
+   * chapters are re-fetchable here (prefetch is a fresh "go fetch"); the rewrite
+   * side (`needsWork`) still treats `"error"` as terminal, so a source that
+   * keeps erroring is never rewritten.
    */
-  private async processChapter(threadId: string, c: number): Promise<void> {
+  private needsFetch(threadId: string, c: number): boolean {
+    const final = entertainmentService.getFinalChapterNumber(threadId);
+    if (final != null && c > final) return false; // past known end
+    const source = entertainmentService.getSourceChapter(threadId, c);
+    return !source || source.status !== "fetched";
+  }
+
+  /**
+   * Enqueue every chapter in [from, end] that needs fetching, nearer `from`
+   * first. The fetch-only mirror of `enqueueWindow`, sharing the same per-thread
+   * queue + `inFlight` set so a fetch job and a rewrite job can't both run for
+   * the same chapter (the crawl tab is one browser session).
+   */
+  private enqueueFetchWindow(
+    threadId: string,
+    w: ThreadWorker,
+    from: number,
+    end: number,
+  ): number {
+    let enqueued = 0;
+    for (let c = from; c <= end; c++) {
+      if (w.inFlight.has(c)) continue;
+      if (!this.needsFetch(threadId, c)) continue;
+      this.enqueueFetch(threadId, w, c);
+      enqueued++;
+    }
+    return enqueued;
+  }
+
+  private enqueueFetch(threadId: string, w: ThreadWorker, c: number): void {
+    w.inFlight.add(c);
+    const priority = LOOKAHEAD - (c - w.target); // current chapter highest
+    logger.debug("enqueue fetch job", {
+      threadId,
+      chapterNumber: c,
+      priority,
+    });
+    // Mirrors `enqueue`'s shape (priority + `id`) for queue consistency. The
+    // real cross-entry-point guard is the shared `inFlight` set: a chapter mid-
+    // prefetch (inFlight has it) can't also be enqueued fetch+rewrite by
+    // `ensureRange`, and vice-versa. `acquireChapter` is fetch-only; the rewrite
+    // for a chapter fetched this way is enqueued later by `ensureRange` once
+    // `inFlight` releases it (self-healing on the next reader poll).
+    w.queue
+      .add(() => this.acquireChapter(threadId, c), {
+        priority,
+        id: String(c),
+      })
+      .catch((err) =>
+        logger.error("fetch job failed", {
+          threadId,
+          chapterNumber: c,
+          err,
+        }),
+      )
+      .finally(() => w.inFlight.delete(c));
+  }
+
+  /**
+   * Acquire chapter `c`'s source if not already fetched. Factored out of
+   * `processChapter` so the fetch-only `prefetchRange` path runs the SAME
+   * acquisition (same crawl tab, same row lifecycle, same final-chapter
+   * detection) without rewriting — the two entry points stay byte-identical on
+   * the fetch side. Returns the parsed config when the source is ready for
+   * rewrite, or null when this chapter needs no rewrite (wrong pipeline, past
+   * the book end, or the fetch reported `finalChapter`/`error`).
+   */
+  private async acquireChapter(
+    threadId: string,
+    c: number,
+  ): Promise<EntertainmentConfig | null> {
     const config = entertainmentService.getParsedConfig(threadId);
     // Only chaptered-internet dehydrate threads belong to this pipeline.
     if (
@@ -324,7 +442,7 @@ class ChapteredInternetScheduler implements PipelineScheduler {
         mode: config?.mode,
         novelType: config?.novel.type,
       });
-      return;
+      return null;
     }
     // Execution-time final cap: the lookahead enqueues [N..N+10] before the
     // book's end is known, so chapters past the discovered final can still be
@@ -333,27 +451,35 @@ class ChapteredInternetScheduler implements PipelineScheduler {
     const finalCap = entertainmentService.getFinalChapterNumber(threadId);
     if (finalCap != null && c > finalCap) {
       logger.debug("skip — past final chapter", { threadId, c, finalCap });
-      return;
+      return null;
     }
-
-    logger.info("processing chapter", { threadId, chapterNumber: c });
-
-    // 1) Acquire 原文 if needed. The internet fetcher owns its row lifecycle +
-    //    final-chapter handling and reports status: "fetched" → proceed to
-    //    rewrite; "finalChapter" | "error" → stop. `config.novel` is narrowed to
-    //    `InternetNovel` here by the discriminated union, matching the fetcher's
-    //    first-arg type.
+    // Acquire 原文 if needed. The internet fetcher owns its row lifecycle +
+    // final-chapter handling and reports status: "fetched" → ready for rewrite;
+    // "finalChapter" | "error" → no rewrite. `config.novel` is narrowed to
+    // `InternetNovel` here by the discriminated union, matching the fetcher's
+    // first-arg type.
     const source = entertainmentService.getSourceChapter(threadId, c);
     if (!source || source.status !== "fetched") {
       const outcome = await fetchInternetChapter(config.novel, c, { threadId });
-      if (outcome !== "fetched") return; // finalChapter | error → no rewrite
+      if (outcome !== "fetched") return null; // finalChapter | error → no rewrite
     }
+    return config;
+  }
 
-    // 2) Rewrite — the rewriter owns its row + content and reports a terminal
-    //    status. For ② the rewrite row is 1:1 with the source chapter
-    //    (sourceChapterStart/End fall back to chapterNumber on the read side
-    //    when null), so `rewriteChapter` is called as-is. The per-run
-    //    AbortController lets `stop` preempt the in-flight rewrite.
+  /**
+   * One chapter, serial per thread: acquire 原文 (network) → rewrite 重写.
+   * Delegates acquisition to `acquireChapter` (shared with `prefetchRange`) and,
+   * once the source is ready, runs the rewrite. The scheduler does NO DB writes
+   * — it only reads (to make scheduling decisions) and branches on the status
+   * each worker reports back. The rewriter owns its row + content and reports a
+   * terminal status; the per-run AbortController lets `stop` preempt it.
+   */
+  private async processChapter(threadId: string, c: number): Promise<void> {
+    const config = await this.acquireChapter(threadId, c);
+    if (!config) return; // wrong pipeline | past final | finalChapter | error
+
+    logger.info("processing chapter", { threadId, chapterNumber: c });
+
     const w = this.workerFor(threadId);
     const abortController = new AbortController();
     w.abortController = abortController;

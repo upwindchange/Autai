@@ -71,6 +71,13 @@ export interface ChapteredFilePipeline {
    */
   ensureRange(threadId: string, from: number, to: number): void;
   /**
+   * No-op for ①. There is no separate source-acquisition phase to run ahead of
+   * rewrite — the file is decoded whole at `/ingest`, and outline + rewrite are
+   * produced together by the single dehydrate loop. Kept for interface
+   * compliance with the router facade (only ② implements a real prefetch).
+   */
+  prefetchRange(threadId: string, from: number, to: number): void;
+  /**
    * Pipeline ① only ever commits fully-`rewritten` rows (no `error` rows), so
    * there is nothing to retry per-chapter — this just re-kicks the loop if it
    * isn't complete. Kept for interface compliance with the router facade.
@@ -203,6 +210,12 @@ class ChapteredFileScheduler implements ChapteredFilePipeline {
         }),
       );
     }
+  }
+
+  // No fetch phase to prefetch — see interface doc. File decode happens at
+  // `/ingest`; outline + rewrite run together in the dehydrate loop.
+  prefetchRange(_threadId: string, _from: number, _to: number): void {
+    // intentional no-op
   }
 
   retryFailed(threadId: string): number {
