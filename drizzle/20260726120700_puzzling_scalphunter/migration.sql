@@ -1,0 +1,1 @@
+ALTER TABLE `entertainment_configs` ADD `stop_status` text;
