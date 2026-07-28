@@ -390,7 +390,7 @@ async function landViaAdvance(
  * Outcome: `landHere` writes `url`; on success the tab is left on chapter N's
  * beginning for phase 2. Advance-path `abortChapter` → `FinalChapterError`
  * (N-1 was the last). Anything else throws a generic error. Timeouts live at
- * the agent level (per `streamText` call), not the scheduler.
+ * the agent level (per `streamText` call).
  */
 export async function landOnChapter(
   novel: InternetNovel,

@@ -106,8 +106,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   const currentThreadId = useChaptersStore((s) => s.currentThreadId);
   const loadChapters = useChaptersStore((s) => s.loadChapters);
   const finalChapterNumber = useChaptersStore((s) => s.finalChapterNumber);
-  const processChapters = useChaptersStore((s) => s.processChapters);
-  const reprocessFailed = useChaptersStore((s) => s.reprocessFailed);
 
   // Bookmarks for the active thread. Loaded once per thread switch (no poll —
   // bookmarks only change via this client); add/remove mutate the store directly.
@@ -225,31 +223,20 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   };
 
   // --- Process (next N / all / redo failed) --------------------------------
+  // The pipeline control plane is gone; these handlers keep the panel's buttons
+  // wired but no longer dispatch work.
   const handleProcessNext = () => {
-    if (!currentThreadId || currentChapterNumber == null) return;
-    void processChapters(currentThreadId, {
-      from: currentChapterNumber,
-      count: processCount,
-    });
     setProcessOpen(false);
   };
   const handleProcessAll = () => {
-    if (!currentThreadId || currentChapterNumber == null) return;
-    void processChapters(currentThreadId, {
-      from: currentChapterNumber,
-      all: true,
-    });
     setProcessOpen(false);
   };
   // Errored chapters (source or rewrite "error") — drives the Redo button's
-  // enable state + label count. "error" is terminal, so this is the only way
-  // they get retried.
+  // enable state + label count.
   const failedCount = chapters.filter(
     (c) => c.sourceStatus === "error" || c.rewriteStatus === "error",
   ).length;
   const handleReprocessFailed = () => {
-    if (!currentThreadId) return;
-    void reprocessFailed(currentThreadId);
     setProcessOpen(false);
   };
 

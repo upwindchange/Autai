@@ -1,10 +1,9 @@
 /**
  * Entertainment REST API — mounted at `/entertainment` (see apiServer.ts). This
- * is the sole entertainment backend surface: the wizard's file/internet submit,
- * chapter progress + detail polling, read-position persistence, and the worker
- * liveness/nudge endpoints. It drives the dehydrate scheduler directly; there
- * is no streaming chat path. (The `interactive` mode is a UI-only "coming soon"
- * placeholder today — no endpoint serves it yet.)
+ * is the entertainment backend surface: the wizard's file submit, chapter
+ * progress + detail polling, read-position persistence, and config/export/
+ * bookmarks. (The `interactive` mode is a UI-only "coming soon" placeholder
+ * today — no endpoint serves it yet.)
  */
 import { Hono } from "hono";
 import { z } from "zod";
@@ -13,8 +12,6 @@ import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
 import { entertainmentService, threadPersistenceService } from "@/services";
 import { eventBus } from "@/utils/eventBus";
-import { pipelineRouter } from "@agents/workers/entertainmentWorker/shared/pipelineRouter";
-import { LOOKAHEAD } from "@agents/workers/entertainmentWorker/shared/pipelineScheduler";
 import {
   deriveChapterStatus,
   resolvePipelineType,
@@ -24,7 +21,7 @@ import log from "electron-log/main";
 
 const logger = log.scope("ApiServer:Entertainment");
 
-// Path to the compiled novel-decode worker (`decodeWorker.cjs` in out/main/,
+// Path to the compiled novel-decode worker (`decodeWorker.cjs` in out/main,
 // built by the `buildDecodeWorker` vite plugin via esbuild). The main bundle's
 // __dirname is out/main/, so this resolves to a sibling file. `.cjs` because
 // iconv-lite is CommonJS and needs native require (ESM — the default for `.js`
@@ -82,17 +79,6 @@ const PositionSchema = z.object({
   chapterNumber: z.number().int().min(1),
 });
 
-const WorkerSchema = z.object({
-  chapterNumber: z.number().int().min(1),
-});
-
-// "process next N" (count) or "process all" (all). `from` is the anchor chapter.
-const ProcessSchema = z.object({
-  from: z.number().int().min(1),
-  count: z.number().int().min(1).optional(),
-  all: z.boolean().optional(),
-});
-
 const IngestSchema = z.object({
   config: EntertainmentConfigSchema,
   // Native pick: backend reads the file by path → detects encoding. Browser
@@ -101,9 +87,8 @@ const IngestSchema = z.object({
   fileBytesBase64: z.string().optional(),
 });
 
-/** `{ config }` body shared by the wizard's `/prefetch` (internet "Fetch &
- * Continue"), `/start` (both modes' "Start"), and the reader's `PUT /config`
- * (mid-run option edits). */
+/** `{ config }` body shared by the wizard's `/ingest` and the reader's
+ *  `PUT /config` (mid-run option edits). */
 const ConfigBodySchema = z.object({
   config: EntertainmentConfigSchema,
 });
@@ -151,92 +136,12 @@ function applyConfig(
   });
 }
 
-// POST /entertainment/threads/:threadId/prefetch — internet wizard "Fetch &
-// Continue": materialize the thread (applyConfig → it appears in the sidebar
-// immediately, mirroring file upload's /ingest) and kick the per-chapter
-// fetcher AHEAD of rewrite. The fetcher writes `source_chapters` rows as
-// "fetched"; rewriting does NOT start here — Start's `/start` → ensureRange
-// does that, by which point the source rows are already acquired (processChapter
-// skips the fetch and goes straight to rewrite). Fire-and-forget: prefetchRange
-// just enqueues on the per-thread queue and this returns 202 at once, so the UI
-// advances to the options page without waiting.
-entertainmentRoutes.post("/threads/:threadId/prefetch", async (c) => {
-  try {
-    const threadId = c.req.param("threadId");
-    const body = await c.req.json().catch(() => ({}));
-    const parsed = ConfigBodySchema.safeParse(body);
-    if (!parsed.success) {
-      return c.json(
-        { error: "Invalid request body", details: parsed.error.issues },
-        400,
-      );
-    }
-    const { config } = parsed.data;
-    if (config.novel.type !== "internet") {
-      return c.json({ error: "Prefetch requires an internet novel" }, 400);
-    }
-    // Materialize (idempotent): creates the thread row + config + title, emits
-    // threads:listChanged so the sidebar shows it now.
-    applyConfig(threadId, config);
-    // Kick the fetcher. No stopStatus to manage: resumeAll skips zero-rewrite
-    // threads, so a prefetched-but-not-started thread won't auto-rewrite on
-    // boot; it resumes on thread-open via the reader's ensureWorker.
-    pipelineRouter.prefetchRange(threadId, 1, 1 + LOOKAHEAD);
-    logger.info("prefetch kicked", {
-      threadId,
-      title: config.novel.title,
-    });
-    return c.json({ ok: true }, 202);
-  } catch (error) {
-    logger.error("Error in prefetch:", error);
-    return c.json({ error: "Failed to prefetch" }, 500);
-  }
-});
-
-// POST /entertainment/threads/:threadId/start — wizard "Start" (both file and
-// internet): finalize the user's StepOptions choices, then kick the pipeline.
-// The config persisted at "next" (/ingest for file, /prefetch for internet)
-// held the StepNovel-era state; this overwrites it with the final options right
-// before the pipeline reads them (for file this also closes the gap where
-// StepOptions edits were previously dropped). ensureRange then kicks: file →
-// runDehydrate, internet → processChapter (skips already-fetched source rows),
-// non-novel → buildOutlines. Returns worker liveness.
-entertainmentRoutes.post("/threads/:threadId/start", async (c) => {
-  try {
-    const threadId = c.req.param("threadId");
-    const body = await c.req.json().catch(() => ({}));
-    const parsed = ConfigBodySchema.safeParse(body);
-    if (!parsed.success) {
-      return c.json(
-        { error: "Invalid request body", details: parsed.error.issues },
-        400,
-      );
-    }
-    const { config } = parsed.data;
-    entertainmentService.upsertEntertainmentConfig(threadId, config);
-    pipelineRouter.ensureRange(threadId, 1, 1 + LOOKAHEAD);
-    const info = pipelineRouter.getInfo(threadId);
-    logger.info("start kicked", {
-      threadId,
-      mode: config.mode,
-      novelType: config.novel.type,
-      ...info,
-    });
-    return c.json(info);
-  } catch (error) {
-    logger.error("Error in start:", error);
-    return c.json({ error: "Failed to start" }, 500);
-  }
-});
-
 // POST /entertainment/threads/:threadId/ingest — file wizard "Upload &
 // Continue": backend detects encoding + decodes (iconv) and persists the raw
 // text + zero consumed offset. Chapter SPLITTING is done by the outliner later;
-// this step only stores the decoded blob. The dehydrate loop is NOT kicked here
-// — Start's `/start` route does that, by which point raw text is guaranteed
-// committed (the wizard gates Start on this response). The response resolves
-// only after the DB write, so the renderer can rely on raw text being present
-// when this returns.
+// this step only stores the decoded blob. The response resolves only after the
+// DB write, so the renderer can rely on raw text being present when this
+// returns.
 entertainmentRoutes.post("/threads/:threadId/ingest", async (c) => {
   try {
     const threadId = c.req.param("threadId");
@@ -249,7 +154,7 @@ entertainmentRoutes.post("/threads/:threadId/ingest", async (c) => {
       );
     }
     const { config, fsPath, fileBytesBase64 } = parsed.data;
-    // Ingest serves file novels only (internet novels use /prefetch).
+    // Ingest serves file novels only.
     if (config.novel.type !== "file") {
       return c.json({ error: "Ingest requires a file novel" }, 400);
     }
@@ -296,24 +201,22 @@ entertainmentRoutes.post("/threads/:threadId/ingest", async (c) => {
   }
 });
 
-// GET /entertainment/threads/:threadId/chapters — per-chapter pipeline progress
-// (source + rewrite statuses merged), ordered, each carrying a derived
-// `status` ({ phase, messageKey, messageParams }) computed from the statuses +
-// the scheduler's inFlight set + the thread's stopStatus + its pipeline. Drives
-// the TOC + reader states; the renderer renders `status.phase` via DotMatrix and
-// `t(status.messageKey, status.messageParams)` for the copy, with no mapping.
+// GET /entertainment/threads/:threadId/chapters — per-chapter progress
+// (source + rewrite statuses merged), ordered, each carrying a derived `status`
+// ({ phase, messageKey, messageParams }) computed from the statuses + the
+// thread's pipeline. Drives the TOC + reader states; the renderer renders
+// `status.phase` via DotMatrix and `t(status.messageKey, status.messageParams)`
+// for the copy, with no mapping.
 entertainmentRoutes.get("/threads/:threadId/chapters", (c) => {
   try {
     const threadId = c.req.param("threadId");
     const progress = entertainmentService.listChapterProgress(threadId);
-    const inFlight = pipelineRouter.getInFlight(threadId);
-    const stopStatus = entertainmentService.getStopStatus(threadId);
     const pipeline = resolvePipelineType(
       entertainmentService.getParsedConfig(threadId),
     );
     const chapters = progress.map((ch) => ({
       ...ch,
-      status: deriveChapterStatus(ch, { inFlight, stopStatus, pipeline }),
+      status: deriveChapterStatus(ch, { pipeline }),
     }));
     const novelType = entertainmentService.getNovelType(threadId);
     const finalChapterNumber =
@@ -326,7 +229,8 @@ entertainmentRoutes.get("/threads/:threadId/chapters", (c) => {
 });
 
 // GET /entertainment/threads/:threadId/chapters/:n — single-chapter detail
-// (statuses + rewritten prose; null content until rewritten). The poll target.
+// (statuses + rewritten prose; null content until rewritten) with a derived
+// `status`. The poll target.
 entertainmentRoutes.get("/threads/:threadId/chapters/:n", (c) => {
   try {
     const threadId = c.req.param("threadId");
@@ -335,19 +239,13 @@ entertainmentRoutes.get("/threads/:threadId/chapters/:n", (c) => {
       return c.json({ error: "Invalid chapter number" }, 400);
     }
     const chapter = entertainmentService.getChapterDetail(threadId, n);
-    const inFlight = pipelineRouter.getInFlight(threadId);
-    const stopStatus = entertainmentService.getStopStatus(threadId);
     const pipeline = resolvePipelineType(
       entertainmentService.getParsedConfig(threadId),
     );
     return c.json({
       chapter: {
         ...chapter,
-        status: deriveChapterStatus(chapter, {
-          inFlight,
-          stopStatus,
-          pipeline,
-        }),
+        status: deriveChapterStatus(chapter, { pipeline }),
       },
     });
   } catch (error) {
@@ -391,125 +289,6 @@ entertainmentRoutes.post("/threads/:threadId/position", async (c) => {
   }
 });
 
-// GET /entertainment/threads/:threadId/worker — query liveness of the per-thread
-// dehydration worker (is it processing? what chapter? queue depth).
-entertainmentRoutes.get("/threads/:threadId/worker", (c) => {
-  const threadId = c.req.param("threadId");
-  return c.json(pipelineRouter.getInfo(threadId));
-});
-
-// POST /entertainment/threads/:threadId/worker — ensure a worker is processing
-// the window for `chapterNumber` (start-if-absent; idempotent). Used by the
-// reader's poll loop when a chapter isn't ready yet.
-entertainmentRoutes.post("/threads/:threadId/worker", async (c) => {
-  try {
-    const threadId = c.req.param("threadId");
-    const body = await c.req.json().catch(() => ({}));
-    const parsed = WorkerSchema.safeParse(body);
-    if (!parsed.success) {
-      return c.json(
-        { error: "Invalid request body", details: parsed.error.issues },
-        400,
-      );
-    }
-    const { chapterNumber } = parsed.data;
-    pipelineRouter.ensureRange(
-      threadId,
-      chapterNumber,
-      chapterNumber + LOOKAHEAD,
-    );
-    const info = pipelineRouter.getInfo(threadId);
-    logger.debug("worker ensure", {
-      threadId,
-      chapterNumber,
-      active: info.active,
-      target: info.target,
-      pending: info.pending,
-      size: info.size,
-    });
-    return c.json(info);
-  } catch (error) {
-    logger.error("Error starting worker:", error);
-    return c.json({ error: "Failed to start worker" }, 500);
-  }
-});
-
-// POST /entertainment/threads/:threadId/process — batch-process chapters:
-// "process next N" (count) or "process all" (all). `from` is the anchor
-// chapter; ensureRange caps `to` at the book's final chapter and enqueues. This
-// is an explicit user "go", so it clears the persisted stop flag FIRST — a
-// stopped thread resumes from here.
-entertainmentRoutes.post("/threads/:threadId/process", async (c) => {
-  try {
-    const threadId = c.req.param("threadId");
-    const body = await c.req.json().catch(() => ({}));
-    const parsed = ProcessSchema.safeParse(body);
-    if (!parsed.success) {
-      return c.json(
-        { error: "Invalid request body", details: parsed.error.issues },
-        400,
-      );
-    }
-    const { from, count, all } = parsed.data;
-    const to = all ? Number.MAX_SAFE_INTEGER : from + (count ?? 1) - 1;
-    entertainmentService.clearStopStatus(threadId);
-    pipelineRouter.ensureRange(threadId, from, to);
-    const info = pipelineRouter.getInfo(threadId);
-    logger.debug("process range", {
-      threadId,
-      from,
-      to,
-      all,
-      count,
-      ...info,
-    });
-    return c.json(info);
-  } catch (error) {
-    logger.error("Error processing range:", error);
-    return c.json({ error: "Failed to process range" }, 500);
-  }
-});
-
-// POST /entertainment/threads/:threadId/reprocess-failed — re-enqueue every
-// errored chapter (source or rewrite status "error") for the thread. The ONLY
-// path that retries failed chapters: needsWork treats "error" as terminal, so
-// the lookahead/poll path and /process skip them. This is an explicit user "go",
-// so it clears the persisted stop flag FIRST. Returns worker liveness.
-entertainmentRoutes.post("/threads/:threadId/reprocess-failed", (c) => {
-  try {
-    const threadId = c.req.param("threadId");
-    entertainmentService.clearStopStatus(threadId);
-    pipelineRouter.retryFailed(threadId);
-    const info = pipelineRouter.getInfo(threadId);
-    logger.debug("reprocess failed", { threadId, ...info });
-    return c.json(info);
-  } catch (error) {
-    logger.error("Error reprocessing failed:", error);
-    return c.json({ error: "Failed to reprocess failed chapters" }, 500);
-  }
-});
-
-// POST /entertainment/threads/:threadId/stop — stop ALL in-flight work on a
-// thread. Two layers: (1) IMMEDIATE — `pipelineRouter.stop` aborts the running
-// agent + drains the queue + clears the in-flight set; (2) DURABLE — set
-// `stopStatus = "stopped"` so the schedulers' entry points (`ensureRange`/
-// `runDehydrate`/`buildOutlines`) no-op and the reader poll can't resurrect the
-// work. The flag survives reload; cleared only by an explicit user "go"
-// (Process/Redo/wizard Start). Read-only on the chapter DB (no rows
-// deleted/marked terminal); rows left mid-run self-heal once the flag clears.
-entertainmentRoutes.post("/threads/:threadId/stop", (c) => {
-  try {
-    const threadId = c.req.param("threadId");
-    pipelineRouter.stop(threadId);
-    entertainmentService.setStopStatus(threadId, "stopped");
-    logger.info("stopped thread work", { threadId });
-    return c.json({ ok: true });
-  } catch (error) {
-    logger.error("Error stopping thread:", error);
-    return c.json({ error: "Failed to stop thread" }, 500);
-  }
-});
-
 // GET /entertainment/threads/:threadId/config — read the thread's persisted
 // entertainment config (mode + novel source + options). Used by the reader's
 // in-flight settings editor to seed its form from the DB. Returns 404 when the
@@ -527,12 +306,8 @@ entertainmentRoutes.get("/threads/:threadId/config", (c) => {
 });
 
 // PUT /entertainment/threads/:threadId/config — update the thread's options
-// mid-run WITHOUT re-running one-time thread setup. The next agent the pipeline
-// enqueues re-reads config via `getParsedConfig` and rebuilds its prompt from
-// the new options, so a mid-run edit takes effect on the next rewrite/outline.
-// (On pipeline ② this is immediate; pipeline ①/③'s rewriters pick it up once
-// their settings-driven prompt builders land.) Validates the whole config with
-// the Zod schema. Does NOT touch novelSource/mode semantics.
+// mid-run WITHOUT re-running one-time thread setup. Validates the whole config
+// with the Zod schema. Does NOT touch novelSource/mode semantics.
 entertainmentRoutes.put("/threads/:threadId/config", async (c) => {
   try {
     const threadId = c.req.param("threadId");

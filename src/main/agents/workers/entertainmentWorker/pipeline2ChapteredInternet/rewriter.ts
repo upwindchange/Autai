@@ -13,7 +13,7 @@ import { buildDehydrateSystemPrompt } from "../shared/dehydratePrompt";
 
 const logger = log.scope("Dehydrate:Rewriter");
 
-/** Terminal status the rewrite agent reports back to the scheduler. */
+/** Terminal status the rewrite agent reports back to its caller. */
 export type RewriteOutcome = "rewritten" | "error";
 
 /**
@@ -142,11 +142,10 @@ async function runRewriteAgent(
  * the DB. If the agent ignores the forced tool and stops on plain text, one
  * retry runs with a reinforced prompt (`RETRY_SUFFIX`) explaining the failure.
  * On a second failure or a hard error the row is marked `"error"`. Returns the
- * terminal status so the scheduler can branch without touching the DB itself.
+ * terminal status so the caller can branch without touching the DB itself.
  *
  * The source text is re-read here (not passed in): on the internet path phase
- * 2's tool just wrote it during fetch, so the scheduler's in-memory copy would
- * be stale.
+ * 2's tool just wrote it during fetch, so any caller-held copy would be stale.
  */
 export async function rewriteChapter(
   threadId: string,

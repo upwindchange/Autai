@@ -15,7 +15,6 @@ import type {
   EntertainmentConfig,
   RewrittenChapterStatus,
   SourceChapterStatus,
-  StopStatus,
 } from "@shared";
 import { EntertainmentConfigSchema } from "@shared";
 import type { EntertainmentConfigRow } from "@/db/types";
@@ -29,9 +28,8 @@ const logger = log.scope("EntertainmentService");
 
 /**
  * Entertainment-mode persistence — a thin DB CRUD layer ONLY. It is the single
- * place the REST routes (and the dehydrate scheduler) touch the entertainment
- * tables. It holds NO novel/LLM workflow: encoding/ingestion, the lookahead
- * queue, acquisition, and rewriting live in the dehydrate scheduler/ingest
+ * place the REST routes touch the entertainment tables. It holds NO novel/LLM
+ * workflow: encoding/ingestion, acquisition, and rewriting live in the worker
  * modules. Anything that reads or writes chapter/config rows goes through here.
  *
  * Chapters span TWO tables — `sourceChapters` (原文) and `rewrittenChapters`
@@ -155,9 +153,10 @@ class EntertainmentService {
 
   /**
    * Insert a rewrite row (caller ensures it doesn't exist yet).
-   * `chapterNumber` is the reader spine key — for ②/③ it mirrors the source
-   * chapter's number (1:1); for ① it is the dehydrate output's sequential
-   * number (paired 1:1 with an `outlines` row at the same number).
+   * `chapterNumber` is the reader spine key — for chaptered sources it mirrors
+   * the source chapter's number (1:1); for the chunked-merge dehydrate it is the
+   * output's sequential number (paired 1:1 with an `outlines` row at the same
+   * number).
    */
   insertRewrittenChapter(input: {
     threadId: string;
@@ -198,10 +197,10 @@ class EntertainmentService {
       .run();
   }
 
-  // --- outlines (pipeline ① only) ----------------------------------------
-  // Pipeline ①'s per-chapter outline text, produced in the same one-pass tool
-  // call as its rewritten_chapters row (strict 1:1 by chapterNumber). Pipelines
-  // ②/³ never touch this table.
+  // --- outlines (chunked-merge dehydrate only) ----------------------------
+  // Per-chapter outline text, produced in the same one-pass tool call as the
+  // rewritten_chapters row (strict 1:1 by chapterNumber). Chaptered sources
+  // never touch this table.
 
   /** Insert an outline row (caller ensures it doesn't exist yet). */
   insertOutline(input: {
@@ -222,18 +221,17 @@ class EntertainmentService {
 
   // --- merged reader view -------------------------------------------------
   // The reader's SPINE is `rewritten_chapters`. Each rewrite row joins its
-  // source row directly (pipelines ②/³) — title + sourceStatus come from the
-  // source row at the same number. Pipeline ① now also writes a source row
-  // (title only, status="fetched"); its rows carry a title via that join.
-  // Source chapters with no rewrite row yet are NOT shown (the reader never
-  // renders 原文); a not-yet-rewritten chapter shows as `paused`/`stopped` via
-  // its `phase`.
+  // source row directly — title + sourceStatus come from the source row at the
+  // same number. The chunked-merge dehydrate also writes a source row (title
+  // only, status="fetched"); its rows carry a title via that join. Source
+  // chapters with no rewrite row yet are NOT shown (the reader never renders
+  // 原文); a not-yet-rewritten chapter shows as `stopped` via its `phase`.
 
   /**
-   * Per-chapter pipeline progress, spine'd on `rewritten_chapters`.
+   * Per-chapter progress, spine'd on `rewritten_chapters`.
    * title/sourceStatus come from the source row at the same chapterNumber
-   * (for pipeline ① the title is set by the dehydrate tool, sourceStatus is
-   * the benign "fetched" placeholder).
+   * (for chunked-merge dehydrate the title is set by the dehydrate tool,
+   * sourceStatus is the benign "fetched" placeholder).
    */
   listChapterProgress(threadId: string): ChapterProgress[] {
     const outputs = this.listRewrittenChapters(threadId);
@@ -255,8 +253,8 @@ class EntertainmentService {
   /**
    * Single-chapter detail (1:1 keyed). Prose comes from the rewrite row (only
    * when `rewritten`); title/sourceStatus from the source row at the same
-   * number (for pipeline ① the title is set by the dehydrate tool, sourceStatus
-   * is the benign "fetched" placeholder).
+   * number (for chunked-merge dehydrate the title is set by the dehydrate tool,
+   * sourceStatus is the benign "fetched" placeholder).
    */
   getChapterDetail(threadId: string, chapterNumber: number): ChapterDetail {
     const r = this.getRewrittenChapter(threadId, chapterNumber);
@@ -520,37 +518,10 @@ class EntertainmentService {
   }
 
   /**
-   * The thread's runtime stop intent (null = running / never started;
-   * "stopped" = parked until an explicit Process/Redo). Backs the reader's Stop
-   * button: the `/stop` route sets it, the `/process` + `/reprocess-failed` +
-   * wizard-start routes clear it. Schedulers gate their entry points on it.
-   */
-  getStopStatus(threadId: string): StopStatus | null {
-    return this.getEntertainmentConfig(threadId)?.stopStatus ?? null;
-  }
-
-  /** Persist (or clear) the thread's stop intent. */
-  setStopStatus(threadId: string, status: StopStatus | null): void {
-    const db = getDb();
-    db.update(entertainmentConfigs)
-      .set({
-        stopStatus: status,
-        updatedAt: sql`(datetime('now'))`,
-      })
-      .where(eq(entertainmentConfigs.threadId, threadId))
-      .run();
-  }
-
-  /** Clear the thread's stop intent — the resume path for Process/Redo/wizard. */
-  clearStopStatus(threadId: string): void {
-    this.setStopStatus(threadId, null);
-  }
-
-  /**
    * All rewrite OUTPUT rows for the thread, ordered by `chapterNumber` (the
    * reader's spine key). Used by the read-side spine
-   * (`listChapterProgress`/`getChapterDetail`) and by pipeline ①'s dehydrate
-   * loop to find the next free output number.
+   * (`listChapterProgress`/`getChapterDetail`) and by the chunked-merge
+   * dehydrate loop to find the next free output number.
    */
   listRewrittenChapters(threadId: string) {
     const db = getDb();
@@ -564,11 +535,12 @@ class EntertainmentService {
 
   /**
    * Highest rewrite OUTPUT sequential number for the thread, or 0 if none.
-   * Pipeline ① derives `nextOutputNumber = maxRewrittenChapterNumber + 1` from
-   * this so output numbering is gap-free and survives crash-resume (whatever
-   * co-write windows already landed in `rewritten_chapters` define where the
-   * next output continues). Note this is the OUTPUT number, not a source
-   * chapter number — for 1:1 pipelines (②/③) they coincide.
+   * The chunked-merge dehydrate derives `nextOutputNumber =
+   * maxRewrittenChapterNumber + 1` from this so output numbering is gap-free
+   * and survives crash-resume (whatever windows already landed in
+   * `rewritten_chapters` define where the next output continues). Note this is
+   * the OUTPUT number, not a source chapter number — for 1:1 chaptered sources
+   * they coincide.
    */
   maxRewrittenChapterNumber(threadId: string): number {
     const db = getDb();
@@ -669,9 +641,9 @@ class EntertainmentService {
 
   /**
    * Reconstruct + re-validate the stored config into a typed
-   * `EntertainmentConfig`. The dehydrate scheduler uses this to feed the real,
-   * persisted wizard values (novel origin + options) to the acquisition/rewrite
-   * stubs. Re-validation via `EntertainmentConfigSchema.safeParse` is defensive
+   * `EntertainmentConfig`. Callers use this to feed the real, persisted wizard
+   * values (novel origin + options) to the acquisition/rewrite modules.
+   * Re-validation via `EntertainmentConfigSchema.safeParse` is defensive
    * against malformed stored JSON and also heals older configs that predate
    * newer `.default(...)` fields (e.g. `customInstruction`) — no migration
    * needed. Returns null (never throws) when the row or its JSON is unusable,

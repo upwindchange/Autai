@@ -33,9 +33,9 @@ function findScrollParent(el: HTMLElement): HTMLElement | null {
 
 /**
  * Table of contents — the chapter list for the active thread. Clicking an entry
- * jumps the reader (set position + kick the worker for that chapter). A chapter
- * being fetched/rewritten shows a spinner; one not yet rewritten is dimmed but
- * still selectable. Rendered inside the responsive reader-controls shell.
+ * jumps the reader (set position + switch chapter). A chapter being
+ * fetched/rewritten shows a spinner; one not yet rewritten is dimmed but still
+ * selectable. Rendered inside the responsive reader-controls shell.
  *
  * On open (the panel mounts this list fresh) the current chapter is scrolled to
  * the centre of the viewport. Measurement uses offsetTop — transform-independent,

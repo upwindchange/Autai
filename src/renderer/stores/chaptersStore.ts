@@ -35,7 +35,7 @@ const sameStatus = (
 };
 
 // Shallow comparison of two ChapterViews. ChapterView is a flat object
-// (chapterNumber, title, three status fields, status, content); `status` is a
+// (chapterNumber, title, two status fields, status, content); `status` is a
 // small nested object compared via `sameStatus`. Used by the loaders to skip
 // `set` when a poll returned byte-identical state, which otherwise allocates
 // fresh arrays/objects and re-renders every subscriber.
@@ -51,9 +51,8 @@ const sameChapterView = (a: ChapterView, b: ChapterView): boolean =>
  * Entertainment reader store — the reader's source of truth.
  *
  * Polling-driven, NOT event-driven: there is NO SSE subscription for chapters.
- * The `useChapterReadiness` hook polls chapter detail + worker liveness and
- * writes results back here. The DB status columns are the single source of
- * truth; this store is just a cache the reader renders from.
+ * The DB status columns are the single source of truth; this store is just a
+ * cache the reader renders from.
  */
 export interface ChapterView extends ChapterProgress {
   // Reader-facing status — derived on the backend per chapter (phase +
@@ -65,13 +64,6 @@ export interface ChapterView extends ChapterProgress {
   content?: string | null;
 }
 
-export interface WorkerInfo {
-  active: boolean;
-  target: number;
-  pending: number;
-  size: number;
-}
-
 interface ChaptersState {
   currentThreadId: string | null;
   chapters: ChapterView[]; // sorted by chapterNumber
@@ -81,7 +73,7 @@ interface ChaptersState {
   loading: boolean;
   /** Last chapter-list or chapter-detail fetch error, or null when the last
    * fetch succeeded. Surfaced so a failed load isn't silent (and isn't
-   * misread by `useChapterReadiness` as "still processing"). */
+   * misread as "still processing"). */
   error: string | null;
 
   /** Re-read the chapter list (statuses); preserves cached content. */
@@ -93,56 +85,18 @@ interface ChaptersState {
     threadId: string,
     n: number,
   ) => Promise<(ChapterDetail & { status: ChapterStatus }) | undefined>;
-  /** Internet wizard "Fetch & Continue": materialize the thread + kick the
-   * per-chapter fetcher AHEAD of rewrite (fire-and-forget; resolves once the
-   * fetch is enqueued, not when fetching completes). Mirrors `ingestFile`'s
-   * role for file mode at the same wizard step. */
-  prefetchInternet: (
-    threadId: string,
-    config: EntertainmentConfig,
-  ) => Promise<void>;
   /** File wizard "Upload & Continue": decode + persist raw text in the
-   * background (the dehydrate loop is NOT kicked here — Start does that via
-   * ensureWorker → ensureRange). Resolves once raw text is committed to DB. */
+   * background. Resolves once raw text is committed to DB. */
   ingestFile: (
     threadId: string,
     config: EntertainmentConfig,
     payload: { fsPath?: string; fileBytesBase64?: string },
   ) => Promise<void>;
-  /** Query the per-thread worker's liveness. */
-  queryWorker: (threadId: string) => Promise<WorkerInfo>;
-  /** Ensure a worker is processing chapter n's window (start-if-absent). */
-  ensureWorker: (threadId: string, n: number) => Promise<WorkerInfo>;
-  /** Wizard "Start" (both modes): finalize the user's StepOptions choices and
-   * kick the pipeline (file → runDehydrate, internet → rewrite the prefetched
-   * source rows, non-novel → its single pass). Replaces the per-step
-   * ensureWorker kick that previously happened at Start. */
-  startRewrite: (
-    threadId: string,
-    config: EntertainmentConfig,
-  ) => Promise<WorkerInfo>;
-  /** Batch-process: next `count` chapters from `from`, or all to the book's end. */
-  processChapters: (
-    threadId: string,
-    opts: { from: number; count?: number; all?: boolean },
-  ) => Promise<WorkerInfo>;
-  /** Re-enqueue every errored chapter (the "Redo failed chapters" action). */
-  reprocessFailed: (threadId: string) => Promise<WorkerInfo>;
-  /**
-   * Stop ALL in-flight work on a thread — abort the running outline + rewrite
-   * agents, drain the pending queue, clear the in-flight set. Called by the
-   * reader's "Stop" button before it abandons the thread for a new one. Rows
-   * left mid-run self-heal on the next open.
-   */
-  stopAgents: (threadId: string) => Promise<void>;
   /** Read a thread's persisted entertainment config (seeds the in-flight settings editor). */
   getThreadConfig: (threadId: string) => Promise<EntertainmentConfig | null>;
-  /**
-   * Update a thread's config mid-run WITHOUT re-running one-time setup. The
-   * next agent the pipeline enqueues re-reads config and rebuilds its prompt
-   * from the new options (immediate on pipeline ②; ①/③ pick it up once their
-   * settings-driven rewriters land). Does NOT touch novelSource/mode semantics.
-   */
+  /** Update a thread's config WITHOUT re-running one-time setup.
+   * Validates the whole config with the Zod schema. Does NOT touch
+   * novelSource/mode semantics. */
   updateThreadConfig: (
     threadId: string,
     config: EntertainmentConfig,
@@ -153,12 +107,12 @@ interface ChaptersState {
   setPosition: (threadId: string, n: number) => Promise<void>;
   setCurrentChapter: (n: number | null) => void;
   /**
-   * Clear all cached chapter state — the thread switch / stop path. The reader
+   * Clear all cached chapter state — the thread switch path. The reader
    * component does NOT unmount on thread switch (only `appMode` toggles it), so
    * without this the previous thread's `currentChapterNumber` lingers and blocks
    * the wizard from showing on a fresh thread (`showWizard` requires
-   * `currentChapterNumber == null`). Called by `handleStop` before switching to
-   * a new thread so the wizard evaluates against a clean slate.
+   * `currentChapterNumber == null`). Called before switching to a new thread so
+   * the wizard evaluates against a clean slate.
    */
   reset: () => void;
 }
@@ -271,55 +225,12 @@ export const useChaptersStore = create<ChaptersState>()(
       }
     },
 
-    prefetchInternet: async (threadId, config) => {
-      await httpClient.postJSON(`/entertainment/threads/${threadId}/prefetch`, {
-        config,
-      });
-    },
-
     ingestFile: async (threadId, config, payload) => {
       await httpClient.postJSON(`/entertainment/threads/${threadId}/ingest`, {
         config,
         ...payload,
       });
     },
-
-    queryWorker: (threadId) =>
-      httpClient.getJSON<WorkerInfo>(
-        `/entertainment/threads/${threadId}/worker`,
-      ),
-
-    ensureWorker: (threadId, n) =>
-      httpClient.postJSON<WorkerInfo>(
-        `/entertainment/threads/${threadId}/worker`,
-        { chapterNumber: n },
-      ),
-
-    startRewrite: (threadId, config) =>
-      httpClient.postJSON<WorkerInfo>(
-        `/entertainment/threads/${threadId}/start`,
-        { config },
-      ),
-
-    processChapters: (threadId, { from, count, all }) =>
-      httpClient.postJSON<WorkerInfo>(
-        `/entertainment/threads/${threadId}/process`,
-        { from, count, all },
-      ),
-
-    reprocessFailed: (threadId) =>
-      httpClient.postJSON<WorkerInfo>(
-        `/entertainment/threads/${threadId}/reprocess-failed`,
-        {},
-      ),
-
-    stopAgents: (threadId) =>
-      httpClient
-        .postJSON<{ ok: boolean }>(
-          `/entertainment/threads/${threadId}/stop`,
-          {},
-        )
-        .then(() => undefined),
 
     getThreadConfig: async (threadId) => {
       try {

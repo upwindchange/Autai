@@ -1,23 +1,22 @@
 /**
- * Pipeline ① — chaptered-file ONE-PASS dehydrate runner.
+ * Chaptered-file ONE-PASS dehydrate runner.
  *
- * Replaces the old two-step outliner + reader-driven rewriter with a single
- * autonomous loop. Each pass reads a bounded chunk of the decoded novel
- * (`entertainment_configs.rawText`) and runs ONE agent call whose terminal
- * `outputChapters` tool emits an array of `{ title, content, outline }` triples
- * — the agent re-chapters, merges, and dehydrates as it sees fit (typically
- * producing FEWER chapters than the source). Title + outline + rewrite are
- * produced together in that one tool call; there is no separate outline step
- * and no per-chapter rewrite queue. The title lands in `source_chapters` so the
- * reader's TOC + app header can show it.
+ * A single autonomous loop. Each pass reads a bounded chunk of the decoded
+ * novel (`entertainment_configs.rawText`) and runs ONE agent call whose
+ * terminal `outputChapters` tool emits an array of `{ title, content, outline }`
+ * triples — the agent re-chapters, merges, and dehydrates as it sees fit
+ * (typically producing FEWER chapters than the source). Title + outline +
+ * rewrite are produced together in that one tool call; there is no separate
+ * outline step. The title lands in `source_chapters` so the reader's TOC + app
+ * header can show it.
  *
  * Resumable + recoverable: every pass advances `rawConsumedOffset` (inside the
  * tool, deterministically), so a crashed/killed run picks up from the last
  * committed chunk on the next thread-open. `rawText` is held in the DB until
  * EOF so crash-resume can re-read it without touching the source file.
  *
- * Honors Stop: the scheduler passes an AbortSignal; the loop checks it between
- * passes and the in-flight `streamText` aborts mid-pass. A stop exits quietly
+ * Honors Abort: the caller passes an AbortSignal; the loop checks it between
+ * passes and the in-flight `streamText` aborts mid-pass. An abort exits quietly
  * (no failure alert); a genuine failure (no tool call after retry, or a thrown
  * error) alerts + leaves `rawConsumedOffset` and `rawText` untouched so the
  * next open retries the same chunk.
@@ -264,8 +263,8 @@ const outputChaptersTool = tool({
       // joins in for the TOC + app header. status="fetched" is benign here —
       // the reader's phase derivation returns "success" for rewritten chapters
       // before ever consulting sourceStatus, and there is no "view original"
-      // affordance. url/content stay null: pipeline ① has no source URL and the
-      // reader never renders 原文.
+      // affordance. url/content stay null: a file upload has no source URL and
+      // the reader never renders 原文.
       entertainmentService.insertSourceChapter({
         threadId: ctx.threadId,
         chapterNumber: n,
@@ -358,9 +357,9 @@ async function runDehydrateAgent(params: {
 // ---------------------------------------------------------------------------
 
 /**
- * Run the pipeline ① one-pass dehydrate loop for a thread until EOF, Stop, or a
- * transient failure. Autonomous + resumable + stoppable. The scheduler owns the
- * AbortController and the re-entrancy mutex; this function just drives passes.
+ * Run the one-pass dehydrate loop for a thread until EOF, abort, or a transient
+ * failure. Autonomous + resumable + abortable. The caller owns the
+ * AbortController; this function just drives passes.
  */
 export async function runDehydrateLoop(
   threadId: string,
@@ -373,7 +372,7 @@ export async function runDehydrateLoop(
   }
 
   // Probe once (may throw if no complex model is configured → propagates to the
-  // scheduler, which surfaces a warning toast).
+  // caller, which surfaces a warning toast).
   const probeResolved = complexModel();
   const probeCpt = await probeCharsPerToken(
     probeResolved.model,

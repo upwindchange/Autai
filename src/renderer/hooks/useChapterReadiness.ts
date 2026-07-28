@@ -3,7 +3,7 @@ import type { ChapterDetail, ChapterStatus } from "@shared";
 import { useChaptersStore } from "@/stores/chaptersStore";
 
 const POLL_INTERVAL_MS = 1500;
-// After this long without readiness, retrigger the whole ensure+poll cycle.
+// After this long without readiness, retrigger the whole poll cycle.
 const RETRY_DEADLINE_MS = 10 * 60 * 1000;
 
 // The chapter detail carried by the store's `loadChapterDetail` — the backend
@@ -21,32 +21,19 @@ const isTerminal = (detail: ChapterDetailWithStatus | undefined): boolean =>
     detail.rewriteStatus === "error" ||
     detail.sourceStatus === "error");
 
-// User-stopped: the thread's persisted stopStatus is "stopped", so the backend
-// gates every scheduler entry point and `ensureWorker` would no-op. Treat it as
-// terminal for the poll loop too — stop re-ensuring + polling so the user
-// pressing Stop doesn't spin the network every 1.5s. The chapter's status
-// messageKey distinguishes user-stopped (`.stopped`) from merely not-yet-
-// scheduled (`.pending`); only the former is terminal here.
-const isUserStopped = (detail: ChapterDetailWithStatus | undefined): boolean =>
-  !!detail && detail.status.messageKey.endsWith(".stopped");
-
 /**
  * Drive a chapter to a terminal state (rewritten, or errored) for the active
  * thread.
  *
  *   1. Poll once. If terminal → done (success or failure — neither needs more
  *      polling).
- *   2. Kick the worker for chapter N (idempotent: starts if absent, re-targets
- *      if busy elsewhere — handles Next and TOC jumps far ahead).
- *   3. Poll every POLL_INTERVAL_MS, re-checking worker liveness each tick
- *      (re-ensure if it died or drifted off N) until terminal or deadline.
- *   4. On timeout (still not terminal) → retrigger from step 1 (self-recover: a
- *      crashed worker is absent, so a fresh one is started). A chapter that has
- *      terminally errored is NOT retriggered — the user re-enqueues it via
- *      "Redo failed", which the scheduler's retryFailed path handles.
+ *   2. Poll every POLL_INTERVAL_MS until terminal or deadline.
+ *   3. On timeout (still not terminal) → retrigger from step 1. A chapter that
+ *      has terminally errored is NOT retriggered — the user re-enqueues it via
+ *      "Redo failed".
  *
- * The DB status columns are truth; this hook only re-reads them and guarantees
- * liveness. No SSE, no event races. Re-runs (cleanly) when the reader moves.
+ * The DB status columns are truth; this hook only re-reads them. No SSE, no
+ * event races. Re-runs (cleanly) when the reader moves.
  */
 export function useChapterReadiness(
   threadId: string | null,
@@ -60,37 +47,28 @@ export function useChapterReadiness(
     let latest: ChapterDetailWithStatus | undefined;
 
     const attempt = async (): Promise<void> => {
-      // eslint-disable-next-line no-console
+       
       console.debug("[ent:readiness] start", { threadId, chapterNumber });
       // 1. Poll once.
       latest = await store().loadChapterDetail(threadId, chapterNumber);
-      if (cancelled || isTerminal(latest) || isUserStopped(latest)) {
+      if (cancelled || isTerminal(latest)) {
         if (isTerminal(latest))
-          // eslint-disable-next-line no-console
+           
           console.debug("[ent:readiness] terminal (initial poll)", {
             chapterNumber,
             rewriteStatus: latest?.rewriteStatus,
             sourceStatus: latest?.sourceStatus,
           });
-        if (isUserStopped(latest))
-          // eslint-disable-next-line no-console
-          console.debug("[ent:readiness] user-stopped — bailing", {
-            chapterNumber,
-          });
         return;
       }
-      // eslint-disable-next-line no-console
-      console.debug("[ent:readiness] not ready — kicking worker", {
+       
+      console.debug("[ent:readiness] not ready — polling", {
         chapterNumber,
         sourceStatus: latest?.sourceStatus,
         rewriteStatus: latest?.rewriteStatus,
       });
 
-      // 2. Kick the worker for this chapter (start/re-target).
-      await store().ensureWorker(threadId, chapterNumber);
-      if (cancelled) return;
-
-      // 3. Poll + liveness until ready or deadline.
+      // 2. Poll until ready or deadline.
       const deadline = Date.now() + RETRY_DEADLINE_MS;
       await new Promise<void>((resolve) => {
         timer = setInterval(async () => {
@@ -99,29 +77,17 @@ export function useChapterReadiness(
             return;
           }
           latest = await store().loadChapterDetail(threadId, chapterNumber);
-          if (isTerminal(latest) || isUserStopped(latest)) {
-            // eslint-disable-next-line no-console
+          if (isTerminal(latest)) {
+             
             console.debug("[ent:readiness] terminal", {
               chapterNumber,
               rewriteStatus: latest?.rewriteStatus,
               sourceStatus: latest?.sourceStatus,
-              userStopped: isUserStopped(latest),
             });
             if (timer) clearInterval(timer);
             timer = null;
             resolve();
             return;
-          }
-          // Self-heal: re-ensure if the worker died or drifted off this chapter.
-          const info = await store().queryWorker(threadId);
-          if (!info.active || info.target !== chapterNumber) {
-            // eslint-disable-next-line no-console
-            console.debug("[ent:readiness] re-ensure worker", {
-              chapterNumber,
-              active: info.active,
-              target: info.target,
-            });
-            await store().ensureWorker(threadId, chapterNumber);
           }
           if (Date.now() > deadline) {
             if (timer) clearInterval(timer);
@@ -132,12 +98,10 @@ export function useChapterReadiness(
       });
       if (cancelled) return;
 
-      // 4. Timeout retrigger if still not terminal. A terminally errored chapter
-      //    is not retriggered — it needs "Redo failed", not more polling. A
-      //    user-stopped chapter is not retriggered either — it stays parked
-      //    until the user presses Process/Redo (which clears the stop flag).
-      if (!isTerminal(latest) && !isUserStopped(latest)) {
-        // eslint-disable-next-line no-console
+      // 3. Timeout retrigger if still not terminal. A terminally errored chapter
+      //    is not retriggered — it needs "Redo failed", not more polling.
+      if (!isTerminal(latest)) {
+         
         console.warn("[ent:readiness] timeout — retriggering", {
           threadId,
           chapterNumber,

@@ -66,7 +66,6 @@ export const EntertainmentThread: FC = () => {
   const loadChapters = useChaptersStore((s) => s.loadChapters);
   const getPosition = useChaptersStore((s) => s.getPosition);
   const setPosition = useChaptersStore((s) => s.setPosition);
-  const ensureWorker = useChaptersStore((s) => s.ensureWorker);
   const setCurrentChapter = useChaptersStore((s) => s.setCurrentChapter);
   const getThreadConfig = useChaptersStore((s) => s.getThreadConfig);
   const updateThreadConfig = useChaptersStore((s) => s.updateThreadConfig);
@@ -95,10 +94,10 @@ export const EntertainmentThread: FC = () => {
   // Desktop hover state for the footer (driven by the mousemove effect below).
   const [footerHovered, setFooterHovered] = useState(false);
 
-  // Recovery + initial load: on thread switch, load chapters + resume position,
-  // then ensure the worker for that chapter. The start chapter is recorded as a
-  // pending jump at percentile 0 so the apply effect scrolls it to the top once
-  // its prose is ready (the unified jump path — no separate top-reset).
+  // Recovery + initial load: on thread switch, load chapters + resume position.
+  // The start chapter is recorded as a pending jump at percentile 0 so the apply
+  // effect scrolls it to the top once its prose is ready (the unified jump path
+  // — no separate top-reset).
   useEffect(() => {
     if (!mainThreadId) return;
     void (async () => {
@@ -109,17 +108,10 @@ export const EntertainmentThread: FC = () => {
       if (start == null) return; // fresh thread — the wizard drives the first chapter.
       pendingJumpRef.current = { chapterNumber: start, percentile: 0 };
       setCurrentChapter(start);
-      void ensureWorker(mainThreadId, start);
     })();
-  }, [
-    mainThreadId,
-    loadChapters,
-    getPosition,
-    ensureWorker,
-    setCurrentChapter,
-  ]);
+  }, [mainThreadId, loadChapters, getPosition, setCurrentChapter]);
 
-  // Drive the current chapter to readiness (poll + worker liveness).
+  // Drive the current chapter to readiness (poll until rewritten/errored).
   useChapterReadiness(mainThreadId, currentChapterNumber);
 
   const current =
@@ -177,7 +169,6 @@ export const EntertainmentThread: FC = () => {
     }
     setCurrentChapter(chapterNumber);
     void setPosition(mainThreadId, chapterNumber);
-    void ensureWorker(mainThreadId, chapterNumber);
   };
 
   // Apply a pending jump once the target chapter's rewritten prose is
@@ -267,15 +258,12 @@ export const EntertainmentThread: FC = () => {
 
   // Stop button: delegates to the shared `useEntertainmentNewConversation`
   // hook (same one the sidebar's New Conversation button uses in entertainment
-  // mode). In reader mode the hook stops in-flight work (the backend sets the
-  // durable stopStatus flag + aborts), resets the chapter cache, and switches
-  // to a fresh wizard thread. The chapter store is reset BEFORE the switch —
-  // this component does NOT unmount on thread switch (only `appMode` toggles
-  // it), so without the reset the previous thread's `currentChapterNumber`
-  // would linger and block the wizard (`showWizard` requires
-  // `currentChapterNumber == null`). The reader poll loop stops naturally: the
-  // readiness hook sees the thread's stopped status and bails. The old thread
-  // stays in the sidebar; reopening it stays stopped until Process/Redo.
+  // mode). In reader mode the hook resets the chapter cache and switches to a
+  // fresh wizard thread. The chapter store is reset BEFORE the switch — this
+  // component does NOT unmount on thread switch (only `appMode` toggles it), so
+  // without the reset the previous thread's `currentChapterNumber` would linger
+  // and block the wizard (`showWizard` requires `currentChapterNumber == null`).
+  // The old thread stays in the sidebar.
   const { abandon: abandonThread, stopping } =
     useEntertainmentNewConversation();
 
@@ -428,9 +416,10 @@ export const EntertainmentThread: FC = () => {
  *  the `.novel-reader` rules in novel-reader.css. */
 const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
   // If the rewritten prose exists, show it right away — regardless of source
-  // status. Pipeline ① produces title + outline + rewrite in one pass; its
-  // source_chapters row carries only the title (status="fetched"), so gating on
-  // sourceStatus would be meaningless. Rewrite status is the only signal that
+  // status. The chunked-merge dehydrate produces title + outline + rewrite in
+  // one pass; its source_chapters row carries only the title (status="fetched"),
+  // so gating on sourceStatus would be meaningless. Rewrite status is the only
+  // signal that
   // matters for "is there prose to read".
   if (chapter && chapter.rewriteStatus === "rewritten") {
     // Split on newline (handles CRLF); blank lines add no node. Each <p> gets

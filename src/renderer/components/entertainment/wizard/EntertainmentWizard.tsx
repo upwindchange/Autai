@@ -22,25 +22,18 @@ const STEPS = 3;
  * Upload button or Enter (in text inputs / the source textarea).
  *
  * Both modes materialize the thread at the novel step's primary button and jump
- * to the options page instantly, kicking background acquisition WITHOUT
- * awaiting it:
+ * to the options page instantly:
  *   - FILE "Upload & Continue" → /ingest: the backend decodes (iconv) + persists
  *     raw text. The sidebar shows the filename-based title the moment the
  *     request lands (applyConfig emits threads:listChanged / metadataUpdated).
- *   - INTERNET "Fetch & Continue" → /prefetch: applyConfig materializes the
- *     thread + the per-chapter fetcher is kicked AHEAD of rewrite (source rows
- *     land as "fetched" while the user configures options).
+ *   - INTERNET "Fetch & Continue" → applyConfig materializes the thread.
  * The options page then locks the thread to its source for BOTH modes: no Back
  * button, no re-pick — the only redo is delete-thread + new-thread ("Start
  * over").
  *
- * Start (last step) finalizes the user's StepOptions choices (/start →
- * upsertEntertainmentConfig) and kicks the pipeline (ensureRange). File gates
- * Start on ingest completion ("Preparing…") — the rewriter needs the decoded
- * raw text, a real data dependency. Internet does NOT gate on fetching: the
- * fetcher and rewriter synchronize only through the DB, so Start can fire the
- * moment the user is done configuring (whatever's prefetched rewrites straight
- * away; the rest fetches + rewrites together).
+ * Start (last step) finalizes the user's StepOptions choices
+ * (upsertEntertainmentConfig) and loads the reader. File gates Start on ingest
+ * completion ("Preparing…") — the raw text must exist before the reader opens.
  */
 export const EntertainmentWizard: FC = () => {
   const { t } = useTranslation("entertainment");
@@ -120,41 +113,26 @@ export const EntertainmentWizard: FC = () => {
     }
   };
 
-  // Fire background internet fetch + advance to the options page WITHOUT
-  // awaiting completion — the wizard jumps forward instantly, mirroring file
-  // ingest. Unlike file there is NO blocking flag: the fetcher is non-blocking
-  // w.r.t. Start (it talks to the rewriter only through the DB), so Start never
-  // waits on it. On failure (backend unreachable / rejected config) the thread
-  // failed to materialize — surface an error + "Start over".
+  // Internet "Fetch & Continue": advance to the options page. (The background
+  // fetcher that ran here is gone; the wizard still jumps forward so the user
+  // can configure options.)
   const prefetchAndAdvance = async () => {
     if (!mainThreadId) return;
     setPrepareError(null);
-    // Advance immediately — the options page is usable while the crawl runs.
     setStep(STEPS - 1);
-    try {
-      await useChaptersStore.getState().prefetchInternet(mainThreadId, config);
-    } catch {
-      setPrepareError(t("wizard.error.fetchFailed"));
-    }
   };
 
   const submit = async () => {
     if (submitted || !mainThreadId) return;
     // Never start if materialization hasn't landed (or failed). Belt-and-
     // suspenders — Start is disabled in the UI while ingesting (file) or on a
-    // prepare error (either mode). Internet fetching never blocks: it is
-    // DB-mediated and runs concurrently with rewrite.
+    // prepare error (either mode).
     if (prepareError || (isFile && ingesting)) return;
     setSubmitError(null);
     // Keep sessionId aligned with the active thread (mirrors the old start form).
     useUiStore.getState().setSessionId(mainThreadId);
     const store = useChaptersStore.getState();
     try {
-      // Finalize the user's StepOptions choices + kick the pipeline in one go.
-      // File: raw text was ingested at the novel step → runDehydrate. Internet:
-      // source rows were prefetched at the novel step → processChapter skips the
-      // fetch and rewrites (whatever isn't prefetched yet fetches + rewrites).
-      await store.startRewrite(mainThreadId, config);
       // Load novelType (+ whatever chapters exist) so canGoNext + the reader work.
       await store.loadChapters(mainThreadId);
       store.setCurrentChapter(1);
@@ -225,18 +203,13 @@ export const EntertainmentWizard: FC = () => {
   }, []);
 
   // The only redo path once a thread's source has been locked in (file "Upload &
-  // Continue" or internet "Fetch & Continue"): stop any in-flight work, DELETE
-  // the abandoned thread (purge its config + rawText/source rows from the DB and
-  // remove it from the sidebar), then reset the wizard to step 0. The current
-  // thread is the "new" thread, so there's no thread to switch away from — just
-  // wipe local state in place.
+  // Continue" or internet "Fetch & Continue"): DELETE the abandoned thread
+  // (purge its config + rawText/source rows from the DB and remove it from the
+  // sidebar), then reset the wizard to step 0. The current thread is the "new"
+  // thread, so there's no thread to switch away from — just wipe local state
+  // in place.
   const startOver = async () => {
     if (!mainThreadId) return;
-    try {
-      await httpClient.postJSON(`/entertainment/threads/${mainThreadId}/stop`);
-    } catch {
-      // Best-effort stop; proceed to delete regardless.
-    }
     try {
       await httpClient.delete(`/threads/${mainThreadId}`);
     } catch {
@@ -256,9 +229,9 @@ export const EntertainmentWizard: FC = () => {
 
   const valid = isStepValid(step, config);
 
-  // The options page locks the thread to its source (uploaded file OR prefetched
-  // internet source) — no Back, for EITHER mode. Step 0↔1 still allows Back
-  // (nothing is materialized yet there).
+  // The options page locks the thread to its source (uploaded file OR internet
+  // source) — no Back, for EITHER mode. Step 0↔1 still allows Back (nothing is
+  // materialized yet there).
   const canGoBack = step > 0 && step < STEPS - 1;
 
   // The primary button: step 1 reads "Upload & Continue" (file) or "Fetch &

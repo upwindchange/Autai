@@ -42,14 +42,14 @@ export class ApiServer {
     this.app.use("*", cors());
 
     // High-frequency poll endpoints the client hammers on a tight loop while
-    // work is in flight (reader liveness `worker` poll, single-chapter content
-    // refresh during rewrite, SSE event stream, health probe). Logging every
-    // one buries real signal under dozens of identical lines per minute, so
-    // the per-request debug line is skipped for these — but ONLY the log line:
-    // the auth gate below and every downstream handler still run unchanged.
-    // ThreadId / chapter number are dynamic, so match by path shape, not value.
+    // work is in flight (single-chapter content refresh during rewrite, SSE
+    // event stream, health probe). Logging every one buries real signal under
+    // dozens of identical lines per minute, so the per-request debug line is
+    // skipped for these — but ONLY the log line: the auth gate below and every
+    // downstream handler still run unchanged. ThreadId / chapter number are
+    // dynamic, so match by path shape, not value.
     const QUIET_PATH_RE =
-      /^\/(?:entertainment\/threads\/[^/]+\/(?:worker|chapters(?:\/[^/]+)?|bookmarks)|events|health)$/;
+      /^\/(?:entertainment\/threads\/[^/]+\/(?:chapters(?:\/[^/]+)?|bookmarks)|events|health)$/;
 
     this.app.use("*", async (c, next) => {
       if (!QUIET_PATH_RE.test(c.req.path)) {

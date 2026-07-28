@@ -1,16 +1,15 @@
 /**
- * Pipeline ③ acquisition: single-page fetcher for NON-NOVEL internet sources
- * (a long post, an email thread, an article — one continuous piece, not a
- * chaptered novel).
+ * Single-page fetcher for NON-NOVEL internet sources (a long post, an email
+ * thread, an article — one continuous piece, not a chaptered novel).
  *
  * Unlike the chaptered fetcher (`internetFetch`), this does NOT loop chapters,
  * advance, or detect a final chapter. It lands ONCE — either by navigating
  * directly to `novel.source` when it's an absolute URL, or by running a single
  * search query to discover the page URL — then extracts the WHOLE page's prose
- * into ONE `source_chapters` row (always `chapterNumber = 1`, the single
- * "chapter" pipeline ③ produces).
+ * into ONE `source_chapters` row (always `chapterNumber = 1`, the single output
+ * it produces).
  *
- * Reuses only the LEAF tools of the chaptered pipeline:
+ * Reuses only the LEAF tools of the chaptered fetcher:
  *  - `getFlattenDOMTool` + `clickElementTool` (DOM read / pagination click)
  *  - `executeSearchQueries` (URL discovery when `novel.source` isn't a URL)
  *  - `SessionTabService` / `TabControlService` / `entertainmentService`
@@ -50,7 +49,7 @@ interface SinglePageFetchContext {
   sessionId: string;
   activeTabId: string;
   threadId: string;
-  /** Always 1 — pipeline ③ produces exactly one source row. */
+  /** Always 1 — a non-novel source produces exactly one source row. */
   chapterNumber: number;
   abortSignal?: AbortSignal;
 }
@@ -267,7 +266,7 @@ async function extractPage(
  * the whole-page prose into that one row (always `chapterNumber = 1`).
  *
  * Returns the terminal status — never throws for expected outcomes:
- *  - `"fetched"` — the page prose was acquired; the scheduler proceeds to rewrite.
+ *  - `"fetched"` — the page prose was acquired; the caller may proceed to rewrite.
  *  - `"error"` — no URL could be landed, or extraction failed / exhausted its
  *    step budget without saving. The row is marked `"error"`.
  */
@@ -275,7 +274,7 @@ export async function fetchSinglePage(
   novel: InternetNovel,
   threadId: string,
 ): Promise<"fetched" | "error"> {
-  // This pipeline always uses chapterNumber 1 — there is one source row.
+  // There is always exactly one source row at chapterNumber 1.
   const chapterNumber = 1;
 
   // Own the source-row lifecycle up front (insert fresh or reset stale).

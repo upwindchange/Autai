@@ -39,8 +39,7 @@ export interface FetchChapterOptions {
  * the LAST chapter of the book. `fetchInternetChapter` catches this and treats
  * it distinctly from a generic acquisition error: it sets `finalChapterNumber`
  * to N-1, removes the phantom chapter-N row, releases the crawl tab, and
- * reports `"finalChapter"` to the scheduler (which cancels the lookahead loop
- * instead of marking the chapter `error`).
+ * reports `"finalChapter"` (instead of marking the chapter `error`).
  */
 export class FinalChapterError extends Error {
   constructor(message = "Reached the final chapter") {
@@ -75,7 +74,7 @@ async function destroyCrawlTab(sessionId: string): Promise<void> {
   await sts.destroyAllTabs(sessionId);
 }
 
-/** Terminal status the fetch reports back to the scheduler. */
+/** Terminal status the fetch reports back to its caller. */
 export type FetchOutcome = "fetched" | "finalChapter" | "error";
 
 /**
@@ -88,9 +87,9 @@ export type FetchOutcome = "fetched" | "finalChapter" | "error";
  * directly to `source_chapters`. The crawl tab is created once per thread and
  * carried across chapters.
  *
- * Returns the terminal status for the scheduler to branch on — it never throws
- * for expected outcomes:
- * - `"fetched"` — source acquired; the scheduler proceeds to rewrite.
+ * Returns the status for the caller to branch on — it never throws for
+ * expected outcomes:
+ * - `"fetched"` — source acquired; the caller may proceed to rewrite.
  * - `"finalChapter"` — phase 1 found no chapter N (N-1 was the last): sets
  *   `finalChapterNumber` to N-1, drops the phantom row, releases the crawl tab.
  * - `"error"` — any other acquisition failure: marks the row `error`.

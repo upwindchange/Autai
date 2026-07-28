@@ -1,24 +1,25 @@
 /**
  * Shared dehydrate system-prompt builder for the entertainment rewriter agents.
  *
- * Both rewrite agents — pipeline ① (chaptered-file, one-pass merge/re-chapter
- * dehydrate over a chunk) and pipeline ② (chaptered-internet, single-chapter
- * rewrite) — share the SAME option→prompt logic. The wizard options
+ * Both rewrite agents — the chaptered-file one-pass runner (merge/re-chapter
+ * dehydrate over a chunk) and the chaptered-internet single-chapter rewriter —
+ * share the SAME option→prompt logic. The wizard options
  * (basic / situation / crossChapter / depth / language / customInstruction) all
  * feed one builder; the prompt body that translates them into instructions is
  * identical except for four variant-specific pieces:
  *
- *   1. The ROLE line — ① re-chapters + merges + dehydrates a chunk into N
- *      chapters; ② rewrites one already-chaptered chapter in place.
- *   2. The CORE INVARIANTS — the chapter-boundary rule differs: ② stays within
- *      this one chapter; ① may weld chapters together but not invent beyond the
- *      source material.
- *   3. The OUTPUT CONTRACT — ① must hand back an array of `{ title, content,
- *      outline }` via the `outputChapters` tool; ② must hand back a single
- *      `content` via the `outputProcessedContent` tool.
- *   4. The 脱水块 tactic sources — ② uses only `situation.tactics`; ① merges
- *      `situation.tactics` + `crossChapter.tactics` into one array (cross-
- *      chapter 套路 need multi-chapter context, which only ① has).
+ *   1. The ROLE line — `multi` re-chapters + merges + dehydrates a chunk into N
+ *      chapters; `single` rewrites one already-chaptered chapter in place.
+ *   2. The CORE INVARIANTS — the chapter-boundary rule differs: `single` stays
+ *      within this one chapter; `multi` may weld chapters together but not
+ *      invent beyond the source material.
+ *   3. The OUTPUT CONTRACT — `multi` must hand back an array of `{ title,
+ *      content, outline }` via the `outputChapters` tool; `single` must hand
+ *      back a single `content` via the `outputProcessedContent` tool.
+ *   4. The 脱水块 tactic sources — `single` uses only `situation.tactics`;
+ *      `multi` merges `situation.tactics` + `crossChapter.tactics` into one
+ *      array (cross-chapter 套路 need multi-chapter context, which only `multi`
+ *      has).
  *
  * Everything else is built here, once, by injection: every enabled feature
  * contributes its piece, disabled features are silent (no "don't do X" noise).
@@ -729,13 +730,13 @@ type DehydrateVariant = "single" | "multi";
 // organic chapter (it merges/re-chapters by design), only forbidding invented
 // plot/facts and unrequested continuation/ending.
 const CORE_INVARIANTS: Record<DehydrateVariant, string> = {
-  // Pipeline ② — single-chapter rewrite: respect this one chapter's boundary.
+  // single — single-chapter rewrite: respect this one chapter's boundary.
   single:
     "无论后续如何改写，以下底线始终不可破坏：\n" +
     "- 不增加情节、不改写事实，你改的是“怎么写”，不是“写了什么”。\n" +
     "- 守住本章的边界与视角：不要补写前后章节的内容，不要擅自续写或收尾。\n" +
     "- 保留对话的信息量与潜台词：只在表达层面优化，不要让人物说出原本没说过的话。",
-  // Pipeline ① — multi-chapter merge/re-chapter: chapters are free to merge,
+  // multi — multi-chapter merge/re-chapter: chapters are free to merge,
   // but the source material is the limit.
   multi:
     "无论后续如何合并改写，以下底线始终不可破坏：\n" +
@@ -746,10 +747,10 @@ const CORE_INVARIANTS: Record<DehydrateVariant, string> = {
 };
 
 const ROLE_LINE: Record<DehydrateVariant, string> = {
-  // Pipeline ② — single-chapter rewrite (one already-chaptered chapter).
+  // single — single-chapter rewrite (one already-chaptered chapter).
   single:
     "你是一名资深的中文小说重写编辑。你的任务是把给定的一章原文，重写成阅读体验显著更好的版本。",
-  // Pipeline ① — multi-chapter merge/re-chapter dehydrate over a chunk of raw
+  // multi — multi-chapter merge/re-chapter dehydrate over a chunk of raw
   // text (no original chapter boundaries to respect).
   multi:
     "你是一名资深的小说脱水编辑。给定一段小说原文，请合并重写：忽略原章节边界，" +
@@ -758,7 +759,7 @@ const ROLE_LINE: Record<DehydrateVariant, string> = {
 };
 
 const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
-  // Pipeline ② — single `content` via outputProcessedContent.
+  // single — single `content` via outputProcessedContent.
   single:
     "The only thing you are allowed to do is to call the outputProcessedContent tool:\n" +
     "- Place the full rewritten content in the tool's `content` parameter;\n" +
@@ -778,7 +779,7 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
     "this is the only way to deliver the result.\n" +
     "- Emitting plain text without calling outputProcessedContent tool " +
     "will result in fatal failure",
-  // Pipeline ① — array of `{ title, content, outline }` via outputChapters.
+  // multi — array of `{ title, content, outline }` via outputChapters.
   multi:
     "The only thing you are allowed to do is to call the outputChapters tool:\n" +
     "- Pass an array of chapters; each entry has `title` (a short, reader-facing " +
@@ -810,8 +811,8 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
  *
  * `variant` selects three variant-specific pieces (role line, core invariants,
  * output contract):
- *   - `"single"` — pipeline ② (one already-chaptered chapter → outputProcessedContent).
- *   - `"multi"`  — pipeline ① (raw chunk → merge/re-chapter → outputChapters).
+ *   - `"single"` — one already-chaptered chapter → outputProcessedContent.
+ *   - `"multi"`  — raw chunk → merge/re-chapter → outputChapters.
  * The shared body between them is otherwise identical.
  *
  * Core invariants differ on the chapter-boundary rule: single stays strictly
