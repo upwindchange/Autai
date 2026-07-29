@@ -9,7 +9,6 @@ import {
   SlidersHorizontal,
   Sparkles,
   Square,
-  Loader2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -48,10 +47,8 @@ interface ReaderFooterProps {
    *  prev/next jump through here too (percentile 0 → top) so all chapter
    *  changes share one path. */
   onJumpTo: (chapterNumber: number, percentile: number) => void;
-  /** Stop all agents on the current thread and switch to a fresh thread (wizard). */
+  /** Drop the current thread and open a fresh wizard. */
   onStop: () => void;
-  /** True while the stop+switch sequence is in flight (disables the button). */
-  stopping: boolean;
   /** Open the full-page rewrite-options editor (replaces the reader, like the wizard). */
   onOpenOptions: () => void;
 }
@@ -84,7 +81,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   getScrollPercentile,
   onJumpTo,
   onStop,
-  stopping,
   onOpenOptions,
 }) => {
   const { t } = useTranslation("reader");
@@ -324,22 +320,18 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     </Button>
   );
 
-  // Stop all agents on this thread and switch to a fresh thread (wizard).
-  // Tooltip-wrapped like the zen toggle (no panel). Shows a spinner while the
-  // stop+switch sequence is in flight.
+  // Drop the current thread and open a fresh wizard. Tooltip-wrapped like the
+  // zen toggle (no panel). The switch is synchronous (abandon), so no spinner.
   const stopTrigger = (
     <Button
       type="button"
       variant="ghost"
       size="icon"
       onClick={onStop}
-      disabled={stopping}
       aria-label={t("reader.stop.label")}
       className="size-9 rounded-full"
     >
-      {stopping ?
-        <Loader2 className="size-5 animate-spin" />
-      : <Square className="size-5 fill-current" />}
+      <Square className="size-5 fill-current" />
     </Button>
   );
 

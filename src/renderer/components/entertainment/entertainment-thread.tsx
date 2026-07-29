@@ -19,7 +19,6 @@ import { useChaptersStore, type ChapterView } from "@/stores/chaptersStore";
 import { useChapterReadiness } from "@/hooks/useChapterReadiness";
 import { useReaderHotkeys } from "@/hooks/useReaderHotkeys";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useEntertainmentNewConversation } from "@/hooks/useEntertainmentNewConversation";
 import type { ChapterStatus, EntertainmentConfig } from "@shared";
 import { EntertainmentWizard } from "./wizard/EntertainmentWizard";
 import { StepOptions } from "./wizard/steps/StepOptions";
@@ -208,7 +207,9 @@ export const EntertainmentThread: FC = () => {
     };
   }, [isMobile]);
 
-  // Wizard only on a fresh thread (no chapters, nothing started yet).
+  // Wizard on a fresh surface: no chapters and no open chapter. With lazy
+  // creation this includes activeThreadId === null — the wizard IS the empty
+  // state; no thread exists until the user commits at StepNovel.
   const showWizard = chapters.length === 0 && currentChapterNumber == null;
 
   const handlePrev = () => {
@@ -244,16 +245,13 @@ export const EntertainmentThread: FC = () => {
     setFooterPinned((p) => !p);
   };
 
-  // Stop button: delegates to the shared `useEntertainmentNewConversation`
-  // hook (same one the sidebar's New Conversation button uses in entertainment
-  // mode). In reader mode the hook resets the chapter cache and switches to a
-  // fresh wizard thread. The chapter store is reset BEFORE the switch — this
-  // component does NOT unmount on thread switch (only `appMode` toggles it), so
-  // without the reset the previous thread's `currentChapterNumber` would linger
-  // and block the wizard (`showWizard` requires `currentChapterNumber == null`).
-  // The old thread stays in the sidebar.
-  const { abandon: abandonThread, stopping } =
-    useEntertainmentNewConversation();
+  // Stop button: abandon the current thread and open a fresh wizard. `abandon`
+  // resets the chapter cache and clears the active thread (synchronous, no
+  // POST — the next thread is created only at the StepNovel commit). The reset
+  // matters because this component does NOT unmount on thread switch (only
+  // `appMode` toggles it); without it the previous thread's
+  // `currentChapterNumber` would linger and block the wizard.
+  const abandonThread = () => useEntertainmentThreadsStore.getState().abandon();
 
   // Options page — a full-page view of the same StepOptions the wizard uses,
   // editing the current thread's persisted config on the fly. Opened from the
@@ -379,7 +377,6 @@ export const EntertainmentThread: FC = () => {
           getScrollPercentile={getScrollPercentile}
           onJumpTo={jumpTo}
           onStop={() => void abandonThread()}
-          stopping={stopping}
           onOpenOptions={openOptionsPage}
         />
       )}

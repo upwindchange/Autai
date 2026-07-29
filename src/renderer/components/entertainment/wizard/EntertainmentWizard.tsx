@@ -37,10 +37,12 @@ const STEPS = 3;
 export const EntertainmentWizard: FC = () => {
   const { t } = useTranslation("entertainment");
   const activeThreadId = useEntertainmentThreadsStore((s) => s.activeThreadId);
-  // The wizard step is owned by the entertainment store (ephemeral UI state)
-  // and aliased locally as step/setStep for ergonomic use below.
-  const step = useEntertainmentThreadsStore((s) => s.wizardStep);
-  const setStep = useEntertainmentThreadsStore((s) => s.setWizardStep);
+  const setActiveThreadId = useEntertainmentThreadsStore(
+    (s) => s.setActiveThreadId,
+  );
+  const ensureThread = useEntertainmentThreadsStore((s) => s.ensureThread);
+  // The step is wizard-local UI state (nothing outside the wizard reads it).
+  const [step, setStep] = useState(0);
 
   const [config, setConfig] = useState<EntertainmentConfig>(INITIAL_DEHYDRATE);
   const [pendingFile, setPendingFile] = useState<File | undefined>(undefined);
@@ -59,17 +61,22 @@ export const EntertainmentWizard: FC = () => {
   // a "Start over" reset; it blocks Start for both modes.
   const [ingesting, setIngesting] = useState(false);
   const [prepareError, setPrepareError] = useState<string | null>(null);
-  // Tracks the thread this wizard instance is bound to. On a genuine thread
-  // switch (New Conversation, sidebar click) the whole local state is wiped and
-  // the wizard restarts at step 0 with INITIAL_DEHYDRATE — a brand-new wizard
-  // for the brand-new thread, with nothing carried over from the prior thread's
-  // in-progress selections. The shared abandon hook (startNewWizard) always
-  // produces a fresh backend thread id, so this effect reliably fires on every
-  // abandon.
+  // Synchronous re-entry latch for the StepNovel commit. The `ingesting`
+  // React-state guard is racy across two rapid events before re-render, and
+  // internet mode had no guard at all; ensureThread's in-flight dedup is the
+  // backstop, this stops a double-click even queuing a second commit.
+  const committingRef = useRef(false);
+  // Tracks the thread this wizard instance is bound to, so a genuine thread
+  // switch (sidebar click to another thread while the wizard stays mounted)
+  // wipes local state — nothing carries across threads. The null -> non-null
+  // transition is EXCLUDED: that is the StepNovel commit materializing THIS
+  // wizard's own thread, which must preserve the config the user just chose.
   const boundThreadId = useRef<string | null>(activeThreadId);
   useEffect(() => {
-    if (boundThreadId.current === activeThreadId) return;
+    const prev = boundThreadId.current;
+    if (prev === activeThreadId) return;
     boundThreadId.current = activeThreadId;
+    if (prev === null) return; // our own ensureThread commit — preserve state
     setConfig(INITIAL_DEHYDRATE);
     setPendingFile(undefined);
     setStep(0);
@@ -83,45 +90,40 @@ export const EntertainmentWizard: FC = () => {
   const isLast = step === STEPS - 1;
   const isFile = config.novel.type === "file";
 
-  // Fire background file ingestion and advance to the options page WITHOUT
-  // awaiting — the wizard jumps forward instantly. The Start button gates on
-  // `ingesting` so the dehydrate loop can't be kicked before raw text exists.
-  // On failure, surfaces an error + "Start over" on the options page.
-  const ingestAndAdvance = async () => {
-    if (!activeThreadId || ingesting) return;
-    // Only ever called when isFile (guarded in advance()), but TS can't carry
-    // the union narrowing into this closure — narrow explicitly.
-    if (config.novel.type !== "file") return;
+  // The StepNovel primary button ("Upload & Continue" / "Fetch & Continue") for
+  // BOTH modes: create the thread (the ONLY creation path), then advance to the
+  // options page so a real thread exists by the time the user lands there. File
+  // mode then ingests the raw text; internet mode has nothing more to do (its
+  // background fetcher was removed). On failure, surfaces an error + "Start
+  // over" on the options page.
+  const commitAndAdvance = async () => {
+    if (committingRef.current) return;
+    committingRef.current = true;
     setPrepareError(null);
-    setIngesting(true);
-    // Advance immediately — the options page is usable while decode runs.
-    setStep(STEPS - 1);
     try {
-      const transfer = await toFileTransfer({
-        fsPath: config.novel.fsPath,
-        file: pendingFile,
-      });
-      await useChaptersStore.getState().ingestFile(
-        activeThreadId,
-        config,
-        transfer,
-      );
+      const id = await ensureThread();
+      setStep(STEPS - 1); // advance AFTER the id exists — real thread by stepOptions
+      if (config.novel.type !== "file") return; // internet: nothing more to do
+      setIngesting(true);
+      try {
+        const transfer = await toFileTransfer({
+          fsPath: config.novel.fsPath,
+          file: pendingFile,
+        });
+        await useChaptersStore.getState().ingestFile(id, config, transfer);
+      } catch {
+        // Empty file / decode failure / backend unreachable. The thread is now
+        // locked to a bad source — only reset is delete + new thread.
+        setPrepareError(t("wizard.error.ingestFailed"));
+      } finally {
+        setIngesting(false);
+      }
     } catch {
-      // Empty file / decode failure / backend unreachable. The thread is now
-      // locked to a bad source — only reset is delete + new thread.
-      setPrepareError(t("wizard.error.ingestFailed"));
+      // ensureThread (POST /threads) failed — backend unreachable.
+      setPrepareError(t("wizard.error.failed"));
     } finally {
-      setIngesting(false);
+      committingRef.current = false;
     }
-  };
-
-  // Internet "Fetch & Continue": advance to the options page. (The background
-  // fetcher that ran here is gone; the wizard still jumps forward so the user
-  // can configure options.)
-  const prefetchAndAdvance = async () => {
-    if (!activeThreadId) return;
-    setPrepareError(null);
-    setStep(STEPS - 1);
   };
 
   const submit = async () => {
@@ -151,15 +153,10 @@ export const EntertainmentWizard: FC = () => {
       void submit();
       return;
     }
-    // Step 1 → 2: both modes advance instantly and kick background acquisition
-    // before either awaits — file decodes + persists raw text, internet kicks
-    // the per-chapter fetcher ahead of rewrite.
-    if (step === 1 && isFile) {
-      void ingestAndAdvance();
-      return;
-    }
-    if (step === 1 && !isFile) {
-      void prefetchAndAdvance();
+    // Step 1 → 2: create the thread + ingest (file), then land on the options
+    // page with a real thread. Same path for both modes.
+    if (step === 1) {
+      void commitAndAdvance();
       return;
     }
     setStep((s) => Math.min(s + 1, STEPS - 1));
@@ -202,21 +199,14 @@ export const EntertainmentWizard: FC = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // The only redo path once a thread's source has been locked in (file "Upload &
-  // Continue" or internet "Fetch & Continue"): DELETE the abandoned thread
-  // (purge its config + rawText/source rows from the DB and remove it from the
-  // sidebar), then reset the wizard to step 0. The current thread is the "new"
-  // thread, so there's no thread to switch away from — just wipe local state
-  // in place.
+  // The only redo path once a thread's source has been locked in: drop back to
+  // a fresh wizard (no thread) and best-effort delete the abandoned thread. The
+  // active id is cleared BEFORE the DELETE so the delete's threads:listChanged
+  // SSE → refresh() sees a null active and leaves the wizard alone (no hijack to
+  // another thread). The next StepNovel commit creates a fresh thread.
   const startOver = async () => {
-    if (!activeThreadId) return;
-    try {
-      await httpClient.delete(`/threads/${activeThreadId}`);
-    } catch {
-      // If delete fails the user is stuck — surface a generic error.
-      setSubmitError(t("wizard.error.failed"));
-      return;
-    }
+    const id = activeThreadId;
+    if (id) setActiveThreadId(null);
     setConfig(INITIAL_DEHYDRATE);
     setPendingFile(undefined);
     setStep(0);
@@ -225,6 +215,14 @@ export const EntertainmentWizard: FC = () => {
     setSubmitError(null);
     setIngesting(false);
     setPrepareError(null);
+    if (id) {
+      try {
+        await httpClient.delete(`/threads/${id}`);
+      } catch {
+        // Best-effort: the row may linger in the sidebar, but the wizard is
+        // reset and usable. The user can delete it manually.
+      }
+    }
   };
 
   const valid = isStepValid(step, config);
