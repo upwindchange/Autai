@@ -13,17 +13,8 @@ export interface TagRow {
 }
 
 /**
- * Top-level UI mode for a thread. Orthogonal to `status` (regular|archived),
- * which is assistant-ui's domain. `mode` partitions threads between the chat
- * UI ("chat") and the entertainment UI ("entertainment"); it never reaches the
- * assistant-ui runtime.
+ * Top-level UI mode for a thread. Orthogonal to `status` (regular|archived).
+ * `mode` partitions threads between the chat UI ("chat") and the entertainment
+ * UI ("entertainment").
  */
 export type ThreadMode = "chat" | "entertainment";
-
-export interface ThreadWithTags {
-  remoteId: string;
-  title: string;
-  status: "regular" | "archived";
-  mode: ThreadMode;
-  tags: TagRow[];
-}

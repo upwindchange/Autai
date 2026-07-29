@@ -16,9 +16,12 @@ export const ChatRequestSchema = z.object({
   tools: z.any().optional(), // ToolSet[] - complex, validated at runtime
 });
 
-// Thread creation schema
+// Thread creation schema. `id` is optional: when omitted, the backend generates
+// one (so the backend stays the single source of truth for thread identity —
+// the browser/remote-access renderer is not a secure context and can't rely on
+// crypto.randomUUID). Chat still sends its own id.
 export const CreateThreadSchema = z.object({
-  id: z.string().min(1),
+  id: z.string().min(1).optional(),
   mode: z.enum(["chat", "entertainment"]).optional(),
 });
 

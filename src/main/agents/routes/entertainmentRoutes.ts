@@ -105,16 +105,14 @@ const CreateBookmarkSchema = z.object({
 });
 
 /**
- * Persist config + first-time thread setup (title/tag). Shared by the upload
- * (file) and setup (internet) wizard paths. Idempotent: setupEntertainmentThread
- * only fires on the thread's first config.
+ * Persist config + first-time thread setup (title/tag). Idempotent:
+ * setupEntertainmentThread only fires on the thread's first config.
  *
- * The wizard submits before the thread is initialized via POST /threads (the
- * runtime only initializes on first message send), so this is often the call
- * that first persists the row. Emit `threads:listChanged` on that first create
- * so other clients — and this client's flat thread list (which reads assistant-
- * ui's cache, not tagStore) — reload and see the new thread immediately,
- * instead of waiting until the next reboot forces a list().
+ * The entertainment wizard pre-creates the thread row (POST /threads) before
+ * submitting config, so the row usually already exists here (isNew = false) and
+ * this just writes the config + runs first-time setup. The threads:listChanged
+ * emit on a genuine first-create keeps other clients — and this client's
+ * tagStore-backed thread list — in sync.
  */
 function applyConfig(
   threadId: string,

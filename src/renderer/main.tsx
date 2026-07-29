@@ -43,6 +43,7 @@ import {
 import { useTagStore } from "@/stores/tagStore";
 import { useChaptersStore } from "@/stores/chaptersStore";
 import { useThreadModelStore } from "@/stores/threadModelStore";
+import { useEntertainmentThreadsStore } from "@/stores/entertainmentThreadsStore";
 import { useRemoteThreadListRuntime } from "@assistant-ui/react";
 import { backendThreadListAdapter } from "@/adapters/backendThreadListAdapter";
 import { UniversalFileAttachmentAdapter } from "@/adapters/universalFileAttachmentAdapter";
@@ -139,14 +140,22 @@ function AppContent() {
   const { showSettings, showSplitView, setContainerRef } = useUiStore();
   const appMode = useUiStore((s) => s.appMode);
   const zenMode = useUiStore((s) => s.zenMode);
-  const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
-  // Latest mainThreadId readable inside the appMode subscription callback
-  // (which fires outside the render cycle).
-  const mainThreadIdRef = useRef(mainThreadId);
-  mainThreadIdRef.current = mainThreadId;
+  // The active thread id is the chat runtime's main thread (chat) or the
+  // entertainment store's active thread (entertainment). Both hooks run
+  // unconditionally; the mode only selects which value is used.
+  const auiMainThreadId = useAuiState((s) => s.threads.mainThreadId);
+  const entertainmentActiveId = useEntertainmentThreadsStore(
+    (s) => s.activeThreadId,
+  );
+  const activeThreadId =
+    appMode === "entertainment" ? entertainmentActiveId : auiMainThreadId;
+  // Latest active id readable inside the appMode subscription callback (which
+  // fires outside the render cycle).
+  const activeThreadIdRef = useRef(activeThreadId);
+  activeThreadIdRef.current = activeThreadId;
   const threadTitle = useTagStore((s) =>
-    mainThreadId ?
-      (s.threads.find((th) => th.remoteId === mainThreadId)?.title ?? null)
+    activeThreadId ?
+      (s.threads.find((th) => th.id === activeThreadId)?.title ?? null)
     : null,
   );
   // In entertainment mode, prefer the CURRENT chapter's title over the thread
@@ -160,43 +169,50 @@ function AppContent() {
   });
 
   // Load this thread's saved chat model from the DB once (cached in RAM).
-  // Keyed by mainThreadId — the active thread id. (threadListItem.remoteId is
-  // undefined here: AppContent is a sibling of the per-thread runtime.)
+  // Entertainment has no per-thread chat model, so this is chat-only.
   useEffect(() => {
-    if (!mainThreadId) return;
-    void useThreadModelStore.getState().loadFromDb(mainThreadId);
-  }, [mainThreadId]);
+    if (appMode !== "chat" || !activeThreadId) return;
+    void useThreadModelStore.getState().loadFromDb(activeThreadId);
+  }, [activeThreadId, appMode]);
 
   // Initialize thread lifecycle management
   useSessionLifecycle();
 
   // Reload the thread list when the set of threads changes on the backend
-  // (create/delete/archive/bulk from any client). The flat thread list reads
-  // from assistant-ui's internal cache, which — unlike the grouped list's
-  // tagStore (kept live by the metadataUpdated handler in App) — is not
-  // otherwise notified, so it needs this reload to see threads created elsewhere.
+  // (create/delete/archive/bulk from any client). Chat reloads assistant-ui's
+  // internal cache; entertainment re-fetches its own thread set into tagStore.
   const refreshThreads = useThreadListRefresh();
   useEffect(() => {
     return serverEvents.on("threads:listChanged", () => {
-      void refreshThreads();
+      if (useUiStore.getState().appMode === "entertainment") {
+        void useEntertainmentThreadsStore.getState().refresh();
+      } else {
+        void refreshThreads();
+      }
     });
   }, [refreshThreads]);
 
-  // Reload the thread list when the top-level app mode changes (chat <->
-  // entertainment). The single adapter is mode-aware, so reload() re-fetches
-  // the other mode's threads via the public runtime API. We remember the thread
-  // we're leaving and restore the target mode's last-active thread afterwards.
+  // Reload the active mode's thread set on a top-level mode switch (chat <->
+  // entertainment). Remember the thread we're leaving and restore the target
+  // mode's last-active thread. Entertainment manages its own thread set; chat
+  // goes through the assistant-ui runtime reload.
   useEffect(() => {
     return useUiStore.subscribe(
       (s) => s.appMode,
       (newMode, oldMode) => {
         if (!oldMode || newMode === oldMode) return;
-        const currentId = mainThreadIdRef.current;
-        if (currentId && !currentId.startsWith("__LOCALID")) {
-          useUiStore.getState().setLastActiveByMode(oldMode, currentId);
+        const leavingId = activeThreadIdRef.current;
+        if (leavingId && !leavingId.startsWith("__LOCALID")) {
+          useUiStore.getState().setLastActiveByMode(oldMode, leavingId);
         }
-        const target = useUiStore.getState().lastActiveByMode[newMode];
-        void refreshThreads({ restoreTarget: target });
+        if (newMode === "entertainment") {
+          // load() reconciles the active entertainment thread (restore
+          // last-active, else most-recent, else a fresh wizard).
+          void useEntertainmentThreadsStore.getState().load();
+        } else {
+          const target = useUiStore.getState().lastActiveByMode.chat;
+          void refreshThreads({ restoreTarget: target });
+        }
       },
     );
   }, [refreshThreads]);

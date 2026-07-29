@@ -9,12 +9,11 @@ import {
   type MouseEvent as ReactMouseEvent,
   type SetStateAction,
 } from "react";
-import { ThreadPrimitive, useAuiState } from "@assistant-ui/react";
 import { useTranslation } from "react-i18next";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { DotMatrix } from "@/components/assistant-ui/dot-matrix";
 import { Button } from "@/components/ui/button";
-import { useUiStore } from "@/stores/uiStore";
+import { useEntertainmentThreadsStore } from "@/stores/entertainmentThreadsStore";
 import { useReaderSettings } from "@/stores/readerSettingsStore";
 import { useChaptersStore, type ChapterView } from "@/stores/chaptersStore";
 import { useChapterReadiness } from "@/hooks/useChapterReadiness";
@@ -40,23 +39,12 @@ const HOVER_BAND_PX = 120;
  * polls chapter detail + worker liveness (`useChapterReadiness`). The reader
  * NEVER shows 原文 — it renders fetching / rewriting / ready / error states
  * derived from the source+rewrite statuses, and only the rewritten prose once
- * ready. The assistant-ui shell is kept only for layout + the active thread id.
+ * ready. The active thread id comes from the entertainment store.
  */
-
-// Sync sessionId from the active thread id (kept from the message-based version).
-function ThreadIdTracker() {
-  const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
-  useEffect(() => {
-    if (mainThreadId) {
-      useUiStore.getState().setSessionId(mainThreadId);
-    }
-  }, [mainThreadId]);
-  return null;
-}
 
 export const EntertainmentThread: FC = () => {
   const settings = useReaderSettings();
-  const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
+  const activeThreadId = useEntertainmentThreadsStore((s) => s.activeThreadId);
   const isMobile = useIsMobile();
 
   const chapters = useChaptersStore((s) => s.chapters);
@@ -99,20 +87,20 @@ export const EntertainmentThread: FC = () => {
   // effect scrolls it to the top once its prose is ready (the unified jump path
   // — no separate top-reset).
   useEffect(() => {
-    if (!mainThreadId) return;
+    if (!activeThreadId) return;
     void (async () => {
-      await loadChapters(mainThreadId);
-      const pos = await getPosition(mainThreadId);
+      await loadChapters(activeThreadId);
+      const pos = await getPosition(activeThreadId);
       const hasChapters = useChaptersStore.getState().chapters.length > 0;
       const start = pos ?? (hasChapters ? 1 : null);
       if (start == null) return; // fresh thread — the wizard drives the first chapter.
       pendingJumpRef.current = { chapterNumber: start, percentile: 0 };
       setCurrentChapter(start);
     })();
-  }, [mainThreadId, loadChapters, getPosition, setCurrentChapter]);
+  }, [activeThreadId, loadChapters, getPosition, setCurrentChapter]);
 
   // Drive the current chapter to readiness (poll until rewritten/errored).
-  useChapterReadiness(mainThreadId, currentChapterNumber);
+  useChapterReadiness(activeThreadId, currentChapterNumber);
 
   const current =
     currentChapterNumber != null ?
@@ -160,7 +148,7 @@ export const EntertainmentThread: FC = () => {
   // then same-chapter applies immediately while cross-chapter navigates and lets
   // the apply effect below restore the percentile once the target prose is ready.
   const jumpTo = (chapterNumber: number, percentile: number) => {
-    if (!mainThreadId) return;
+    if (!activeThreadId) return;
     pendingJumpRef.current = { chapterNumber, percentile };
     if (chapterNumber === currentChapterNumber) {
       scrollToPercentile(percentile);
@@ -168,7 +156,7 @@ export const EntertainmentThread: FC = () => {
       return;
     }
     setCurrentChapter(chapterNumber);
-    void setPosition(mainThreadId, chapterNumber);
+    void setPosition(activeThreadId, chapterNumber);
   };
 
   // Apply a pending jump once the target chapter's rewritten prose is
@@ -283,9 +271,9 @@ export const EntertainmentThread: FC = () => {
     setShowOptionsPage(true);
     setOptionsConfig(null);
     setOptionsLoadFailed(false);
-    if (!mainThreadId) return;
+    if (!activeThreadId) return;
     setOptionsLoading(true);
-    void getThreadConfig(mainThreadId)
+    void getThreadConfig(activeThreadId)
       .then((cfg) => {
         if (cfg) setOptionsConfig(cfg);
         else setOptionsLoadFailed(true);
@@ -299,10 +287,10 @@ export const EntertainmentThread: FC = () => {
     setOptionsLoadFailed(false);
   };
   const handleSaveOptions = async () => {
-    if (!mainThreadId || !optionsConfig) return;
+    if (!activeThreadId || !optionsConfig) return;
     setOptionsSaving(true);
     try {
-      await updateThreadConfig(mainThreadId, optionsConfig);
+      await updateThreadConfig(activeThreadId, optionsConfig);
       closeOptionsPage();
     } finally {
       setOptionsSaving(false);
@@ -310,9 +298,9 @@ export const EntertainmentThread: FC = () => {
   };
 
   return (
-    <ThreadPrimitive.Root
+    <div
       ref={rootRef}
-      className="aui-root aui-thread-root @container relative flex h-full flex-col bg-background"
+      className="@container relative flex h-full flex-col bg-background"
       style={{
         // Reader CSS vars are defined here so they cascade into the viewport
         // and the prose column below; the root itself stays bg-background so
@@ -323,15 +311,8 @@ export const EntertainmentThread: FC = () => {
         ...buildReaderCssVars(settings),
       }}
     >
-      <ThreadIdTracker />
-      <ThreadPrimitive.Viewport
+      <div
         ref={viewportRef}
-        turnAnchor="top"
-        autoScroll={false}
-        scrollToBottomOnRunStart={false}
-        scrollToBottomOnInitialize={false}
-        scrollToBottomOnThreadSwitch={false}
-        data-slot="aui_thread-viewport"
         className="relative flex flex-1 flex-col overflow-x-auto overflow-y-auto scroll-smooth"
         style={{
           // Reader theme background is scoped to the reading surface and
@@ -380,16 +361,13 @@ export const EntertainmentThread: FC = () => {
               </p>
             )}
             {currentChapterNumber != null && (
-              <div
-                data-slot="aui_message-group"
-                className="mb-10 flex flex-col gap-y-10 empty:hidden"
-              >
+              <div className="mb-10 flex flex-col gap-y-10 empty:hidden">
                 <ChapterBody chapter={current} />
               </div>
             )}
           </div>
         }
-      </ThreadPrimitive.Viewport>
+      </div>
       {currentChapterNumber != null && !showOptionsPage && (
         <ReaderFooter
           canGoPrev={canGoPrev}
@@ -405,7 +383,7 @@ export const EntertainmentThread: FC = () => {
           onOpenOptions={openOptionsPage}
         />
       )}
-    </ThreadPrimitive.Root>
+    </div>
   );
 };
 

@@ -147,7 +147,7 @@ export async function searchThreads(
   mode?: ThreadMode,
 ): Promise<{
   threads: {
-    remoteId: string;
+    id: string;
     title: string;
     status: "regular" | "archived";
     mode: ThreadMode;
@@ -161,11 +161,34 @@ export async function searchThreads(
   );
   return (await res.json()) as {
     threads: {
-      remoteId: string;
+      id: string;
       title: string;
       status: "regular" | "archived";
       mode: ThreadMode;
       tags: TagRow[];
     }[];
   };
+}
+
+/** Flip a single thread's status to "archived" (PATCH /threads/:id). */
+export async function archiveThread(threadId: string): Promise<void> {
+  await fetch(`${getApiBase()}/threads/${threadId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status: "archived" }),
+  });
+}
+
+/** Restore a single thread to "regular" (PATCH /threads/:id). */
+export async function unarchiveThread(threadId: string): Promise<void> {
+  await fetch(`${getApiBase()}/threads/${threadId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status: "regular" }),
+  });
+}
+
+/** Permanently delete a single thread (DELETE /threads/:id). */
+export async function deleteThread(threadId: string): Promise<void> {
+  await fetch(`${getApiBase()}/threads/${threadId}`, { method: "DELETE" });
 }

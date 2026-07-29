@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
 import { threadPersistenceService, searchService } from "@/services";
 import { eventBus } from "@/utils/eventBus";
 import { userProviders } from "@/db/schema";
@@ -26,7 +27,7 @@ threadRoutes.get("/", (c) => {
     const threads = threadPersistenceService.listThreadsByMode(mode);
     return c.json({
       threads: threads.map((t) => ({
-        remoteId: t.id,
+        id: t.id,
         status: t.status,
         mode: t.mode,
         title: t.title,
@@ -39,20 +40,24 @@ threadRoutes.get("/", (c) => {
   }
 });
 
-// POST /threads - create thread
+// POST /threads - create thread. When no id is provided, the backend generates
+// one (the single source of truth for thread identity). The mode defaults to
+// "chat"; entertainment's wizard-start posts { mode: "entertainment" } with no
+// id and uses the returned { id }.
 threadRoutes.post("/", async (c) => {
   try {
     const body = await c.req.json();
     const parsed = CreateThreadSchema.safeParse(body);
     if (!parsed.success) {
-      return c.json({ error: "Thread id is required" }, 400);
+      return c.json({ error: "Invalid thread creation request" }, 400);
     }
+    const id = parsed.data.id ?? randomUUID();
     const thread = threadPersistenceService.createThread(
-      parsed.data.id,
+      id,
       parsed.data.mode ?? "chat",
     );
     eventBus.emitEvent("threads:listChanged", null);
-    return c.json({ remoteId: thread.id, externalId: undefined }, 201);
+    return c.json({ id: thread.id }, 201);
   } catch (error) {
     logger.error("Error creating thread:", error);
     return c.json({ error: "Failed to create thread" }, 500);
@@ -151,7 +156,7 @@ threadRoutes.get("/search", (c) => {
     );
     return c.json({
       threads: threads.map((t) => ({
-        remoteId: t.id,
+        id: t.id,
         status: t.status,
         mode: t.mode,
         title: t.title,
@@ -172,7 +177,7 @@ threadRoutes.get("/:id", (c) => {
       return c.json({ error: "Thread not found" }, 404);
     }
     return c.json({
-      remoteId: thread.id,
+      id: thread.id,
       status: thread.status,
       title: thread.title,
     });

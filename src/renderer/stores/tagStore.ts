@@ -16,7 +16,7 @@ import {
 export type ViewMode = "flat" | "grouped";
 
 export interface ThreadInfo {
-  remoteId: string;
+  id: string;
   title: string;
   tags: TagRow[];
   status: "regular" | "archived";
@@ -28,10 +28,11 @@ interface TagState {
   tags: TagRow[];
   loading: boolean;
 
-  // Thread-to-tags mapping (keyed by thread remoteId)
+  // Thread-to-tags mapping (keyed by thread id)
   threadTags: Record<string, TagRow[]>;
 
-  // Full thread list data (populated from adapter list())
+  // Full thread list data for the active mode (populated by the chat adapter in
+  // chat mode, or the entertainment thread loader in entertainment mode).
   threads: ThreadInfo[];
 
   // View state
@@ -63,15 +64,15 @@ interface TagState {
     threadTags: Record<string, TagRow[]>,
     threads: ThreadInfo[],
   ) => void;
-  addTagToThread: (threadRemoteId: string, tagId: number) => Promise<void>;
-  removeTagFromThread: (threadRemoteId: string, tagId: number) => Promise<void>;
-  renameThread: (threadRemoteId: string, title: string) => Promise<void>;
+  addTagToThread: (threadId: string, tagId: number) => Promise<void>;
+  removeTagFromThread: (threadId: string, tagId: number) => Promise<void>;
+  renameThread: (threadId: string, title: string) => Promise<void>;
   updateThreadTitle: (
-    threadRemoteId: string,
+    threadId: string,
     title: string,
     tags?: TagRow[],
   ) => void;
-  getTagsForThread: (remoteId: string | undefined) => TagRow[];
+  getTagsForThread: (threadId: string | undefined) => TagRow[];
 
   // Multi-select actions
   setMultiSelectMode: (enabled: boolean) => void;
@@ -186,57 +187,57 @@ export const useTagStore = create<TagState>()(
 
     setThreadTags: (threadTags, threads) => set({ threadTags, threads }),
 
-    addTagToThread: async (threadRemoteId, tagId) => {
-      await apiAddTagToThread(threadRemoteId, tagId);
+    addTagToThread: async (threadId, tagId) => {
+      await apiAddTagToThread(threadId, tagId);
       const state = get();
       const tag = state.tags.find((t) => t.id === tagId);
       if (!tag) return;
-      const newTags = [...(state.threadTags[threadRemoteId] ?? []), tag];
+      const newTags = [...(state.threadTags[threadId] ?? []), tag];
       set({
-        threadTags: { ...state.threadTags, [threadRemoteId]: newTags },
+        threadTags: { ...state.threadTags, [threadId]: newTags },
         threads: state.threads.map((th) =>
-          th.remoteId === threadRemoteId ? { ...th, tags: newTags } : th,
+          th.id === threadId ? { ...th, tags: newTags } : th,
         ),
       });
     },
 
-    removeTagFromThread: async (threadRemoteId, tagId) => {
-      await apiRemoveTagFromThread(threadRemoteId, tagId);
+    removeTagFromThread: async (threadId, tagId) => {
+      await apiRemoveTagFromThread(threadId, tagId);
       const state = get();
-      const newTags = (state.threadTags[threadRemoteId] ?? []).filter(
+      const newTags = (state.threadTags[threadId] ?? []).filter(
         (t) => t.id !== tagId,
       );
       set({
-        threadTags: { ...state.threadTags, [threadRemoteId]: newTags },
+        threadTags: { ...state.threadTags, [threadId]: newTags },
         threads: state.threads.map((th) =>
-          th.remoteId === threadRemoteId ? { ...th, tags: newTags } : th,
+          th.id === threadId ? { ...th, tags: newTags } : th,
         ),
       });
     },
 
-    renameThread: async (threadRemoteId, title) => {
-      await apiRenameThread(threadRemoteId, title);
+    renameThread: async (threadId, title) => {
+      await apiRenameThread(threadId, title);
       set({
         threads: get().threads.map((th) =>
-          th.remoteId === threadRemoteId ? { ...th, title } : th,
+          th.id === threadId ? { ...th, title } : th,
         ),
       });
     },
 
-    updateThreadTitle: (threadRemoteId, title, tags) => {
+    updateThreadTitle: (threadId, title, tags) => {
       const threads = get().threads;
-      const exists = threads.some((th) => th.remoteId === threadRemoteId);
+      const exists = threads.some((th) => th.id === threadId);
       if (exists) {
         set({
           threads: threads.map((th) => {
-            if (th.remoteId !== threadRemoteId) return th;
+            if (th.id !== threadId) return th;
             return { ...th, title, ...(tags !== undefined ? { tags } : {}) };
           }),
           ...(tags !== undefined ?
             {
               threadTags: {
                 ...get().threadTags,
-                [threadRemoteId]: tags,
+                [threadId]: tags,
               },
             }
           : {}),
@@ -246,7 +247,7 @@ export const useTagStore = create<TagState>()(
           threads: [
             ...threads,
             {
-              remoteId: threadRemoteId,
+              id: threadId,
               title,
               tags: tags ?? [],
               status: "regular" as const,
@@ -259,7 +260,7 @@ export const useTagStore = create<TagState>()(
             {
               threadTags: {
                 ...get().threadTags,
-                [threadRemoteId]: tags,
+                [threadId]: tags,
               },
             }
           : {}),
@@ -267,9 +268,9 @@ export const useTagStore = create<TagState>()(
       }
     },
 
-    getTagsForThread: (remoteId) => {
-      if (!remoteId) return [];
-      return get().threadTags[remoteId] ?? [];
+    getTagsForThread: (threadId) => {
+      if (!threadId) return [];
+      return get().threadTags[threadId] ?? [];
     },
 
     // Multi-select actions
@@ -326,7 +327,7 @@ export const useTagStore = create<TagState>()(
           trimmed,
           useUiStore.getState().appMode,
         );
-        const ids = new Set(result.threads.map((t) => t.remoteId));
+        const ids = new Set(result.threads.map((t) => t.id));
         set({ searchResultIds: ids, isSearching: false });
       } catch {
         set({ isSearching: false });

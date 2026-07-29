@@ -40,7 +40,7 @@ export const READER_THEMES: { value: ReaderTheme; swatch: string }[] = [
 
 /**
  * Builds the CSS custom properties that drive the entertainment reader. Apply
- * on ThreadPrimitive.Root (entertainment-thread.tsx); they cascade into every
+ * on the reader root (entertainment-thread.tsx); they cascade into every
  * `.novel-reader`'s plain-text paragraphs. A custom color
  * (background/textColor) overrides the theme preset; null falls back to it.
  */

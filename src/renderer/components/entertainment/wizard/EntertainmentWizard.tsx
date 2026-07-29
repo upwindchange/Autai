@@ -1,10 +1,9 @@
 import { type FC, useEffect, useRef, useState } from "react";
-import { useAuiState } from "@assistant-ui/react";
 import { useTranslation } from "react-i18next";
 import { ArrowRight, ChevronLeft, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { httpClient } from "@/lib/httpClient";
-import { useUiStore } from "@/stores/uiStore";
+import { useEntertainmentThreadsStore } from "@/stores/entertainmentThreadsStore";
 import { useChaptersStore } from "@/stores/chaptersStore";
 import { toFileTransfer } from "@/lib/fileTransfer";
 import type { EntertainmentConfig } from "@shared";
@@ -37,11 +36,14 @@ const STEPS = 3;
  */
 export const EntertainmentWizard: FC = () => {
   const { t } = useTranslation("entertainment");
-  const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
+  const activeThreadId = useEntertainmentThreadsStore((s) => s.activeThreadId);
+  // The wizard step is owned by the entertainment store (ephemeral UI state)
+  // and aliased locally as step/setStep for ergonomic use below.
+  const step = useEntertainmentThreadsStore((s) => s.wizardStep);
+  const setStep = useEntertainmentThreadsStore((s) => s.setWizardStep);
 
   const [config, setConfig] = useState<EntertainmentConfig>(INITIAL_DEHYDRATE);
   const [pendingFile, setPendingFile] = useState<File | undefined>(undefined);
-  const [step, setStep] = useState(0);
   const [submitted, setSubmitted] = useState(false);
   // Legal acknowledgment — UI-only (not sent to the backend or persisted). Gates
   // forward navigation to reduce the author's legal exposure.
@@ -61,13 +63,13 @@ export const EntertainmentWizard: FC = () => {
   // switch (New Conversation, sidebar click) the whole local state is wiped and
   // the wizard restarts at step 0 with INITIAL_DEHYDRATE — a brand-new wizard
   // for the brand-new thread, with nothing carried over from the prior thread's
-  // in-progress selections. The shared abandon hook ensures switchToNewThread
-  // always produces a fresh id (materializing the current "new" thread first if
-  // needed), so this effect reliably fires on every abandon.
-  const boundThreadId = useRef<string | null>(mainThreadId);
+  // in-progress selections. The shared abandon hook (startNewWizard) always
+  // produces a fresh backend thread id, so this effect reliably fires on every
+  // abandon.
+  const boundThreadId = useRef<string | null>(activeThreadId);
   useEffect(() => {
-    if (boundThreadId.current === mainThreadId) return;
-    boundThreadId.current = mainThreadId;
+    if (boundThreadId.current === activeThreadId) return;
+    boundThreadId.current = activeThreadId;
     setConfig(INITIAL_DEHYDRATE);
     setPendingFile(undefined);
     setStep(0);
@@ -76,7 +78,7 @@ export const EntertainmentWizard: FC = () => {
     setSubmitError(null);
     setIngesting(false);
     setPrepareError(null);
-  }, [mainThreadId]);
+  }, [activeThreadId]);
 
   const isLast = step === STEPS - 1;
   const isFile = config.novel.type === "file";
@@ -86,7 +88,7 @@ export const EntertainmentWizard: FC = () => {
   // `ingesting` so the dehydrate loop can't be kicked before raw text exists.
   // On failure, surfaces an error + "Start over" on the options page.
   const ingestAndAdvance = async () => {
-    if (!mainThreadId || ingesting) return;
+    if (!activeThreadId || ingesting) return;
     // Only ever called when isFile (guarded in advance()), but TS can't carry
     // the union narrowing into this closure — narrow explicitly.
     if (config.novel.type !== "file") return;
@@ -100,7 +102,7 @@ export const EntertainmentWizard: FC = () => {
         file: pendingFile,
       });
       await useChaptersStore.getState().ingestFile(
-        mainThreadId,
+        activeThreadId,
         config,
         transfer,
       );
@@ -117,26 +119,24 @@ export const EntertainmentWizard: FC = () => {
   // fetcher that ran here is gone; the wizard still jumps forward so the user
   // can configure options.)
   const prefetchAndAdvance = async () => {
-    if (!mainThreadId) return;
+    if (!activeThreadId) return;
     setPrepareError(null);
     setStep(STEPS - 1);
   };
 
   const submit = async () => {
-    if (submitted || !mainThreadId) return;
+    if (submitted || !activeThreadId) return;
     // Never start if materialization hasn't landed (or failed). Belt-and-
     // suspenders — Start is disabled in the UI while ingesting (file) or on a
     // prepare error (either mode).
     if (prepareError || (isFile && ingesting)) return;
     setSubmitError(null);
-    // Keep sessionId aligned with the active thread (mirrors the old start form).
-    useUiStore.getState().setSessionId(mainThreadId);
     const store = useChaptersStore.getState();
     try {
       // Load novelType (+ whatever chapters exist) so canGoNext + the reader work.
-      await store.loadChapters(mainThreadId);
+      await store.loadChapters(activeThreadId);
       store.setCurrentChapter(1);
-      void store.setPosition(mainThreadId, 1);
+      void store.setPosition(activeThreadId, 1);
       setSubmitted(true);
     } catch {
       // httpClient throws a status-only Error (no backend message), so a single
@@ -209,9 +209,9 @@ export const EntertainmentWizard: FC = () => {
   // thread, so there's no thread to switch away from — just wipe local state
   // in place.
   const startOver = async () => {
-    if (!mainThreadId) return;
+    if (!activeThreadId) return;
     try {
-      await httpClient.delete(`/threads/${mainThreadId}`);
+      await httpClient.delete(`/threads/${activeThreadId}`);
     } catch {
       // If delete fails the user is stuck — surface a generic error.
       setSubmitError(t("wizard.error.failed"));

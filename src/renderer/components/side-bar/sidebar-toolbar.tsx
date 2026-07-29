@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArchiveIcon,
   ArrowDownToLine,
@@ -47,6 +47,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useTagStore, type ViewMode } from "@/stores/tagStore";
 import { useUiStore } from "@/stores/uiStore";
+import { useEntertainmentThreadsStore } from "@/stores/entertainmentThreadsStore";
 import { useThreadListRefresh } from "@/hooks/useThreadListRefresh";
 import {
   deleteAllThreads,
@@ -81,7 +82,18 @@ export function SidebarToolbar() {
   const clearSearch = useTagStore((s) => s.clearSearch);
   const fetchTags = useTagStore((s) => s.fetchTags);
   const appMode = useUiStore((s) => s.appMode);
-  const refreshThreads = useThreadListRefresh();
+  // Refresh the ACTIVE mode's thread list. Entertainment re-fetches its own
+  // thread set into tagStore; chat reuses the chat thread-list reload. The two
+  // must not cross (a chat reload in entertainment mode would overwrite
+  // tagStore with chat threads).
+  const chatRefresh = useThreadListRefresh();
+  const refreshThreads = useCallback(async () => {
+    if (useUiStore.getState().appMode === "entertainment") {
+      await useEntertainmentThreadsStore.getState().refresh();
+    } else {
+      await chatRefresh();
+    }
+  }, [chatRefresh]);
 
   const [activePanel, setActivePanel] = useState<ActivePanel>(null);
   const [activeDialog, setActiveDialog] = useState<
@@ -105,7 +117,7 @@ export function SidebarToolbar() {
             return false;
           return true;
         })
-        .map((t) => t.remoteId),
+        .map((t) => t.id),
     [threads, viewingArchive, selectedTagId],
   );
 

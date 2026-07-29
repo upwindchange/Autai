@@ -14,7 +14,6 @@ import { createAssistantStream } from "assistant-stream";
 import type { UIMessage } from "ai";
 import type { TagRow } from "@shared/tag";
 import { useTagStore, type ThreadInfo } from "@/stores/tagStore";
-import { useUiStore } from "@/stores/uiStore";
 import { getApiBase } from "@/lib/api";
 
 // ---------------------------------------------------------------------------
@@ -81,15 +80,13 @@ class BackendThreadHistoryAdapter implements ThreadHistoryAdapter {
 
 export const backendThreadListAdapter: RemoteThreadListAdapter = {
   async list() {
-    // Scope the list to the active app mode so each UI only ever sees its own
-    // threads. `mode` is carried onto ThreadInfo as app-local metadata; the
-    // value returned to the runtime keeps status strictly regular|archived
-    // (assistant-ui enforces that domain — a third value would throw).
-    const mode = useUiStore.getState().appMode;
-    const res = await fetch(`${getApiBase()}/threads?mode=${mode}`);
+    // This adapter serves the chat thread list only — entertainment manages its
+    // own threads independently — so the mode is a fixed fact of the adapter,
+    // not a parameter.
+    const res = await fetch(`${getApiBase()}/threads?mode=chat`);
     const data = (await res.json()) as {
       threads: {
-        remoteId: string;
+        id: string;
         title: string;
         status: "regular" | "archived";
         mode: "chat" | "entertainment";
@@ -97,13 +94,13 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
       }[];
     };
 
-    // Populate tag store with thread data
+    // Populate tag store with thread data (thread id is the canonical key).
     const threadTags: Record<string, TagRow[]> = {};
     const threads: ThreadInfo[] = [];
     for (const t of data.threads) {
-      threadTags[t.remoteId] = t.tags;
+      threadTags[t.id] = t.tags;
       threads.push({
-        remoteId: t.remoteId,
+        id: t.id,
         title: t.title,
         tags: t.tags,
         status: t.status,
@@ -115,9 +112,11 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
     // Fetch tag definitions alongside thread data (ensures tags are loaded on startup)
     await useTagStore.getState().fetchTags();
 
+    // assistant-ui's RemoteThreadListAdapter speaks `remoteId`; map our `id` to
+    // it here, at the aui seam. `remoteId` appears nowhere else in our code.
     return {
       threads: data.threads.map((t) => ({
-        remoteId: t.remoteId,
+        remoteId: t.id,
         title: t.title,
         status: t.status,
         tags: t.tags,
@@ -126,15 +125,15 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
   },
 
   async initialize(threadId: string) {
-    // The runtime calls initialize(threadId) with only an id, so the mode must
-    // be read from the global store — new conversations inherit the active mode.
-    const mode = useUiStore.getState().appMode;
+    // Chat-only adapter: new conversations are always chat threads.
     const res = await fetch(`${getApiBase()}/threads`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: threadId, mode }),
+      body: JSON.stringify({ id: threadId, mode: "chat" }),
     });
-    return res.json();
+    const data = (await res.json()) as { id: string };
+    // Map our backend `id` to aui's `remoteId`/`externalId` contract.
+    return { remoteId: data.id, externalId: undefined };
   },
 
   async rename(remoteId: string, newTitle: string) {

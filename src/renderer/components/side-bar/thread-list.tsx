@@ -28,107 +28,22 @@ import { useTranslation } from "react-i18next";
 import {
   ArchiveIcon,
   BookmarkIcon,
-  CheckSquare,
-  ChevronRightIcon,
   MoreHorizontalIcon,
   PencilIcon,
-  Square,
   TrashIcon,
-  XIcon,
 } from "lucide-react";
-import { useMemo, useRef, useState, type FC } from "react";
-import { useTagStore, type ThreadInfo } from "@/stores/tagStore";
+import { useState, type FC } from "react";
+import { useTagStore } from "@/stores/tagStore";
 import { getTagChipStyle } from "@/lib/tagColors";
 import { cn } from "@/lib/utils";
-import type { TagRow } from "@shared/tag";
-
-// ---------------------------------------------------------------------------
-// Stable empty array for useSyncExternalStore selectors
-// ---------------------------------------------------------------------------
-
-const EMPTY_TAGS: TagRow[] = [];
-
-// ---------------------------------------------------------------------------
-// Search filter helper
-// ---------------------------------------------------------------------------
-
-function matchesSearch(
-  remoteId: string,
-  searchResultIds: Set<string> | null,
-): boolean {
-  if (!searchResultIds) return true;
-  return searchResultIds.has(remoteId);
-}
-
-// ---------------------------------------------------------------------------
-// Long press hook for multi-select activation
-// ---------------------------------------------------------------------------
-
-function useLongPress(callback: () => void, delay = 500) {
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  return {
-    onPointerDown: () => {
-      timerRef.current = setTimeout(callback, delay);
-    },
-    onPointerUp: () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    },
-    onPointerLeave: () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    },
-    onPointerCancel: () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    },
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Shared multi-select handlers for thread items
-// ---------------------------------------------------------------------------
-
-function useMultiSelectHandlers(threadRemoteId: string | undefined) {
-  const isMultiSelectMode = useTagStore((s) => s.isMultiSelectMode);
-  const selectedThreadIds = useTagStore((s) => s.selectedThreadIds);
-  const toggleThreadSelection = useTagStore((s) => s.toggleThreadSelection);
-  const setMultiSelectMode = useTagStore((s) => s.setMultiSelectMode);
-
-  const isSelected =
-    threadRemoteId ? selectedThreadIds.has(threadRemoteId) : false;
-
-  const longPress = useLongPress(() => {
-    if (threadRemoteId) {
-      setMultiSelectMode(true);
-      toggleThreadSelection(threadRemoteId);
-    }
-  });
-
-  const handleClick = () => {
-    if (threadRemoteId) toggleThreadSelection(threadRemoteId);
-  };
-
-  const selectionIndicator =
-    isMultiSelectMode ?
-      <span className={cn("shrink-0", !threadRemoteId && "pl-1")}>
-        {isSelected ?
-          <CheckSquare className="size-4 text-primary" />
-        : <Square className="size-4 text-muted-foreground" />}
-      </span>
-    : null;
-
-  const activeStyles =
-    isMultiSelectMode && isSelected ?
-      "bg-accent border-l-2 border-primary"
-    : "";
-
-  return {
-    isMultiSelectMode,
-    isSelected,
-    longPress,
-    handleClick,
-    selectionIndicator,
-    activeStyles,
-  };
-}
+import {
+  EMPTY_TAGS,
+  ThreadTagChip,
+  useMultiSelectHandlers,
+  matchesSearch,
+  CollapsibleTagGroup,
+  useTagGroups,
+} from "./thread-list-shared";
 
 export const ThreadList: FC = () => {
   const viewMode = useTagStore((s) => s.viewMode);
@@ -161,68 +76,19 @@ const FlatThreadList: FC = () => {
 };
 
 // ---------------------------------------------------------------------------
-// Grouped thread list (threads organized by tag in collapsible sections)
+// Grouped thread list (threads organized by tag in collapsible sections).
+// Shared presentational pieces (CollapsibleTagGroup + grouping) come from
+// thread-list-shared; this shell only supplies the aui-sourced active-thread
+// id and switch handler as props.
 // ---------------------------------------------------------------------------
-
-interface TagGroup {
-  tagName: string;
-  tagColor: string | null;
-  threads: ThreadInfo[];
-}
 
 const GroupedThreadList: FC = () => {
   const aui = useAui();
   const { t } = useTranslation("common");
   const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
-  const threads = useTagStore((s) => s.threads);
-  const allTags = useTagStore((s) => s.tags);
-  const viewingArchive = useTagStore((s) => s.viewingArchive);
-  const selectedTagId = useTagStore((s) => s.selectedTagId);
-  const searchResultIds = useTagStore((s) => s.searchResultIds);
-
-  // Group threads by tag
-  const { tagGroups, untagged } = useMemo(() => {
-    const groupMap = new Map<number, TagGroup>();
-    const untaggedList: ThreadInfo[] = [];
-
-    for (const thread of threads) {
-      // Filter by archive view status
-      if (viewingArchive && thread.status !== "archived") continue;
-      if (!viewingArchive && thread.status !== "regular") continue;
-
-      if (
-        selectedTagId !== null &&
-        !thread.tags.some((t) => t.id === selectedTagId)
-      ) {
-        continue;
-      }
-
-      if (!matchesSearch(thread.remoteId, searchResultIds)) continue;
-
-      if (thread.tags.length === 0) {
-        untaggedList.push(thread);
-      } else {
-        // Use first tag for grouping
-        const primaryTag = thread.tags[0]!;
-        if (!groupMap.has(primaryTag.id)) {
-          groupMap.set(primaryTag.id, {
-            tagName: primaryTag.name,
-            tagColor: primaryTag.color,
-            threads: [],
-          });
-        }
-        groupMap.get(primaryTag.id)!.threads.push(thread);
-      }
-    }
-
-    // Sort groups to match tag sort_order
-    const tagGroups = allTags
-      .filter((t) => groupMap.has(t.id))
-      .map((t) => groupMap.get(t.id)!)
-      .filter(Boolean);
-
-    return { tagGroups, untagged: untaggedList };
-  }, [threads, allTags, selectedTagId, viewingArchive, searchResultIds]);
+  const { tagGroups, untagged } = useTagGroups();
+  const handleSwitch = (threadId: string) =>
+    aui.threads().switchToThread(threadId);
 
   return (
     <div className="flex flex-col gap-1">
@@ -230,8 +96,8 @@ const GroupedThreadList: FC = () => {
         <CollapsibleTagGroup
           key={group.tagName}
           group={group}
-          activeThreadId={mainThreadId}
-          onSwitch={(threadId) => aui.threads().switchToThread(threadId)}
+          activeThreadId={mainThreadId ?? null}
+          onSwitch={handleSwitch}
         />
       ))}
       {untagged.length > 0 && (
@@ -241,139 +107,11 @@ const GroupedThreadList: FC = () => {
             tagColor: null,
             threads: untagged,
           }}
-          activeThreadId={mainThreadId}
-          onSwitch={(threadId) => aui.threads().switchToThread(threadId)}
+          activeThreadId={mainThreadId ?? null}
+          onSwitch={handleSwitch}
         />
       )}
     </div>
-  );
-};
-
-const CollapsibleTagGroup: FC<{
-  group: TagGroup;
-  activeThreadId: string;
-  onSwitch: (threadId: string) => void;
-}> = ({ group, activeThreadId, onSwitch }) => {
-  const [open, setOpen] = useState(true);
-  const isMultiSelectMode = useTagStore((s) => s.isMultiSelectMode);
-  const groupChipStyle = getTagChipStyle(group.tagColor);
-  const selectedThreadIds = useTagStore((s) => s.selectedThreadIds);
-  const selectAllThreads = useTagStore((s) => s.selectAllThreads);
-
-  const groupIds = group.threads.map((t) => t.remoteId);
-  const allGroupSelected =
-    groupIds.length > 0 && groupIds.every((id) => selectedThreadIds.has(id));
-
-  const handleGroupSelectAll = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (allGroupSelected) {
-      const remaining = [...selectedThreadIds].filter(
-        (id) => !groupIds.includes(id),
-      );
-      selectAllThreads(remaining);
-    } else {
-      const merged = new Set([...selectedThreadIds, ...groupIds]);
-      selectAllThreads([...merged]);
-    }
-  };
-
-  return (
-    <div className="flex flex-col">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-muted"
-      >
-        <ChevronRightIcon
-          className={`size-3 transition-transform ${open ? "rotate-90" : ""}`}
-        />
-        <span
-          style={groupChipStyle.style}
-          className={`rounded px-1.5 py-0 text-[10px] font-medium ${groupChipStyle.className}`}
-        >
-          {group.tagName}
-        </span>
-        <span className="text-[10px] font-normal">
-          ({group.threads.length})
-        </span>
-        {isMultiSelectMode && (
-          <span
-            role="button"
-            tabIndex={0}
-            onClick={handleGroupSelectAll}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ")
-                handleGroupSelectAll(e as unknown as React.MouseEvent);
-            }}
-            className="ml-auto"
-          >
-            {allGroupSelected ?
-              <CheckSquare className="size-3.5 text-primary" />
-            : <Square className="size-3.5 text-muted-foreground" />}
-          </span>
-        )}
-      </button>
-      {open && (
-        <div className="ml-2 flex flex-col gap-0.5 border-l pl-2">
-          {group.threads.map((thread) => (
-            <GroupedThreadItem
-              key={thread.remoteId}
-              thread={thread}
-              activeThreadId={activeThreadId}
-              onSwitch={onSwitch}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const GroupedThreadItem: FC<{
-  thread: ThreadInfo;
-  activeThreadId: string;
-  onSwitch: (threadId: string) => void;
-}> = ({ thread, activeThreadId, onSwitch }) => {
-  const {
-    isMultiSelectMode,
-    longPress,
-    handleClick,
-    selectionIndicator,
-    activeStyles,
-  } = useMultiSelectHandlers(thread.remoteId);
-
-  return (
-    <button
-      onClick={() => {
-        if (isMultiSelectMode) {
-          handleClick();
-        } else {
-          onSwitch(thread.remoteId);
-        }
-      }}
-      className={cn(
-        "flex min-h-9 items-center gap-2 rounded-lg px-3 py-1 text-start text-sm transition-colors hover:bg-muted",
-        activeThreadId === thread.remoteId && !isMultiSelectMode && "bg-muted",
-        activeStyles,
-      )}
-      {...(!isMultiSelectMode ? longPress : {})}
-    >
-      {selectionIndicator}
-      <span className="min-w-0 flex-1 truncate">{thread.title}</span>
-      {thread.tags.map((tag) => {
-        const { style: tagStyle, className: tagClass } = getTagChipStyle(
-          tag.color,
-        );
-        return (
-          <span
-            key={tag.id}
-            style={tagStyle}
-            className={`inline-flex rounded px-1 py-0 text-[10px] font-medium ${tagClass}`}
-          >
-            {tag.name}
-          </span>
-        );
-      })}
-    </button>
   );
 };
 
@@ -399,18 +137,21 @@ const ThreadListSkeleton: FC = () => {
 };
 
 // ---------------------------------------------------------------------------
-// Thread list item with inline tag chips
+// Thread list item with inline tag chips. Iterated by assistant-ui's
+// ThreadListPrimitive.Items, which sets the per-item context read below.
 // ---------------------------------------------------------------------------
 
 const ThreadListItem: FC = () => {
-  const remoteId = useAuiState((s) => s.threadListItem.remoteId);
+  // aui seam: the runtime exposes the item's id as `remoteId`; alias it to our
+  // canonical `id` name immediately.
+  const id = useAuiState((s) => s.threadListItem.remoteId);
   const threadTitle = useTagStore((s) =>
-    remoteId ?
-      (s.threads.find((th) => th.remoteId === remoteId)?.title ?? "New Chat")
+    id ?
+      (s.threads.find((th) => th.id === id)?.title ?? "New Chat")
     : "New Chat",
   );
   const threadTags = useTagStore((s) =>
-    remoteId ? (s.threadTags[remoteId] ?? EMPTY_TAGS) : EMPTY_TAGS,
+    id ? (s.threadTags[id] ?? EMPTY_TAGS) : EMPTY_TAGS,
   );
   const selectedTagId = useTagStore((s) => s.selectedTagId);
   const searchResultIds = useTagStore((s) => s.searchResultIds);
@@ -420,7 +161,7 @@ const ThreadListItem: FC = () => {
     handleClick,
     selectionIndicator,
     activeStyles,
-  } = useMultiSelectHandlers(remoteId);
+  } = useMultiSelectHandlers(id);
 
   // Filter by selected tag
   if (
@@ -431,7 +172,7 @@ const ThreadListItem: FC = () => {
   }
 
   // Filter by search results
-  if (remoteId && !matchesSearch(remoteId, searchResultIds)) {
+  if (id && !matchesSearch(id, searchResultIds)) {
     return null;
   }
 
@@ -442,7 +183,7 @@ const ThreadListItem: FC = () => {
         activeStyles,
       )}
       onClickCapture={(e) => {
-        if (isMultiSelectMode && remoteId) {
+        if (isMultiSelectMode && id) {
           e.stopPropagation();
           handleClick();
         }
@@ -459,79 +200,37 @@ const ThreadListItem: FC = () => {
         </div>
         <div className="flex flex-wrap items-center gap-0.5">
           {threadTags.map((tag) => (
-            <ThreadTagChip key={tag.id} tag={tag} threadRemoteId={remoteId} />
+            <ThreadTagChip key={tag.id} tag={tag} threadId={id} />
           ))}
         </div>
       </ThreadListItemPrimitive.Trigger>
-      <ThreadListItemMore threadRemoteId={remoteId} />
+      <ThreadListItemMore threadId={id} />
     </ThreadListItemPrimitive.Root>
   );
 };
 
 // ---------------------------------------------------------------------------
-// Tag chip on thread item
+// Thread item more options (rename / add tag / archive / delete). The actions
+// are aui components (ThreadListItemPrimitive.Archive/Delete), so this stays in
+// the chat list rather than the aui-free shared module.
 // ---------------------------------------------------------------------------
 
-const ThreadTagChip: FC<{
-  tag: TagRow;
-  threadRemoteId: string | undefined;
-}> = ({ tag, threadRemoteId }) => {
-  const [hovered, setHovered] = useState(false);
-  const { style: chipStyle, className: chipClass } = getTagChipStyle(tag.color);
-
-  const handleRemove = async (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!threadRemoteId) return;
-    await useTagStore.getState().removeTagFromThread(threadRemoteId, tag.id);
-  };
-
-  return (
-    <span
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={chipStyle}
-      className={`inline-flex items-center gap-0.5 rounded px-1 py-0 text-[10px] font-medium leading-tight ${chipClass}`}
-    >
-      {tag.name}
-      {hovered && (
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={handleRemove}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ")
-              handleRemove(e as unknown as React.MouseEvent);
-          }}
-          className="ml-0.5 inline-flex size-3 cursor-pointer items-center justify-center rounded-full opacity-60 hover:opacity-100"
-        >
-          <XIcon className="size-2" />
-        </span>
-      )}
-    </span>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Thread item more options
-// ---------------------------------------------------------------------------
-
-const ThreadListItemMore: FC<{ threadRemoteId: string | undefined }> = ({
-  threadRemoteId,
+const ThreadListItemMore: FC<{ threadId: string | undefined }> = ({
+  threadId,
 }) => {
   const { t } = useTranslation("common");
   const tags = useTagStore((s) => s.tags);
   const viewingArchive = useTagStore((s) => s.viewingArchive);
   const threadTags = useTagStore((s) =>
-    threadRemoteId ? (s.threadTags[threadRemoteId] ?? EMPTY_TAGS) : EMPTY_TAGS,
+    threadId ? (s.threadTags[threadId] ?? EMPTY_TAGS) : EMPTY_TAGS,
   );
   const assignedIds = new Set(threadTags.map((t) => t.id));
   const availableTags = tags.filter((t) => !assignedIds.has(t.id));
 
   // Get current thread title from store
   const currentTitle = useTagStore((s) =>
-    threadRemoteId ?
-      (s.threads.find((th) => th.remoteId === threadRemoteId)?.title ??
-      "New Chat")
+    threadId ?
+      (s.threads.find((th) => th.id === threadId)?.title ?? "New Chat")
     : "New Chat",
   );
 
@@ -540,14 +239,14 @@ const ThreadListItemMore: FC<{ threadRemoteId: string | undefined }> = ({
   const [renameValue, setRenameValue] = useState(currentTitle);
 
   const handleAddTag = async (tagId: number) => {
-    if (!threadRemoteId) return;
-    await useTagStore.getState().addTagToThread(threadRemoteId, tagId);
+    if (!threadId) return;
+    await useTagStore.getState().addTagToThread(threadId, tagId);
   };
 
   const handleRename = async () => {
     const trimmed = renameValue.trim();
-    if (!threadRemoteId || !trimmed) return;
-    await useTagStore.getState().renameThread(threadRemoteId, trimmed);
+    if (!threadId || !trimmed) return;
+    await useTagStore.getState().renameThread(threadId, trimmed);
     setRenameOpen(false);
   };
 

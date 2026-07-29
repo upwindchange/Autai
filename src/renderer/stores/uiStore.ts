@@ -46,8 +46,8 @@ interface UiState {
   sessionId: string | null;
   setSessionId: (sessionId: string | null) => void;
 
-  // App mode (top-level UI): chat vs entertainment. Drives which thread set
-  // the adapter fetches and which thread view fills the content slot.
+  // App mode (top-level UI): chat vs entertainment. Drives which thread set the
+  // sidebar lists and which thread view fills the content slot.
   appMode: "chat" | "entertainment";
   setAppMode: (mode: "chat" | "entertainment") => void;
 

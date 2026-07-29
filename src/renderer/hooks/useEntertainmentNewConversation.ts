@@ -1,6 +1,5 @@
 import { useCallback, useState } from "react";
-import { useAui, useAuiState } from "@assistant-ui/react";
-import { useChaptersStore } from "@/stores/chaptersStore";
+import { useEntertainmentThreadsStore } from "@/stores/entertainmentThreadsStore";
 
 /**
  * The shared "abandon the current entertainment thread and start a fresh
@@ -8,34 +7,28 @@ import { useChaptersStore } from "@/stores/chaptersStore";
  * entertainment mode) and the reader's Stop button — so they always behave
  * identically.
  *
- * Only invoked from the reader (a thread with an open chapter). The sidebar
- * button is disabled while the wizard is showing, so there is no wizard branch
- * here. The action resets the chapter cache and switches to a fresh wizard
- * thread. The abandoned thread stays in the sidebar.
- *
- * Returns `{ abandon, stopping }` where `stopping` is true while the switch
- * is in flight (backs the reader Stop button's spinner).
+ * Only invoked from the reader (a thread with an open chapter); the sidebar
+ * button is disabled while the wizard is showing. `startNewWizard` resets the
+ * chapter cache and creates a fresh backend entertainment thread for the new
+ * wizard. The abandoned thread stays in the sidebar. `stopping` is true while
+ * the backend thread creation is in flight (backs the reader Stop button's
+ * spinner).
  */
 export function useEntertainmentNewConversation(): {
   abandon: () => Promise<void>;
   stopping: boolean;
 } {
-  const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
-  const aui = useAui();
   const [stopping, setStopping] = useState(false);
 
   const abandon = useCallback(async () => {
-    if (!mainThreadId || stopping) return;
+    if (stopping) return;
     setStopping(true);
-    const { reset } = useChaptersStore.getState();
     try {
-      // Reset the chapter cache and switch to a fresh wizard thread.
-      reset();
-      await aui.threads().switchToNewThread();
+      await useEntertainmentThreadsStore.getState().startNewWizard();
     } finally {
       setStopping(false);
     }
-  }, [mainThreadId, aui, stopping]);
+  }, [stopping]);
 
   return { abandon, stopping };
 }
