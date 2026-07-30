@@ -12,7 +12,8 @@
  * Reuses only the LEAF tools of the chaptered fetcher:
  *  - `getFlattenDOMTool` + `clickElementTool` (DOM read / pagination click)
  *  - `executeSearchQueries` (URL discovery when `novel.source` isn't a URL)
- *  - `SessionTabService` / `TabControlService` / `entertainmentService`
+ *  - `SessionTabService` / `TabControlService` / entertainment services
+ *    (`entertainmentFrontendService` reads, `entertainmentBackendService` writes)
  *
  * It deliberately does NOT import `fetchInternetChapter` / `landOnChapter` /
  * `extractChapter` — those encode chapter-LOOP logic (finality detection,
@@ -26,7 +27,8 @@ import { complexModel } from "@agents/providers";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
 import {
   settingsService,
-  entertainmentService,
+  entertainmentFrontendService,
+  entertainmentBackendService,
   SessionTabService,
   TabControlService,
 } from "@/services";
@@ -77,7 +79,7 @@ const saveContentTool = tool({
   }),
   execute: async (input, { experimental_context }) => {
     const ctx = experimental_context as SinglePageFetchContext;
-    entertainmentService.updateSourceChapter(ctx.threadId, ctx.chapterNumber, {
+    entertainmentBackendService.updateSourceChapter(ctx.threadId, ctx.chapterNumber, {
       content: input.content,
       title: input.title,
     });
@@ -278,15 +280,15 @@ export async function fetchSinglePage(
   const chapterNumber = 1;
 
   // Own the source-row lifecycle up front (insert fresh or reset stale).
-  const prior = entertainmentService.getSourceChapter(threadId, chapterNumber);
+  const prior = entertainmentFrontendService.getSourceChapter(threadId, chapterNumber);
   if (!prior) {
-    entertainmentService.insertSourceChapter({
+    entertainmentBackendService.insertSourceChapter({
       threadId,
       chapterNumber,
       status: "fetching",
     });
   } else {
-    entertainmentService.updateSourceChapter(threadId, chapterNumber, {
+    entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
       status: "fetching",
     });
   }
@@ -306,7 +308,7 @@ export async function fetchSinglePage(
     const landed = await landOnPage(novel, ctx);
     if (!landed) {
       logger.warn("could not land on single page", { threadId });
-      entertainmentService.updateSourceChapter(threadId, chapterNumber, {
+      entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
         status: "error",
       });
       return "error";
@@ -314,18 +316,18 @@ export async function fetchSinglePage(
     const saved = await extractPage(novel, ctx);
     if (!saved) {
       logger.error("single-page extract did not save content", { threadId });
-      entertainmentService.updateSourceChapter(threadId, chapterNumber, {
+      entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
         status: "error",
       });
       return "error";
     }
-    entertainmentService.updateSourceChapter(threadId, chapterNumber, {
+    entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
       status: "fetched",
     });
     return "fetched";
   } catch (err) {
     logger.error("single-page fetch failed", { threadId, err });
-    entertainmentService.updateSourceChapter(threadId, chapterNumber, {
+    entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
       status: "error",
     });
     return "error";

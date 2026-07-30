@@ -3,7 +3,7 @@ import { z } from "zod";
 import log from "electron-log/main";
 import { complexModel } from "@agents/providers";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
-import { settingsService, entertainmentService } from "@/services";
+import { settingsService, entertainmentBackendService } from "@/services";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { clickElementTool } from "@agents/tools/InteractiveTools";
 import type { InternetNovel } from "@shared";
@@ -33,7 +33,7 @@ const saveChapterContentTool = tool({
   }),
   execute: async (input, { experimental_context }) => {
     const ctx = experimental_context as InternetFetchContext;
-    entertainmentService.updateSourceChapter(ctx.threadId, ctx.chapterNumber, {
+    entertainmentBackendService.updateSourceChapter(ctx.threadId, ctx.chapterNumber, {
       content: input.content,
       title: input.title,
     });

@@ -7,5 +7,8 @@ export { TabControlService } from "./TabControlService";
 export { DOMService } from "./dom";
 export { threadPersistenceService } from "./threadPersistenceService";
 export { threadIntelligenceService } from "./threadIntelligenceService";
-export { entertainmentService } from "./entertainmentService";
+export {
+  entertainmentFrontendService,
+  entertainmentBackendService,
+} from "./entertainment";
 export { authService } from "./authService";

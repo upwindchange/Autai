@@ -5,7 +5,8 @@ import { complexModel } from "@agents/providers";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
 import {
   settingsService,
-  entertainmentService,
+  entertainmentFrontendService,
+  entertainmentBackendService,
   SessionTabService,
   TabControlService,
 } from "@/services";
@@ -41,7 +42,7 @@ const landHereTool = tool({
       tab?.webContents && !tab.webContents.isDestroyed() ?
         tab.webContents.getURL()
       : null;
-    entertainmentService.updateSourceChapter(ctx.threadId, ctx.chapterNumber, {
+    entertainmentBackendService.updateSourceChapter(ctx.threadId, ctx.chapterNumber, {
       url,
     });
     logger.info("landed — url captured", {
@@ -310,7 +311,7 @@ async function landViaAdvance(
       tab.webContents.getURL()
     : "";
   if (!/^https?:\/\//i.test(current)) {
-    const prev = entertainmentService.getSourceChapter(
+    const prev = entertainmentFrontendService.getSourceChapter(
       ctx.threadId,
       ctx.chapterNumber - 1,
     );

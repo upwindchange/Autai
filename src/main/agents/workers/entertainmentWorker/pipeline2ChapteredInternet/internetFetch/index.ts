@@ -1,5 +1,9 @@
 import log from "electron-log/main";
-import { SessionTabService, entertainmentService } from "@/services";
+import {
+  SessionTabService,
+  entertainmentFrontendService,
+  entertainmentBackendService,
+} from "@/services";
 import type { InternetNovel } from "@shared";
 import { landOnChapter } from "./phase1Land";
 import { extractChapter } from "./phase2Extract";
@@ -103,16 +107,16 @@ export async function fetchInternetChapter(
 
   // Own the source-row lifecycle + derive the landing path. A retry of an
   // errored chapter re-anchors via search; chapter 1 always searches.
-  const prior = entertainmentService.getSourceChapter(threadId, chapterNumber);
+  const prior = entertainmentFrontendService.getSourceChapter(threadId, chapterNumber);
   const useSearch = chapterNumber === 1 || prior?.status === "error";
   if (!prior) {
-    entertainmentService.insertSourceChapter({
+    entertainmentBackendService.insertSourceChapter({
       threadId,
       chapterNumber,
       status: "fetching",
     });
   } else {
-    entertainmentService.updateSourceChapter(threadId, chapterNumber, {
+    entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
       status: "fetching",
     });
   }
@@ -135,15 +139,15 @@ export async function fetchInternetChapter(
   try {
     await landOnChapter(novel, ctx, { ...options, useSearch });
     await extractChapter(novel, ctx);
-    entertainmentService.updateSourceChapter(threadId, chapterNumber, {
+    entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
       status: "fetched",
     });
     return "fetched";
   } catch (err) {
     if (err instanceof FinalChapterError) {
       await destroyCrawlTab(sessionId); // book done — release the crawl tab
-      entertainmentService.setFinalChapterNumber(threadId, chapterNumber - 1);
-      entertainmentService.deleteSourceChapter(threadId, chapterNumber);
+      entertainmentBackendService.setFinalChapterNumber(threadId, chapterNumber - 1);
+      entertainmentBackendService.deleteSourceChapter(threadId, chapterNumber);
       logger.info("reached final chapter", {
         threadId,
         final: chapterNumber - 1,
@@ -151,7 +155,7 @@ export async function fetchInternetChapter(
       return "finalChapter";
     }
     logger.error("source acquire failed", { threadId, chapterNumber, err });
-    entertainmentService.updateSourceChapter(threadId, chapterNumber, {
+    entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
       status: "error",
     });
     return "error";

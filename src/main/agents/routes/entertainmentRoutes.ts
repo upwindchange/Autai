@@ -10,7 +10,11 @@ import { z } from "zod";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Worker } from "node:worker_threads";
-import { entertainmentService, threadPersistenceService } from "@/services";
+import {
+  entertainmentFrontendService,
+  entertainmentBackendService,
+  threadPersistenceService,
+} from "@/services";
 import { eventBus } from "@/utils/eventBus";
 import {
   deriveChapterStatus,
@@ -123,9 +127,9 @@ function applyConfig(
     threadPersistenceService.createThread(threadId, "entertainment");
     eventBus.emitEvent("threads:listChanged", null);
   }
-  const isFirst = !entertainmentService.getEntertainmentConfig(threadId);
-  entertainmentService.upsertEntertainmentConfig(threadId, config);
-  if (isFirst) entertainmentService.setupEntertainmentThread(threadId, config);
+  const isFirst = !entertainmentFrontendService.getEntertainmentConfig(threadId);
+  entertainmentFrontendService.upsertEntertainmentConfig(threadId, config);
+  if (isFirst) entertainmentFrontendService.setupEntertainmentThread(threadId, config);
   logger.info("applied config", {
     threadId,
     mode: config.mode,
@@ -184,8 +188,8 @@ entertainmentRoutes.post("/threads/:threadId/ingest", async (c) => {
       logger.warn("ingest rejected — decoded file is empty", { threadId });
       return c.json({ error: "The file is empty" }, 400);
     }
-    entertainmentService.setRawNovelText(threadId, decoded);
-    entertainmentService.setLastReadChapterNumber(threadId, 1);
+    entertainmentBackendService.setRawNovelText(threadId, decoded);
+    entertainmentFrontendService.setLastReadChapterNumber(threadId, 1);
     logger.info("file decoded + raw text persisted", {
       threadId,
       charLen: decoded.length,
@@ -208,17 +212,17 @@ entertainmentRoutes.post("/threads/:threadId/ingest", async (c) => {
 entertainmentRoutes.get("/threads/:threadId/chapters", (c) => {
   try {
     const threadId = c.req.param("threadId");
-    const progress = entertainmentService.listChapterProgress(threadId);
+    const progress = entertainmentFrontendService.listChapterProgress(threadId);
     const pipeline = resolvePipelineType(
-      entertainmentService.getParsedConfig(threadId),
+      entertainmentFrontendService.getParsedConfig(threadId),
     );
     const chapters = progress.map((ch) => ({
       ...ch,
       status: deriveChapterStatus(ch, { pipeline }),
     }));
-    const novelType = entertainmentService.getNovelType(threadId);
+    const novelType = entertainmentFrontendService.getNovelType(threadId);
     const finalChapterNumber =
-      entertainmentService.getFinalChapterNumber(threadId);
+      entertainmentFrontendService.getFinalChapterNumber(threadId);
     return c.json({ chapters, novelType, finalChapterNumber });
   } catch (error) {
     logger.error("Error listing chapters:", error);
@@ -236,9 +240,9 @@ entertainmentRoutes.get("/threads/:threadId/chapters/:n", (c) => {
     if (!Number.isInteger(n) || n < 1) {
       return c.json({ error: "Invalid chapter number" }, 400);
     }
-    const chapter = entertainmentService.getChapterDetail(threadId, n);
+    const chapter = entertainmentFrontendService.getChapterDetail(threadId, n);
     const pipeline = resolvePipelineType(
-      entertainmentService.getParsedConfig(threadId),
+      entertainmentFrontendService.getParsedConfig(threadId),
     );
     return c.json({
       chapter: {
@@ -256,7 +260,7 @@ entertainmentRoutes.get("/threads/:threadId/chapters/:n", (c) => {
 entertainmentRoutes.get("/threads/:threadId/position", (c) => {
   const threadId = c.req.param("threadId");
   const lastReadChapterNumber =
-    entertainmentService.getLastReadChapterNumber(threadId);
+    entertainmentFrontendService.getLastReadChapterNumber(threadId);
   return c.json({ lastReadChapterNumber });
 });
 
@@ -272,7 +276,7 @@ entertainmentRoutes.post("/threads/:threadId/position", async (c) => {
         400,
       );
     }
-    entertainmentService.setLastReadChapterNumber(
+    entertainmentFrontendService.setLastReadChapterNumber(
       threadId,
       parsed.data.chapterNumber,
     );
@@ -294,7 +298,7 @@ entertainmentRoutes.post("/threads/:threadId/position", async (c) => {
 entertainmentRoutes.get("/threads/:threadId/config", (c) => {
   try {
     const threadId = c.req.param("threadId");
-    const config = entertainmentService.getParsedConfig(threadId);
+    const config = entertainmentFrontendService.getParsedConfig(threadId);
     if (!config) return c.json({ error: "No config for thread" }, 404);
     return c.json({ config });
   } catch (error) {
@@ -317,7 +321,7 @@ entertainmentRoutes.put("/threads/:threadId/config", async (c) => {
         400,
       );
     }
-    entertainmentService.upsertEntertainmentConfig(threadId, parsed.data.config);
+    entertainmentFrontendService.upsertEntertainmentConfig(threadId, parsed.data.config);
     logger.info("updated config", {
       threadId,
       mode: parsed.data.config.mode,
@@ -355,7 +359,7 @@ entertainmentRoutes.get("/threads/:threadId/export", (c) => {
     } else {
       query = {};
     }
-    const chapters = entertainmentService.listExportChapters(threadId, query);
+    const chapters = entertainmentFrontendService.listExportChapters(threadId, query);
     if (chapters.length === 0) {
       return c.json({ error: "No processed chapters to export" }, 404);
     }
@@ -390,7 +394,7 @@ entertainmentRoutes.get("/threads/:threadId/export", (c) => {
 entertainmentRoutes.get("/threads/:threadId/bookmarks", (c) => {
   try {
     const threadId = c.req.param("threadId");
-    return c.json({ bookmarks: entertainmentService.listBookmarks(threadId) });
+    return c.json({ bookmarks: entertainmentFrontendService.listBookmarks(threadId) });
   } catch (error) {
     logger.error("Error listing bookmarks:", error);
     return c.json({ error: "Failed to list bookmarks" }, 500);
@@ -412,7 +416,7 @@ entertainmentRoutes.post("/threads/:threadId/bookmarks", async (c) => {
       );
     }
     const { chapterNumber, anchor, label, note } = parsed.data;
-    const bookmark = entertainmentService.createBookmark(
+    const bookmark = entertainmentFrontendService.createBookmark(
       threadId,
       chapterNumber,
       anchor,
@@ -432,7 +436,7 @@ entertainmentRoutes.delete("/threads/:threadId/bookmarks/:id", (c) => {
   try {
     const threadId = c.req.param("threadId");
     const id = c.req.param("id");
-    entertainmentService.deleteBookmark(threadId, id);
+    entertainmentFrontendService.deleteBookmark(threadId, id);
     return c.json({ ok: true });
   } catch (error) {
     logger.error("Error deleting bookmark:", error);

@@ -38,7 +38,7 @@ import {
   type ResolvedModel,
 } from "@agents/providers";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
-import { settingsService, entertainmentService } from "@/services";
+import { settingsService, entertainmentFrontendService, entertainmentBackendService } from "@/services";
 import { sendAlert } from "@/utils/messageUtils";
 import { i18n } from "@/i18n";
 import { buildDehydrateSystemPrompt } from "../shared/dehydratePrompt";
@@ -243,18 +243,18 @@ const outputChaptersTool = tool({
   execute: async (input, { experimental_context }) => {
     const ctx = experimental_context as OutputChaptersContext;
     const startNum =
-      entertainmentService.maxRewrittenChapterNumber(ctx.threadId) + 1;
+      entertainmentBackendService.maxRewrittenChapterNumber(ctx.threadId) + 1;
     for (let i = 0; i < input.chapters.length; i++) {
       const ch = input.chapters[i];
       const n = startNum + i;
       // Parent first (rewritten_chapters), then the outlines row that FKs it.
-      entertainmentService.insertRewrittenChapter({
+      entertainmentBackendService.insertRewrittenChapter({
         threadId: ctx.threadId,
         chapterNumber: n,
         content: ch.content,
         status: "rewritten",
       });
-      entertainmentService.insertOutline({
+      entertainmentBackendService.insertOutline({
         threadId: ctx.threadId,
         chapterNumber: n,
         outline: ch.outline,
@@ -265,7 +265,7 @@ const outputChaptersTool = tool({
       // before ever consulting sourceStatus, and there is no "view original"
       // affordance. url/content stay null: a file upload has no source URL and
       // the reader never renders 原文.
-      entertainmentService.insertSourceChapter({
+      entertainmentBackendService.insertSourceChapter({
         threadId: ctx.threadId,
         chapterNumber: n,
         title: ch.title,
@@ -273,14 +273,14 @@ const outputChaptersTool = tool({
       });
     }
     const newOffset = ctx.chunkStart + ctx.chunkLength;
-    entertainmentService.setConsumedOffset(ctx.threadId, newOffset);
+    entertainmentBackendService.setConsumedOffset(ctx.threadId, newOffset);
     if (ctx.isLastBatch) {
-      entertainmentService.setFinalChapterNumber(
+      entertainmentBackendService.setFinalChapterNumber(
         ctx.threadId,
         startNum + input.chapters.length - 1,
       );
     }
-    entertainmentService.touchThread(ctx.threadId);
+    entertainmentBackendService.touchThread(ctx.threadId);
     logger.info("chapters committed", {
       threadId: ctx.threadId,
       saved: input.chapters.length,
@@ -365,7 +365,7 @@ export async function runDehydrateLoop(
   threadId: string,
   signal: AbortSignal,
 ): Promise<void> {
-  const rawText = entertainmentService.getRawNovelText(threadId);
+  const rawText = entertainmentBackendService.getRawNovelText(threadId);
   if (!rawText || rawText.length === 0) {
     logger.warn("no raw text; nothing to dehydrate", { threadId });
     return;
@@ -387,7 +387,7 @@ export async function runDehydrateLoop(
     probeCharsPerToken: probeCpt,
     probeFallback: probeCpt == null,
     charsPerToken,
-    resume: entertainmentService.getConsumedOffset(threadId) > 0,
+    resume: entertainmentBackendService.getConsumedOffset(threadId) > 0,
   });
 
   for (let pass = 0; pass < MAX_PASSES; pass++) {
@@ -396,18 +396,18 @@ export async function runDehydrateLoop(
       return;
     }
 
-    const consumedOffset = entertainmentService.getConsumedOffset(threadId);
+    const consumedOffset = entertainmentBackendService.getConsumedOffset(threadId);
     if (consumedOffset >= rawText.length) {
       // EOF: the final chunk's tool already set finalChapterNumber; finalize
       // defensively + drop the raw blob (an interrupted run kept it for resume).
-      const final = entertainmentService.maxRewrittenChapterNumber(threadId);
+      const final = entertainmentBackendService.maxRewrittenChapterNumber(threadId);
       if (
         final > 0 &&
-        entertainmentService.getFinalChapterNumber(threadId) == null
+        entertainmentFrontendService.getFinalChapterNumber(threadId) == null
       ) {
-        entertainmentService.setFinalChapterNumber(threadId, final);
+        entertainmentBackendService.setFinalChapterNumber(threadId, final);
       }
-      entertainmentService.clearRawNovelText(threadId);
+      entertainmentBackendService.clearRawNovelText(threadId);
       logger.info("dehydrate loop reached EOF", {
         threadId,
         pass,
@@ -418,7 +418,7 @@ export async function runDehydrateLoop(
 
     // Re-resolve per pass: picks up model + dehydrate-option changes mid-run.
     const resolved = complexModel();
-    const config = entertainmentService.getParsedConfig(threadId);
+    const config = entertainmentFrontendService.getParsedConfig(threadId);
     if (!config) {
       logger.warn("no parsed config; stopping loop", { threadId, pass });
       return;

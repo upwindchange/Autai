@@ -7,7 +7,7 @@ import {
   reasoningProviderOptions,
 } from "@agents/providers";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
-import { settingsService, entertainmentService } from "@/services";
+import { settingsService, entertainmentFrontendService, entertainmentBackendService } from "@/services";
 import type { DehydrateConfig } from "@shared";
 import { buildDehydrateSystemPrompt } from "../shared/dehydratePrompt";
 
@@ -44,7 +44,7 @@ const outputProcessedContentTool = tool({
       threadId: string;
       chapterNumber: number;
     };
-    entertainmentService.updateRewrittenChapter(
+    entertainmentBackendService.updateRewrittenChapter(
       ctx.threadId,
       ctx.chapterNumber,
       {
@@ -154,24 +154,24 @@ export async function rewriteChapter(
   signal?: AbortSignal,
 ): Promise<RewriteOutcome> {
   // Own the rewrite-row lifecycle: mark in-progress (insert fresh or reset stale).
-  const existing = entertainmentService.getRewrittenChapter(
+  const existing = entertainmentFrontendService.getRewrittenChapter(
     threadId,
     chapterNumber,
   );
   if (!existing) {
-    entertainmentService.insertRewrittenChapter({
+    entertainmentBackendService.insertRewrittenChapter({
       threadId,
       chapterNumber,
       status: "rewriting",
     });
   } else {
-    entertainmentService.updateRewrittenChapter(threadId, chapterNumber, {
+    entertainmentBackendService.updateRewrittenChapter(threadId, chapterNumber, {
       status: "rewriting",
     });
   }
 
   const sourceText =
-    entertainmentService.getSourceChapter(threadId, chapterNumber)?.content ??
+    entertainmentFrontendService.getSourceChapter(threadId, chapterNumber)?.content ??
     "";
 
   logger.info("rewriting", {
@@ -208,7 +208,7 @@ export async function rewriteChapter(
       );
     }
     if (saved) {
-      entertainmentService.touchThread(threadId);
+      entertainmentBackendService.touchThread(threadId);
       logger.info("chapter rewritten", { threadId, chapterNumber });
       return "rewritten";
     }
@@ -216,13 +216,13 @@ export async function rewriteChapter(
       threadId,
       chapterNumber,
     });
-    entertainmentService.updateRewrittenChapter(threadId, chapterNumber, {
+    entertainmentBackendService.updateRewrittenChapter(threadId, chapterNumber, {
       status: "error",
     });
     return "error";
   } catch (err) {
     logger.error("rewrite failed", { threadId, chapterNumber, err });
-    entertainmentService.updateRewrittenChapter(threadId, chapterNumber, {
+    entertainmentBackendService.updateRewrittenChapter(threadId, chapterNumber, {
       status: "error",
     });
     return "error";
