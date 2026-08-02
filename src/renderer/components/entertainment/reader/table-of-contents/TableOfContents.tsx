@@ -33,14 +33,9 @@ function findScrollParent(el: HTMLElement): HTMLElement | null {
 
 /**
  * Table of contents — the chapter list for the active thread. Clicking an entry
- * jumps the reader (set position + switch chapter). A chapter being
- * fetched/rewritten shows a spinner; one not yet rewritten is dimmed but still
- * selectable. Rendered inside the responsive reader-controls shell.
- *
- * On open (the panel mounts this list fresh) the current chapter is scrolled to
- * the centre of the viewport. Measurement uses offsetTop — transform-independent,
- * so it stays correct mid open-animation — and is confined to the panel's own
- * scroll container, never the page.
+ * jumps the reader (set position + switch chapter). Rendered inside the
+ * responsive reader-controls shell. On open the current chapter is scrolled to
+ * the centre of the viewport via a transform-independent offsetTop walk.
  */
 export const TableOfContents: FC<TableOfContentsProps> = ({
   chapters,
@@ -97,10 +92,8 @@ export const TableOfContents: FC<TableOfContentsProps> = ({
                 {c.chapterNumber}
               </span>
               {c.title && <span className="truncate">{c.title}</span>}
-              {/* `status` is derived on the backend per chapter (phase +
-                  pipeline-aware message). Render `status.phase` via DotMatrix
-                  directly with no mapping; the message is exposed as a title
-                  tooltip. Always shown so every row carries an indicator. */}
+              {/* `status.phase` (backend-derived per chapter) drives the
+                  DotMatrix indicator; the message shows as a title tooltip. */}
               <DotMatrix
                 state={c.status.phase}
                 className="ml-auto size-4 shrink-0"

@@ -15,25 +15,7 @@ import { StepOptions } from "./steps/StepOptions";
 
 const STEPS = 3;
 
-/**
- * Entertainment wizard — the only "composer" surface in this mode, shown on an
- * empty thread. Three steps (mode → novel → options), advanced by the Next/
- * Upload button or Enter (in text inputs / the source textarea).
- *
- * Both modes materialize the thread at the novel step's primary button and jump
- * to the options page instantly:
- *   - FILE "Upload & Continue" → /ingest: the backend decodes (iconv) + persists
- *     raw text. The sidebar shows the filename-based title the moment the
- *     request lands (applyConfig emits threads:listChanged / metadataUpdated).
- *   - INTERNET "Fetch & Continue" → applyConfig materializes the thread.
- * The options page then locks the thread to its source for BOTH modes: no Back
- * button, no re-pick — the only redo is delete-thread + new-thread ("Start
- * over").
- *
- * Start (last step) finalizes the user's StepOptions choices
- * (upsertEntertainmentConfig) and loads the reader. File gates Start on ingest
- * completion ("Preparing…") — the raw text must exist before the reader opens.
- */
+/** Entertainment wizard — 3 steps (mode → novel → options), shown on an empty thread. */
 export const EntertainmentWizard: FC = () => {
   const { t } = useTranslation("entertainment");
   const activeThreadId = useEntertainmentThreadsStore((s) => s.activeThreadId);
@@ -53,24 +35,12 @@ export const EntertainmentWizard: FC = () => {
   // Submission error surfaced inline (Start failure, backend unreachable, …).
   // Set on failure; cleared at the start of the next submit attempt.
   const [submitError, setSubmitError] = useState<string | null>(null);
-  // Background acquisition state. `ingesting` is file-only: true between the
-  // "Upload & Continue" click and the backend committing raw text (a real data
-  // dependency — Start waits on it). Internet fetch needs no such flag: it is
-  // DB-mediated and non-blocking. `prepareError` surfaces a failed
-  // materialization (file ingest OR internet prefetch) on the options page with
-  // a "Start over" reset; it blocks Start for both modes.
   const [ingesting, setIngesting] = useState(false);
   const [prepareError, setPrepareError] = useState<string | null>(null);
-  // Synchronous re-entry latch for the StepNovel commit. The `ingesting`
-  // React-state guard is racy across two rapid events before re-render, and
-  // internet mode had no guard at all; ensureThread's in-flight dedup is the
-  // backstop, this stops a double-click even queuing a second commit.
+  // Re-entry latch: ingesting-state guard is racy pre-render; stops a double commit.
   const committingRef = useRef(false);
-  // Tracks the thread this wizard instance is bound to, so a genuine thread
-  // switch (sidebar click to another thread while the wizard stays mounted)
-  // wipes local state — nothing carries across threads. The null -> non-null
-  // transition is EXCLUDED: that is the StepNovel commit materializing THIS
-  // wizard's own thread, which must preserve the config the user just chose.
+  // Bound thread: a real thread switch wipes local state; the null→non-null
+  // transition (our own commit) is excluded to preserve the chosen config.
   const boundThreadId = useRef<string | null>(activeThreadId);
   useEffect(() => {
     const prev = boundThreadId.current;
@@ -90,12 +60,6 @@ export const EntertainmentWizard: FC = () => {
   const isLast = step === STEPS - 1;
   const isFile = config.novel.type === "file";
 
-  // The StepNovel primary button ("Upload & Continue" / "Fetch & Continue") for
-  // BOTH modes: create the thread (the ONLY creation path), then advance to the
-  // options page so a real thread exists by the time the user lands there. File
-  // mode then ingests the raw text; internet mode has nothing more to do (its
-  // background fetcher was removed). On failure, surfaces an error + "Start
-  // over" on the options page.
   const commitAndAdvance = async () => {
     if (committingRef.current) return;
     committingRef.current = true;
@@ -153,9 +117,7 @@ export const EntertainmentWizard: FC = () => {
       void submit();
       return;
     }
-    // Step 1 → 2: agreement is acknowledged on the novel step, so the commit
-    // (Upload/Fetch & Continue) waits for it. Creates the thread + ingests
-    // (file), then lands on the options page with a real thread.
+    // Step 1 → 2: waits for agreement, then commits (creates thread + ingests file).
     if (step === 1) {
       if (!agreed) return;
       void commitAndAdvance();
@@ -201,11 +163,8 @@ export const EntertainmentWizard: FC = () => {
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // The only redo path once a thread's source has been locked in: drop back to
-  // a fresh wizard (no thread) and best-effort delete the abandoned thread. The
-  // active id is cleared BEFORE the DELETE so the delete's threads:listChanged
-  // SSE → refresh() sees a null active and leaves the wizard alone (no hijack to
-  // another thread). The next StepNovel commit creates a fresh thread.
+  // Redo path: reset the wizard + best-effort delete the thread. Clear the
+  // active id BEFORE the DELETE so the listChanged SSE doesn't hijack it.
   const startOver = async () => {
     const id = activeThreadId;
     if (id) setActiveThreadId(null);
@@ -234,11 +193,6 @@ export const EntertainmentWizard: FC = () => {
   // materialized yet there).
   const canGoBack = step > 0 && step < STEPS - 1;
 
-  // The primary button: step 1 reads "Upload & Continue" (file) or "Fetch &
-  // Continue" (internet) — both kick background acquisition; the last step reads
-  // "Start". Start is blocked while file ingest is mid-decode (a real data
-  // dependency) or on a prepare error (either mode); internet fetching never
-  // blocks it (DB-mediated, non-blocking).
   const isUploadButton = step === 1 && isFile;
   const isFetchButton = step === 1 && !isFile;
   const startBlocked =

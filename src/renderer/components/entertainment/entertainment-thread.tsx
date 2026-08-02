@@ -67,11 +67,9 @@ export const EntertainmentThread: FC = () => {
   // The desktop hover listener attaches here, not to the viewport — see the
   // hover effect below for why.
   const rootRef = useRef<HTMLDivElement>(null);
-  // A jump records { chapterNumber, percentile } here; the apply layout-effect
-  // below scrolls to that percentile once the target chapter's rewritten prose
-  // is measurable. Scoped to the target chapter: if the user navigates elsewhere
-  // (or the chapter never becomes ready) the pending entry is discarded and
-  // never scrolls an unrelated chapter.
+  // A pending jump { chapterNumber, percentile }; the apply layout-effect below
+  // scrolls to it once the target chapter's prose is measurable. Scoped to the
+  // target chapter — navigating elsewhere discards it.
   const pendingJumpRef = useRef<{
     chapterNumber: number;
     percentile: number;
@@ -82,10 +80,8 @@ export const EntertainmentThread: FC = () => {
   // Desktop hover state for the footer (driven by the mousemove effect below).
   const [footerHovered, setFooterHovered] = useState(false);
 
-  // Recovery + initial load: on thread switch, load chapters + resume position.
-  // The start chapter is recorded as a pending jump at percentile 0 so the apply
-  // effect scrolls it to the top once its prose is ready (the unified jump path
-  // — no separate top-reset).
+  // On thread switch: load chapters + resume position. The start chapter is a
+  // pending jump at percentile 0 so the apply effect scrolls it to the top.
   useEffect(() => {
     if (!activeThreadId) return;
     void (async () => {
@@ -99,22 +95,6 @@ export const EntertainmentThread: FC = () => {
     })();
   }, [activeThreadId, loadChapters, getPosition, setCurrentChapter]);
 
-  // Push the live reader cursor to the backend (an in-memory mirror on
-  // entertainmentFrontendService) so workers can read which thread + chapter
-  // the reader is showing right now without a DB trip. This is the SINGLE
-  // trigger for chapter-location monitoring (Job Type 1): it fires on every
-  // change of the (activeThreadId, currentChapterNumber) pair, so next/prev/TOC
-  // nav, opening an existing thread (the recovery effect sets currentChapter-
-  // Number), and the wizard's StepNovel commit (activeThreadId becomes set) all
-  // flow through here. Null when no thread is open — the wizard IS the empty
-  // state, so wizard-step-0 collapses to activeThreadId === null. Between thread
-  // creation and the reader opening, currentChapterNumber is null, so resolve to
-  // 1 (the worker-facing "intended first chapter"); matches the StepOptions case.
-  // NOTE: during a thread switch the reader's currentChapterNumber briefly holds
-  // the previous thread's chapter until the recovery load sets the new one, so
-  // the cursor can transiently report (newThread, oldChapter) for ~one load
-  // cycle. Faithful mirroring by design; workers should treat the cursor as
-  // advisory and re-validate against the DB before acting on a chapter.
   useEffect(() => {
     const chapterNumber = activeThreadId
       ? (currentChapterNumber ?? 1)
@@ -122,12 +102,8 @@ export const EntertainmentThread: FC = () => {
     void setReaderCursor(activeThreadId, chapterNumber);
   }, [activeThreadId, currentChapterNumber, setReaderCursor]);
 
-  // Null the cursor when EntertainmentThread unmounts. This component survives
-  // thread switches (only `appMode` toggles it), so unmount = the user left
-  // entertainment mode → no thread is open → cursor must be null. Kept as a
-  // SEPARATE effect from the push above so its cleanup runs ONLY on unmount: a
-  // normal effect cleanup fires on every dep change, which would flash the
-  // cursor to null between every chapter navigation.
+  // Null the cursor on unmount only — a separate effect so its cleanup doesn't
+  // fire on every chapter nav.
   useEffect(() => {
     return () => {
       void setReaderCursor(null, null);
@@ -154,11 +130,9 @@ export const EntertainmentThread: FC = () => {
     : novelType === "internet" || // absent → assume next exists
       currentChapterNumber < maxChapterNumber);
 
-  // Scroll the reader viewport to a within-chapter percentile (0 = top, 100 =
-  // bottom). Instant (not smooth) so it can't race with a reader hotkey fired
-  // immediately after — the viewport is scroll-smooth, which would otherwise
-  // animate the jump. A chapter that fits the viewport (max <= 0) has only one
-  // valid spot, the top.
+  // Scroll to a within-chapter percentile (0 = top, 100 = bottom). Instant (not
+  // smooth) so it can't race with a reader hotkey; a chapter that fits (max ≤ 0)
+  // has only one valid spot, the top.
   const scrollToPercentile = (percentile: number) => {
     const vp = viewportRef.current;
     if (!vp) return;
@@ -178,10 +152,8 @@ export const EntertainmentThread: FC = () => {
     return Math.min(100, Math.max(0, (vp.scrollTop / max) * 100));
   };
 
-  // Jump to a chapter at a within-chapter percentile — the single entry point
-  // for all chapter navigation (TOC, bookmark, prev/next). Records the intent,
-  // then same-chapter applies immediately while cross-chapter navigates and lets
-  // the apply effect below restore the percentile once the target prose is ready.
+  // Single entry point for all chapter navigation. Records the intent; same-
+  // chapter applies immediately, cross-chapter restores the percentile once ready.
   const jumpTo = (chapterNumber: number, percentile: number) => {
     if (!activeThreadId) return;
     pendingJumpRef.current = { chapterNumber, percentile };
@@ -194,12 +166,9 @@ export const EntertainmentThread: FC = () => {
     void setPosition(activeThreadId, chapterNumber);
   };
 
-  // Apply a pending jump once the target chapter's rewritten prose is
-  // measurable. useLayoutEffect (not useEffect) so the scroll lands before paint
-  // — no top-then-jump flash. Scoped to the target chapter: navigated-elsewhere
-  // → discard; not yet rewritten → wait (the deps re-fire when status/content
-  // arrive). Clears once applied so a stale percentile never carries into an
-  // unrelated chapter.
+  // Apply a pending jump once the target chapter's prose is measurable.
+  // useLayoutEffect so the scroll lands before paint (no top-then-jump flash).
+  // Navigated elsewhere → discard; not yet ready → wait (deps re-fire).
   useLayoutEffect(() => {
     const pending = pendingJumpRef.current;
     if (!pending) return;
@@ -212,20 +181,10 @@ export const EntertainmentThread: FC = () => {
     pendingJumpRef.current = null; // content ready — jump complete
   }, [currentChapterNumber, current?.rewriteStatus, current?.content]);
 
-  // Desktop hover: reveal the footer when the pointer enters the bottom band of
-  // the reading surface, hide when it leaves. The listener is attached to the
-  // thread ROOT, not the viewport, because the footer overlay is a SIBLING of
-  // the viewport (absolute-positioned on top of it). Tracked against the
-  // viewport, moving the pointer onto the pill — which is pointer-events-auto
-  // while visible and lives outside the viewport's subtree — would fire the
-  // viewport's mouseleave (hovered=false), revert the pill to pointer-events-
-  // none, let the next mousemove fall back through to the viewport (hovered=
-  // true), and oscillate on every wiggle = the flicker. On the root the pill is
-  // a descendant, so the pointer never "leaves" while over it and mousemove
-  // keeps firing regardless of the pill's pointer-events state. Detected via
-  // mousemove (not an overlay) so text selection / link clicks on the prose are
-  // never blocked. Touch has no hover — mobile relies on the tap-to-pin path
-  // (handleReadingClick).
+  // Desktop hover: reveal the footer when the pointer enters the bottom band,
+  // hide when it leaves. The listener is on the thread root (not the viewport)
+  // because the footer overlay is a sibling of the viewport — attaching to the
+  // viewport would fire mouseleave over the pill and oscillate. Touch uses tap-to-pin.
   useEffect(() => {
     if (isMobile) return;
     const el = rootRef.current;
@@ -269,10 +228,8 @@ export const EntertainmentThread: FC = () => {
     enabled: currentChapterNumber != null,
   });
 
-  // Tap/click the reading surface to toggle the footer (mobile + desktop).
-  // Taps on the footer itself or its panels don't reach here (they're siblings
-  // of this content area), so the toggle only fires on the prose surface.
-  // Selection (drag/long-press) and clicks on links/buttons pass through.
+  // Tap/click the prose surface toggles the footer. Footer taps are siblings
+  // (don't reach here); selection and link/button clicks pass through.
   const handleReadingClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     if (currentChapterNumber == null) return;
     const selection = window.getSelection();
@@ -281,20 +238,10 @@ export const EntertainmentThread: FC = () => {
     setFooterPinned((p) => !p);
   };
 
-  // Stop button: abandon the current thread and open a fresh wizard. `abandon`
-  // resets the chapter cache and clears the active thread (synchronous, no
-  // POST — the next thread is created only at the StepNovel commit). The reset
-  // matters because this component does NOT unmount on thread switch (only
-  // `appMode` toggles it); without it the previous thread's
-  // `currentChapterNumber` would linger and block the wizard.
+  // Abandon the thread and open a fresh wizard. Synchronous cache reset; this
+  // component doesn't unmount on thread switch, so the reset clears stale state.
   const abandonThread = () => useEntertainmentThreadsStore.getState().abandon();
 
-  // Options page — a full-page view of the same StepOptions the wizard uses,
-  // editing the current thread's persisted config on the fly. Opened from the
-  // footer's Settings button. Save writes via PUT /config; the next agent the
-  // pipeline enqueues re-reads config and rebuilds its prompt from the new
-  // options. Does NOT affect currently-running agents. The page replaces the
-  // reader while open (full-page, like the wizard) — NOT an overlay popover.
   const [showOptionsPage, setShowOptionsPage] = useState(false);
   const [optionsConfig, setOptionsConfig] =
     useState<EntertainmentConfig | null>(null);
@@ -336,12 +283,8 @@ export const EntertainmentThread: FC = () => {
       ref={rootRef}
       className="@container relative flex h-full flex-col bg-background"
       style={{
-        // Reader CSS vars are defined here so they cascade into the viewport
-        // and the prose column below; the root itself stays bg-background so
-        // the wizard / options chrome follows the app theme. The reader
-        // background is applied on the viewport (see below) — NOT this root —
-        // so it spans the full window width. The prose column's width is set
-        // purely by side margin (--reader-margin), not a content max-width.
+        // Cascade reader CSS vars into the viewport + prose column; the root
+        // stays bg-background so the wizard/options chrome follows the app theme.
         ...buildReaderCssVars(settings),
       }}
     >
@@ -349,11 +292,8 @@ export const EntertainmentThread: FC = () => {
         ref={viewportRef}
         className="relative flex flex-1 flex-col overflow-x-auto overflow-y-auto scroll-smooth"
         style={{
-          // Reader theme background is scoped to the reading surface and
-          // applied on the full-width viewport (not the centered prose column)
-          // so the theme color fills the whole window. Only while a chapter is
-          // open (currentChapterNumber != null) AND the options page isn't up —
-          // a fresh thread's wizard and the options page keep the app theme.
+          // Theme background on the full-width viewport (only while a chapter is
+          // open and the options page isn't up) so the theme fills the window.
           backgroundColor:
             currentChapterNumber != null && !showOptionsPage ?
               "var(--reader-background)"
@@ -361,10 +301,8 @@ export const EntertainmentThread: FC = () => {
         }}
       >
         {showWizard ?
-          // The wizard is a setup surface, not reading prose, so it's rendered
-          // as a direct child of the viewport — it does NOT inherit the prose
-          // column's --reader-margin (which would crush it on mobile). Its own
-          // container handles width + centering.
+          // Direct child of the viewport — the wizard is a setup surface, not
+          // prose, so it doesn't inherit the prose column's --reader-margin.
           <EntertainmentWizard />
         : showOptionsPage ?
           <OptionsPage
@@ -379,17 +317,12 @@ export const EntertainmentThread: FC = () => {
         : <div
             onClick={handleReadingClick}
             className="flex w-full flex-1 flex-col pt-4 pb-24"
-            // Width is controlled purely by side margin: the prose column fills
-            // the viewport edge-to-edge behind the reader background, with
-            // symmetric inline padding from --reader-margin. The 40vw cap keeps
-            // the column from collapsing on narrow windows; there is no content
-            // max-width (increase the margin to narrow the text).
+            // Prose column width is pure side margin (--reader-margin); the
+            // 40vw cap keeps it from collapsing on narrow windows.
             style={{ paddingInline: "min(var(--reader-margin, 12rem), 40vw)" }}
           >
             {fetchError && currentChapterNumber != null && (
-              // A fetch failure (backend unreachable / 5xx / auth) would
-              // otherwise look identical to the "fetching" spinner. Surface it
-              // so the reader knows the load failed, not that it's slow.
+              // Surface fetch failures so they don't look like a "fetching" spinner.
               <p className="mx-auto mb-6 rounded-md bg-destructive/10 px-3 py-1.5 text-center text-sm text-destructive">
                 {t("reader.fetch.error")}
               </p>
@@ -420,18 +353,10 @@ export const EntertainmentThread: FC = () => {
   );
 };
 
-/** Renders the current chapter by its pipeline status (never shows 原文).
- *  Ready prose is rendered as plain <p> paragraphs — no markdown pipeline — so
- *  a multi-thousand-character chapter mounts in milliseconds. Typography
- *  (font, line-height, 2-em first-line indent, paragraph spacing) comes from
- *  the `.novel-reader` rules in novel-reader.css. */
+/** Renders the current chapter. Ready prose is plain <p> paragraphs (no
+ *  markdown) so a large chapter mounts fast; typography comes from the
+ *  `.novel-reader` rules in novel-reader.css. */
 const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
-  // If the rewritten prose exists, show it right away — regardless of source
-  // status. The chunked-merge dehydrate produces title + outline + rewrite in
-  // one pass; its source_chapters row carries only the title (status="fetched"),
-  // so gating on sourceStatus would be meaningless. Rewrite status is the only
-  // signal that
-  // matters for "is there prose to read".
   if (chapter && chapter.rewriteStatus === "rewritten") {
     // Split on newline (handles CRLF); blank lines add no node. Each <p> gets
     // the first-line indent + spacing from .novel-reader p. Plain text nodes
@@ -446,10 +371,8 @@ const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
     );
   }
   // Not yet rewritten — render the backend-derived status placeholder. The
-  // status (phase + pipeline-aware message key/params) is the single source of
-  // truth: the TOC, footer next-chapter indicator, and this body all read from
-  // the same derived field, so they can never disagree. No client-side status
-  // branching — the message is `t(status.messageKey, status.messageParams)`.
+  // derived `status` (phase + message) is the single source of truth shared with
+  // the TOC and footer, so they can never disagree.
   return <ChapterStatusPlaceholder status={chapter?.status} />;
 };
 
@@ -479,12 +402,10 @@ const ChapterStatusPlaceholder: FC<{ status: ChapterStatus | undefined }> = ({
 };
 
 /**
- * Full-page rewrite-options editor for an open thread. Renders the SAME
- * StepOptions the wizard uses (no duplication), editing the thread's persisted
- * config live — a full page, NOT an overlay popover (the dense 85-tactic grid
- * is unreadable in a popover). Mirrors the wizard's width container + nav. Save
- * writes via PUT /config; the next agent picks up the new options. Back returns
- * to the reader without writing (the draft is discarded).
+ * Full-page rewrite-options editor for an open thread — the same StepOptions the
+ * wizard uses, editing the thread's persisted config live. Full page (not a
+ * popover) because the dense tactics grid is unreadable in an overlay. Save
+ * writes via PUT /config; back returns to the reader without writing.
  */
 const OptionsPage: FC<{
   loading: boolean;

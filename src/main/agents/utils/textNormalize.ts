@@ -1,23 +1,7 @@
 /**
- * Canonical text normalisation shared between file ingestion and anchor
- * matching.
- *
- * Applied in TWO places that MUST use the SAME transform, so that the model's
- * emitted anchors can be compared against the excerpt it was shown:
- *
- *   1. Novel file ingestion (`decodeViaWorker` in entertainmentRoutes.ts, run
- *      in the decode worker_threads worker) — on the raw bytes after iconv
- *      decoding, BEFORE persisting the novel text to DB. Everything downstream
- *      (chunk planning, the excerpt handed to the outliner, the body that ends
- *      up in `source_chapters.content`) reads this canonicalised form.
- *   2. `textChunker.locateAnchor` — on the model's `firstTextChunk` /
- *      `lastTextChunk` BEFORE exact/fuzzy matching. The model *saw* canonical
- *      text (the excerpt was normalised at ingestion), so its verbatim copies
- *      are mostly canonical already — but the model can still introduce drift
- *      (a stray space, a trailing newline, a full-width ASCII char that NFKC
- *      folds). Running the anchor through the SAME normaliser brings it back
- *      into the excerpt's canonical form, letting exact `indexOf` succeed
- *      instead of falling through to the fuzzy path.
+ * Canonical text normalisation applied during novel file ingestion
+ * (`decodeViaWorker` in entertainmentRoutes.ts), on the raw bytes after iconv
+ * decoding, BEFORE persisting the novel text to DB.
  *
  * Pipeline (order matters — each step assumes the prior one ran):
  *   1. NFKC — fold CJK compatibility forms + compatibility-namespace whitespace

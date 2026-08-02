@@ -54,22 +54,13 @@ interface ReaderFooterProps {
 }
 
 /**
- * Unified bottom reader footer: [settings] [prev • next] [toc], centered and
- * symmetric. Hidden by default; slides up from the bottom when the pointer is
- * in the bottom reveal band (desktop — detected by the host via mousemove, so
- * no overlay blocks the prose) OR the reading surface is tapped (`pinned`).
- * Slides back down when the pointer leaves the band (unless pinned/a panel is
- * open) or the surface is tapped a second time — so it works on mobile touch
- * without a hover affordance. Settings/TOC open as a Popover (desktop) or
- * bottom-sheet Drawer (mobile) and keep the footer open while visible.
- *
- * The Next button mirrors the TOC's per-chapter phase indicator: while the next
- * chapter is being fetched/rewritten it shows a `loading`/`syncing` DotMatrix
- * instead of the right chevron (same `phase` as the TOC row indicator).
- *
- * While visible, the chapter list is polled every POLL_MS so the TOC and the
- * next-chapter nav indicator stay fresh with backend progress; polling stops as
- * soon as the footer hides.
+ * Unified bottom reader footer: settings • prev/next • toc, centered and
+ * symmetric. Hidden by default; reveals on desktop hover (bottom reveal band) or
+ * a surface tap (`pinned`), and hides again when the pointer leaves or the
+ * surface is tapped a second time. Settings/TOC open as a Popover (desktop) or
+ * bottom-sheet Drawer (mobile). While visible, the chapter list is polled every
+ * POLL_MS so the TOC and next-chapter indicator stay fresh; polling stops when
+ * it hides.
  */
 export const ReaderFooter: FC<ReaderFooterProps> = ({
   canGoPrev,
@@ -119,12 +110,9 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     downloadOpen ||
     processOpen;
 
-  // Poll the chapter list WHILE the footer is shown, so the TOC rows and the
-  // next-chapter nav indicator track backend progress. Stops the instant it
-  // hides — no idle polling and no "is anything still busy?" detection. The
-  // fetch preserves cached per-chapter content (store merge) and no UI
-  // subscribes to the `loading` flag, so this is flicker-free. Overlapping
-  // loads are skipped via the loading guard.
+  // Poll the chapter list while the footer is shown so the TOC rows and
+  // next-chapter indicator track progress. Stops when it hides. The fetch
+  // preserves cached per-chapter content (store merge), so it's flicker-free.
   useEffect(() => {
     if (!visible || !currentThreadId) return;
     const tick = () => {
@@ -143,9 +131,8 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     void loadBookmarks(currentThreadId);
   }, [currentThreadId, loadBookmarks]);
 
-  // Next chapter's pipeline phase — derived on the backend (same `status.phase`
-  // the TOC renders). Only swap the chevron for a dot while it's actively
-  // working (loading = acquiring 原文, syncing = rewriting).
+  // Next chapter's phase — derived on the backend (same `status.phase` the TOC
+  // renders). Swap the chevron for a dot only while it's actively working.
   const next = chapters.find(
     (c) => c.chapterNumber === (currentChapterNumber ?? 0) + 1,
   );
@@ -178,10 +165,10 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   };
 
   // --- Download (export) ---------------------------------------------------
-  // "Processed" = rewritten. The footer already polls `chapters` while visible,
-  // so these flags stay fresh with no extra polling. The browser streams the
-  // file via a same-origin <a download> (server sets Content-Disposition), so no
-  // fetch/Blob is needed.
+  // Export ranges gate on what's been rewritten, so ranges with nothing ready
+  // grey out. The footer already polls `chapters` while visible. The browser
+  // streams the file via a same-origin <a download> (server sets
+  // Content-Disposition) — no fetch/Blob needed.
   const readyChapters = chapters.filter((c) => c.rewriteStatus === "rewritten");
   const hasAnyReady = readyChapters.length > 0;
   const currentReady =
@@ -191,8 +178,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     currentChapterNumber != null &&
     readyChapters.some((c) => c.chapterNumber >= currentChapterNumber);
 
-  // The three export ranges rendered in the Download panel, each gated by what
-  // has actually been rewritten so ranges with no ready chapters grey out.
   const downloadOptions = [
     {
       range: "current",
@@ -219,8 +204,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   };
 
   // --- Process (next N / all / redo failed) --------------------------------
-  // The pipeline control plane is gone; these handlers keep the panel's buttons
-  // wired but no longer dispatch work.
   const handleProcessNext = () => {
     setProcessOpen(false);
   };
@@ -448,9 +431,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
             </div>
           </ResponsivePanel>
 
-          {/* Options (left) — opens the full-page rewrite-options editor. Not a
-              popover: the dense tactics grid is unreadable in an overlay, so the
-              host swaps to a full-page view (like the wizard) instead. */}
+          {/* Options (left) — full-page rewrite-options editor (not a popover). */}
           <Tooltip>
             <TooltipTrigger asChild>
               {optionsTrigger}
@@ -548,8 +529,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
             </TooltipContent>
           </Tooltip>
 
-          {/* Stop (right edge) — kill all agents on this thread and switch to a
-              fresh thread (wizard). Tooltip-wrapped like the zen toggle. */}
+          {/* Stop (right edge) */}
           <Tooltip>
             <TooltipTrigger asChild>
               {stopTrigger}
@@ -563,10 +543,9 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
 };
 
 /**
- * Animated chevrons for chapter navigation. The strokes draw themselves in over
- * ~0.4s via SMIL (`stroke-dashoffset` 12 → 0, frozen at the end), so the arrow
- * "writes" itself whenever the icon (re)mounts — on first appearance, and again
- * when the next button swaps back from its loading indicator.
+ * Animated chevrons for chapter navigation. The strokes draw themselves over
+ * ~0.4s via SMIL (stroke-dashoffset 12 → 0, frozen), so the arrow "writes"
+ * itself whenever the icon (re)mounts.
  */
 const NavChevronLeft: FC<{ className?: string }> = ({ className }) => (
   <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">

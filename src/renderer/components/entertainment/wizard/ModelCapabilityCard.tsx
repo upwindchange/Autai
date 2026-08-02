@@ -16,22 +16,7 @@ import { useConfiguredModels } from "@/hooks/useConfiguredModels";
 import { useUiStore } from "@/stores/uiStore";
 import type { ModelRole } from "@shared";
 
-/**
- * Entertainment wizard — shows the two models the dehydrate pipeline uses
- * (complex for outlining + rewriting, simple for outline compression) with
- * their provider and context window, explains how context size and model
- * capability affect agent performance, and links into Settings → Providers &
- * Models for reconfiguration.
- *
- * Resolution mirrors the backend: when useSameModelForAgents is on, the simple
- * and complex roles both mirror the chat assignment. Context window comes from
- * the catalog `limit.context` (TOML providers) or a manual override
- * (openai-compatible), unified through GET /providers/configured/models.
- *
- * When no models are configured at all, the whole card collapses into a single
- * warning state (DotMatrix error glyph) prompting the user to configure models
- * before starting — a dehydrate run will fail without them.
- */
+/** Shows the complex + simple models with provider/context window; links to Settings. */
 
 /** Default context shown when a model has no known limit (openai-compatible w/o override). */
 const DEFAULT_CONTEXT_WINDOW = 128_000;
@@ -83,8 +68,7 @@ export const ModelCapabilityCard: FC = () => {
     setShowSettings(true);
   };
 
-  // No models configured at all — collapse into a single warning that blocks
-  // a meaningful dehydrate run.
+  // No models configured — collapse into a single warning.
   if (!complex && !simple) {
     return (
       <section

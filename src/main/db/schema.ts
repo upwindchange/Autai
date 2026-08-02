@@ -139,8 +139,7 @@ export const authSessions = sqliteTable("auth_sessions", {
 // Wizard settings + novel origin, 1:1 with a thread. `mode` + `options` are the
 // fixed session settings; `novelSource` is the *origin pointer/instruction*
 // (file path / URL / search guidance) from the wizard — NOT the novel content.
-// It is nullable and updatable because the input is dynamic, especially for
-// internet novels fetched chapter-by-chapter over multiple sessions. The actual
+// It is nullable and updatable because the input is dynamic. The actual
 // novel content accrues as `source_chapters` / `rewritten_chapters` rows.
 export const entertainmentConfigs = sqliteTable("entertainment_configs", {
   threadId: text("thread_id")
@@ -153,23 +152,10 @@ export const entertainmentConfigs = sqliteTable("entertainment_configs", {
   // Renamed from lastChapterNumber to avoid collision with finalChapterNumber.
   lastReadChapterNumber: integer("last_read_chapter_number"),
   // Final chapter number of the book. null = unknown → assume the next chapter
-  // exists. For internet novels set at setup (hard-wired 40); for FILE novels
-  // it is now set at END of the outline run (the count is unknown until the
-  // LLM finishes splitting — it is no longer parsed up front at upload).
+  // exists.
   // Distinct from lastReadChapterNumber (resume position).
   finalChapterNumber: integer("final_chapter_number"),
-  // The full decoded novel text for a FILE upload, held ONLY for the duration
-  // of the outline run so the chunk loop can re-read it on crash-resume without
-  // touching the (possibly moved/deleted/renamed) source file. Written once at
-  // upload, cleared (NULL) once the outline run completes. Internet novels never
-  // set this. Accessed via dedicated getRawNovelText/setRawNovelText/clearRawNovelText
-  // so the multi-MB blob never loads on hot config reads.
   rawText: text("raw_text"),
-  // How far the outliner has consumed `rawText` (character offset). Persisted
-  // inside the outputChapters tool's execute after each round → every round
-  // boundary is a recovery point. On resume the next chunk starts at
-  // max(0, rawConsumedOffset − overlap) and re-covers the deferred straddler.
-  // 0 on a fresh upload; stays 0 for internet novels (no rawText).
   rawConsumedOffset: integer("raw_consumed_offset").notNull().default(0),
   createdAt: text("created_at")
     .notNull()
@@ -180,24 +166,6 @@ export const entertainmentConfigs = sqliteTable("entertainment_configs", {
 });
 
 // --- Dehydration pipeline tables --------------------------------------------
-// The reader's spine is `rewritten_chapters` (the dehydrated/rewritten prose),
-// keyed by (threadId, chapterNumber). Two feeder tables, each scoped to the
-// acquisition strategy that needs them:
-//   - sourceChapters  原文 — original-text storage for chaptered internet fetch
-//                           and non-novel single-piece acquire. The chunked-
-//                           merge dehydrate also writes here, but only the
-//                           `title` column (its `outputChapters` tool emits a
-//                           per-chapter title; `content`/`url` stay null — it
-//                           reads decoded novel text straight from
-//                           entertainment_configs.rawText and never stores 原文).
-//   - outlines           — per-chapter outline text for the chunked-merge
-//                           dehydrate, 1:1 with rewritten_chapters by
-//                           chapterNumber. A composite FK
-//                           (threadId, chapterNumber) → rewritten_chapters enforces it.
-// The reader only ever reads rewrittenChapters; sourceChapters feeds the
-// chaptered rewrite agents AND carries the chunked-merge dehydrate's chapter
-// titles for the reader joins. `id` is independent (crypto.randomUUID()), never
-// a message id.
 
 export const sourceChapters = sqliteTable(
   "source_chapters",
@@ -210,9 +178,6 @@ export const sourceChapters = sqliteTable(
     title: text("title"),
     content: text("content"), // 原文 (raw source text); null while status='fetching'
     // Real post-redirect URL of this chapter's page (internet novels only).
-    // Written by the internet-fetcher's phase-1 `landHere` tool — captured from
-    // the live WebContentsView (webContents.getURL()), never parsed from href —
-    // so it survives redirects. Read back only on the restart-recovery path.
     url: text("url"),
     status: text("status")
       .notNull()
@@ -241,11 +206,7 @@ export const rewrittenChapters = sqliteTable(
     threadId: text("thread_id")
       .notNull()
       .references(() => threads.id, { onDelete: "cascade" }),
-    // chapterNumber is the reader's spine key. For chaptered sources it mirrors
-    // the source chapter's number (1:1); for the chunked-merge dehydrate it is
-    // the system-assigned sequential number of the dehydrated output (the
-    // `outlines` row at the same number pairs with it via the composite FK on
-    // `outlines`).
+    // chapterNumber is the reader's spine key.
     chapterNumber: integer("chapter_number").notNull(),
     content: text("content"), // 重写 (rewritten prose); null while status='rewriting'
     status: text("status")
@@ -268,13 +229,6 @@ export const rewrittenChapters = sqliteTable(
   ],
 );
 
-// Per-chapter outline text for the chunked-merge dehydrate — produced in the
-// SAME one-pass tool call as its rewritten_chapters row, so the two are
-// strictly 1:1 by (threadId, chapterNumber). The composite FK points at
-// rewritten_chapters (the parent / reader spine); chapterNumber alone is not
-// unique across threads, so the FK is on the pair (the target pair is unique
-// via rewritten_chapters_thread_number_unique, which SQLite requires to enforce
-// it). Chaptered sources never write here (they have no outline step).
 export const outlines = sqliteTable(
   "outlines",
   {

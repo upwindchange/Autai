@@ -25,13 +25,11 @@ const logger = log.scope("EntertainmentFrontend");
 /**
  * Entertainment frontend persistence — the DB CRUD layer the REST routes
  * (`entertainmentRoutes.ts`) read/write through: the wizard's config, the
- * reader's merged chapter view, read-position, export, and bookmarks. It holds
- * NO novel/LLM workflow: encoding/ingestion, acquisition, and rewriting live in
- * the worker modules (served by `backendService`).
+ * reader's merged chapter view, read-position, export, and bookmarks.
  *
  * Chapters span TWO tables — `sourceChapters` (原文) and `rewrittenChapters`
- * (重写) — merged by chapterNumber for the reader's view (`listChapterProgress`
- * / `getChapterDetail`). Mirrors the CRUD style of `threadPersistenceService`.
+ * (重写) — merged by chapterNumber for the reader's view
+ * (`listChapterProgress` / `getChapterDetail`).
  */
 class EntertainmentFrontendService {
   initialize(): void {
@@ -176,16 +174,12 @@ class EntertainmentFrontendService {
   // --- merged reader view -------------------------------------------------
   // The reader's SPINE is `rewritten_chapters`. Each rewrite row joins its
   // source row directly — title + sourceStatus come from the source row at the
-  // same number. The chunked-merge dehydrate also writes a source row (title
-  // only, status="fetched"); its rows carry a title via that join. Source
-  // chapters with no rewrite row yet are NOT shown (the reader never renders
-  // 原文); a not-yet-rewritten chapter shows as `stopped` via its `phase`.
+  // same number. Source chapters with no rewrite row yet are NOT shown (the
+  // reader never renders 原文); a not-yet-rewritten chapter shows as `stopped`.
 
   /**
-   * Per-chapter progress, spine'd on `rewritten_chapters`.
-   * title/sourceStatus come from the source row at the same chapterNumber
-   * (for chunked-merge dehydrate the title is set by the dehydrate tool,
-   * sourceStatus is the benign "fetched" placeholder).
+   * Per-chapter progress, spine'd on `rewritten_chapters`. title/sourceStatus
+   * come from the source row at the same chapterNumber.
    */
   listChapterProgress(threadId: string): ChapterProgress[] {
     const outputs = this.listRewrittenChapters(threadId);
@@ -207,8 +201,7 @@ class EntertainmentFrontendService {
   /**
    * Single-chapter detail (1:1 keyed). Prose comes from the rewrite row (only
    * when `rewritten`); title/sourceStatus from the source row at the same
-   * number (for chunked-merge dehydrate the title is set by the dehydrate tool,
-   * sourceStatus is the benign "fetched" placeholder).
+   * number.
    */
   getChapterDetail(threadId: string, chapterNumber: number): ChapterDetail {
     const r = this.getRewrittenChapter(threadId, chapterNumber);
@@ -408,8 +401,7 @@ class EntertainmentFrontendService {
 
   /**
    * Final chapter number of the book (null = unknown → assume the next chapter
-   * exists). Set upfront: files at ingest (parsed count), the internet stub at
-   * setup (hard-wired 40). Distinct from lastReadChapterNumber (resume spot).
+   * exists). Distinct from lastReadChapterNumber (resume spot).
    */
   getFinalChapterNumber(threadId: string): number | null {
     return this.getEntertainmentConfig(threadId)?.finalChapterNumber ?? null;

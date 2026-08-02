@@ -149,8 +149,7 @@ function applyConfig(
 
 // POST /entertainment/threads/:threadId/ingest — file wizard "Upload &
 // Continue": backend detects encoding + decodes (iconv) and persists the raw
-// text + zero consumed offset. Chapter SPLITTING is done by the outliner later;
-// this step only stores the decoded blob. The response resolves only after the
+// text + zero consumed offset. The response resolves only after the
 // DB write, so the renderer can rely on raw text being present when this
 // returns.
 entertainmentRoutes.post("/threads/:threadId/ingest", async (c) => {
@@ -186,11 +185,6 @@ entertainmentRoutes.post("/threads/:threadId/ingest", async (c) => {
     // the filename-based title immediately while decode is still running.
     applyConfig(threadId, config);
 
-    // One-time ingestion. The blob is held in the DB only for the outline
-    // run's duration (cleared at EOF by the runner) so crash-resume can re-read
-    // it without touching the (possibly moved) source file. rawConsumedOffset
-    // is reset to 0 here. finalChapterNumber is NOT set — unknown until the
-    // outliner finishes splitting; it sets it at EOF.
     const decoded = await decodeViaWorker({ fsPath, base64: fileBytesBase64 });
     // Reject an empty file before any DB write / LLM call.
     if (!decoded.trim()) {

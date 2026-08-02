@@ -7,14 +7,8 @@ interface ProgressBarProps {
 }
 
 /**
- * Three-node horizontal stepper for the wizard. Numbered circles connected by
- * fill lines; completed steps show a check, the current step is filled +
- * ringed, upcoming steps stay muted. The two connector lines are `flex-1`, so
- * nodes sit at 0%/50%/100% — which is why the labels below use left/center/
- * right alignment (they line up with the nodes, not the segment thirds).
- *
- * Scales cleanly from a narrow phone to a wide desktop: the connectors just
- * lengthen, the nodes stay fixed-size, and labels never wrap into the gutter.
+ * Three-node horizontal stepper. The connector lines are `flex-1`, so nodes sit
+ * at 0%/50%/100% — hence the labels below use left/center/right alignment.
  */
 export function ProgressBar({ step, labels }: ProgressBarProps) {
   const last = labels.length - 1;

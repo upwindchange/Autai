@@ -188,11 +188,8 @@ const SwitchRow: FC<{
   );
 };
 
-// One compact grid cell for a filler-stripping tactic — checkbox + wrapping
-// label + help tooltip. Mirrors SwitchRow's htmlFor/id pattern (click the label
-// text to toggle), sized for a dense responsive grid. `blockKey` is the i18n
-// namespace root and id prefix ("situation" | "crossChapter"); the tactic's
-// label/tooltip keys resolve to `options.<blockKey>.tactic.<tactic>.{label,tooltip}`.
+// Compact grid cell for one tactic: checkbox + label + tooltip. `blockKey`
+// ("situation" | "crossChapter") is the i18n root + id prefix.
 const TacticCheckbox: FC<{
   blockKey: "situation" | "crossChapter";
   tactic: string;
@@ -219,24 +216,10 @@ const TacticCheckbox: FC<{
   );
 };
 
-// A reusable collapsible panel for a `{ strength, tactics }` filler-stripping
-// block — used twice, for 情境脱水 (situation) and 章节并写 (crossChapter).
-// Identical layout in both: header with title + enabled-count + expand chevron,
-// a row with the 关/轻/中/重 strength dial + the master "All" switch, and a body
-// of grouped tactic-checkbox grids (dimmed when the strength is 关). `blockKey`
-// drives the i18n namespace and the tactic-cell ids; `categories`/`allTacticKeys`
-// come straight from the shared schema constants.
-//
-// `disabled` greys out and blocks the WHOLE block (used for 章节并写 when the
-// source isn't a chaptered file upload). It's separate from the strength dial's
-// 关 dim: 关 means "off until you pick an intensity", `disabled` means "not
-// available for this source at all". When disabled, the control row (dial +
-// master switch) is hidden and replaced by a one-line explanation.
-//
-// `hideTactics` drops the per-pattern checkbox grid but keeps the strength dial
-// — used for non-Chinese locales, where the genre-specific scenario taxonomy
-// (web-novel tropes like 拔剑/打脸/水字数) doesn't apply. The strength dial alone
-// still drives intelligent dehydration.
+// Collapsible panel for a `{ strength, tactics }` filler-stripping block —
+// shared by 情境脱水 and 章节并写. `disabled` blocks the whole block (not
+// available for this source) vs `关` (off until an intensity is picked);
+// `hideTactics` drops the tactic grid (non-Chinese locales) but keeps the dial.
 const TacticBlock: FC<{
   blockKey: "situation" | "crossChapter";
   categories: readonly {
@@ -449,12 +432,9 @@ const DepthRow: FC<{
 export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
   const { t, i18n } = useTranslation("entertainment");
   const lang = config.options.language;
-  // The genre-specific scenario taxonomy (web-novel tropes: 拔剑/打脸/水字数…)
-  // only applies to Chinese source text — hide the per-pattern checkbox grids
-  // for other locales. The strength dial stays; it alone drives dehydration.
+  // Genre-specific tactic taxonomy applies only to Chinese — hide the grids otherwise.
   const hideTactics = !i18n.language.startsWith("zh");
-  // 章节并写 needs fast access to all chapters' content, which only a local
-  // file upload provides — grey it out (with an explanation) otherwise.
+  // 章节并写 is only available for a local file upload.
   const crossChapterAvailable = isCrossChapterAvailable(config);
 
   const setBasic = (key: keyof DehydrateBasic, value: boolean) =>
@@ -467,9 +447,7 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
       patchSharedOptions(prev, { situation: { tactics: { [key]: value } } }),
     );
 
-  // The strength dial (off/light/medium/heavy ↔ 0/1/2/3) gates the whole
-  // situational feature: 0 = no situational dehydration at all, even with
-  // tactics checked; 1–3 = strip the checked tactics at that intensity.
+  // Strength dial (off/light/medium/heavy ↔ 0/1/2/3); 0 disables the feature.
   const setSituationStrength = (segment: DepthSegment) =>
     setConfig((prev) =>
       patchSharedOptions(prev, {

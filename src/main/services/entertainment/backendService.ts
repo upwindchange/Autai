@@ -13,17 +13,12 @@ import type {
 import { and, eq, sql } from "drizzle-orm";
 
 /**
- * Entertainment backend persistence — the DB CRUD layer the generation
- * pipelines (dehydration / internet fetch / rewriting) write through. Pure
- * writes + the pipeline-only readers (raw novel text, consumed offset, output
- * numbering, final-chapter, thread "touch"). Holds NO reader/REST logic: the
- * reader's merged view and the REST surface live in `frontendService`.
- *
- * The pipeline modules also borrow a few stable READS (`getSourceChapter`,
- * `getRewrittenChapter`, `getParsedConfig`, `getFinalChapterNumber`) from
- * `frontendService` — those stay there because the reader owns them; this class
- * only writes (and owns the write-side readers nothing else serves). Mirrors the
- * CRUD style of `threadPersistenceService`.
+ * Entertainment backend persistence — the DB CRUD layer the entertainment
+ * chapter/outline tables write through. Pure writes + the write-side readers
+ * (raw novel text, consumed offset, output numbering, final-chapter, thread
+ * "touch"). Holds NO reader/REST logic: the reader's merged view and the REST
+ * surface live in `frontendService`. Mirrors the CRUD style of
+ * `threadPersistenceService`.
  */
 class EntertainmentBackendService {
   // --- source chapters (原文) — writes ------------------------------------
@@ -75,11 +70,9 @@ class EntertainmentBackendService {
   }
 
   /**
-   * Delete a source row by (threadId, chapterNumber). Used by the internet
-   * fetcher's FinalChapterError path (phantom row removal when chapter N-1
-   * turns out to be the last). Idempotent. NOTE: rewritten_chapters no longer
-   * has a source-chapter FK, so this does NOT cascade — callers manage the
-   * rewrite row separately when they need to.
+   * Delete a source row by (threadId, chapterNumber). Idempotent. NOTE:
+   * rewritten_chapters has no source-chapter FK, so this does NOT cascade —
+   * callers manage the rewrite row separately when they need to.
    */
   deleteSourceChapter(threadId: string, chapterNumber: number): void {
     const db = getDb();
@@ -98,9 +91,7 @@ class EntertainmentBackendService {
   /**
    * Insert a rewrite row (caller ensures it doesn't exist yet).
    * `chapterNumber` is the reader spine key — for chaptered sources it mirrors
-   * the source chapter's number (1:1); for the chunked-merge dehydrate it is the
-   * output's sequential number (paired 1:1 with an `outlines` row at the same
-   * number).
+   * the source chapter's number (1:1).
    */
   insertRewrittenChapter(input: {
     threadId: string;
@@ -141,10 +132,9 @@ class EntertainmentBackendService {
       .run();
   }
 
-  // --- outlines (chunked-merge dehydrate only) ----------------------------
-  // Per-chapter outline text, produced in the same one-pass tool call as the
-  // rewritten_chapters row (strict 1:1 by chapterNumber). Chaptered sources
-  // never touch this table.
+  // --- outlines -----------------------------------------------------------
+  // Per-chapter outline text, 1:1 with rewritten_chapters by chapterNumber
+  // via the composite FK on (threadId, chapterNumber).
 
   /** Insert an outline row (caller ensures it doesn't exist yet). */
   insertOutline(input: {
@@ -167,12 +157,6 @@ class EntertainmentBackendService {
 
   /**
    * Highest rewrite OUTPUT sequential number for the thread, or 0 if none.
-   * The chunked-merge dehydrate derives `nextOutputNumber =
-   * maxRewrittenChapterNumber + 1` from this so output numbering is gap-free
-   * and survives crash-resume (whatever windows already landed in
-   * `rewritten_chapters` define where the next output continues). Note this is
-   * the OUTPUT number, not a source chapter number — for 1:1 chaptered sources
-   * they coincide.
    */
   maxRewrittenChapterNumber(threadId: string): number {
     const db = getDb();
@@ -185,12 +169,6 @@ class EntertainmentBackendService {
       .get();
     return row?.max ?? 0;
   }
-
-  // --- raw novel text (file-upload only) -----------------------------------
-  // The full decoded novel text for a file upload, held ONLY for the duration of
-  // the outline run so the chunk loop can re-read it on crash-resume without
-  // touching the (possibly moved/deleted) source file. Each accessor selects a
-  // single column so the multi-MB blob never loads on hot config reads.
 
   /** The persisted raw novel text (null if none / already cleared). */
   getRawNovelText(threadId: string): string | null {
@@ -216,7 +194,6 @@ class EntertainmentBackendService {
       .run();
   }
 
-  /** Drop the raw blob (frees DB space once the outline run is complete). */
   clearRawNovelText(threadId: string): void {
     const db = getDb();
     db.update(entertainmentConfigs)
@@ -228,11 +205,6 @@ class EntertainmentBackendService {
       .run();
   }
 
-  /**
-   * How far the outliner has consumed `rawText` (character offset). Persisted
-   * inside the `outputChapters` tool's execute after each round, so every round
-   * boundary is a recovery point. 0 on a fresh upload.
-   */
   getConsumedOffset(threadId: string): number {
     const db = getDb();
     const row = db
@@ -245,7 +217,7 @@ class EntertainmentBackendService {
     return row?.rawConsumedOffset ?? 0;
   }
 
-  /** Persist the consumed offset (recovery checkpoint after each round). */
+  /** Persist the consumed offset. */
   setConsumedOffset(threadId: string, offset: number): void {
     const db = getDb();
     db.update(entertainmentConfigs)
@@ -257,7 +229,7 @@ class EntertainmentBackendService {
       .run();
   }
 
-  // --- final chapter (set by the pipeline; read by the frontend) ----------
+  // --- final chapter ------------------------------------------------------
 
   /** Persist the book's final chapter number. */
   setFinalChapterNumber(threadId: string, chapterNumber: number): void {

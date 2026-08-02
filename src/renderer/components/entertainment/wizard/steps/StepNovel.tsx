@@ -41,12 +41,8 @@ export const StepNovel: FC<StepNovelProps> = ({
   const setNonNovelSource = (value: boolean) =>
     setConfig((prev) => patchSharedOptions(prev, { nonNovelSource: value }));
 
-  // File acquisition — same path for both modes; unified native/browser pick.
-  // withBytes:false in native mode: the wizard only needs the filesystem path
-  // (the backend reads + decodes the file itself on upload), so we skip having
-  // the backend read + base64-encode the whole file just to throw the bytes
-  // away in the renderer. The browser fallback has no path and always yields
-  // the bytes, which become the upload source there.
+  // Native pick with withBytes:false — the backend reads/decodes the file on
+  // upload, so we skip base64-encoding bytes the renderer would discard.
   const onPick = async () => {
     const picked = await pickFiles({ withBytes: false });
     // Spec = single novel; ignore any extras.
@@ -94,11 +90,7 @@ export const StepNovel: FC<StepNovelProps> = ({
     );
   };
 
-  // This step is a small form (a source card, a few inputs + one textarea).
-  // Unlike the options step — which has ~85 toggles and earns a wide layout —
-  // stretching this across the full wizard width leaves huge empty whitespace
-  // and tiny content. Cap it to a comfortable form column and center it; on
-  // narrow screens max-w-3xl doesn't engage, so it stays full-width there.
+  // Small form — cap to a centered column (max-w-3xl) to avoid wide whitespace.
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
       {/* Story source — two orthogonal choices combined into one card:
@@ -106,9 +98,7 @@ export const StepNovel: FC<StepNovelProps> = ({
           (file upload vs internet fetch). Both long explanations live under
           help tooltips so the card stays compact. */}
       <div className="space-y-4 rounded-lg border bg-card px-4 py-3">
-        {/* Structure — chaptered fiction vs a single continuous text. The most
-            consequential choice on this step: it switches the reader from
-            per-chapter parsing to building organic chapters from one storyline. */}
+        {/* Structure — chaptered fiction vs a single continuous text. */}
         <div className="space-y-2">
           <div className="flex items-center gap-1.5">
             <span className="text-sm">

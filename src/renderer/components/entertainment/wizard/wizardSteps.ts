@@ -26,10 +26,7 @@ export const DEFAULT_BASIC: DehydrateBasic = {
   webSlangFilter: true,
 };
 
-// 情境脱水 ships active: medium strength, all tactics OFF (opt-IN per tactic).
-// The per-tactic checkboxes are optional enforcement — the strength dial alone
-// drives intelligent dehydration. Tactics stay off by default; the user ticks
-// one only when a 套路 keeps slipping through.
+// 情境脱水 default: medium strength, all tactics OFF (opt-in per tactic).
 export const DEFAULT_SITUATION: SituationDehydrate = {
   strength: 2,
   tactics: fillSituationTactics(false),
@@ -43,8 +40,7 @@ export const DEFAULT_CROSS_CHAPTER: CrossChapterDehydrate = {
   tactics: fillCrossChapterTactics(false),
 };
 
-// Rewrite-intensity aspects default OFF — the user opts into each enhancement.
-// (脱水提速 is not here; it's the situational block's `strength` dial.)
+// Rewrite-intensity (depth) defaults: all OFF, opt-in per aspect.
 export const DEFAULT_DEPTH: DehydrateDepth = {
   dialoguePacing: { enabled: false, level: 2 },
   sceneEnhance: { enabled: false, level: 2 },
@@ -333,9 +329,7 @@ export function isStepValid(
       return titleOk && config.novel.source.trim().length > 0;
     }
     case 2: {
-      // Options always have valid defaults, except the translation target
-      // language — required when translate is on, because the rewrite prompt
-      // assumes a non-empty target and skips the empty-target path.
+      // Translation target language is required when translate is on.
       const { translate, targetLanguage } = config.options.language;
       if (translate.enabled && targetLanguage.trim().length === 0) {
         return false;
@@ -347,15 +341,7 @@ export function isStepValid(
   }
 }
 
-/**
- * Whether 章节并写 (cross-chapter processing) is available for this config.
- * Cross-chapter awareness needs fast random access to ALL chapters' content at
- * rewrite time — only a locally uploaded text file gives the agent that. The
- * internet-fetch path streams one chapter at a time over the network (no
- * cross-chapter context), and a non-chaptered source (`nonNovelSource`) is a
- * single continuous text with no chapters to be aware of in the first place.
- * The UI uses this to grey out the 章节并写 block and show an explanation.
- */
+/** Whether 章节并写 is available — only for a chaptered local file upload. */
 export function isCrossChapterAvailable(config: EntertainmentConfig): boolean {
   return config.novel.type === "file" && !config.options.nonNovelSource;
 }
