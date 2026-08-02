@@ -41,7 +41,7 @@
   "params.simple.title": "Simple Model Parameters",
   "params.simple.description": "Sampling and reasoning defaults for the less-capable model (retitle, tagging, etc.).",
   "params.complex.title": "Complex Model Parameters",
-  "params.complex.description": "Sampling and reasoning defaults for the more-capable model (outline, rewrite, browser automation).",
+  "params.complex.description": "Sampling and reasoning defaults for the more-capable model (rewrite, browser automation).",
   "params.save": "Save",
   "params.auto": "auto",
   "params.temperature": "Temperature",

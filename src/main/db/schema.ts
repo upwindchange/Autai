@@ -5,7 +5,6 @@ import {
   primaryKey,
   index,
   uniqueIndex,
-  foreignKey,
 } from "drizzle-orm/sqlite-core";
 import { sql } from "drizzle-orm";
 import type { ThreadMode } from "@shared/tag";
@@ -226,32 +225,6 @@ export const rewrittenChapters = sqliteTable(
       t.chapterNumber,
     ),
     index("rewritten_chapters_thread_id_idx").on(t.threadId),
-  ],
-);
-
-export const outlines = sqliteTable(
-  "outlines",
-  {
-    id: text("id").primaryKey(),
-    threadId: text("thread_id")
-      .notNull()
-      .references(() => threads.id, { onDelete: "cascade" }),
-    chapterNumber: integer("chapter_number").notNull(),
-    outline: text("outline").notNull(),
-    createdAt: text("created_at")
-      .notNull()
-      .default(sql`(datetime('now'))`),
-    updatedAt: text("updated_at")
-      .notNull()
-      .default(sql`(datetime('now'))`),
-  },
-  (t) => [
-    uniqueIndex("outlines_thread_number_unique").on(t.threadId, t.chapterNumber),
-    index("outlines_thread_id_idx").on(t.threadId),
-    foreignKey({
-      columns: [t.threadId, t.chapterNumber],
-      foreignColumns: [rewrittenChapters.threadId, rewrittenChapters.chapterNumber],
-    }),
   ],
 );
 

@@ -62,13 +62,6 @@ const zh = {
     // Dehydrate pipeline toasts (file-upload novels).
     dehydrateStartedTitle: "重写已开始",
     dehydrateStartedBody: "正在为这本小说脱水重写，请稍候。",
-    outlineSucceededTitle: "大纲已生成",
-    outlineSucceededBody: "章节大纲已生成至全文末尾，可以开始阅读。",
-    outlineFailedTitle: "大纲生成失败",
-    outlineFailedBody: "生成章节大纲时出错，请重试或重新上传文件。",
-    outlineTransientFailedTitle: "大纲生成暂时失败",
-    outlineTransientFailedBody:
-      "在第 {{round}} 轮处理时未能产出章节（常见原因：模型提供商临时限流或网络问题）。已完成的大纲已保存，请稍后重新打开本书，系统将从断点处自动继续。",
   },
   agents: {
     searchingTitle: "同时查找多个话题：{{title}}",

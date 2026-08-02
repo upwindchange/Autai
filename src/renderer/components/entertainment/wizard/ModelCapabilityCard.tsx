@@ -119,9 +119,7 @@ export const ModelCapabilityCard: FC = () => {
         <ModelColumn
           icon={<Feather className="size-3.5" />}
           label={t("capability.simple.role")}
-          sublabel={t("capability.simple.task")}
           model={simple}
-          hint={t("capability.simple.hint")}
           t={t}
         />
       </div>
@@ -164,7 +162,7 @@ type ResolvedModelInfo = {
 const ModelColumn: FC<{
   icon: React.ReactNode;
   label: string;
-  sublabel: string;
+  sublabel?: string;
   model: ResolvedModelInfo;
   hint?: string;
   t: TFunc;
@@ -176,7 +174,7 @@ const ModelColumn: FC<{
           {icon}
           {label}
         </div>
-        <div className="text-[11px] text-muted-foreground/80">{sublabel}</div>
+        {sublabel && <div className="text-[11px] text-muted-foreground/80">{sublabel}</div>}
       </div>
       {model ?
         <>

@@ -3,12 +3,11 @@
  *
  * A single autonomous loop. Each pass reads a bounded chunk of the decoded
  * novel (`entertainment_configs.rawText`) and runs ONE agent call whose
- * terminal `outputChapters` tool emits an array of `{ title, content, outline }`
- * triples — the agent re-chapters, merges, and dehydrates as it sees fit
- * (typically producing FEWER chapters than the source). Title + outline +
- * rewrite are produced together in that one tool call; there is no separate
- * outline step. The title lands in `source_chapters` so the reader's TOC + app
- * header can show it.
+ * terminal `outputChapters` tool emits an array of `{ title, content }`
+ * pairs — the agent re-chapters, merges, and dehydrates as it sees fit
+ * (typically producing FEWER chapters than the source). Title + rewrite are
+ * produced together in that one tool call. The title lands in `source_chapters`
+ * so the reader's TOC + app header can show it.
  *
  * Resumable + recoverable: every pass advances `rawConsumedOffset` (inside the
  * tool, deterministically), so a crashed/killed run picks up from the last
@@ -39,8 +38,6 @@ import {
 } from "@agents/providers";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
 import { settingsService, entertainmentFrontendService, entertainmentBackendService } from "@/services";
-import { sendAlert } from "@/utils/messageUtils";
-import { i18n } from "@/i18n";
 import { buildDehydrateSystemPrompt } from "../shared/dehydratePrompt";
 
 const logger = log.scope("Dehydrate:Pipeline1:Runner");
@@ -184,15 +181,13 @@ interface OutputChaptersContext {
 
 /**
  * `outputChapters` — the ONLY way the agent delivers its result. One call per
- * pass: an array of `{ title, content, outline }`, one entry per chapter the
+ * pass: an array of `{ title, content }`, one entry per chapter the
  * agent chose to produce from the chunk. Execute is fully deterministic:
  *   - assigns sequential chapter numbers continuing from the last one in the DB
  *     (`maxRewrittenChapterNumber + 1`, read at execute time → gap-free across
  *     passes and crash-resume);
- *   - inserts the rewritten_chapters row FIRST, then the outlines row (the
- *     composite FK on outlines → rewritten_chapters requires the parent first),
- *     and the source_chapters row (which carries the title the reader joins in
- *     for the TOC + app header);
+ *   - inserts the rewritten_chapters row FIRST, then the source_chapters row
+ *     (which carries the title the reader joins in for the TOC + app header);
  *   - advances `rawConsumedOffset` to `chunkStart + chunkLength` (the recovery
  *     checkpoint — recoverable after power-off);
  *   - on the last batch, sets `finalChapterNumber` (the full chapter count is
@@ -204,8 +199,8 @@ const outputChaptersTool = tool({
   description:
     "The ONLY way to end your output and deliver the chapters — " +
     "call this outputChapters tool with an array of chapters, each carrying " +
-    "`title` (a short reader-facing chapter name), `content` (the full " +
-    "dehydrated/rewritten prose), and `outline` (a brief factual summary). " +
+    "`title` (a short reader-facing chapter name) and `content` (the full " +
+    "dehydrated/rewritten prose). " +
     "You are NOT ALLOWED to output the prose as plain text and stop; it must " +
     "go through this outputChapters tool.",
   inputSchema: z.object({
@@ -229,13 +224,6 @@ const outputChaptersTool = tool({
               "The full dehydrated/rewritten chapter prose, content only " +
                 "(no title, no Markdown, no explanations).",
             ),
-          outline: z
-            .string()
-            .min(1)
-            .describe(
-              "A brief factual plot summary of this chapter (2-5 sentences): " +
-                "main events, character decisions, status changes.",
-            ),
         }),
       )
       .min(1),
@@ -247,17 +235,12 @@ const outputChaptersTool = tool({
     for (let i = 0; i < input.chapters.length; i++) {
       const ch = input.chapters[i];
       const n = startNum + i;
-      // Parent first (rewritten_chapters), then the outlines row that FKs it.
+      // rewritten_chapters row first, then the source_chapters row (title).
       entertainmentBackendService.insertRewrittenChapter({
         threadId: ctx.threadId,
         chapterNumber: n,
         content: ch.content,
         status: "rewritten",
-      });
-      entertainmentBackendService.insertOutline({
-        threadId: ctx.threadId,
-        chapterNumber: n,
-        outline: ch.outline,
       });
       // The source_chapters row carries the chapter title, which the reader
       // joins in for the TOC + app header. status="fetched" is benign here —
@@ -300,7 +283,7 @@ const outputChaptersTool = tool({
 const RETRY_SUFFIX = `
 
 ## ⚠ Your previous submission was invalid — you must resubmit through the tool
-Your last response did not call the outputChapters tool; instead, you stopped after emitting plain text. Plain text is not accepted, so the result is invalid. Please resubmit now: call the outputChapters tool with an array of chapters, each carrying \`title\` (the bare chapter name, no '第N章' prefix), \`content\` (the full dehydrated prose), and \`outline\` (a brief factual summary). Do not output plain text, and do not write any prose outside of the tool call.`;
+Your last response did not call the outputChapters tool; instead, you stopped after emitting plain text. Plain text is not accepted, so the result is invalid. Please resubmit now: call the outputChapters tool with an array of chapters, each carrying \`title\` (the bare chapter name, no '第N章' prefix) and \`content\` (the full dehydrated prose). Do not output plain text, and do not write any prose outside of the tool call.`;
 
 // ---------------------------------------------------------------------------
 // One agent pass
@@ -500,12 +483,6 @@ export async function runDehydrateLoop(
         chunkStart,
         chunkEnd,
       });
-      sendAlert(
-        i18n.t("entertainment.outlineTransientFailedTitle"),
-        i18n.t("entertainment.outlineTransientFailedBody", {
-          round: pass + 1,
-        }),
-      );
       return;
     }
   }

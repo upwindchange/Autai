@@ -2,7 +2,6 @@ import { getDb } from "@/db";
 import {
   sourceChapters,
   rewrittenChapters,
-  outlines,
   entertainmentConfigs,
   threads,
 } from "@/db/schema";
@@ -14,7 +13,7 @@ import { and, eq, sql } from "drizzle-orm";
 
 /**
  * Entertainment backend persistence — the DB CRUD layer the entertainment
- * chapter/outline tables write through. Pure writes + the write-side readers
+ * chapter tables write through. Pure writes + the write-side readers
  * (raw novel text, consumed offset, output numbering, final-chapter, thread
  * "touch"). Holds NO reader/REST logic: the reader's merged view and the REST
  * surface live in `frontendService`. Mirrors the CRUD style of
@@ -129,27 +128,6 @@ class EntertainmentBackendService {
           eq(rewrittenChapters.chapterNumber, chapterNumber),
         ),
       )
-      .run();
-  }
-
-  // --- outlines -----------------------------------------------------------
-  // Per-chapter outline text, 1:1 with rewritten_chapters by chapterNumber
-  // via the composite FK on (threadId, chapterNumber).
-
-  /** Insert an outline row (caller ensures it doesn't exist yet). */
-  insertOutline(input: {
-    threadId: string;
-    chapterNumber: number;
-    outline: string;
-  }): void {
-    const db = getDb();
-    db.insert(outlines)
-      .values({
-        id: crypto.randomUUID(),
-        threadId: input.threadId,
-        chapterNumber: input.chapterNumber,
-        outline: input.outline,
-      })
       .run();
   }
 

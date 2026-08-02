@@ -41,7 +41,7 @@
   "params.simple.title": "轻量模型参数",
   "params.simple.description": "轻量模型（会话命名、标签生成等）的采样与推理默认值。",
   "params.complex.title": "高阶模型参数",
-  "params.complex.description": "高阶模型（大纲生成、重写、浏览器自动化）的采样与推理默认值。",
+  "params.complex.description": "高阶模型（重写、浏览器自动化）的采样与推理默认值。",
   "params.save": "保存",
   "params.auto": "自动",
   "params.temperature": "温度",

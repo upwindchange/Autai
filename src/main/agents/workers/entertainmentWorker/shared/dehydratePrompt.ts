@@ -14,8 +14,8 @@
  *      within this one chapter; `multi` may weld chapters together but not
  *      invent beyond the source material.
  *   3. The OUTPUT CONTRACT — `multi` must hand back an array of `{ title,
- *      content, outline }` via the `outputChapters` tool; `single` must hand
- *      back a single `content` via the `outputProcessedContent` tool.
+ *      content }` via the `outputChapters` tool; `single` must hand back a
+ *      single `content` via the `outputProcessedContent` tool.
  *   4. The 脱水块 tactic sources — `single` uses only `situation.tactics`;
  *      `multi` merges `situation.tactics` + `crossChapter.tactics` into one
  *      array (cross-chapter 套路 need multi-chapter context, which only `multi`
@@ -755,7 +755,7 @@ const ROLE_LINE: Record<DehydrateVariant, string> = {
   multi:
     "你是一名资深的小说脱水编辑。给定一段小说原文，请合并重写：忽略原章节边界，" +
     "按剧情自然重新分章（通常应产出比原文更少的章节）。" +
-    "对每一章，同时给出该章的简明标题、脱水重写后的正文与该章的简明大纲。",
+    "对每一章，同时给出该章的简明标题与脱水重写后的正文。",
 };
 
 const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
@@ -779,12 +779,12 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
     "this is the only way to deliver the result.\n" +
     "- Emitting plain text without calling outputProcessedContent tool " +
     "will result in fatal failure",
-  // multi — array of `{ title, content, outline }` via outputChapters.
+  // multi — array of `{ title, content }` via outputChapters.
   multi:
     "The only thing you are allowed to do is to call the outputChapters tool:\n" +
     "- Pass an array of chapters; each entry has `title` (a short, reader-facing " +
     "chapter name for the chapter you just produced), `content` (the full " +
-    "dehydrated chapter prose), and `outline` (a brief factual summary).\n" +
+    "dehydrated chapter prose).\n" +
     "- `title` is the evocative chapter name only — e.g. '风起天南'. Do NOT " +
     "include any '第N章' / 'Chapter N' number prefix; the app renders the number " +
     "separately, so a prefix would be duplicated.\n" +
