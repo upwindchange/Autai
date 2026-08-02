@@ -38,9 +38,9 @@ interface EntertainmentThreadsState {
    *  thread (POST /threads) only when there is no active thread, then returns
    *  its id. Idempotent + race-free: concurrent callers share one in-flight POST. */
   ensureThread: () => Promise<string>;
-  /** Initial load on entering entertainment: populate tagStore + reconcile the
-   *  active thread (restore last-active, else most-recent, else null = wizard).
-   *  Pure read — never creates a thread. */
+  /** Initial load on entering entertainment: populate the sidebar thread list
+   *  (tagStore). Never selects or opens a thread — the wizard is the default
+   *  landing state; the user opens a thread by clicking it in the sidebar. */
   load: () => Promise<void>;
   /** Re-fetch into tagStore (so the sidebar stays current); leave a null active
    *  id alone (a draft in progress), or pick a replacement if the active thread
@@ -48,8 +48,8 @@ interface EntertainmentThreadsState {
   refresh: () => Promise<void>;
 }
 
-/** GET /threads?mode=entertainment → populate the shared tagStore. Returns the
- *  threads so callers can reconcile the active id. */
+/** GET /threads?mode=entertainment → populate the shared tagStore. Returns
+ *  the threads for refresh()'s active-id reconciliation. */
 async function fetchEntertainmentThreads(): Promise<ThreadInfo[]> {
   const data = await httpClient.getJSON<{
     threads: {
@@ -119,32 +119,11 @@ export const useEntertainmentThreadsStore = create<EntertainmentThreadsState>()(
 
     load: async () => {
       set({ loading: true });
-      let threads: ThreadInfo[];
       try {
-        threads = await fetchEntertainmentThreads();
+        await fetchEntertainmentThreads();
       } finally {
         set({ loading: false });
       }
-
-      const ids = new Set(threads.map((t) => t.id));
-      const current = get().activeThreadId;
-      const lastActive = useUiStore.getState().lastActiveByMode.entertainment;
-
-      if (current && ids.has(current)) {
-        return; // still valid — keep
-      }
-      if (lastActive && ids.has(lastActive)) {
-        set({ activeThreadId: lastActive });
-        return;
-      }
-      if (threads.length > 0) {
-        // listThreadsByMode returns most-recent first.
-        set({ activeThreadId: threads[0]!.id });
-        return;
-      }
-      // No entertainment threads — show the wizard (activeThreadId = null). A
-      // thread is created only when the user commits at StepNovel.
-      set({ activeThreadId: null });
     },
 
     refresh: async () => {

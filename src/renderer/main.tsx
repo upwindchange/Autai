@@ -193,9 +193,9 @@ function AppContent() {
   }, [refreshThreads]);
 
   // Reload the active mode's thread set on a top-level mode switch (chat <->
-  // entertainment). Remember the thread we're leaving and restore the target
-  // mode's last-active thread. Entertainment manages its own thread set; chat
-  // goes through the assistant-ui runtime reload.
+  // entertainment). Entertainment's load() populates the sidebar thread list
+  // only — it never auto-selects or opens a thread. Chat restores its
+  // last-active thread via the assistant-ui runtime reload.
   useEffect(() => {
     return useUiStore.subscribe(
       (s) => s.appMode,
@@ -206,8 +206,7 @@ function AppContent() {
           useUiStore.getState().setLastActiveByMode(oldMode, leavingId);
         }
         if (newMode === "entertainment") {
-          // load() reconciles the active entertainment thread (restore
-          // last-active, else most-recent, else a fresh wizard).
+          // load() populates the entertainment sidebar thread list.
           void useEntertainmentThreadsStore.getState().load();
         } else {
           const target = useUiStore.getState().lastActiveByMode.chat;
