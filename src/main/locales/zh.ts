@@ -56,9 +56,9 @@ const zh = {
   },
   entertainment: {
     // Short mode labels — double as the deterministic thread-title suffix and
-    // the seeded entertainment tag names (重写 / 互动).
+    // the seeded entertainment tag names (重写 / 有声小说).
     dehydrate: "重写",
-    interactive: "互动",
+    audiobook: "有声小说",
     // Dehydrate pipeline toasts (file-upload novels).
     dehydrateStartedTitle: "重写已开始",
     dehydrateStartedBody: "正在为这本小说脱水重写，请稍候。",

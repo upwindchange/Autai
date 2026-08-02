@@ -56,9 +56,9 @@ const en = {
   },
   entertainment: {
     // Short mode labels — double as the deterministic thread-title suffix and
-    // the seeded entertainment tag names (Rewrite / Interactive).
+    // the seeded entertainment tag names (Rewrite / Audiobook).
     dehydrate: "Rewrite",
-    interactive: "Interactive",
+    audiobook: "Audiobook",
     // Dehydrate pipeline toasts (file-upload novels).
     dehydrateStartedTitle: "Rewrite started",
     dehydrateStartedBody:

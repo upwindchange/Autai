@@ -9,11 +9,10 @@ import { z } from "zod";
  * `internet`) selects the acquisition strategy.
  *
  * Key shapes:
- *   - `mode` discriminates the top-level union (`dehydrate` | `interactive`).
- *     Only `dehydrate` is served today; `interactive` is a UI-only "coming soon"
+ *   - `mode` discriminates the top-level union (`dehydrate` | `audiobook`).
+ *     Only `dehydrate` is served today; `audiobook` is a UI-only "coming soon"
  *     placeholder with no backend yet.
- *   - `novel` is mode-dependent: `dehydrate` accepts file OR internet;
- *     `interactive` accepts a text file ONLY.
+ *   - `novel` is file OR internet for both modes.
  *   - Both modes share the option blocks: `basic` (cleanup toggles) +
  *     `situation` (情境脱水 — a `strength` dial that gates the whole feature,
  *     plus 51 per-tactic toggles, all default OFF, selecting which
@@ -23,8 +22,7 @@ import { z } from "zod";
  *     aspects, each `{ enabled, level }`, defaulting off) + `language`
  *     (adaptation) + a `nonNovelSource` flag (single-source storyline vs.
  *     chaptered novel) + a free-form `customInstruction` (user guidance applied
- *     on top of everything). `interactive` additionally carries
- *     `interactionFrequency`.
+ *     on top of everything).
  *
  *     The per-tactic checkboxes under `situation`/`crossChapter` are OPTIONAL
  *     ENFORCEMENT — recommended OFF. The `strength` dial alone drives
@@ -52,7 +50,7 @@ export const InternetNovelSchema = z.object({
   source: z.string().trim().min(1),
 });
 
-// dehydrate accepts either; interactive uses FileNovelSchema directly.
+// Both modes (dehydrate + audiobook) accept file OR internet.
 export const NovelInputSchema = z.discriminatedUnion("type", [
   FileNovelSchema,
   InternetNovelSchema,
@@ -722,11 +720,6 @@ const LanguageAdaptationSchema = z.object({
   dialogueSubject: LanguageToggleSchema,
 });
 
-/** Interactive-only option. */
-const InteractiveOptionsSchema = z.object({
-  interactionFrequency: z.number().int().min(1).max(3).default(2),
-});
-
 /**
  * Free-form user guidance applied on top of Module 1/2 — whatever the toggles
  * and sliders don't cover (a tone to aim for, pet peeves to skip, etc.). Shared
@@ -755,11 +748,17 @@ export const DehydrateConfigSchema = z.object({
   }),
 });
 
-export const InteractiveConfigSchema = z.object({
-  mode: z.literal("interactive"),
-  novel: FileNovelSchema, // interactive accepts a text file ONLY
-  // Composes all five: interactionFrequency + Module 1/2/3 + nonNovelSource + custom.
-  options: InteractiveOptionsSchema.extend({
+/**
+ * 有声小说 (audiobook) mode — a "coming soon" placeholder. Accepts the same
+ * novel input + shared option blocks as dehydrate; audiobook-specific options
+ * (voice casting, 评书 rewrite, …) land here when the mode ships. Not served
+ * by any backend endpoint yet.
+ */
+export const AudiobookConfigSchema = z.object({
+  mode: z.literal("audiobook"),
+  novel: NovelInputSchema, // file | internet
+  // Shares Module 1/2/3 + nonNovelSource + customInstruction with dehydrate.
+  options: z.object({
     basic: DehydrateBasicSchema,
     situation: SituationDehydrateSchema,
     crossChapter: CrossChapterDehydrateSchema,
@@ -772,11 +771,11 @@ export const InteractiveConfigSchema = z.object({
 
 export const EntertainmentConfigSchema = z.discriminatedUnion("mode", [
   DehydrateConfigSchema,
-  InteractiveConfigSchema,
+  AudiobookConfigSchema,
 ]);
 
 export type DehydrateConfig = z.infer<typeof DehydrateConfigSchema>;
-export type InteractiveConfig = z.infer<typeof InteractiveConfigSchema>;
+export type AudiobookConfig = z.infer<typeof AudiobookConfigSchema>;
 export type EntertainmentConfig = z.infer<typeof EntertainmentConfigSchema>;
 export type EntertainmentMode = EntertainmentConfig["mode"];
 export type NovelInput = z.infer<typeof NovelInputSchema>;

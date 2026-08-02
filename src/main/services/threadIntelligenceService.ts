@@ -34,15 +34,21 @@ const DEFAULT_TAG_COLORS = [
   "#76B7B2",
 ];
 
-// Fixed entertainment tags (重写 / 互动). Seeded mode-scoped so the chat
+// Fixed entertainment tags (重写 / 有声小说). Seeded mode-scoped so the chat
 // sidebar never sees them. Translated at seed time — same locale-at-creation
 // behavior as the chat tags above.
 const ENTERTAINMENT_TAG_KEYS = [
   "entertainment.dehydrate",
-  "entertainment.interactive",
+  "entertainment.audiobook",
 ];
 
 const ENTERTAINMENT_TAG_COLORS = ["#F28E2B", "#E15759"];
+
+// Orphaned translated tag names from before the audiobook mode was named.
+// Seeded at creation in existing DBs; the mode was never selectable, so no
+// thread carries them — deletion is safe and idempotent. Purged every launch
+// until gone.
+const STALE_ENTERTAINMENT_TAG_NAMES = ["互动", "Interactive"];
 
 // Hidden one-shot marker (raw settings KV, never surfaced to the renderer) that
 // records whether the Chinese entertainment genre tags have been auto-seeded.
@@ -105,17 +111,20 @@ class ThreadIntelligenceService {
   // this also backfills existing DBs that already have the chat tags.
   private seedEntertainmentTags(): void {
     try {
-      const taken = new Set(
-        threadPersistenceService
-          .listTagsByMode("entertainment")
-          .map((t) => t.name),
-      );
+      const tags = threadPersistenceService.listTagsByMode("entertainment");
+      const taken = new Set(tags.map((t) => t.name));
       this.backfillTags(
         ENTERTAINMENT_TAG_KEYS,
         ENTERTAINMENT_TAG_COLORS,
         "entertainment",
         taken,
       );
+      // Purge the orphaned pre-rename tag name (best-effort; a no-op once
+      // gone).
+      for (const stale of STALE_ENTERTAINMENT_TAG_NAMES) {
+        const row = tags.find((t) => t.name === stale);
+        if (row) threadPersistenceService.deleteTag(row.id);
+      }
     } catch (error) {
       logger.error("Failed to seed entertainment tags:", error);
     }

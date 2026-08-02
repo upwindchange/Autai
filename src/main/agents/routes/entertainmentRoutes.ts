@@ -2,7 +2,7 @@
  * Entertainment REST API — mounted at `/entertainment` (see apiServer.ts). This
  * is the entertainment backend surface: the wizard's file submit, chapter
  * progress + detail polling, read-position persistence, and config/export/
- * bookmarks. (The `interactive` mode is a UI-only "coming soon" placeholder
+ * bookmarks. (The `audiobook` mode is a UI-only "coming soon" placeholder
  * today — no endpoint serves it yet.)
  */
 import { Hono } from "hono";

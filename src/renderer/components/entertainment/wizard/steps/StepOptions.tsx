@@ -132,7 +132,6 @@ const LANG_TOGGLE_ITEMS: {
 ];
 
 const DEPTH_LEVELS = ["light", "medium", "heavy"] as const;
-const FREQ_LEVELS = ["low", "balanced", "high"] as const;
 type DepthSegment = (typeof DEPTH_LEVELS)[number] | "off";
 
 // --- local presentational helpers -----------------------------------------
@@ -527,23 +526,16 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
     setConfig((prev) => patchSharedOptions(prev, { customInstruction: value }));
 
   const resetAll = () => {
-    setConfig((prev) => {
-      const base = patchSharedOptions(prev, {
+    setConfig((prev) =>
+      patchSharedOptions(prev, {
         basic: { ...DEFAULT_BASIC },
         situation: { ...DEFAULT_SITUATION },
         crossChapter: { ...DEFAULT_CROSS_CHAPTER },
         depth: structuredClone(DEFAULT_DEPTH),
         language: structuredClone(DEFAULT_LANGUAGE),
         customInstruction: "",
-      });
-      if (base.mode === "interactive") {
-        return {
-          ...base,
-          options: { ...base.options, interactionFrequency: 2 },
-        };
-      }
-      return base;
-    });
+      }),
+    );
   };
 
   // Body + a smaller, dimmed language-native example line.
@@ -561,49 +553,6 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
           {t("options.reset")}
         </Button>
       </div>
-
-      {config.mode === "interactive" && (
-        <SectionCard titleKey="options.interactive.frequency.label">
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            spacing={0}
-            value={
-              FREQ_LEVELS[config.options.interactionFrequency - 1] ?? "balanced"
-            }
-            onValueChange={(v) => {
-              const idx = FREQ_LEVELS.indexOf(
-                v as (typeof FREQ_LEVELS)[number],
-              );
-              if (idx >= 0) {
-                setConfig((prev) =>
-                  prev.mode === "interactive" ?
-                    {
-                      ...prev,
-                      options: {
-                        ...prev.options,
-                        interactionFrequency: idx + 1,
-                      },
-                    }
-                  : prev,
-                );
-              }
-            }}
-            aria-label={t("options.interactive.frequency.label")}
-          >
-            <ToggleGroupItem value="low">
-              {t("options.interactive.frequency.level.low")}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="balanced">
-              {t("options.interactive.frequency.level.balanced")}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="high">
-              {t("options.interactive.frequency.level.high")}
-            </ToggleGroupItem>
-          </ToggleGroup>
-        </SectionCard>
-      )}
 
       {/* Surface-level text toggles pair up on wide screens: cleanup switches +
           language adaptation are both simple on/off rows, so they read well

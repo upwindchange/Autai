@@ -6,7 +6,6 @@ import type {
   DehydrateDepth,
   EntertainmentConfig,
   EntertainmentMode,
-  InteractiveConfig,
   LanguageAdaptation,
   SituationDehydrate,
   SituationTactics,
@@ -76,27 +75,11 @@ export const INITIAL_DEHYDRATE: DehydrateConfig = {
   },
 };
 
-export const INITIAL_INTERACTIVE: InteractiveConfig = {
-  mode: "interactive",
-  // interactive accepts a text file only
-  novel: { type: "file", filename: "" },
-  options: {
-    interactionFrequency: 2,
-    basic: { ...DEFAULT_BASIC },
-    situation: structuredClone(DEFAULT_SITUATION),
-    crossChapter: structuredClone(DEFAULT_CROSS_CHAPTER),
-    depth: structuredClone(DEFAULT_DEPTH),
-    language: structuredClone(DEFAULT_LANGUAGE),
-    nonNovelSource: false,
-    customInstruction: "",
-  },
-};
-
 /**
  * Switch the top-level mode. Carries the shared `basic` + `situation` +
  * `crossChapter` + `depth` + `language` + `customInstruction` options over (all
  * modes have them) and resets `novel` to a valid shape for the new mode:
- * interactive ⇒ text file only; dehydrate ⇒ internet form.
+ * audiobook ⇒ file; dehydrate ⇒ internet form.
  */
 export function swapMode(
   config: EntertainmentConfig,
@@ -113,12 +96,11 @@ export function swapMode(
   const nonNovelSource = config.options.nonNovelSource;
   const customInstruction = config.options.customInstruction;
   switch (mode) {
-    case "interactive":
+    case "audiobook":
       return {
-        mode: "interactive",
+        mode: "audiobook",
         novel: { type: "file", filename: "" },
         options: {
-          interactionFrequency: 2,
           basic,
           situation,
           crossChapter,

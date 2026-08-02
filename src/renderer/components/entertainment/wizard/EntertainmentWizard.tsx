@@ -148,14 +148,16 @@ export const EntertainmentWizard: FC = () => {
   };
 
   const advance = () => {
-    if (!isStepValid(step, config) || submitted || !agreed) return;
+    if (!isStepValid(step, config) || submitted) return;
     if (isLast) {
       void submit();
       return;
     }
-    // Step 1 → 2: create the thread + ingest (file), then land on the options
-    // page with a real thread. Same path for both modes.
+    // Step 1 → 2: agreement is acknowledged on the novel step, so the commit
+    // (Upload/Fetch & Continue) waits for it. Creates the thread + ingests
+    // (file), then lands on the options page with a real thread.
     if (step === 1) {
+      if (!agreed) return;
       void commitAndAdvance();
       return;
     }
@@ -241,6 +243,10 @@ export const EntertainmentWizard: FC = () => {
   const isFetchButton = step === 1 && !isFile;
   const startBlocked =
     isLast && (prepareError !== null || (isFile && ingesting));
+  // Agreement is acknowledged on the novel step (step 1). It blocks the novel
+  // step's commit and — as belt-and-suspenders — the final Start; step 0's Next
+  // is always free.
+  const agreeBlocked = step >= 1 && !agreed;
 
   return (
     <div className="my-auto mx-auto flex w-full flex-col gap-4 px-4 pb-10 sm:max-w-2xl sm:gap-6 lg:max-w-5xl xl:max-w-7xl 2xl:max-w-[96rem]">
@@ -261,19 +267,14 @@ export const EntertainmentWizard: FC = () => {
         labels={[t("step.0.title"), t("step.1.title"), t("step.2.title")]}
       />
 
-      {step === 0 && (
-        <StepMode
-          config={config}
-          setConfig={setConfig}
-          agreed={agreed}
-          setAgreed={setAgreed}
-        />
-      )}
+      {step === 0 && <StepMode config={config} setConfig={setConfig} />}
       {step === 1 && (
         <StepNovel
           config={config}
           setConfig={setConfig}
           setPendingFile={setPendingFile}
+          agreed={agreed}
+          setAgreed={setAgreed}
         />
       )}
       {step === 2 && <StepOptions config={config} setConfig={setConfig} />}
@@ -306,7 +307,7 @@ export const EntertainmentWizard: FC = () => {
         <Button
           type="button"
           onClick={advance}
-          disabled={!valid || submitted || !agreed || startBlocked}
+          disabled={!valid || submitted || agreeBlocked || startBlocked}
           className="self-start"
         >
           {isUploadButton && t("nav.uploadAndContinue")}

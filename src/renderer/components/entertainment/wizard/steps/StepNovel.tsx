@@ -22,15 +22,18 @@ interface StepNovelProps {
   config: EntertainmentConfig;
   setConfig: Dispatch<SetStateAction<EntertainmentConfig>>;
   setPendingFile: (f: File | undefined) => void;
+  agreed: boolean;
+  setAgreed: Dispatch<SetStateAction<boolean>>;
 }
 
 export const StepNovel: FC<StepNovelProps> = ({
   config,
   setConfig,
   setPendingFile,
+  agreed,
+  setAgreed,
 }) => {
   const { t } = useTranslation("entertainment");
-  const isInteractive = config.mode === "interactive";
   // When on, the source is one continuous text (a post, an email thread, …)
   // and the title/author fields below are disabled — there's no "book title".
   const nonNovel = config.options.nonNovelSource;
@@ -66,21 +69,17 @@ export const StepNovel: FC<StepNovelProps> = ({
     setConfig((prev) => ({ ...prev, novel: { type: "file", filename: "" } }));
   };
 
-  // Switch novel source type (dehydrate only — interactive is locked to file).
+  // Switch novel source type. Both modes accept file | internet, so this is
+  // unconditional.
   const switchNovelType = (type: "file" | "internet") => {
     if (type === "file") {
       setPendingFile(undefined);
-      setConfig((prev) =>
-        prev.mode === "dehydrate" ?
-          { ...prev, novel: { type: "file", filename: "" } }
-        : prev,
-      );
+      setConfig((prev) => ({ ...prev, novel: { type: "file", filename: "" } }));
     } else {
-      setConfig((prev) =>
-        prev.mode === "dehydrate" ?
-          { ...prev, novel: { type: "internet", title: "", source: "" } }
-        : prev,
-      );
+      setConfig((prev) => ({
+        ...prev,
+        novel: { type: "internet", title: "", source: "" },
+      }));
     }
   };
 
@@ -89,51 +88,71 @@ export const StepNovel: FC<StepNovelProps> = ({
     value: string,
   ) => {
     setConfig((prev) =>
-      prev.mode === "dehydrate" && prev.novel.type === "internet" ?
+      prev.novel.type === "internet" ?
         { ...prev, novel: { ...prev.novel, [field]: value } }
       : prev,
     );
   };
 
-  // This step is a small form (a checkbox, a source toggle, a few inputs +
-  // one textarea). Unlike the options step — which has ~85 toggles and earns a
-  // wide layout — stretching this across the full wizard width leaves huge
-  // empty whitespace and tiny content. Cap it to a comfortable form column and
-  // center it; on narrow screens max-w-3xl doesn't engage, so it stays
-  // full-width there.
+  // This step is a small form (a source card, a few inputs + one textarea).
+  // Unlike the options step — which has ~85 toggles and earns a wide layout —
+  // stretching this across the full wizard width leaves huge empty whitespace
+  // and tiny content. Cap it to a comfortable form column and center it; on
+  // narrow screens max-w-3xl doesn't engage, so it stays full-width there.
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
-      {/* Not a chaptered novel — the most consequential choice on this step:
-          it switches the reader from per-chapter parsing to building organic
-          chapters from a single storyline. Explanation is in the body (not a
-          tooltip) so it's always visible. */}
-      <div className="rounded-lg border bg-card px-4 py-3">
-        <Field orientation="horizontal">
-          <Checkbox
-            id="ent-non-novel"
-            checked={nonNovel}
-            onCheckedChange={(v) => setNonNovelSource(v === true)}
-          />
-          <FieldContent>
-            <FieldLabel
-              htmlFor="ent-non-novel"
-              className="cursor-pointer text-sm font-medium"
-            >
-              {t("options.source.nonNovel.label")}
-            </FieldLabel>
-            <FieldDescription>
-              {t("options.source.nonNovel.tooltip")}
-            </FieldDescription>
-            <FieldDescription>
-              {t("options.source.nonNovel.example")}
-            </FieldDescription>
-          </FieldContent>
-        </Field>
-      </div>
+      {/* Story source — two orthogonal choices combined into one card:
+          structure (chaptered vs non-chaptered fiction) and acquisition
+          (file upload vs internet fetch). Both long explanations live under
+          help tooltips so the card stays compact. */}
+      <div className="space-y-4 rounded-lg border bg-card px-4 py-3">
+        {/* Structure — chaptered fiction vs a single continuous text. The most
+            consequential choice on this step: it switches the reader from
+            per-chapter parsing to building organic chapters from one storyline. */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm">
+              {t("novel.source.structureLabel")}
+            </span>
+            <HelpTooltip
+              content={
+                <>
+                  <p>{t("options.source.nonNovel.tooltip")}</p>
+                  <p className="mt-1">
+                    {t("options.source.nonNovel.example")}
+                  </p>
+                </>
+              }
+            />
+          </div>
+          <RadioGroup
+            value={nonNovel ? "nonNovel" : "novel"}
+            onValueChange={(v) => setNonNovelSource(v === "nonNovel")}
+            className="flex flex-row gap-6"
+          >
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="novel" id="ent-novel-chaptered" />
+              <Label htmlFor="ent-novel-chaptered">
+                {t("options.source.chaptered.label")}
+              </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <RadioGroupItem value="nonNovel" id="ent-novel-nonchaptered" />
+              <Label htmlFor="ent-novel-nonchaptered">
+                {t("options.source.nonNovel.label")}
+              </Label>
+            </div>
+          </RadioGroup>
+        </div>
 
-      {/* Source-type toggle — dehydrate only. Interactive is file-only. */}
-      {!isInteractive && (
-        <>
+        {/* Acquisition — file upload vs internet fetch. */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm">
+              {t("novel.source.acquisitionLabel")}
+            </span>
+            <HelpTooltip content={t("novel.source.recommendFile.note")} />
+          </div>
           <RadioGroup
             value={config.novel.type}
             onValueChange={(v) => switchNovelType(v as "file" | "internet")}
@@ -150,20 +169,8 @@ export const StepNovel: FC<StepNovelProps> = ({
               </Label>
             </div>
           </RadioGroup>
-
-          {/* Why file upload is the recommended path: it's faster (no per-chapter
-              web fetch) and unlocks the file-only features — table of contents,
-              章节并写 (cross-chapter awareness). Surfaced as a visible note, not a
-              tooltip, since it's a real tradeoff the user is choosing between. */}
-          <Field>
-            <FieldContent>
-              <FieldDescription>
-                {t("novel.source.recommendFile.note")}
-              </FieldDescription>
-            </FieldContent>
-          </Field>
-        </>
-      )}
+        </div>
+      </div>
 
       {config.novel.type === "file" ?
         <div className="flex flex-col gap-2">
@@ -246,6 +253,29 @@ export const StepNovel: FC<StepNovelProps> = ({
           </Field>
         </>
       }
+      {/* Legal acknowledgment — required to commit (the Upload/Fetch &
+          Continue button). UI-only: not sent to the backend or persisted.
+          The `agreed` state lives in the wizard so it can keep gating the
+          final submit on the options step too. */}
+      <div className="rounded-lg border bg-card px-4 py-3">
+        <Field orientation="horizontal">
+          <Checkbox
+            id="ent-terms"
+            checked={agreed}
+            onCheckedChange={(v) => setAgreed(v === true)}
+          />
+          <FieldContent>
+            <FieldLabel
+              htmlFor="ent-terms"
+              className="cursor-pointer text-sm font-medium"
+            >
+              <span>{t("terms.label")}</span>
+              <span className="text-destructive">*</span>
+            </FieldLabel>
+            <FieldDescription>{t("terms.body")}</FieldDescription>
+          </FieldContent>
+        </Field>
+      </div>
     </div>
   );
 };
