@@ -83,6 +83,15 @@ const PositionSchema = z.object({
   chapterNumber: z.number().int().min(1),
 });
 
+/** Body for the live reader cursor: the thread + chapter the reader is showing
+ *  right now, or nulls to clear. The renderer resolves `currentChapterNumber
+ *  ?? 1` before sending, so a thread that exists but whose reader hasn't opened
+ *  yet reports chapter 1. */
+const ReaderCursorSchema = z.object({
+  threadId: z.string().nullable(),
+  chapterNumber: z.number().int().min(1).nullable(),
+});
+
 const IngestSchema = z.object({
   config: EntertainmentConfigSchema,
   // Native pick: backend reads the file by path → detects encoding. Browser
@@ -288,6 +297,37 @@ entertainmentRoutes.post("/threads/:threadId/position", async (c) => {
   } catch (error) {
     logger.error("Error setting position:", error);
     return c.json({ error: "Failed to set position" }, 500);
+  }
+});
+
+// PUT /entertainment/reader-cursor — set or clear the LIVE in-memory reader
+// cursor (the thread + chapter the reader is currently showing). This is NOT
+// the persisted recovery position (POST .../position) — it is a volatile
+// main-process pointer pushed by the reader so workers can read "where is the
+// reader right now" without a DB trip. A null threadId (or null chapterNumber)
+// clears it: wizard open with no thread, abandoned, or entertainment mode
+// unmounted. Not thread-scoped (unlike .../position) because the clear case has
+// no threadId.
+entertainmentRoutes.put("/reader-cursor", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const parsed = ReaderCursorSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Invalid request body", details: parsed.error.issues },
+        400,
+      );
+    }
+    const { threadId, chapterNumber } = parsed.data;
+    if (threadId == null || chapterNumber == null) {
+      entertainmentFrontendService.setReaderCursor(null);
+    } else {
+      entertainmentFrontendService.setReaderCursor({ threadId, chapterNumber });
+    }
+    return c.json({ ok: true });
+  } catch (error) {
+    logger.error("Error setting reader cursor:", error);
+    return c.json({ error: "Failed to set reader cursor" }, 500);
   }
 });
 

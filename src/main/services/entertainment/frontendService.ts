@@ -415,6 +415,35 @@ class EntertainmentFrontendService {
     return this.getEntertainmentConfig(threadId)?.finalChapterNumber ?? null;
   }
 
+  // --- live reader cursor (in-memory, volatile) ----------------------------
+  // A mirror of the renderer's (activeThreadId, currentChapterNumber) pair,
+  // pushed via PUT /entertainment/reader-cursor by the reader component. This
+  // is the Job-Type-1 surface: a LIVE "which thread + chapter is the reader
+  // showing right now" pointer, held in memory so workers (Job Type 2) can
+  // read it without a DB trip and without going through the merged reader view.
+  //
+  // Distinct from `lastReadChapterNumber` (the DB-persisted per-thread RECOVERY
+  // value resumed on reopen): the cursor is a single volatile cross-thread
+  // pointer that is null the moment nothing is open. Lost on main-process
+  // restart, but the renderer re-pushes on its next mount/navigation, so it
+  // self-heals within one render — the right contract for a live signal.
+  private readerCursor: { threadId: string; chapterNumber: number } | null =
+    null;
+
+  /** The thread + chapter the reader is currently showing, or null when no
+   *  thread is open. In-memory only (not persisted); for workers to poll. */
+  getReaderCursor(): { threadId: string; chapterNumber: number } | null {
+    return this.readerCursor;
+  }
+
+  /** Set or clear the live reader cursor. Called only by the reader-cursor
+   *  REST route; null clears it (no thread open). */
+  setReaderCursor(
+    cursor: { threadId: string; chapterNumber: number } | null,
+  ): void {
+    this.readerCursor = cursor;
+  }
+
   // --- thread setup (metadata only — no generation) -----------------------
 
   /**

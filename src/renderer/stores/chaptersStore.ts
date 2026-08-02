@@ -105,6 +105,14 @@ interface ChaptersState {
   getPosition: (threadId: string) => Promise<number | null>;
   /** Persist the reader's current chapter. */
   setPosition: (threadId: string, n: number) => Promise<void>;
+  /** Push the live reader cursor (thread + chapter, or null to clear) to the
+   *  backend's in-memory mirror on entertainmentFrontendService. Fire-and-
+   *  forget — the renderer's (activeThreadId, currentChapterNumber) is the
+   *  source of truth; this just projects it into the main process for workers. */
+  setReaderCursor: (
+    threadId: string | null,
+    chapterNumber: number | null,
+  ) => Promise<void>;
   setCurrentChapter: (n: number | null) => void;
   /**
    * Clear all cached chapter state — the thread switch path. The reader
@@ -261,6 +269,11 @@ export const useChaptersStore = create<ChaptersState>()(
     setPosition: (threadId, n) =>
       httpClient.postJSON(`/entertainment/threads/${threadId}/position`, {
         chapterNumber: n,
+      }),
+    setReaderCursor: (threadId, chapterNumber) =>
+      httpClient.putJSON("/entertainment/reader-cursor", {
+        threadId,
+        chapterNumber,
       }),
 
     setCurrentChapter: (n) => set({ currentChapterNumber: n }),

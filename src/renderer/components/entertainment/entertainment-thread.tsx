@@ -56,6 +56,7 @@ export const EntertainmentThread: FC = () => {
   const setCurrentChapter = useChaptersStore((s) => s.setCurrentChapter);
   const getThreadConfig = useChaptersStore((s) => s.getThreadConfig);
   const updateThreadConfig = useChaptersStore((s) => s.updateThreadConfig);
+  const setReaderCursor = useChaptersStore((s) => s.setReaderCursor);
   // Last fetch error (chapter list or detail) — when set, the backend is/was
   // unreachable, which is otherwise indistinguishable from "still fetching".
   const fetchError = useChaptersStore((s) => s.error);
@@ -97,6 +98,41 @@ export const EntertainmentThread: FC = () => {
       setCurrentChapter(start);
     })();
   }, [activeThreadId, loadChapters, getPosition, setCurrentChapter]);
+
+  // Push the live reader cursor to the backend (an in-memory mirror on
+  // entertainmentFrontendService) so workers can read which thread + chapter
+  // the reader is showing right now without a DB trip. This is the SINGLE
+  // trigger for chapter-location monitoring (Job Type 1): it fires on every
+  // change of the (activeThreadId, currentChapterNumber) pair, so next/prev/TOC
+  // nav, opening an existing thread (the recovery effect sets currentChapter-
+  // Number), and the wizard's StepNovel commit (activeThreadId becomes set) all
+  // flow through here. Null when no thread is open — the wizard IS the empty
+  // state, so wizard-step-0 collapses to activeThreadId === null. Between thread
+  // creation and the reader opening, currentChapterNumber is null, so resolve to
+  // 1 (the worker-facing "intended first chapter"); matches the StepOptions case.
+  // NOTE: during a thread switch the reader's currentChapterNumber briefly holds
+  // the previous thread's chapter until the recovery load sets the new one, so
+  // the cursor can transiently report (newThread, oldChapter) for ~one load
+  // cycle. Faithful mirroring by design; workers should treat the cursor as
+  // advisory and re-validate against the DB before acting on a chapter.
+  useEffect(() => {
+    const chapterNumber = activeThreadId
+      ? (currentChapterNumber ?? 1)
+      : null;
+    void setReaderCursor(activeThreadId, chapterNumber);
+  }, [activeThreadId, currentChapterNumber, setReaderCursor]);
+
+  // Null the cursor when EntertainmentThread unmounts. This component survives
+  // thread switches (only `appMode` toggles it), so unmount = the user left
+  // entertainment mode → no thread is open → cursor must be null. Kept as a
+  // SEPARATE effect from the push above so its cleanup runs ONLY on unmount: a
+  // normal effect cleanup fires on every dep change, which would flash the
+  // cursor to null between every chapter navigation.
+  useEffect(() => {
+    return () => {
+      void setReaderCursor(null, null);
+    };
+  }, [setReaderCursor]);
 
   // Drive the current chapter to readiness (poll until rewritten/errored).
   useChapterReadiness(activeThreadId, currentChapterNumber);
