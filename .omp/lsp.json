@@ -1,0 +1,7 @@
+{
+  "servers": {
+    "tailwindcss": {
+      "rootMarkers": ["package.json"]
+    }
+  }
+}
