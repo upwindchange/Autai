@@ -21,6 +21,7 @@ import {
   resolvePipelineType,
   EntertainmentConfigSchema,
 } from "@shared";
+import { entertainmentScheduler } from "@/agents/workers/entertainmentWorker/scheduler";
 import log from "electron-log/main";
 
 const logger = log.scope("ApiServer:Entertainment");
@@ -198,6 +199,9 @@ entertainmentRoutes.post("/threads/:threadId/ingest", async (c) => {
       charLen: decoded.length,
       byteEstimate: fsPath ? "(fsPath)" : (fileBytesBase64?.length ?? 0),
     });
+    // Kick off the dehydrate loop in the background. Async — the route returns
+    // immediately; the loop reads rawConsumedOffset from DB and runs to EOF.
+    entertainmentScheduler.startFilePipeline(threadId);
 
     return c.json({ ok: true });
   } catch (error) {
@@ -313,16 +317,78 @@ entertainmentRoutes.put("/reader-cursor", async (c) => {
       );
     }
     const { threadId, chapterNumber } = parsed.data;
+    // Thread switch: if the reader moved away from a different thread, abort
+    // that thread's in-flight runner before adopting the new cursor.
+    const prev = entertainmentFrontendService.getReaderCursor();
+    if (prev && prev.threadId !== threadId) {
+      entertainmentScheduler.stopThread(prev.threadId);
+    }
     if (threadId == null || chapterNumber == null) {
       entertainmentFrontendService.setReaderCursor(null);
     } else {
       entertainmentFrontendService.setReaderCursor({ threadId, chapterNumber });
+      // Resume unfinished work for the thread now in focus. Idempotent —
+      // no-ops if a runner is already in flight (the reader polls this often).
+      entertainmentScheduler.resumeOnOpen(threadId);
     }
     return c.json({ ok: true });
   } catch (error) {
     logger.error("Error setting reader cursor:", error);
     return c.json({ error: "Failed to set reader cursor" }, 500);
   }
+});
+
+// POST /entertainment/threads/:threadId/prefetch — internet wizard "Fetch &
+// Continue": persist config + start fetching source chapters WITHOUT
+// rewriting. The wizard advances to options immediately; fetching fills
+// `source_chapters` in the background so the reader has content sooner once
+// the user presses Start. Internet novels only (file novels use /ingest).
+entertainmentRoutes.post("/threads/:threadId/prefetch", async (c) => {
+  const threadId = c.req.param("threadId");
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = ConfigBodySchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid body", details: parsed.error.issues }, 400);
+  }
+  applyConfig(threadId, parsed.data.config);
+  if (parsed.data.config.novel.type !== "internet") {
+    return c.json({ error: "Prefetch requires an internet novel" }, 400);
+  }
+  entertainmentScheduler.startInternetPrefetch(threadId);
+  return c.json({ ok: true });
+});
+
+// POST /entertainment/threads/:threadId/start — internet wizard "Start":
+// persist the user's final options, then run fetch (idempotent — skips already
+// fetched chapters) + rewrite together. File threads don't use this; their
+// loop starts at /ingest.
+entertainmentRoutes.post("/threads/:threadId/start", async (c) => {
+  const threadId = c.req.param("threadId");
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = ConfigBodySchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid body", details: parsed.error.issues }, 400);
+  }
+  applyConfig(threadId, parsed.data.config); // store final options for the rewriter
+  entertainmentScheduler.startInternetPipeline(threadId); // fetch + rewrite
+  return c.json({ ok: true });
+});
+
+// POST /entertainment/threads/:threadId/resume — re-evaluate the thread's DB
+// state and continue unfinished work. Footer "Process next N" / "Process all".
+// No body needed — the scheduler reads the persisted config.
+entertainmentRoutes.post("/threads/:threadId/resume", async (c) => {
+  const threadId = c.req.param("threadId");
+  entertainmentScheduler.resumeOnOpen(threadId);
+  return c.json({ ok: true });
+});
+
+// POST /entertainment/threads/:threadId/reprocess-failed — re-enqueue
+// errored chapters (source or rewrite "error"). Footer "Redo failed".
+entertainmentRoutes.post("/threads/:threadId/reprocess-failed", async (c) => {
+  const threadId = c.req.param("threadId");
+  const enqueued = entertainmentScheduler.retryFailed(threadId);
+  return c.json({ ok: true, enqueued });
 });
 
 // GET /entertainment/threads/:threadId/config — read the thread's persisted

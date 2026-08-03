@@ -67,7 +67,12 @@ export const EntertainmentWizard: FC = () => {
     try {
       const id = await ensureThread();
       setStep(STEPS - 1); // advance AFTER the id exists — real thread by stepOptions
-      if (config.novel.type !== "file") return; // internet: nothing more to do
+      if (config.novel.type !== "file") {
+        // Internet "Fetch & Continue": persist config + start fetching source
+        // chapters (no rewrite). Async — the wizard advances to options now.
+        await useChaptersStore.getState().prefetchInternet(id, config);
+        return;
+      }
       setIngesting(true);
       try {
         const transfer = await toFileTransfer({
@@ -103,6 +108,12 @@ export const EntertainmentWizard: FC = () => {
       await store.loadChapters(activeThreadId);
       store.setCurrentChapter(1);
       void store.setPosition(activeThreadId, 1);
+      // Internet threads start fetch+rewrite here (file threads already
+      // started at /ingest). Use the wizard's own config.novel.type — store.novelType
+      // is only populated after loadChapters resolves (race-free here).
+      if (config.novel.type === "internet" && activeThreadId) {
+        await store.startInternet(activeThreadId, config);
+      }
       setSubmitted(true);
     } catch {
       // httpClient throws a status-only Error (no backend message), so a single

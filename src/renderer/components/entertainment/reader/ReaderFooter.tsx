@@ -205,10 +205,20 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
 
   // --- Process (next N / all / redo failed) --------------------------------
   const handleProcessNext = () => {
-    setProcessOpen(false);
+    // "Process next N" and "Process all" both resume: the scheduler runs from
+    // the current read position to the end of the book. N is UI state only.
+    if (!currentThreadId) return;
+    void useChaptersStore
+      .getState()
+      .resumeThread(currentThreadId)
+      .then(() => setProcessOpen(false));
   };
   const handleProcessAll = () => {
-    setProcessOpen(false);
+    if (!currentThreadId) return;
+    void useChaptersStore
+      .getState()
+      .resumeThread(currentThreadId)
+      .then(() => setProcessOpen(false));
   };
   // Errored chapters (source or rewrite "error") — drives the Redo button's
   // enable state + label count.
@@ -216,7 +226,11 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     (c) => c.sourceStatus === "error" || c.rewriteStatus === "error",
   ).length;
   const handleReprocessFailed = () => {
-    setProcessOpen(false);
+    if (!currentThreadId) return;
+    void useChaptersStore
+      .getState()
+      .reprocessFailed(currentThreadId)
+      .then(() => setProcessOpen(false));
   };
 
   const settingsTrigger = (

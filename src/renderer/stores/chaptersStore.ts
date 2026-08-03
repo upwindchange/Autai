@@ -113,6 +113,23 @@ interface ChaptersState {
     threadId: string | null,
     chapterNumber: number | null,
   ) => Promise<void>;
+  /** Internet wizard "Fetch & Continue": fetch source chapters without
+   *  rewriting. The wizard advances to options immediately. */
+  prefetchInternet: (
+    threadId: string,
+    config: EntertainmentConfig,
+  ) => Promise<void>;
+  /** Internet wizard "Start": fetch (idempotent) + rewrite together. */
+  startInternet: (
+    threadId: string,
+    config: EntertainmentConfig,
+  ) => Promise<void>;
+  /** Re-evaluate the thread's DB state and continue unfinished work. Footer
+   *  "Process next N" / "Process all" buttons. */
+  resumeThread: (threadId: string) => Promise<void>;
+  /** Re-enqueue errored chapters. Footer "Redo failed". Returns how many were
+   *  reprocessed. */
+  reprocessFailed: (threadId: string) => Promise<{ enqueued: number }>;
   setCurrentChapter: (n: number | null) => void;
   /**
    * Clear all cached chapter state — the thread switch path. The reader
@@ -238,6 +255,28 @@ export const useChaptersStore = create<ChaptersState>()(
         config,
         ...payload,
       });
+    },
+
+    prefetchInternet: async (threadId, config) => {
+      await httpClient.postJSON(`/entertainment/threads/${threadId}/prefetch`, {
+        config,
+      });
+    },
+
+    startInternet: async (threadId, config) => {
+      await httpClient.postJSON(`/entertainment/threads/${threadId}/start`, {
+        config,
+      });
+    },
+
+    resumeThread: async (threadId) => {
+      await httpClient.postJSON(`/entertainment/threads/${threadId}/resume`);
+    },
+
+    reprocessFailed: async (threadId) => {
+      return httpClient.postJSON<{ enqueued: number }>(
+        `/entertainment/threads/${threadId}/reprocess-failed`,
+      );
     },
 
     getThreadConfig: async (threadId) => {

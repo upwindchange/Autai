@@ -9,7 +9,7 @@ import type {
   RewrittenChapterStatus,
   SourceChapterStatus,
 } from "@shared";
-import { and, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 /**
  * Entertainment backend persistence — the DB CRUD layer the entertainment
@@ -230,6 +230,55 @@ class EntertainmentBackendService {
       .set({ updatedAt: sql`(datetime('now'))` })
       .where(eq(threads.id, threadId))
       .run();
+  }
+  // --- scheduler queries --------------------------------------------------
+
+  /**
+   * Count rewrite OUTPUT rows for the thread. The scheduler uses this to tell
+   * a done thread from a not-yet-started one (zero rewrites ⇒ user never
+   * pressed Start ⇒ don't auto-run rewrite on open).
+   */
+  countRewrittenChapters(threadId: string): number {
+    const db = getDb();
+    const row = db
+      .select({
+        count: sql<number>`cast(count(*) as integer)`,
+      })
+      .from(rewrittenChapters)
+      .where(eq(rewrittenChapters.threadId, threadId))
+      .get();
+    return row?.count ?? 0;
+  }
+
+  /**
+   * Smallest chapter number whose source row is `fetched` but has no matching
+   * rewrite OUTPUT row yet — the internet rewrite frontier. `null` when every
+   * fetched source already has a rewrite, or there are none. LEFT JOIN on
+   * chapterNumber; rewrite-side NULL ⇒ unprocessed.
+   */
+  nextFetchedSourceWithoutRewrite(threadId: string): number | null {
+    const db = getDb();
+    const row = db
+      .select({ chapterNumber: sourceChapters.chapterNumber })
+      .from(sourceChapters)
+      .leftJoin(
+        rewrittenChapters,
+        and(
+          eq(rewrittenChapters.threadId, sourceChapters.threadId),
+          eq(rewrittenChapters.chapterNumber, sourceChapters.chapterNumber),
+        ),
+      )
+      .where(
+        and(
+          eq(sourceChapters.threadId, threadId),
+          eq(sourceChapters.status, "fetched"),
+          isNull(rewrittenChapters.id),
+        ),
+      )
+      .orderBy(asc(sourceChapters.chapterNumber))
+      .limit(1)
+      .get();
+    return row?.chapterNumber ?? null;
   }
 }
 
