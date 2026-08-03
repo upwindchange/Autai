@@ -19,7 +19,7 @@
   "mode.dehydrate.description": "重写以显著提升阅读体验，例如给注水内容脱水、纠正语法、润色文笔。",
   "mode.audiobook.label": "有声小说",
   "mode.audiobook.description": "为男女主、男女配角分别配音，实现多人有声剧；或重写为评书体，用更符合评书艺术的方式讲播。",
-  "mode.comingSoon": "开发中",
+  "mode.comingSoon": "开发中，敬请期待",
   "capability.title": "智能体模型",
   "capability.complex.role": "复杂任务智能体模型",
   "capability.complex.task": "重写",
