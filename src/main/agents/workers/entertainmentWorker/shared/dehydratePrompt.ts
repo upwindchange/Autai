@@ -102,19 +102,31 @@ const SITUATION_CATEGORY_LABELS: Record<SituationCategory, string> = {
 
 /**
  * 脱水提速 strength dial — the on/off + intensity control for 情境脱水, and the
- * SINGLE source of truth for how deep the purge goes. 0 = off → no situational
- * 脱水 at all (the whole block is omitted from the prompt, regardless of which
- * tactics are checked); 1/2/3 = light/medium/heavy, the intensity applied.
- * The prompt lists ALL THREE levels (so the model has a calibrated sense of the
- * dial), then names and reprints the chosen one so the active strength is
- * unambiguous. The situation tactics themselves never encode depth — only this
- * dial does, so the three concerns (direction / depth / which套路) never
- * conflict.
+ * SINGLE source of truth for how aggressively filler 套路 are tightened. 0 =
+ * off → no situational 脱水 at all (the whole block is omitted from the prompt,
+ * regardless of which tactics are checked); 1/2/3 = light/medium/heavy.
+ *
+ * CRITICAL — these levels describe PROSE-TIGHTENING, NEVER summarization or
+ * outline-style condensation. The rewriter produces full readable novel prose,
+ * not a synopsis. Every level MUST (a) keep the reader inside the scene (no
+ * "本章讲述了……" meta-narration, no jumping over events), and (b) preserve all
+ * effective information (new events, relationship shifts, character reveals,
+ * irreversible choices, key payoffs). The ONLY thing that changes across
+ * levels is how much repetitive/padded micro-texture survives inside a kept
+ * beat — from "trim the worst" (轻) to "strip almost all of it" (重). No level
+ * is allowed to collapse a kept scene down to a one-line summary: even at 重,
+ * a scene that carries effective information stays a scene, told in prose.
+ *
+ * Why this matters at large chunk sizes: when the input is long, an
+ * outline-style instruction reads as "compress everything" and the model
+ * returns a few sentences per chapter. These levels are deliberately scoped to
+ * *intra-beat texture*, so output length tracks input length regardless of how
+ * big the chunk is.
  */
 const SITUATION_STRENGTH_LEVELS: Record<1 | 2 | 3, string> = {
-  1: "只加快明显水字数的**剧情**，对水字数的**内容**则简化精炼，提高阅读体验，让即使是水字数的部分也能有好的阅读节奏。",
-  2: "保留但是精炼加快水字数的**剧情**，对于不是剧情的水字数的**内容**则直接用一句话概括。",
-  3: "完全删除有水字数特性的**内容**和**剧情**。把被删除的剧情高度精炼概括，概括越短越好。内容则完全删除，不留痕迹。",
+  1: "轻度收紧：只修剪最明显的重复套话与注水段落（同义句堆叠、反复确认、模板化拆帧、刷屏式群众反应等），保留其中的场景、动作与情绪细节。读者几乎感觉不到删减，只是节奏更顺。绝不把任何场景概括成一两句话。",
+  2: "中度收紧：对注水段落做实质性精简——删掉重复的反应、多余的铺垫、流水账式的流程描写，但保留场景本身的过程、关键细节与情绪起伏。场景仍是完整的场景，只是去掉了水分；不要用一句话代替一段戏。",
+  3: "重度收紧：对注水段落做大幅度删减，只保留推进剧情或承载信息的核心要素，可以跳过大量重复与堆砌。但即便如此，凡是有信息量或情绪推进的场景，都必须以完整的叙事 prose 呈现，严禁改写成概括、提纲或'本章主要讲了……'式的陈述句。",
 };
 
 const SITUATION_TACTICS: Record<
@@ -655,11 +667,8 @@ const CROSS_CHAPTER_TACTICS: Record<
 };
 
 const DEPTH_ORDER: (keyof DehydrateDepth)[] = [
-  "dialoguePacing",
-  "sceneEnhance",
-  "combatEnhance",
-  "emotionEnhance",
-  "literaryEnhance",
+  "prosePolish",
+  "proseExpand",
 ];
 
 interface DepthAspectText {
@@ -669,55 +678,25 @@ interface DepthAspectText {
 }
 
 const DEPTH_ASPECTS: Record<keyof DehydrateDepth, DepthAspectText> = {
-  dialoguePacing: {
-    label: "对话节奏",
-    desc: "收紧对话的来回节奏，避免拖沓。",
+  prosePolish: {
+    label: "文笔打磨",
+    desc: "润色文笔本身——用词、句式、节奏、流畅度。只改'怎么写'，不显著改变篇幅，不增加原文没有的内容。",
     levels: {
-      1: "只略微修剪明显多余的语气词与重复的“他说”“她说”。",
-      2: "把“他说。她说。他又说。”式零碎对答收成一段干脆利落的对答，整体调整语气词。",
-      3: "激进重构对话节奏与口吻，大量合并、改写，追求高速对白推进。",
+      1: "只理顺明显生硬、拗口的句子，修正节奏与用词上的明显瑕疵。",
+      2: "把四平八稳的句子打磨得更有韵律和味道，优化全章的用词、句式与节奏，让文笔整体上一个台阶。",
+      3: "通篇精修——逐句打磨用词、句式、节奏与文气，追求较高的文学质感，但始终不改变情节、不增删内容、不改变篇幅。",
     },
   },
-  sceneEnhance: {
-    label: "场景氛围",
-    desc: "增强场景与氛围的质感，补充感官、环境与空间感。",
+  proseExpand: {
+    label: "文笔扩写",
+    desc: "在恰当的地方，运用修辞手法和修饰手法适当扩写，丰富表达、增强现场感与感染力。可以加入原文没有的内容，但一切扩写都必须服务于增强原书的看点——爽点更燃、情绪更扎心、氛围更沉浸、人物更立体——绝不为了凑字数而注水。",
     levels: {
-      1: "只在关键场景点几笔细节。",
-      2: "让“房间很暗”变成有画面感的场景。",
-      3: "通篇铺浓氛围，调动多种感官细描。",
-    },
-  },
-  combatEnhance: {
-    label: "战斗与爽感",
-    desc: "强化战斗与名场面的冲击力、节奏与爽感。",
-    levels: {
-      1: "只给关键招式加点力道。",
-      2: "把流水账式的打斗写得拳拳到肉、节奏紧凑。",
-      3: "全程燃点拉满，肾上腺素与画面感推到极致。",
-    },
-  },
-  emotionEnhance: {
-    label: "情绪张力",
-    desc: "加深情绪与张力，处理角色的情绪显露、压抑与内心活动。",
-    levels: {
-      1: "只在关键情绪点稍作渲染。",
-      2: "把“她很难过”写成真正扎心的句子。",
-      3: "深入挖掘每一处情绪起伏，张力贯穿全章。",
-    },
-  },
-  literaryEnhance: {
-    label: "文采",
-    desc: "润色文笔本身——节奏、用词、句式的流畅度。",
-    levels: {
-      1: "只理顺明显生硬的句子。",
-      2: "把四平八稳的句子打磨得更有韵律和味道。",
-      3: "通篇精修用词与句式，追求较高的文学质感。",
+      1: "只在少数关键场景（名场面、高潮、情绪爆发）点几笔修辞与感官细节，起到画龙点睛的效果。",
+      2: "在多处恰当的段落运用修辞手法扩写——丰富关键场景的感官层次、情绪深度与画面感，让干瘪的叙述变得有感染力，同时保持节奏不拖沓。",
+      3: "通篇寻找扩写空间，运用多种修辞与文学手法大幅丰富表达——让每一个值得展开的场景都饱满、立体、有画面感。但即便如此，扩写仍须服务于看点，不得注水。",
     },
   },
 };
-
-// ---------------------------------------------------------------------------
-// Variant-specific role lines + core invariants + output contracts
 // ---------------------------------------------------------------------------
 
 type DehydrateVariant = "single" | "multi";
@@ -750,12 +729,22 @@ const ROLE_LINE: Record<DehydrateVariant, string> = {
   // single — single-chapter rewrite (one already-chaptered chapter).
   single:
     "你是一名资深的中文小说重写编辑。你的任务是把给定的一章原文，重写成阅读体验显著更好的版本。",
-  // multi — multi-chapter merge/re-chapter dehydrate over a chunk of raw
-  // text (no original chapter boundaries to respect).
+  // multi — cross-chapter 章节并写: strip each chapter's filler, then let the
+  // surviving high-density material merge ACROSS the original chapter seams so
+  // a few thin chapters weld into fewer full ones. This is NOT re-boundary-ing
+  // intact chapters; the original seams are ignored on purpose. The soft
+  // min-char target below drives the merge (脱水后太薄 → 合并相邻章); the
+  // coherence hard-constraint brakes it (never weld unrelated scenes).
   multi:
-    "你是一名资深的小说脱水编辑。给定一段小说原文，请合并重写：忽略原章节边界，" +
-    "按剧情自然重新分章（通常应产出比原文更少的章节）。" +
-    "对每一章，同时给出该章的简明标题与脱水重写后的正文。",
+    "你是一名资深的小说脱水编辑。你的唯一目的是重写文本以显著提高用户的阅读体验。" +
+    "给定一段小说原文，请跨章重写：忽略原文的章节边界，先把每章里的注水套路按下方脱水强度收紧，" +
+    "再把脱水后剩下的有效内容跨原章边界重新组织——" +
+    "原本被注水撑成好几章、其实只有一章干货的，合并成一章；原本割裂的连续场景，接回成一章。" +
+    "这样做的目的是让节奏更紧凑、阅读体验更好，因此最终产出的章数通常会比原文少——这是脱水合并的自然结果，不是你要追求的指标。" +
+    "每章的目标篇幅约 2000–3000 字（柔性参考，不是硬性下限）：" +
+    "如果脱水后某章内容明显偏薄（比如只剩几百字的干货），优先考虑把它与剧情连贯的相邻章合并成一章；" +
+    "但绝不为了凑字数而把剧情/场景不连贯的章节强行拼在一起——合并的前提永远是内容连贯，字数只是帮助你判断'该不该合并'的参考。" +
+    "对每一章，同时给出该章的简明标题与脱水合并重写后的完整正文。",
 };
 
 const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
@@ -763,7 +752,7 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
   single:
     "The only thing you are allowed to do is to call the outputProcessedContent tool:\n" +
     "- Place the full rewritten content in the tool's `content` parameter;\n" +
-    "- You are not alowed to output rewritten content anywhere else " +
+    "- You are not allowed to output rewritten content anywhere else " +
     "other than outputProcessedContent tool;\n" +
     "- You are not allowed to output anything other than " +
     "calling outputProcessedContent tool\n" +
@@ -778,8 +767,10 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
     "it must be submitted through the outputProcessedContent tool; " +
     "this is the only way to deliver the result.\n" +
     "- Emitting plain text without calling outputProcessedContent tool " +
-    "will result in fatal failure",
-  // multi — array of `{ title, content }` via outputChapters.
+    "will result in fatal failure.",
+  // multi — array of `{ title, content }` via outputChapters. Pure mechanics;
+  // editorial guidance (re-chapter intent, anti-summary) lives in the Chinese
+  // ROLE_LINE + philosophy block — not duplicated here in the wrong language.
   multi:
     "The only thing you are allowed to do is to call the outputChapters tool:\n" +
     "- Pass an array of chapters; each entry has `title` (a short, reader-facing " +
@@ -788,8 +779,6 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
     "- `title` is the evocative chapter name only — e.g. '风起天南'. Do NOT " +
     "include any '第N章' / 'Chapter N' number prefix; the app renders the number " +
     "separately, so a prefix would be duplicated.\n" +
-    "- Re-chapter freely — merge and dehydrate; produce FEWER chapters than the " +
-    "source where appropriate.\n" +
     "- `content` must contain only the prose itself: no explanations, no Markdown, " +
     "no chapter titles; preserve sensible paragraph breaks.\n" +
     "- Keep the output language the same as the source unless translation/" +
@@ -830,6 +819,11 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
  * are checked, the block still appears if `strength > 0` (driven purely by the
  * strength dial + the脱水 philosophy), but lists no individual tactics — a
  * clean, noise-free prompt. Checked tactics only add identification hints.
+ *
+ * Strength = how much intra-beat filler-texture survives, NEVER a summarization
+ * depth. The philosophy block carries an explicit protective invariant against
+ * collapsing prose into outlines/synopsis; this matters most at large chunk
+ * sizes, where an outline-style instruction reads as "compress everything".
  */
 export function buildDehydrateSystemPrompt(
   options: DehydrateConfig["options"],
@@ -869,21 +863,23 @@ export function buildDehydrateSystemPrompt(
   // Both sources share the category labels (`SITUATION_CATEGORY_LABELS`) and
   // the strength dial above.
   //
-  // Prompt design — three cleanly separated concerns, so they never conflict:
+  // Prompt design — four cleanly separated concerns, so they never conflict:
   //   1. General direction: the脱水 philosophy (what counts as effective info
   //      to keep vs. what counts as filler), plus the explicit hand-off that
-  //      purge DEPTH is governed solely by the strength dial below.
-  //   2. Strength dial (SITUATION_STRENGTH_LEVELS): the SINGLE source of truth
-  //      for how deep the purge goes. All three levels are listed so the model
-  //      has a calibrated sense of the dial, then the chosen level is named and
-  //      its description reprinted so the active strength is unambiguous.
-  //   3. Tactics (SITUATION_TACTICS / CROSS_CHAPTER_TACTICS): OPTIONAL
-  //      identification hints. Each only identifies a 套路 and the direction of
-  //      purging within it (what's filler vs. what's the valuable core). They
-  //      deliberately say NOTHING about HOW to purge or to what EXTENT — that is
-  //      the strength dial's job alone. When NONE are checked (the recommended
-  //      default), this list is empty and the agent dehydrates purely by the
-  //      strength dial + philosophy — a clean, noise-free prompt.
+  //      the tightening STRENGTH is governed solely by the dial below.
+  //   2. Protective invariant (hard, unconditional): the output is always full
+  //      novel prose, never an outline/synopsis; output length tracks the
+  //      effective-information volume, not "shorter is better". This is what
+  //      stops the model from collapsing large chunks into a few sentences.
+  //   3. Strength dial (SITUATION_STRENGTH_LEVELS): the SINGLE source of truth
+  //      for how much intra-beat filler texture survives. All three levels are
+  //      listed so the model has a calibrated sense of the dial, then the
+  //      chosen level is named and its description reprinted so the active
+  //      strength is unambiguous.
+  //   4. Tactics (SITUATION_TACTICS / CROSS_CHAPTER_TACTICS): OPTIONAL
+  //      identification hints, only emitted when the user checks some. Each
+  //      identifies a 套路 + what's filler vs. valuable core; tightening depth
+  //      is always the dial's job, never the tactic's.
   const situationBlocks: string[] = [];
   for (const cat of SITUATION_CATEGORIES) {
     const on = cat.tactics.filter((k) => situation.tactics[k]);
@@ -912,12 +908,19 @@ export function buildDehydrateSystemPrompt(
   if (situation.strength > 0) {
     const lvl = situation.strength as 1 | 2 | 3;
     const strengthLines = [
-      "情境脱水——针对网文常见的「水字数」套路做压缩。" +
+      "情境脱水——针对网文常见的「水字数」套路做收紧。" +
         "底层只有一条原则：凡推动主线的新事件、改变人物关系的新互动、展现人物性格的新行为、" +
         "引出冲突的新信息、不可逆的选择，以及必要的爽点、情绪爆发、反转与伏笔，都属有效信息，一律保留。" +
         "判断每一段去留的唯一标准是——它是否为读者提供了新的信息或新的情绪推进。",
-      "至于压缩到什么程度、删到什么深度，完全由下面的「脱水提速强度」决定：不要自行拿捏力度，也不要自行发明压缩方法。",
-      "脱水提速强度（本次压缩深度的唯一标尺，严格按所选力度执行，既不要加码也不要打折）：\n" +
+      "⚠ 把握好「度」——脱水不足与脱水过度都是失败。" +
+        "脱水不足：原文的注水套路原样保留，读者体验没有改善。" +
+        "脱水过度：把正文压成大纲、梗概或'本章主要讲了……'式的陈述，丢掉了现场感与看点。" +
+        "正确的度是：只删注水套路的重复与堆砌，保留所有有效信息与情绪推进，" +
+        "产出完整的、可读的小说正文，让原书的爽点、反转、名场面更突出，而不是被稀释或概括掉。" +
+        "无论原文多长、也无论你选了哪个强度，都不得把场景或章节压缩成几句梗概、不得跳过事件本身。" +
+        "输出篇幅应与原文中有效信息的体量成正比——信息量大，重写后依然应是完整的篇幅，而不是越短越好。",
+      "收紧到什么程度，完全由下面的「脱水提速强度」决定：不要自行加码力度，也不要自行发明压缩方法。",
+      "脱水提速强度（本次收紧程度的唯一标尺，严格按所选力度执行，既不要加码也不要打折）：\n" +
         `· 轻：${SITUATION_STRENGTH_LEVELS[1]}\n` +
         `· 中：${SITUATION_STRENGTH_LEVELS[2]}\n` +
         `· 重：${SITUATION_STRENGTH_LEVELS[3]}\n` +
@@ -925,24 +928,25 @@ export function buildDehydrateSystemPrompt(
         `➤ 本次所选力度的执行口径（请严格照此执行）：${SITUATION_STRENGTH_LEVELS[lvl]}`,
     ];
     // Only inject the per-tactic hints when the user actually checked some —
-    // otherwise the agent follows the philosophy + strength dial alone (the
-    // blessed default: leave the checkboxes off). The lead sentence notes, in
-    // the multi variant, that the list may include cross-chapter 套路.
     if (situationBlocks.length) {
       strengthLines.push(
         (variant === "multi" ?
           "下面是你勾选、需要识别并处理的具体情境套路（含需跨章判断的套路）。"
         : "下面是你勾选、需要识别并处理的具体情境套路。") +
           "每条只说明「这是什么套路、其中哪些是水、哪些才是有效信息」，作为你识别与判断的依据；" +
-          "遇到后压缩或删除到什么程度，一律套用上方所选强度。",
+          "遇到后按上方所选强度收紧其中的注水部分，但其中的有效信息必须以完整 prose 保留，不得改成概括。",
         ...situationBlocks,
-        "以上情境，只在原文确实出现、且属于上述套路的段落上按本次所选强度执行；不涉及的段落不要强行改写。",
+        "以上情境，只在原文确实出现、且属于上述套路的段落上按本次所选强度收紧；不涉及的段落不要强行改写。",
       );
     }
     sections.push(strengthLines.join("\n\n"));
   }
 
-  // 打磨文笔 — each enabled aspect lists 轻/中/重 and names the chosen level.
+  // 打磨文笔 — literary polish (prosePolish) and/or expansion (proseExpand).
+  // Each enabled category lists 轻/中/重 and names the chosen level. Note this
+  // module is about improving/extending prose quality — the OPPOSITE direction
+  // from 脱水. Both can coexist with 脱水: dehydration strips filler, then
+  // polish/expand refines and enriches what survives.
   const depthBlocks = DEPTH_ORDER.filter((k) => depth[k].enabled).map((k) => {
     const a = DEPTH_ASPECTS[k];
     const lvl = depth[k].level as 1 | 2 | 3;
@@ -956,7 +960,9 @@ export function buildDehydrateSystemPrompt(
   if (depthBlocks.length) {
     sections.push(
       [
-        "打磨文笔：每项都已指明本次采用的强度——请严格按指明的力度执行，既不要自行加码，也不要打折",
+        "打磨文笔：以下每项都已指明本次采用的强度，请严格按指明的力度执行。" +
+          "注意——这一步的方向和「脱水」相反：脱水负责删掉注水套路，打磨文笔负责让删完之后的有效内容更好读、" +
+          "甚至更丰满。两者不冲突，先脱水、再打磨。既不要自行加码力度，也不要打折。",
         ...depthBlocks,
       ].join("\n"),
     );

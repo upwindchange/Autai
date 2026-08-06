@@ -80,34 +80,16 @@ const DEPTH_ITEMS: {
   exampleKey: string;
 }[] = [
   {
-    key: "dialoguePacing",
-    labelKey: "options.dehydrate.depth.dialoguePacing.label",
-    tooltipKey: "options.dehydrate.depth.dialoguePacing.tooltip",
-    exampleKey: "options.dehydrate.depth.dialoguePacing.example",
+    key: "prosePolish",
+    labelKey: "options.dehydrate.depth.prosePolish.label",
+    tooltipKey: "options.dehydrate.depth.prosePolish.tooltip",
+    exampleKey: "options.dehydrate.depth.prosePolish.example",
   },
   {
-    key: "sceneEnhance",
-    labelKey: "options.dehydrate.depth.sceneEnhance.label",
-    tooltipKey: "options.dehydrate.depth.sceneEnhance.tooltip",
-    exampleKey: "options.dehydrate.depth.sceneEnhance.example",
-  },
-  {
-    key: "combatEnhance",
-    labelKey: "options.dehydrate.depth.combatEnhance.label",
-    tooltipKey: "options.dehydrate.depth.combatEnhance.tooltip",
-    exampleKey: "options.dehydrate.depth.combatEnhance.example",
-  },
-  {
-    key: "emotionEnhance",
-    labelKey: "options.dehydrate.depth.emotionEnhance.label",
-    tooltipKey: "options.dehydrate.depth.emotionEnhance.tooltip",
-    exampleKey: "options.dehydrate.depth.emotionEnhance.example",
-  },
-  {
-    key: "literaryEnhance",
-    labelKey: "options.dehydrate.depth.literaryEnhance.label",
-    tooltipKey: "options.dehydrate.depth.literaryEnhance.tooltip",
-    exampleKey: "options.dehydrate.depth.literaryEnhance.example",
+    key: "proseExpand",
+    labelKey: "options.dehydrate.depth.proseExpand.label",
+    tooltipKey: "options.dehydrate.depth.proseExpand.tooltip",
+    exampleKey: "options.dehydrate.depth.proseExpand.example",
   },
 ];
 

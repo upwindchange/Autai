@@ -40,13 +40,10 @@ export const DEFAULT_CROSS_CHAPTER: CrossChapterDehydrate = {
   tactics: fillCrossChapterTactics(false),
 };
 
-// Rewrite-intensity (depth) defaults: all OFF, opt-in per aspect.
+// Rewrite-intensity (depth) defaults: both OFF, opt-in per category.
 export const DEFAULT_DEPTH: DehydrateDepth = {
-  dialoguePacing: { enabled: false, level: 2 },
-  sceneEnhance: { enabled: false, level: 2 },
-  combatEnhance: { enabled: false, level: 2 },
-  emotionEnhance: { enabled: false, level: 2 },
-  literaryEnhance: { enabled: false, level: 2 },
+  prosePolish: { enabled: false, level: 2 },
+  proseExpand: { enabled: false, level: 2 },
 };
 
 // Language adaptation defaults to all-off; translation is rarely wanted.

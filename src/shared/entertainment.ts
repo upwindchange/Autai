@@ -693,12 +693,20 @@ const DepthFieldSchema = z
 
 // `dehydrate` (脱水提速) is intentionally NOT a depth aspect — it lives on the
 // situational block as the strength dial for 情境脱水 (see SituationDehydrateSchema).
+//
+// 打磨文笔 (Module 2 — 深度重写) is reframed as literary prose polish, NOT
+// situational compression. Two independent categories, each opt-in with its
+// own 1–3 strength dial:
+//   - `prosePolish`: 文笔打磨 — polish rhythm, diction, sentence flow WITHOUT
+//     changing the prose's length. Pure surface refinement.
+//   - `proseExpand`: 文笔扩写 — at appropriate spots, enrich the prose using
+//     rhetorical devices (metaphor, sensory detail, imagery) to heighten
+//     atmosphere, emotion, action, or characterisation. May add content the
+//     original lacks, but only in service of the book's 看点 — never filler for
+//     its own sake (this is the opposite direction from 脱水).
 const DehydrateDepthSchema = z.object({
-  dialoguePacing: DepthFieldSchema,
-  sceneEnhance: DepthFieldSchema,
-  combatEnhance: DepthFieldSchema,
-  emotionEnhance: DepthFieldSchema,
-  literaryEnhance: DepthFieldSchema,
+  prosePolish: DepthFieldSchema,
+  proseExpand: DepthFieldSchema,
 });
 
 /**
