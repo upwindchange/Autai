@@ -1,9 +1,22 @@
 import { useMemo, useRef, useState, type FC } from "react";
-import { CheckSquare, ChevronRightIcon, Square, XIcon } from "lucide-react";
+import {
+  CheckIcon,
+  CheckSquare,
+  ChevronRightIcon,
+  Plus,
+  Square,
+  XIcon,
+} from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { useTagStore, type ThreadInfo } from "@/stores/tagStore";
-import { getTagChipStyle } from "@/lib/tagColors";
+import { getRandomPaletteColor } from "@/lib/tagColors";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
+import {
+  DropdownMenuItem,
+} from "@/components/ui/dropdown-menu";
 import type { TagRow } from "@shared/tag";
+import { TagBadge } from "./tag-badge";
 
 // Stable empty array for selectors that need a default. Shared so the chat and
 // entertainment lists use the same reference.
@@ -147,7 +160,6 @@ export const ThreadTagChip: FC<{
   threadId: string | undefined;
 }> = ({ tag, threadId }) => {
   const [hovered, setHovered] = useState(false);
-  const { style: chipStyle, className: chipClass } = getTagChipStyle(tag.color);
 
   const handleRemove = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -156,11 +168,11 @@ export const ThreadTagChip: FC<{
   };
 
   return (
-    <span
+    <TagBadge
+      color={tag.color}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      style={chipStyle}
-      className={`inline-flex items-center gap-0.5 rounded px-1 py-0 text-[10px] font-medium leading-tight ${chipClass}`}
+      className="gap-0.5 px-1 py-0 text-[10px] leading-tight"
     >
       {tag.name}
       {hovered && (
@@ -177,7 +189,7 @@ export const ThreadTagChip: FC<{
           <XIcon className="size-2" />
         </span>
       )}
-    </span>
+    </TagBadge>
   );
 };
 
@@ -189,7 +201,6 @@ export const CollapsibleTagGroup: FC<{
 }> = ({ group, activeThreadId, onSwitch }) => {
   const [open, setOpen] = useState(true);
   const isMultiSelectMode = useTagStore((s) => s.isMultiSelectMode);
-  const groupChipStyle = getTagChipStyle(group.tagColor);
   const selectedThreadIds = useTagStore((s) => s.selectedThreadIds);
   const selectAllThreads = useTagStore((s) => s.selectAllThreads);
 
@@ -219,12 +230,9 @@ export const CollapsibleTagGroup: FC<{
         <ChevronRightIcon
           className={`size-3 transition-transform ${open ? "rotate-90" : ""}`}
         />
-        <span
-          style={groupChipStyle.style}
-          className={`rounded px-1.5 py-0 text-[10px] font-medium ${groupChipStyle.className}`}
-        >
+        <TagBadge color={group.tagColor} className="px-1.5 py-0 text-[10px]">
           {group.tagName}
-        </span>
+        </TagBadge>
         <span className="text-[10px] font-normal">
           ({group.threads.length})
         </span>
@@ -293,20 +301,11 @@ export const GroupedThreadItem: FC<{
     >
       {selectionIndicator}
       <span className="min-w-0 flex-1 truncate">{thread.title}</span>
-      {thread.tags.map((tag) => {
-        const { style: tagStyle, className: tagClass } = getTagChipStyle(
-          tag.color,
-        );
-        return (
-          <span
-            key={tag.id}
-            style={tagStyle}
-            className={`inline-flex rounded px-1 py-0 text-[10px] font-medium ${tagClass}`}
-          >
-            {tag.name}
-          </span>
-        );
-      })}
+      {thread.tags.map((tag) => (
+        <TagBadge key={tag.id} color={tag.color} className="px-1 py-0 text-[10px]">
+          {tag.name}
+        </TagBadge>
+      ))}
     </button>
   );
 };
@@ -330,3 +329,94 @@ export function useTagGroups() {
     [threads, allTags, selectedTagId, viewingArchive, searchResultIds],
   );
 }
+
+/**
+ * Filter a tag list by a search query and decide whether a new tag can be
+ * created from that query. Shared by TagPanel (sidebar) and the add-tag
+ * submenu so both filter and create identically.
+ */
+export function useTagFilter(tags: TagRow[], query: string): {
+  filtered: TagRow[];
+  canCreate: boolean;
+} {
+  return useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q ? tags.filter((t) => t.name.toLowerCase().includes(q)) : tags;
+    const canCreate = q.length > 0 && !tags.some((t) => t.name.toLowerCase() === q);
+    return { filtered, canCreate };
+  }, [tags, query]);
+}
+
+/**
+ * Shared add-tag submenu body: a search input, a scrollable list of tag badges
+ * (assigned ones disabled + checked), and a create-and-attach item when the
+ * query names no existing tag. `onSelect` is prevented so the submenu stays
+ * open — the user can attach several tags in one visit.
+ */
+export const AddTagSubmenuContent: FC<{
+  threadId: string;
+  assignedTagIds: Set<number>;
+}> = ({ threadId, assignedTagIds }) => {
+  const { t } = useTranslation("common");
+  const tags = useTagStore((s) => s.tags);
+  const [query, setQuery] = useState("");
+  const { filtered, canCreate } = useTagFilter(tags, query);
+
+  const addTag = async (tagId: number) => {
+    await useTagStore.getState().addTagToThread(threadId, tagId);
+  };
+  const createAndAdd = async () => {
+    const created = await useTagStore.getState().createTag(query.trim(), getRandomPaletteColor());
+    await addTag(created.id);
+    setQuery("");
+  };
+
+  return (
+    <>
+      <div className="border-b p-1">
+        <Input
+          autoFocus
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={(e) => e.stopPropagation()}
+          placeholder={t("sidebar.searchTagsPlaceholder")}
+          className="h-7 text-xs"
+        />
+      </div>
+      <div className="max-h-[200px] overflow-y-auto p-1">
+        {filtered.length === 0 && !canCreate && (
+          <div className="px-2 py-1.5 text-xs text-muted-foreground">
+            {t("sidebar.tagPickerEmpty")}
+          </div>
+        )}
+        {filtered.map((tag) => {
+          const applied = assignedTagIds.has(tag.id);
+          return (
+            <DropdownMenuItem
+              key={tag.id}
+              disabled={applied}
+              onSelect={(e) => {
+                e.preventDefault();
+                void addTag(tag.id);
+              }}
+            >
+              <TagBadge color={tag.color}>{tag.name}</TagBadge>
+              {applied && <CheckIcon className="ml-auto size-3.5 text-muted-foreground" />}
+            </DropdownMenuItem>
+          );
+        })}
+        {canCreate && (
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              void createAndAdd();
+            }}
+          >
+            <Plus className="size-4" />
+            {t("sidebar.createTagItem", { name: query.trim() })}
+          </DropdownMenuItem>
+        )}
+      </div>
+    </>
+  );
+};

@@ -9,6 +9,7 @@ import {
   ListIcon,
   MoreHorizontalIcon,
   PencilIcon,
+  Plus,
   RotateCcw,
   Search,
   TrashIcon,
@@ -57,7 +58,9 @@ import {
 } from "@/lib/tagApi";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/lib/utils";
-import { getTagChipStyle, getRandomPaletteColor } from "@/lib/tagColors";
+import { getRandomPaletteColor } from "@/lib/tagColors";
+import { TagBadge } from "./tag-badge";
+import { useTagFilter } from "./thread-list-shared";
 
 // ---------------------------------------------------------------------------
 // Active panel type
@@ -381,51 +384,84 @@ function TagPanel() {
   const selectedTagId = useTagStore((s) => s.selectedTagId);
   const setSelectedTagId = useTagStore((s) => s.setSelectedTagId);
   const { t } = useTranslation("common");
+  const [query, setQuery] = useState("");
+  const { filtered, canCreate } = useTagFilter(tags, query);
+
+  const createAndSelect = async () => {
+    const created = await useTagStore.getState().createTag(query.trim(), getRandomPaletteColor());
+    setSelectedTagId(created.id);
+    setQuery("");
+  };
 
   return (
     <div className="flex flex-col gap-1.5">
-      {/* Create tag input */}
-      <CreateTagInput />
+      {/* Search / create input */}
+      <Input
+        autoFocus
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && canCreate) void createAndSelect();
+        }}
+        placeholder={t("sidebar.searchTagsPlaceholder")}
+        className="h-6 text-xs"
+      />
 
-      {/* Tag chips */}
-      <div className="flex flex-wrap gap-1">
-        <TagChip
-          label={t("sidebar.tagAll")}
-          color={null}
-          selected={selectedTagId === null}
-          onClick={() => setSelectedTagId(null)}
-        />
-        {tags.map((tag) => (
-          <ContextMenu key={tag.id}>
-            <ContextMenuTrigger asChild>
-              <div>
-                <TagChip
-                  label={tag.name}
-                  color={tag.color}
-                  selected={selectedTagId === tag.id}
-                  onClick={() =>
-                    setSelectedTagId(selectedTagId === tag.id ? null : tag.id)
-                  }
-                />
-              </div>
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-              <RenameTagMenuItem tagId={tag.id} currentName={tag.name} />
-              <ContextMenuItem
-                className="text-destructive"
-                onClick={() => useTagStore.getState().deleteTag(tag.id)}
-              >
-                <TrashIcon className="mr-2 size-4" />
-                {t("sidebar.tagDelete")}
-              </ContextMenuItem>
-            </ContextMenuContent>
-          </ContextMenu>
-        ))}
+      {/* Tag chips — capped, scrollable when tag count exceeds the cap */}
+      <div className="max-h-[192px] overflow-y-auto">
+        <div className="flex flex-wrap gap-1">
+          <TagChip
+            label={t("sidebar.tagAll")}
+            color={null}
+            selected={selectedTagId === null}
+            onClick={() => setSelectedTagId(null)}
+          />
+          {filtered.map((tag) => (
+            <ContextMenu key={tag.id}>
+              <ContextMenuTrigger asChild>
+                <div>
+                  <TagChip
+                    label={tag.name}
+                    color={tag.color}
+                    selected={selectedTagId === tag.id}
+                    onClick={() =>
+                      setSelectedTagId(selectedTagId === tag.id ? null : tag.id)
+                    }
+                  />
+                </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <RenameTagMenuItem tagId={tag.id} currentName={tag.name} />
+                <ContextMenuItem
+                  className="text-destructive"
+                  onClick={() => useTagStore.getState().deleteTag(tag.id)}
+                >
+                  <TrashIcon className="mr-2 size-4" />
+                  {t("sidebar.tagDelete")}
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
+          ))}
+          {canCreate && (
+            <button
+              onClick={() => void createAndSelect()}
+              className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent"
+            >
+              <Plus className="size-3" />
+              {t("sidebar.createTagItem", { name: query.trim() })}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
+/**
+ * Thin selectable filter chip: a button wrapper that owns selected/click state,
+ * delegating color to TagBadge. Distinct role from ThreadTagChip (which removes
+ * a tag from a thread) — both are thin wrappers over the TagBadge primitive.
+ */
 function TagChip({
   label,
   color,
@@ -437,45 +473,13 @@ function TagChip({
   selected: boolean;
   onClick: () => void;
 }) {
-  const { style, className: colorClass } = getTagChipStyle(color);
   return (
     <button
       onClick={onClick}
-      style={style}
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium transition-opacity ${colorClass} ${selected ? "ring-2 ring-primary opacity-100" : "opacity-70 hover:opacity-100"}`}
+      className={`rounded-full transition-opacity ${selected ? "ring-2 ring-primary opacity-100" : "opacity-70 hover:opacity-100"}`}
     >
-      {label}
+      <TagBadge color={color}>{label}</TagBadge>
     </button>
-  );
-}
-
-function CreateTagInput() {
-  const { t } = useTranslation("common");
-  const [name, setName] = useState("");
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
-
-  const handleSubmit = async () => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    await useTagStore.getState().createTag(trimmed, getRandomPaletteColor());
-    setName("");
-  };
-
-  return (
-    <Input
-      ref={inputRef}
-      value={name}
-      onChange={(e) => setName(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") handleSubmit();
-      }}
-      placeholder={t("sidebar.createTagPlaceholder")}
-      className="h-6 text-xs"
-    />
   );
 }
 

@@ -1,5 +1,3 @@
-import type { CSSProperties } from "react";
-
 /**
  * 16 curated hex colors from ColorBrewer qualitative scales (Paired + Dark2).
  * Designed for maximum perceptual distinctness and accessibility as badge backgrounds.
@@ -53,24 +51,4 @@ export function getContrastTextColor(bgHex: string): string {
   const g = (num >> 8) & 255;
   const b = num & 255;
   return relativeLuminance(r, g, b) > 0.45 ? "#1A1A2E" : "#FFFFFF";
-}
-
-/**
- * Returns inline style and className for a tag chip based on its stored color.
- * If color is null/empty (legacy DB data), falls back to muted default style.
- */
-export function getTagChipStyle(color: string | null | undefined): {
-  style: CSSProperties;
-  className: string;
-} {
-  if (!color) {
-    return { style: {}, className: "bg-muted text-muted-foreground" };
-  }
-  return {
-    style: {
-      backgroundColor: color,
-      color: getContrastTextColor(color),
-    },
-    className: "",
-  };
 }

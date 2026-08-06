@@ -34,7 +34,6 @@ import {
 } from "lucide-react";
 import { useState, type FC } from "react";
 import { useTagStore } from "@/stores/tagStore";
-import { getTagChipStyle } from "@/lib/tagColors";
 import { cn } from "@/lib/utils";
 import {
   EMPTY_TAGS,
@@ -43,6 +42,7 @@ import {
   matchesSearch,
   CollapsibleTagGroup,
   useTagGroups,
+  AddTagSubmenuContent,
 } from "./thread-list-shared";
 
 export const ThreadList: FC = () => {
@@ -219,13 +219,11 @@ const ThreadListItemMore: FC<{ threadId: string | undefined }> = ({
   threadId,
 }) => {
   const { t } = useTranslation("common");
-  const tags = useTagStore((s) => s.tags);
   const viewingArchive = useTagStore((s) => s.viewingArchive);
   const threadTags = useTagStore((s) =>
     threadId ? (s.threadTags[threadId] ?? EMPTY_TAGS) : EMPTY_TAGS,
   );
   const assignedIds = new Set(threadTags.map((t) => t.id));
-  const availableTags = tags.filter((t) => !assignedIds.has(t.id));
 
   // Get current thread title from store
   const currentTitle = useTagStore((s) =>
@@ -237,12 +235,6 @@ const ThreadListItemMore: FC<{ threadId: string | undefined }> = ({
   // Rename dialog state
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState(currentTitle);
-
-  const handleAddTag = async (tagId: number) => {
-    if (!threadId) return;
-    await useTagStore.getState().addTagToThread(threadId, tagId);
-  };
-
   const handleRename = async () => {
     const trimmed = renameValue.trim();
     if (!threadId || !trimmed) return;
@@ -273,34 +265,17 @@ const ThreadListItemMore: FC<{ threadId: string | undefined }> = ({
             <PencilIcon className="size-4" />
             {t("sidebar.rename")}
           </DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger
-              disabled={availableTags.length === 0}
-              className="data-disabled:pointer-events-none data-disabled:opacity-50"
-            >
-              <BookmarkIcon className="size-4" />
-              {t("sidebar.addTag")}
-            </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              {availableTags.map((tag) => {
-                const { style: tagStyle, className: tagClass } =
-                  getTagChipStyle(tag.color);
-                return (
-                  <DropdownMenuItem
-                    key={tag.id}
-                    onClick={() => handleAddTag(tag.id)}
-                  >
-                    <span
-                      style={tagStyle}
-                      className={`inline-flex rounded px-1.5 py-0 text-[10px] font-medium ${tagClass}`}
-                    >
-                      {tag.name}
-                    </span>
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
+          {threadId && (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <BookmarkIcon className="size-4" />
+                {t("sidebar.addTag")}
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent className="max-h-[260px] w-56 overflow-hidden p-0">
+                <AddTagSubmenuContent threadId={threadId} assignedTagIds={assignedIds} />
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
           {viewingArchive ?
             <ThreadListItemPrimitive.Unarchive asChild>
               <DropdownMenuItem>

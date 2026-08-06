@@ -310,8 +310,8 @@ INSTRUCTIONS:
 
       // Notify renderer to refresh thread metadata.
       // DB `color` is nullable but the shared TagRow contract (and renderer)
-      // expects a string; null is coerced to "" so getTagChipStyle's muted
-      // fallback still applies.
+      // expects a string; null is coerced to "" so TagBadge's muted fallback
+      // still applies.
       const updatedTags = threadPersistenceService
         .getTagsForThread(threadId)
         .map((t) => ({ ...t, color: t.color ?? "" }));

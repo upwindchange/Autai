@@ -28,7 +28,6 @@ import {
 import { useState, type FC } from "react";
 import { useTagStore, type ThreadInfo } from "@/stores/tagStore";
 import { useEntertainmentThreadsStore } from "@/stores/entertainmentThreadsStore";
-import { getTagChipStyle } from "@/lib/tagColors";
 import { cn } from "@/lib/utils";
 import {
   archiveThread,
@@ -42,6 +41,7 @@ import {
   matchesSearch,
   CollapsibleTagGroup,
   useTagGroups,
+  AddTagSubmenuContent,
 } from "./thread-list-shared";
 
 /**
@@ -210,21 +210,15 @@ const EntertainmentThreadItemMenu: FC<{
   title: string;
 }> = ({ threadId, title }) => {
   const { t } = useTranslation("common");
-  const tags = useTagStore((s) => s.tags);
   const viewingArchive = useTagStore((s) => s.viewingArchive);
   const threadTags = useTagStore((s) =>
     s.threadTags[threadId] ? s.threadTags[threadId] : EMPTY_TAGS,
   );
   const refresh = useEntertainmentThreadsStore((s) => s.refresh);
   const assignedIds = new Set(threadTags.map((t) => t.id));
-  const availableTags = tags.filter((t) => !assignedIds.has(t.id));
 
   const [renameOpen, setRenameOpen] = useState(false);
   const [renameValue, setRenameValue] = useState(title);
-
-  const handleAddTag = async (tagId: number) => {
-    await useTagStore.getState().addTagToThread(threadId, tagId);
-  };
 
   const handleRename = async () => {
     const trimmed = renameValue.trim();
@@ -271,31 +265,12 @@ const EntertainmentThreadItemMenu: FC<{
             {t("sidebar.rename")}
           </DropdownMenuItem>
           <DropdownMenuSub>
-            <DropdownMenuSubTrigger
-              disabled={availableTags.length === 0}
-              className="data-disabled:pointer-events-none data-disabled:opacity-50"
-            >
+            <DropdownMenuSubTrigger>
               <BookmarkIcon className="size-4" />
               {t("sidebar.addTag")}
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              {availableTags.map((tag) => {
-                const { style: tagStyle, className: tagClass } =
-                  getTagChipStyle(tag.color);
-                return (
-                  <DropdownMenuItem
-                    key={tag.id}
-                    onClick={() => void handleAddTag(tag.id)}
-                  >
-                    <span
-                      style={tagStyle}
-                      className={`inline-flex rounded px-1.5 py-0 text-[10px] font-medium ${tagClass}`}
-                    >
-                      {tag.name}
-                    </span>
-                  </DropdownMenuItem>
-                );
-              })}
+            <DropdownMenuSubContent className="max-h-[260px] w-56 overflow-hidden p-0">
+              <AddTagSubmenuContent threadId={threadId} assignedTagIds={assignedIds} />
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuItem onClick={() => void handleArchiveToggle()}>
