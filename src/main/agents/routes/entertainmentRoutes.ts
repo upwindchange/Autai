@@ -14,6 +14,7 @@ import {
   entertainmentFrontendService,
   entertainmentBackendService,
   threadPersistenceService,
+  threadIntelligenceService,
 } from "@/services";
 import { eventBus } from "@/utils/eventBus";
 import {
@@ -203,6 +204,15 @@ entertainmentRoutes.post("/threads/:threadId/ingest", async (c) => {
     // immediately; the loop reads rawConsumedOffset from DB and runs to EOF.
     entertainmentScheduler.startFilePipeline(threadId);
 
+    // Enrich the thread (extract real title + assign genre/trope tags) from
+    // the opening of the decoded text. Fire-and-forget — runs alongside the
+    // dehydrate loop; the deterministic title from applyConfig is the instant
+    // placeholder this refines.
+    threadIntelligenceService
+      .enrichEntertainmentThreadFromDb(threadId)
+      .catch((err) => {
+        logger.warn("Entertainment enrichment failed:", err);
+      });
     return c.json({ ok: true });
   } catch (error) {
     logger.error("Error in ingest:", error);

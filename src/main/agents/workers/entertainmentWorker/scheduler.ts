@@ -18,6 +18,7 @@ import type { InternetNovel } from "@shared";
 import {
   entertainmentBackendService,
   entertainmentFrontendService,
+  threadIntelligenceService,
 } from "@/services";
 import { runDehydrateLoop } from "./pipeline1ChapteredFile/dehydrateRunner";
 import { fetchInternetChapter } from "./pipeline2ChapteredInternet/internetFetch";
@@ -302,6 +303,11 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
       rewrite: opts.rewrite,
     });
     let n = 1;
+    // One-shot entertainment enrichment (title + tags) after chapter 1's
+    // source text is available. Fire-and-forget — runs alongside the rest of
+    // the fetch/rewrite loop; the deterministic title from applyConfig is the
+    // instant placeholder this refines.
+    let enriched = false;
     while (!signal.aborted) {
       const final = entertainmentFrontendService.getFinalChapterNumber(threadId);
       if (final != null) {
@@ -328,6 +334,15 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
           });
           break;
         }
+      }
+      // Trigger enrichment once chapter 1 has source content.
+      if (!enriched && n === 1) {
+        enriched = true;
+        threadIntelligenceService
+          .enrichEntertainmentThreadFromDb(threadId)
+          .catch((err) => {
+            logger.warn("entertainment enrichment failed", { threadId, err });
+          });
       }
       if (opts.rewrite) {
         // Skip chapters already rewritten (idempotent resume).

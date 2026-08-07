@@ -1,7 +1,12 @@
 import { generateText, tool, type UIMessage } from "ai";
 import { z } from "zod";
 import { simpleModel } from "@agents/providers";
-import { settingsService, threadPersistenceService } from "@/services";
+import {
+  settingsService,
+  threadPersistenceService,
+  entertainmentFrontendService,
+  entertainmentBackendService,
+} from "@/services";
 import { i18n } from "@/i18n";
 import log from "electron-log/main";
 import { eventBus } from "@/utils/eventBus";
@@ -56,6 +61,14 @@ const STALE_ENTERTAINMENT_TAG_NAMES = ["互动", "Interactive"];
 // seeded tags. The manual "Reset to default" action backfills independently of
 // this flag.
 const CHINESE_TAGS_POPULATED_FLAG = "chinese_entertainment_tags_populated";
+
+/**
+ * Character budget for the entertainment enrichment sample. Uses the opening
+ * of the novel (first chapter for internet, first slice for files) — enough
+ * for the LLM to identify the genre, tropes, character archetypes, and the
+ * real book title without ingesting the whole upload.
+ */
+const ENTERTAINMENT_SAMPLE_CHARS = 4000;
 
 /** All 16 palette colors (shared with renderer's tagColors.ts). */
 const PALETTE = [
@@ -323,6 +336,203 @@ INSTRUCTIONS:
     } catch (error) {
       logger.error("Failed to enrich thread:", error);
     }
+  }
+
+  // --- Entertainment (重写 / audiobook) thread enrichment -------------------
+  //
+  // Unlike chat enrichThread (1 message → 1 tag + title), entertainment
+  // enrichment reads the opening novel prose to (a) extract the real book
+  // title from its content (filenames are unreliable) and (b) assign as many
+  // genre/trope/character/tone tags as fit from the entertainment-mode
+  // vocabulary. The deterministic title + mode tag set up by
+  // setupEntertainmentThread stays as the instant placeholder; this refines
+  // both once content exists.
+
+  /**
+   * Enrich an entertainment thread: extract the real title and assign multiple
+   * tags from the opening chapter text. Idempotent — the mode tag already
+   * attached by setupEntertainmentThread is never removed; this only ADDS
+   * genre/trope/character/tone tags. The title replaces the filename
+   * placeholder.
+   *
+   * @param threadId    the entertainment thread
+   * @param sampleText  the first chapter (internet) or first ~4000 chars
+   *                    (file) of decoded source prose
+   * @param modeLabel   the localized mode tag name (重写 / 有声小说) — kept on
+   *                    the thread; the LLM is told to only emit content tags,
+   *                    never the mode itself
+   */
+  async enrichEntertainmentThread(
+    threadId: string,
+    sampleText: string,
+    modeLabel: string,
+  ): Promise<void> {
+    try {
+      if (!sampleText.trim()) {
+        logger.warn("entertainment enrichment skipped — empty sample", {
+          threadId,
+        });
+        return;
+      }
+
+      logger.info("Enriching entertainment thread", {
+        threadId,
+        sampleLength: sampleText.length,
+      });
+
+      const settings = settingsService.settings;
+      // Entertainment threads only see entertainment-scoped tags. Chat tags
+      // (Coding/Research/…) are invisible to this tagger.
+      const existingTags = threadPersistenceService.listTagsByMode("entertainment");
+      const tagNames = existingTags.map((t) => t.name);
+
+      const tagInstruction =
+        settings.autoTagEnabled ?
+          settings.autoTagCreationEnabled ?
+            `Select ALL applicable tags from the existing tags list. You may also suggest new short tag names (1-4 words each) for important genres/tropes/characters/tone that none of the existing tags cover. Return as many as genuinely apply — do not be conservative.`
+          : `Select ALL applicable tags from the existing tags list. You MUST use only existing tags. Return as many as genuinely apply — do not be conservative.`
+        : `Do not assign any tags (return an empty array).`;
+
+      const systemPrompt = `You are a Chinese web-novel classification assistant. Given the opening of a novel, extract its title and assign all fitting genre/trope/character/tone tags.
+
+EXISTING TAGS: ${tagNames.length > 0 ? tagNames.join(", ") : "None"}
+
+INSTRUCTIONS:
+- Extract the novel's REAL title from the text itself (chapter headers, title lines, in-story mentions). If no title is discernible, use a 2-4 word descriptive title derived from the content. Do NOT use a filename or "Unknown". Do NOT include the mode label ("${modeLabel}") in the title. Do NOT include book-title brackets like 《》 — just the bare title.
+- ${tagInstruction}
+- The mode label "${modeLabel}" is already applied to the thread; do NOT include it in the tags.
+- Always respond by calling the setEntertainmentMeta tool.`;
+
+      const result = await generateText({
+        model: simpleModel().model,
+        system: systemPrompt,
+        prompt: `Novel opening (first ${sampleText.length} chars):\n\n${sampleText}`,
+        toolChoice: "required",
+        tools: {
+          setEntertainmentMeta: tool({
+            description:
+              "Set the title and category tags for an entertainment thread",
+            inputSchema: z.object({
+              title: z
+                .string()
+                .describe(
+                  "The novel's real title extracted from the text (bare name, no 《》 or mode suffix)",
+                ),
+              tags: z
+                .array(z.string())
+                .describe(
+                  "All fitting tag names (genre, trope, character, tone). Omit the mode label.",
+                ),
+            }),
+          }),
+        },
+      });
+
+      const toolCall = result.toolCalls[0];
+      if (
+        !toolCall ||
+        toolCall.toolName !== "setEntertainmentMeta"
+      ) {
+        logger.warn(
+          "No setEntertainmentMeta tool call in response, skipping enrichment",
+        );
+        return;
+      }
+
+      const args = toolCall.input as { title: string; tags: string[] };
+
+      // Rename the thread if the LLM produced a non-trivial title.
+      const newTitle = args.title?.trim();
+      if (newTitle) {
+        threadPersistenceService.renameThread(threadId, newTitle);
+        logger.info("Renamed entertainment thread", {
+          threadId,
+          title: newTitle,
+        });
+      } else {
+        logger.warn("entertainment enrichment returned empty title", {
+          threadId,
+        });
+      }
+
+      // Apply every tag the LLM returned. autoTagEnabled gates this entirely;
+      // autoTagCreationEnabled gates creating tags that don't yet exist.
+      if (settings.autoTagEnabled && args.tags?.length) {
+        const lowerMode = modeLabel.toLowerCase();
+        for (const raw of args.tags) {
+          const name = raw?.trim();
+          if (!name) continue;
+          // Never re-add the mode tag (it's already on the thread) and skip
+          // case-insensitive duplicates of it.
+          if (name.toLowerCase() === lowerMode) continue;
+
+          const matched = existingTags.find(
+            (t) => t.name.toLowerCase() === name.toLowerCase(),
+          );
+          if (matched) {
+            threadPersistenceService.addTagToThread(threadId, matched.id);
+          } else if (settings.autoTagCreationEnabled) {
+            const created = threadPersistenceService.createTag(
+              name,
+              getRandomPaletteColor(),
+              ENTERTAINMENT_TAG_KEYS.length,
+              "entertainment",
+            );
+            threadPersistenceService.addTagToThread(threadId, created.id);
+          }
+        }
+        logger.info("Tagged entertainment thread", {
+          threadId,
+          tags: args.tags,
+        });
+      }
+
+      // Notify renderer to refresh thread metadata (same null-color coercion
+      // as chat enrichThread).
+      const updatedTags = threadPersistenceService
+        .getTagsForThread(threadId)
+        .map((t) => ({ ...t, color: t.color ?? "" }));
+      eventBus.emitEvent("threads:metadataUpdated", {
+        threadId,
+        title: newTitle || "",
+        tags: updatedTags,
+      });
+    } catch (error) {
+      logger.error("Failed to enrich entertainment thread:", error);
+    }
+  }
+
+  /**
+   * Convenience wrapper for entertainment enrichment: reads the opening
+   * content from the DB (raw text for file novels; source chapter 1 for
+   * internet novels), slices it to the sample budget, and delegates to
+   * {@link enrichEntertainmentThread}. Resolves the localized mode label from
+   * the thread's stored config.
+   */
+  async enrichEntertainmentThreadFromDb(threadId: string): Promise<void> {
+    const config = entertainmentFrontendService.getParsedConfig(threadId);
+    if (!config) {
+      logger.warn("entertainment enrichment — no config", { threadId });
+      return;
+    }
+    const modeLabel = i18n.t(`entertainment.${config.mode}`);
+
+    const sample =
+      config.novel.type === "file" ?
+        entertainmentBackendService.getRawNovelText(threadId)?.slice(
+          0,
+          ENTERTAINMENT_SAMPLE_CHARS,
+        ) ?? null
+      : (entertainmentFrontendService.getSourceChapter(threadId, 1)?.content ??
+        null);
+    if (!sample) {
+      logger.warn("entertainment enrichment — no source content yet", {
+        threadId,
+        novelType: config.novel.type,
+      });
+      return;
+    }
+    await this.enrichEntertainmentThread(threadId, sample, modeLabel);
   }
 
   async generateSuggestions(
