@@ -727,10 +727,9 @@ function QuestionFlowUpfront({
   const totalSteps = expandedSteps.length;
 
   useEffect(() => {
-    if (exitingStepData) {
-      const timer = setTimeout(() => setExitingStepData(null), 250);
-      return () => clearTimeout(timer);
-    }
+    if (!exitingStepData) return;
+    const timer = setTimeout(() => setExitingStepData(null), 250);
+    return () => clearTimeout(timer);
   }, [exitingStepData]);
 
   const currentSelection = useMemo(() => {

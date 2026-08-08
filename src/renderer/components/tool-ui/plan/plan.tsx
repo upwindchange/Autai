@@ -319,16 +319,16 @@ function PlanRoot({
       }
     });
 
-    if (newIds.size > 0) {
-      setNewTodoIds(newIds);
+    if (newIds.size === 0) return;
 
-      // Clear animation class after entrance completes
-      const timer = setTimeout(() => {
-        setNewTodoIds(new Set());
-      }, 500);
+    setNewTodoIds(newIds);
 
-      return () => clearTimeout(timer);
-    }
+    // Clear animation class after entrance completes
+    const timer = setTimeout(() => {
+      setNewTodoIds(new Set());
+    }, 500);
+
+    return () => clearTimeout(timer);
   }, [todos]);
 
   useEffect(() => {
@@ -338,11 +338,11 @@ function PlanRoot({
     });
     prevProgressRef.current = progress;
 
-    if (shouldCelebrate) {
-      setIsCelebrating(true);
-      const timer = setTimeout(() => setIsCelebrating(false), 1000);
-      return () => clearTimeout(timer);
-    }
+    if (!shouldCelebrate) return;
+
+    setIsCelebrating(true);
+    const timer = setTimeout(() => setIsCelebrating(false), 1000);
+    return () => clearTimeout(timer);
   }, [progress]);
 
   const todoList = (

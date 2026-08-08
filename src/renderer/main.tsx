@@ -20,10 +20,10 @@ import { useUiStore } from "@/stores/uiStore";
 import { frontendToolkit } from "@/components/tools";
 import {
   AssistantRuntimeProvider,
+  AuiConfig,
   CompositeAttachmentAdapter,
   SimpleImageAttachmentAdapter,
   WebSpeechSynthesisAdapter,
-  useAui,
   useAuiState,
   Tools,
 } from "@assistant-ui/react";
@@ -464,13 +464,15 @@ function App() {
     });
   }, []);
 
-  // Configure assistant-ui with tools using the new Tools() API
-  const aui = useAui({
+  // Configure assistant-ui with tools using the new Tools() API.
+  // v0.15: AuiConfig replaces the deprecated useAui({ ... }) extension overload;
+  // the scopes ride on AssistantRuntimeProvider via the `config` prop.
+  const config = AuiConfig({
     tools: Tools({ toolkit: frontendToolkit }),
   });
 
   return (
-    <AssistantRuntimeProvider aui={aui} runtime={runtime}>
+    <AssistantRuntimeProvider runtime={runtime} config={config}>
       {/* <ApprovalTool /> */}
       <AppContent />
     </AssistantRuntimeProvider>
