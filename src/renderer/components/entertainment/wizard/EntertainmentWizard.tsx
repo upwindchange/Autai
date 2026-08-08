@@ -247,7 +247,11 @@ export const EntertainmentWizard: FC = () => {
       {prepareError && (
         <div className="flex flex-col items-center gap-3">
           <p className="text-center text-sm text-destructive">{prepareError}</p>
-          <Button type="button" variant="outline" onClick={() => void startOver()}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => void startOver()}
+          >
             {t("wizard.action.startOver")}
           </Button>
         </div>
@@ -280,10 +284,9 @@ export const EntertainmentWizard: FC = () => {
           {isLast && (ingesting ? t("nav.preparing") : t("nav.start"))}
           {!isUploadButton && !isFetchButton && !isLast && t("nav.next")}
           {ingesting && <Loader2 className="size-4 animate-spin" />}
-          {!isLast &&
-            !isUploadButton &&
-            !isFetchButton &&
-            !ingesting && <ArrowRight className="size-4" />}
+          {!isLast && !isUploadButton && !isFetchButton && !ingesting && (
+            <ArrowRight className="size-4" />
+          )}
         </Button>
       </div>
     </div>

@@ -47,13 +47,11 @@ export function useChapterReadiness(
     let latest: ChapterDetailWithStatus | undefined;
 
     const attempt = async (): Promise<void> => {
-       
       console.debug("[ent:readiness] start", { threadId, chapterNumber });
       // 1. Poll once.
       latest = await store().loadChapterDetail(threadId, chapterNumber);
       if (cancelled || isTerminal(latest)) {
         if (isTerminal(latest))
-           
           console.debug("[ent:readiness] terminal (initial poll)", {
             chapterNumber,
             rewriteStatus: latest?.rewriteStatus,
@@ -61,7 +59,7 @@ export function useChapterReadiness(
           });
         return;
       }
-       
+
       console.debug("[ent:readiness] not ready — polling", {
         chapterNumber,
         sourceStatus: latest?.sourceStatus,
@@ -78,7 +76,6 @@ export function useChapterReadiness(
           }
           latest = await store().loadChapterDetail(threadId, chapterNumber);
           if (isTerminal(latest)) {
-             
             console.debug("[ent:readiness] terminal", {
               chapterNumber,
               rewriteStatus: latest?.rewriteStatus,
@@ -101,7 +98,6 @@ export function useChapterReadiness(
       // 3. Timeout retrigger if still not terminal. A terminally errored chapter
       //    is not retriggered — it needs "Redo failed", not more polling.
       if (!isTerminal(latest)) {
-         
         console.warn("[ent:readiness] timeout — retriggering", {
           threadId,
           chapterNumber,

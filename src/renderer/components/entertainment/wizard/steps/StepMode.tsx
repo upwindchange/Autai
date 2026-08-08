@@ -33,10 +33,7 @@ const MODES: {
   },
 ];
 
-export const StepMode: FC<StepModeProps> = ({
-  config,
-  setConfig,
-}) => {
+export const StepMode: FC<StepModeProps> = ({ config, setConfig }) => {
   const { t } = useTranslation("entertainment");
   return (
     <div className="space-y-4">
@@ -84,7 +81,6 @@ export const StepMode: FC<StepModeProps> = ({
           </div>
         ))}
       </RadioGroup>
-
     </div>
   );
 };

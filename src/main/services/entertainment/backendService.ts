@@ -5,10 +5,7 @@ import {
   entertainmentConfigs,
   threads,
 } from "@/db/schema";
-import type {
-  RewrittenChapterStatus,
-  SourceChapterStatus,
-} from "@shared";
+import type { RewrittenChapterStatus, SourceChapterStatus } from "@shared";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
 
 /**

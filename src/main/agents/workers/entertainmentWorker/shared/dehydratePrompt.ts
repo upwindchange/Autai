@@ -666,10 +666,7 @@ const CROSS_CHAPTER_TACTICS: Record<
   },
 };
 
-const DEPTH_ORDER: (keyof DehydrateDepth)[] = [
-  "prosePolish",
-  "proseExpand",
-];
+const DEPTH_ORDER: (keyof DehydrateDepth)[] = ["prosePolish", "proseExpand"];
 
 interface DepthAspectText {
   label: string;

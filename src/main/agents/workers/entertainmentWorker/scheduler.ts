@@ -149,7 +149,8 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
     // Start (≥1 rewrite row). A zero-rewrite thread that only has fetched
     // sources (prefetch ran, Start never pressed) keeps fetching more chapters
     // but does NOT rewrite — the user hasn't committed options yet.
-    const rewritten = entertainmentBackendService.countRewrittenChapters(threadId);
+    const rewritten =
+      entertainmentBackendService.countRewrittenChapters(threadId);
     if (rewritten > 0) {
       logger.info("resumeOnOpen (internet) — fetch + rewrite", {
         threadId,
@@ -210,7 +211,10 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
       try {
         for (const c of failed) {
           if (signal.aborted) {
-            logger.info("retry loop aborted", { threadId, chapterNumber: c.chapterNumber });
+            logger.info("retry loop aborted", {
+              threadId,
+              chapterNumber: c.chapterNumber,
+            });
             break;
           }
           // Source errored (or never fetched) ⇒ re-fetch, then rewrite.
@@ -238,7 +242,8 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
           await rewriteChapter(threadId, c.chapterNumber, options, signal);
         }
       } catch (err) {
-        if (!signal.aborted) logger.error("retry loop failed", { threadId, err });
+        if (!signal.aborted)
+          logger.error("retry loop failed", { threadId, err });
       } finally {
         if (this.active.get(threadId) === controller) {
           this.active.delete(threadId);
@@ -309,9 +314,13 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
     // instant placeholder this refines.
     let enriched = false;
     while (!signal.aborted) {
-      const final = entertainmentFrontendService.getFinalChapterNumber(threadId);
+      const final =
+        entertainmentFrontendService.getFinalChapterNumber(threadId);
       if (final != null) {
-        logger.info("fetchLoop — reached EOF", { threadId, finalChapter: final });
+        logger.info("fetchLoop — reached EOF", {
+          threadId,
+          finalChapter: final,
+        });
         break;
       }
       const prior = entertainmentFrontendService.getSourceChapter(threadId, n);
@@ -346,8 +355,10 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
       }
       if (opts.rewrite) {
         // Skip chapters already rewritten (idempotent resume).
-        const existing =
-          entertainmentFrontendService.getRewrittenChapter(threadId, n);
+        const existing = entertainmentFrontendService.getRewrittenChapter(
+          threadId,
+          n,
+        );
         if (!existing || existing.status === "error") {
           await rewriteChapter(threadId, n, config.options, signal);
         }

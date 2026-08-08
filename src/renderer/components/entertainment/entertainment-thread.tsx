@@ -96,9 +96,7 @@ export const EntertainmentThread: FC = () => {
   }, [activeThreadId, loadChapters, getPosition, setCurrentChapter]);
 
   useEffect(() => {
-    const chapterNumber = activeThreadId
-      ? (currentChapterNumber ?? 1)
-      : null;
+    const chapterNumber = activeThreadId ? (currentChapterNumber ?? 1) : null;
     void setReaderCursor(activeThreadId, chapterNumber);
   }, [activeThreadId, currentChapterNumber, setReaderCursor]);
 
@@ -388,10 +386,7 @@ const ChapterStatusPlaceholder: FC<{ status: ChapterStatus | undefined }> = ({
   const { t } = useTranslation("reader");
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-20 text-center text-muted-foreground">
-      <DotMatrix
-        state={status?.phase ?? "loading"}
-        className="size-6"
-      />
+      <DotMatrix state={status?.phase ?? "loading"} className="size-6" />
       {status && (
         <p className="text-sm max-w-md">
           {t(status.messageKey, status.messageParams ?? {})}
@@ -445,7 +440,12 @@ const OptionsPage: FC<{
       }
 
       <div className="flex items-center gap-2">
-        <Button type="button" variant="ghost" onClick={onBack} disabled={saving}>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onBack}
+          disabled={saving}
+        >
           <ArrowLeft className="size-4" />
           {t("reader.options.back")}
         </Button>
@@ -474,7 +474,8 @@ const OptionsPage: FC<{
  */
 function setOptionsConfigSetter(
   setConfig: Dispatch<SetStateAction<EntertainmentConfig | null>>,
-  updater: EntertainmentConfig | ((prev: EntertainmentConfig) => EntertainmentConfig),
+  updater:
+    EntertainmentConfig | ((prev: EntertainmentConfig) => EntertainmentConfig),
   current: EntertainmentConfig,
 ): void {
   setConfig(

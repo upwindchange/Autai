@@ -79,10 +79,14 @@ const saveContentTool = tool({
   }),
   execute: async (input, { experimental_context }) => {
     const ctx = experimental_context as SinglePageFetchContext;
-    entertainmentBackendService.updateSourceChapter(ctx.threadId, ctx.chapterNumber, {
-      content: input.content,
-      title: input.title,
-    });
+    entertainmentBackendService.updateSourceChapter(
+      ctx.threadId,
+      ctx.chapterNumber,
+      {
+        content: input.content,
+        title: input.title,
+      },
+    );
     logger.info("content saved", {
       threadId: ctx.threadId,
       contentLen: input.content.length,
@@ -280,7 +284,10 @@ export async function fetchSinglePage(
   const chapterNumber = 1;
 
   // Own the source-row lifecycle up front (insert fresh or reset stale).
-  const prior = entertainmentFrontendService.getSourceChapter(threadId, chapterNumber);
+  const prior = entertainmentFrontendService.getSourceChapter(
+    threadId,
+    chapterNumber,
+  );
   if (!prior) {
     entertainmentBackendService.insertSourceChapter({
       threadId,

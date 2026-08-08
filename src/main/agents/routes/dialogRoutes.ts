@@ -46,7 +46,9 @@ dialogRoutes.post("/open-files", async (c) => {
     const win = BrowserWindow.getFocusedWindow();
     if (!win) return c.json([]);
 
-    const body = await c.req.json().catch(() => ({} as { withBytes?: boolean }));
+    const body = await c.req
+      .json()
+      .catch(() => ({}) as { withBytes?: boolean });
     const withBytes = body?.withBytes !== false;
 
     const result = await dialog.showOpenDialog(win, {

@@ -61,8 +61,7 @@ const en = {
     audiobook: "Audiobook",
     // Dehydrate pipeline toasts (file-upload novels).
     dehydrateStartedTitle: "Rewrite started",
-    dehydrateStartedBody:
-      "Dehydrating and rewriting this novel — please wait.",
+    dehydrateStartedBody: "Dehydrating and rewriting this novel — please wait.",
   },
   agents: {
     searchingTitle: "Looking up multiple topics at once: {{title}}",

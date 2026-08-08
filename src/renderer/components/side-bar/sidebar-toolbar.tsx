@@ -388,7 +388,9 @@ function TagPanel() {
   const { filtered, canCreate } = useTagFilter(tags, query);
 
   const createAndSelect = async () => {
-    const created = await useTagStore.getState().createTag(query.trim(), getRandomPaletteColor());
+    const created = await useTagStore
+      .getState()
+      .createTag(query.trim(), getRandomPaletteColor());
     setSelectedTagId(created.id);
     setQuery("");
   };

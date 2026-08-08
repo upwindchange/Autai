@@ -447,10 +447,10 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
 
           {/* Options (left) — full-page rewrite-options editor (not a popover). */}
           <Tooltip>
-            <TooltipTrigger asChild>
-              {optionsTrigger}
-            </TooltipTrigger>
-            <TooltipContent side="top">{t("reader.options.open")}</TooltipContent>
+            <TooltipTrigger asChild>{optionsTrigger}</TooltipTrigger>
+            <TooltipContent side="top">
+              {t("reader.options.open")}
+            </TooltipContent>
           </Tooltip>
 
           {/* Chapter nav (center) */}
@@ -545,9 +545,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
 
           {/* Stop (right edge) */}
           <Tooltip>
-            <TooltipTrigger asChild>
-              {stopTrigger}
-            </TooltipTrigger>
+            <TooltipTrigger asChild>{stopTrigger}</TooltipTrigger>
             <TooltipContent side="top">{t("reader.stop.hint")}</TooltipContent>
           </Tooltip>
         </div>

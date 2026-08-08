@@ -283,10 +283,7 @@ class SettingsService {
       tx.delete(modelAssignments).run();
       for (const assignment of Object.values(settingsState.modelAssignments)) {
         let { providerId, modelId } = assignment;
-        if (
-          settingsState.useSameModelForAgents &&
-          assignment.role !== "chat"
-        ) {
+        if (settingsState.useSameModelForAgents && assignment.role !== "chat") {
           const existing = existingByRole.get(assignment.role);
           providerId = existing?.providerId ?? assignment.providerId;
           modelId = existing?.modelId ?? assignment.modelId;

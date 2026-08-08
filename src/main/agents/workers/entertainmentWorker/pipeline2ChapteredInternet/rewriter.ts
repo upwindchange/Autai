@@ -7,7 +7,11 @@ import {
   reasoningProviderOptions,
 } from "@agents/providers";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
-import { settingsService, entertainmentFrontendService, entertainmentBackendService } from "@/services";
+import {
+  settingsService,
+  entertainmentFrontendService,
+  entertainmentBackendService,
+} from "@/services";
 import type { DehydrateConfig } from "@shared";
 import { buildDehydrateSystemPrompt } from "../shared/dehydratePrompt";
 
@@ -165,14 +169,18 @@ export async function rewriteChapter(
       status: "rewriting",
     });
   } else {
-    entertainmentBackendService.updateRewrittenChapter(threadId, chapterNumber, {
-      status: "rewriting",
-    });
+    entertainmentBackendService.updateRewrittenChapter(
+      threadId,
+      chapterNumber,
+      {
+        status: "rewriting",
+      },
+    );
   }
 
   const sourceText =
-    entertainmentFrontendService.getSourceChapter(threadId, chapterNumber)?.content ??
-    "";
+    entertainmentFrontendService.getSourceChapter(threadId, chapterNumber)
+      ?.content ?? "";
 
   logger.info("rewriting", {
     threadId,
@@ -216,15 +224,23 @@ export async function rewriteChapter(
       threadId,
       chapterNumber,
     });
-    entertainmentBackendService.updateRewrittenChapter(threadId, chapterNumber, {
-      status: "error",
-    });
+    entertainmentBackendService.updateRewrittenChapter(
+      threadId,
+      chapterNumber,
+      {
+        status: "error",
+      },
+    );
     return "error";
   } catch (err) {
     logger.error("rewrite failed", { threadId, chapterNumber, err });
-    entertainmentBackendService.updateRewrittenChapter(threadId, chapterNumber, {
-      status: "error",
-    });
+    entertainmentBackendService.updateRewrittenChapter(
+      threadId,
+      chapterNumber,
+      {
+        status: "error",
+      },
+    );
     return "error";
   }
 }

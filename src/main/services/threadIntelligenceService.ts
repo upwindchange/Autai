@@ -383,7 +383,8 @@ INSTRUCTIONS:
       const settings = settingsService.settings;
       // Entertainment threads only see entertainment-scoped tags. Chat tags
       // (Coding/Research/…) are invisible to this tagger.
-      const existingTags = threadPersistenceService.listTagsByMode("entertainment");
+      const existingTags =
+        threadPersistenceService.listTagsByMode("entertainment");
       const tagNames = existingTags.map((t) => t.name);
 
       const tagInstruction =
@@ -429,10 +430,7 @@ INSTRUCTIONS:
       });
 
       const toolCall = result.toolCalls[0];
-      if (
-        !toolCall ||
-        toolCall.toolName !== "setEntertainmentMeta"
-      ) {
+      if (!toolCall || toolCall.toolName !== "setEntertainmentMeta") {
         logger.warn(
           "No setEntertainmentMeta tool call in response, skipping enrichment",
         );
@@ -519,10 +517,9 @@ INSTRUCTIONS:
 
     const sample =
       config.novel.type === "file" ?
-        entertainmentBackendService.getRawNovelText(threadId)?.slice(
-          0,
-          ENTERTAINMENT_SAMPLE_CHARS,
-        ) ?? null
+        (entertainmentBackendService
+          .getRawNovelText(threadId)
+          ?.slice(0, ENTERTAINMENT_SAMPLE_CHARS) ?? null)
       : (entertainmentFrontendService.getSourceChapter(threadId, 1)?.content ??
         null);
     if (!sample) {

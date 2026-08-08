@@ -272,7 +272,10 @@ const ThreadListItemMore: FC<{ threadId: string | undefined }> = ({
                 {t("sidebar.addTag")}
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent className="max-h-[260px] w-56 overflow-hidden p-0">
-                <AddTagSubmenuContent threadId={threadId} assignedTagIds={assignedIds} />
+                <AddTagSubmenuContent
+                  threadId={threadId}
+                  assignedTagIds={assignedIds}
+                />
               </DropdownMenuSubContent>
             </DropdownMenuSub>
           )}

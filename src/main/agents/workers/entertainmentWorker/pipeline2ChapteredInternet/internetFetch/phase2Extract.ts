@@ -33,10 +33,14 @@ const saveChapterContentTool = tool({
   }),
   execute: async (input, { experimental_context }) => {
     const ctx = experimental_context as InternetFetchContext;
-    entertainmentBackendService.updateSourceChapter(ctx.threadId, ctx.chapterNumber, {
-      content: input.content,
-      title: input.title,
-    });
+    entertainmentBackendService.updateSourceChapter(
+      ctx.threadId,
+      ctx.chapterNumber,
+      {
+        content: input.content,
+        title: input.title,
+      },
+    );
     logger.info("content saved", {
       threadId: ctx.threadId,
       chapterNumber: ctx.chapterNumber,

@@ -161,8 +161,10 @@ export function ProvidersModelsSection({
   // each params card renders the right thinking controls (or none). When
   // useSameModelForAgents is on, the agent's MODEL is the chat model (only the
   // params are the agent's own), so resolve reasoning options from chat.
-  const effectiveSimple = useSameModelForAgents ? chatModelConfig : simpleModelConfig;
-  const effectiveComplex = useSameModelForAgents ? chatModelConfig : complexModelConfig;
+  const effectiveSimple =
+    useSameModelForAgents ? chatModelConfig : simpleModelConfig;
+  const effectiveComplex =
+    useSameModelForAgents ? chatModelConfig : complexModelConfig;
   const chatReasoning = useReasoningOptions(
     providerDirForRole(chatModelConfig, providers),
     chatModelConfig.modelId || undefined,

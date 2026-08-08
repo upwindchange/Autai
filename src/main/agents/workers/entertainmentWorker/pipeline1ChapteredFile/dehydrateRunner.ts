@@ -37,7 +37,11 @@ import {
   type ResolvedModel,
 } from "@agents/providers";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
-import { settingsService, entertainmentFrontendService, entertainmentBackendService } from "@/services";
+import {
+  settingsService,
+  entertainmentFrontendService,
+  entertainmentBackendService,
+} from "@/services";
 import { buildDehydrateSystemPrompt } from "../shared/dehydratePrompt";
 
 const logger = log.scope("Dehydrate:Pipeline1:Runner");
@@ -151,10 +155,7 @@ async function probeCharsPerToken(
  * keeps the whole request (input + output + overhead) well inside the context
  * window. `maxOutputTokens` is optional — when absent only the other two apply.
  */
-function computeBudget(
-  resolved: ResolvedModel,
-  charsPerToken: number,
-): number {
+function computeBudget(resolved: ResolvedModel, charsPerToken: number): number {
   const maxOutputChars =
     resolved.maxOutputTokens != null ?
       resolved.maxOutputTokens * charsPerToken
@@ -385,11 +386,13 @@ export async function runDehydrateLoop(
       return;
     }
 
-    const consumedOffset = entertainmentBackendService.getConsumedOffset(threadId);
+    const consumedOffset =
+      entertainmentBackendService.getConsumedOffset(threadId);
     if (consumedOffset >= rawText.length) {
       // EOF: the final chunk's tool already set finalChapterNumber; finalize
       // defensively + drop the raw blob (an interrupted run kept it for resume).
-      const final = entertainmentBackendService.maxRewrittenChapterNumber(threadId);
+      const final =
+        entertainmentBackendService.maxRewrittenChapterNumber(threadId);
       if (
         final > 0 &&
         entertainmentFrontendService.getFinalChapterNumber(threadId) == null
@@ -421,9 +424,8 @@ export async function runDehydrateLoop(
     const fullBudget = computeBudget(resolved, charsPerToken);
     const fastStartup =
       consumedOffset < FAST_STARTUP_CHARS * FAST_STARTUP_PASSES;
-    const budget = fastStartup ?
-      Math.min(fullBudget, FAST_STARTUP_CHARS)
-    : fullBudget;
+    const budget =
+      fastStartup ? Math.min(fullBudget, FAST_STARTUP_CHARS) : fullBudget;
     const chunkStart = consumedOffset;
     const chunkEnd = Math.min(rawText.length, chunkStart + budget);
     const chunk = rawText.slice(chunkStart, chunkEnd);

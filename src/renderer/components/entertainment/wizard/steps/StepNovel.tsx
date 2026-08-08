@@ -101,16 +101,12 @@ export const StepNovel: FC<StepNovelProps> = ({
         {/* Structure — chaptered fiction vs a single continuous text. */}
         <div className="flex flex-col gap-2 sm:px-1">
           <div className="flex items-center gap-1.5">
-            <span className="text-sm">
-              {t("novel.source.structureLabel")}
-            </span>
+            <span className="text-sm">{t("novel.source.structureLabel")}</span>
             <HelpTooltip
               content={
                 <>
                   <p>{t("options.source.nonNovel.tooltip")}</p>
-                  <p className="mt-1">
-                    {t("options.source.nonNovel.example")}
-                  </p>
+                  <p className="mt-1">{t("options.source.nonNovel.example")}</p>
                 </>
               }
             />

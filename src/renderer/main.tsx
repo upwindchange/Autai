@@ -270,18 +270,16 @@ function AppContent() {
   // chapter title (entertainment mode, while reading) → thread/novel title →
   // app default. The chapter title wins only in entertainment mode and only
   // when present, so the wizard/options page still shows the thread title.
-  const headerTitle = showSettings ?
-    t("header.settings")
-  : appMode === "entertainment" && chapterTitle ?
-    chapterTitle
-  : (threadTitle ?? `${t("app.title")} ${t("header.aiAssistant")}`);
+  const headerTitle =
+    showSettings ? t("header.settings")
+    : appMode === "entertainment" && chapterTitle ? chapterTitle
+    : (threadTitle ?? `${t("app.title")} ${t("header.aiAssistant")}`);
   // Compact form for medium header widths: drop the " AI Assistant" suffix from
   // the default title (chapter/thread/settings titles have no shorter form).
-  const headerTitleShort = showSettings ?
-    t("header.settings")
-  : appMode === "entertainment" && chapterTitle ?
-    chapterTitle
-  : (threadTitle ?? t("app.title"));
+  const headerTitleShort =
+    showSettings ? t("header.settings")
+    : appMode === "entertainment" && chapterTitle ? chapterTitle
+    : (threadTitle ?? t("app.title"));
 
   // Effective zen: hide sidebar + header so the reader fills the window. Only
   // in entertainment mode without settings open.

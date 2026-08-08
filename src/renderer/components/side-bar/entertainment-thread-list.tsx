@@ -29,11 +29,7 @@ import { useState, type FC } from "react";
 import { useTagStore, type ThreadInfo } from "@/stores/tagStore";
 import { useEntertainmentThreadsStore } from "@/stores/entertainmentThreadsStore";
 import { cn } from "@/lib/utils";
-import {
-  archiveThread,
-  unarchiveThread,
-  deleteThread,
-} from "@/lib/tagApi";
+import { archiveThread, unarchiveThread, deleteThread } from "@/lib/tagApi";
 import {
   EMPTY_TAGS,
   ThreadTagChip,
@@ -67,9 +63,7 @@ export const EntertainmentThreadList: FC = () => {
 
 const GroupedEntertainmentList: FC = () => {
   const { t } = useTranslation("common");
-  const activeThreadId = useEntertainmentThreadsStore(
-    (s) => s.activeThreadId,
-  );
+  const activeThreadId = useEntertainmentThreadsStore((s) => s.activeThreadId);
   const setActiveThreadId = useEntertainmentThreadsStore(
     (s) => s.setActiveThreadId,
   );
@@ -109,9 +103,7 @@ const FlatEntertainmentList: FC = () => {
   const viewingArchive = useTagStore((s) => s.viewingArchive);
   const selectedTagId = useTagStore((s) => s.selectedTagId);
   const searchResultIds = useTagStore((s) => s.searchResultIds);
-  const activeThreadId = useEntertainmentThreadsStore(
-    (s) => s.activeThreadId,
-  );
+  const activeThreadId = useEntertainmentThreadsStore((s) => s.activeThreadId);
   const setActiveThreadId = useEntertainmentThreadsStore(
     (s) => s.setActiveThreadId,
   );
@@ -270,7 +262,10 @@ const EntertainmentThreadItemMenu: FC<{
               {t("sidebar.addTag")}
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="max-h-[260px] w-56 overflow-hidden p-0">
-              <AddTagSubmenuContent threadId={threadId} assignedTagIds={assignedIds} />
+              <AddTagSubmenuContent
+                threadId={threadId}
+                assignedTagIds={assignedIds}
+              />
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           <DropdownMenuItem onClick={() => void handleArchiveToggle()}>

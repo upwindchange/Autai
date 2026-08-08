@@ -85,8 +85,7 @@ export const ModelParamsFields: FC<ModelParamsFieldsProps> = ({
     onChange({ ...value, systemPrompt: v.length > 0 ? v : null });
   };
 
-  const hasReasoningControls =
-    reasoningOptions && reasoningOptions.length > 0;
+  const hasReasoningControls = reasoningOptions && reasoningOptions.length > 0;
   const autoLabel = t(k("auto"));
 
   return (
@@ -383,7 +382,9 @@ const ReasoningControls: FC<ReasoningControlsProps> = ({
           onValueChange={(v) => {
             if (!v) return; // re-clicking the active item clears it; ignore
             const next =
-              v === "on" ? true : v === "off" ? false : null;
+              v === "on" ? true
+              : v === "off" ? false
+              : null;
             // Switching to Auto or Off also clears effort/budget so nothing leaks.
             const patch: Partial<ModelParameters> = { reasoningEnabled: next };
             if (next === null || next === false) {
@@ -395,15 +396,9 @@ const ReasoningControls: FC<ReasoningControlsProps> = ({
           variant="outline"
           size="sm"
         >
-          <ToggleGroupItem value="auto">
-            {t(rk("auto"))}
-          </ToggleGroupItem>
-          <ToggleGroupItem value="on">
-            {t(rk("on"))}
-          </ToggleGroupItem>
-          <ToggleGroupItem value="off">
-            {t(rk("off"))}
-          </ToggleGroupItem>
+          <ToggleGroupItem value="auto">{t(rk("auto"))}</ToggleGroupItem>
+          <ToggleGroupItem value="on">{t(rk("on"))}</ToggleGroupItem>
+          <ToggleGroupItem value="off">{t(rk("off"))}</ToggleGroupItem>
         </ToggleGroup>
       </div>
 
@@ -418,9 +413,7 @@ const ReasoningControls: FC<ReasoningControlsProps> = ({
               <ToggleGroup
                 type="single"
                 value={effort ?? ""}
-                onValueChange={(v) =>
-                  onChange({ reasoningEffort: v || null })
-                }
+                onValueChange={(v) => onChange({ reasoningEffort: v || null })}
                 variant="outline"
                 size="sm"
                 className="flex-wrap"
@@ -453,7 +446,7 @@ const ReasoningControls: FC<ReasoningControlsProps> = ({
                 />
               </div>
               <Slider
-                value={budget != null ? [budget] : [(budgetOpt.min ?? 1024)]}
+                value={budget != null ? [budget] : [budgetOpt.min ?? 1024]}
                 min={budgetOpt.min ?? 1024}
                 max={budgetOpt.max ?? 65536}
                 step={1024}

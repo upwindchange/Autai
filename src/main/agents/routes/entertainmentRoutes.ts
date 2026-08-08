@@ -138,9 +138,11 @@ function applyConfig(
     threadPersistenceService.createThread(threadId, "entertainment");
     eventBus.emitEvent("threads:listChanged", null);
   }
-  const isFirst = !entertainmentFrontendService.getEntertainmentConfig(threadId);
+  const isFirst =
+    !entertainmentFrontendService.getEntertainmentConfig(threadId);
   entertainmentFrontendService.upsertEntertainmentConfig(threadId, config);
-  if (isFirst) entertainmentFrontendService.setupEntertainmentThread(threadId, config);
+  if (isFirst)
+    entertainmentFrontendService.setupEntertainmentThread(threadId, config);
   logger.info("applied config", {
     threadId,
     mode: config.mode,
@@ -431,7 +433,10 @@ entertainmentRoutes.put("/threads/:threadId/config", async (c) => {
         400,
       );
     }
-    entertainmentFrontendService.upsertEntertainmentConfig(threadId, parsed.data.config);
+    entertainmentFrontendService.upsertEntertainmentConfig(
+      threadId,
+      parsed.data.config,
+    );
     logger.info("updated config", {
       threadId,
       mode: parsed.data.config.mode,
@@ -469,7 +474,10 @@ entertainmentRoutes.get("/threads/:threadId/export", (c) => {
     } else {
       query = {};
     }
-    const chapters = entertainmentFrontendService.listExportChapters(threadId, query);
+    const chapters = entertainmentFrontendService.listExportChapters(
+      threadId,
+      query,
+    );
     if (chapters.length === 0) {
       return c.json({ error: "No processed chapters to export" }, 404);
     }
@@ -504,7 +512,9 @@ entertainmentRoutes.get("/threads/:threadId/export", (c) => {
 entertainmentRoutes.get("/threads/:threadId/bookmarks", (c) => {
   try {
     const threadId = c.req.param("threadId");
-    return c.json({ bookmarks: entertainmentFrontendService.listBookmarks(threadId) });
+    return c.json({
+      bookmarks: entertainmentFrontendService.listBookmarks(threadId),
+    });
   } catch (error) {
     logger.error("Error listing bookmarks:", error);
     return c.json({ error: "Failed to list bookmarks" }, 500);

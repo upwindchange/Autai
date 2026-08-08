@@ -174,7 +174,9 @@ const ModelColumn: FC<{
           {icon}
           {label}
         </div>
-        {sublabel && <div className="text-[11px] text-muted-foreground/80">{sublabel}</div>}
+        {sublabel && (
+          <div className="text-[11px] text-muted-foreground/80">{sublabel}</div>
+        )}
       </div>
       {model ?
         <>

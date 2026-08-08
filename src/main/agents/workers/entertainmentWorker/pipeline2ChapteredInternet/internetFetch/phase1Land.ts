@@ -42,9 +42,13 @@ const landHereTool = tool({
       tab?.webContents && !tab.webContents.isDestroyed() ?
         tab.webContents.getURL()
       : null;
-    entertainmentBackendService.updateSourceChapter(ctx.threadId, ctx.chapterNumber, {
-      url,
-    });
+    entertainmentBackendService.updateSourceChapter(
+      ctx.threadId,
+      ctx.chapterNumber,
+      {
+        url,
+      },
+    );
     logger.info("landed — url captured", {
       threadId: ctx.threadId,
       chapterNumber: ctx.chapterNumber,

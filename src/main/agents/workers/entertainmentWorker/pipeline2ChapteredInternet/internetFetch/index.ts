@@ -107,7 +107,10 @@ export async function fetchInternetChapter(
 
   // Own the source-row lifecycle + derive the landing path. A retry of an
   // errored chapter re-anchors via search; chapter 1 always searches.
-  const prior = entertainmentFrontendService.getSourceChapter(threadId, chapterNumber);
+  const prior = entertainmentFrontendService.getSourceChapter(
+    threadId,
+    chapterNumber,
+  );
   const useSearch = chapterNumber === 1 || prior?.status === "error";
   if (!prior) {
     entertainmentBackendService.insertSourceChapter({
@@ -146,7 +149,10 @@ export async function fetchInternetChapter(
   } catch (err) {
     if (err instanceof FinalChapterError) {
       await destroyCrawlTab(sessionId); // book done — release the crawl tab
-      entertainmentBackendService.setFinalChapterNumber(threadId, chapterNumber - 1);
+      entertainmentBackendService.setFinalChapterNumber(
+        threadId,
+        chapterNumber - 1,
+      );
       entertainmentBackendService.deleteSourceChapter(threadId, chapterNumber);
       logger.info("reached final chapter", {
         threadId,

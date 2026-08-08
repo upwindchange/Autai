@@ -17,7 +17,12 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { useUiStore, type AppMode } from "@/stores/uiStore";
-import { ChevronDown, Film, MessageSquare, type LucideIcon } from "lucide-react";
+import {
+  ChevronDown,
+  Film,
+  MessageSquare,
+  type LucideIcon,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 // Mode registry — the single place to add a new app mode. Append an entry and
@@ -25,7 +30,11 @@ import { useTranslation } from "react-i18next";
 // switchpoint reads from here rather than a hardcoded toggle).
 const MODES: { value: AppMode; labelKey: string; icon: LucideIcon }[] = [
   { value: "chat", labelKey: "sidebar.mode.chat", icon: MessageSquare },
-  { value: "entertainment", labelKey: "sidebar.mode.entertainment", icon: Film },
+  {
+    value: "entertainment",
+    labelKey: "sidebar.mode.entertainment",
+    icon: Film,
+  },
 ];
 
 export function NavSecondary({
@@ -37,8 +46,7 @@ export function NavSecondary({
 
   // The active entry drives the trigger's icon + label. Falls back to the first
   // mode if the store ever holds a value not in the registry.
-  const active =
-    MODES.find((m) => m.value === appMode) ?? MODES[0];
+  const active = MODES.find((m) => m.value === appMode) ?? MODES[0];
   const ActiveIcon = active.icon;
 
   return (
@@ -55,9 +63,7 @@ export function NavSecondary({
                   className="w-full justify-start gap-2"
                 >
                   <ActiveIcon className="size-4" />
-                  <span className="flex-1 text-left">
-                    {t(active.labelKey)}
-                  </span>
+                  <span className="flex-1 text-left">{t(active.labelKey)}</span>
                   <ChevronDown className="size-4 opacity-60" />
                 </Button>
               </DropdownMenuTrigger>

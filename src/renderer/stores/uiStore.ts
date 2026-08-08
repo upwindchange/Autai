@@ -8,7 +8,7 @@ export type SettingsSection =
   | "aiAgents"
   | "mcpServers"
   | "threads"
-  | "development"
+  | "development";
 
 // Top-level UI mode: chat vs entertainment (more can be added). Drives which
 // thread set the sidebar lists and which thread view fills the content slot.

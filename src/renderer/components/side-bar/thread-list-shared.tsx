@@ -12,9 +12,7 @@ import { useTagStore, type ThreadInfo } from "@/stores/tagStore";
 import { getRandomPaletteColor } from "@/lib/tagColors";
 import { cn } from "@/lib/utils";
 import { Input } from "@/components/ui/input";
-import {
-  DropdownMenuItem,
-} from "@/components/ui/dropdown-menu";
+import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import type { TagRow } from "@shared/tag";
 import { TagBadge } from "./tag-badge";
 
@@ -302,7 +300,11 @@ export const GroupedThreadItem: FC<{
       {selectionIndicator}
       <span className="min-w-0 flex-1 truncate">{thread.title}</span>
       {thread.tags.map((tag) => (
-        <TagBadge key={tag.id} color={tag.color} className="px-1 py-0 text-[10px]">
+        <TagBadge
+          key={tag.id}
+          color={tag.color}
+          className="px-1 py-0 text-[10px]"
+        >
           {tag.name}
         </TagBadge>
       ))}
@@ -335,14 +337,19 @@ export function useTagGroups() {
  * created from that query. Shared by TagPanel (sidebar) and the add-tag
  * submenu so both filter and create identically.
  */
-export function useTagFilter(tags: TagRow[], query: string): {
+export function useTagFilter(
+  tags: TagRow[],
+  query: string,
+): {
   filtered: TagRow[];
   canCreate: boolean;
 } {
   return useMemo(() => {
     const q = query.trim().toLowerCase();
-    const filtered = q ? tags.filter((t) => t.name.toLowerCase().includes(q)) : tags;
-    const canCreate = q.length > 0 && !tags.some((t) => t.name.toLowerCase() === q);
+    const filtered =
+      q ? tags.filter((t) => t.name.toLowerCase().includes(q)) : tags;
+    const canCreate =
+      q.length > 0 && !tags.some((t) => t.name.toLowerCase() === q);
     return { filtered, canCreate };
   }, [tags, query]);
 }
@@ -366,7 +373,9 @@ export const AddTagSubmenuContent: FC<{
     await useTagStore.getState().addTagToThread(threadId, tagId);
   };
   const createAndAdd = async () => {
-    const created = await useTagStore.getState().createTag(query.trim(), getRandomPaletteColor());
+    const created = await useTagStore
+      .getState()
+      .createTag(query.trim(), getRandomPaletteColor());
     await addTag(created.id);
     setQuery("");
   };
@@ -401,7 +410,9 @@ export const AddTagSubmenuContent: FC<{
               }}
             >
               <TagBadge color={tag.color}>{tag.name}</TagBadge>
-              {applied && <CheckIcon className="ml-auto size-3.5 text-muted-foreground" />}
+              {applied && (
+                <CheckIcon className="ml-auto size-3.5 text-muted-foreground" />
+              )}
             </DropdownMenuItem>
           );
         })}

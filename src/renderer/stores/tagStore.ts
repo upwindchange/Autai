@@ -67,11 +67,7 @@ interface TagState {
   addTagToThread: (threadId: string, tagId: number) => Promise<void>;
   removeTagFromThread: (threadId: string, tagId: number) => Promise<void>;
   renameThread: (threadId: string, title: string) => Promise<void>;
-  updateThreadTitle: (
-    threadId: string,
-    title: string,
-    tags?: TagRow[],
-  ) => void;
+  updateThreadTitle: (threadId: string, title: string, tags?: TagRow[]) => void;
   getTagsForThread: (threadId: string | undefined) => TagRow[];
 
   // Multi-select actions

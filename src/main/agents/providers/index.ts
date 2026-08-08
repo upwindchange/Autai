@@ -208,7 +208,11 @@ function assignmentForRole(role: ModelRole): {
   // the agent role's own row (which may be empty → falls back to defaults).
   const paramsRow =
     useSame && role !== "chat" ?
-      db.select().from(modelAssignments).where(eq(modelAssignments.role, role)).get()
+      db
+        .select()
+        .from(modelAssignments)
+        .where(eq(modelAssignments.role, role))
+        .get()
     : assignment;
 
   let params: ModelParameters | undefined;
@@ -319,12 +323,7 @@ export function providerOptionsNamespace(model: LanguageModel): string {
  */
 type ReasoningPayload = { [key: string]: ReasoningPayloadValue };
 type ReasoningPayloadValue =
-  | string
-  | number
-  | boolean
-  | null
-  | ReasoningPayload
-  | ReasoningPayloadValue[];
+  string | number | boolean | null | ReasoningPayload | ReasoningPayloadValue[];
 
 /**
  * Map the user's catalog-vocabulary reasoning selection to the SDK-specific

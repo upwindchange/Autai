@@ -850,11 +850,7 @@ export type ChapterPipeline = "file" | "internet" | "nonNovel";
  *                `ChapterStatus.messageKey` is the not-yet-processed copy.
  */
 export type ChapterPhase =
-  | "loading"
-  | "syncing"
-  | "error"
-  | "success"
-  | "stopped";
+  "loading" | "syncing" | "error" | "success" | "stopped";
 
 /**
  * Reader-facing per-chapter status — the single source the renderer renders from.

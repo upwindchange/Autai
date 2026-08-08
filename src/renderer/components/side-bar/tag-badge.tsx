@@ -23,7 +23,10 @@ export function TagBadge({
 >) {
   if (!color) {
     return (
-      <Badge className={cn("bg-muted text-muted-foreground", className)} {...props}>
+      <Badge
+        className={cn("bg-muted text-muted-foreground", className)}
+        {...props}
+      >
         {children}
       </Badge>
     );
