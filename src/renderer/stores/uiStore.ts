@@ -9,7 +9,10 @@ export type SettingsSection =
   | "mcpServers"
   | "threads"
   | "development"
-  | "about";
+
+// Top-level UI mode: chat vs entertainment (more can be added). Drives which
+// thread set the sidebar lists and which thread view fills the content slot.
+export type AppMode = "chat" | "entertainment";
 
 interface UiState {
   // Settings visibility
@@ -46,10 +49,9 @@ interface UiState {
   sessionId: string | null;
   setSessionId: (sessionId: string | null) => void;
 
-  // App mode (top-level UI): chat vs entertainment. Drives which thread set the
-  // sidebar lists and which thread view fills the content slot.
-  appMode: "chat" | "entertainment";
-  setAppMode: (mode: "chat" | "entertainment") => void;
+  // App mode (top-level UI) — see `AppMode`.
+  appMode: AppMode;
+  setAppMode: (mode: AppMode) => void;
 
   // Zen mode: hides the sidebar + header so the entertainment reader fills the
   // whole window. Only effective in entertainment mode without settings open;
