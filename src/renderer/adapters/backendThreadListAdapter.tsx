@@ -192,7 +192,7 @@ const BackendThreadListProvider: FC<PropsWithChildren> = ({ children }) => {
     () =>
       new BackendThreadHistoryAdapter(() => {
         try {
-          return aui.threadListItem().getState().remoteId;
+          return aui.threadListItem.getState().remoteId;
         } catch {
           return null;
         }

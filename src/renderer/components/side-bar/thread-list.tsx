@@ -88,7 +88,7 @@ const GroupedThreadList: FC = () => {
   const mainThreadId = useAuiState((s) => s.threads.mainThreadId);
   const { tagGroups, untagged } = useTagGroups();
   const handleSwitch = (threadId: string) =>
-    aui.threads().switchToThread(threadId);
+    aui.threads.switchToThread(threadId);
 
   return (
     <div className="flex flex-col gap-1">

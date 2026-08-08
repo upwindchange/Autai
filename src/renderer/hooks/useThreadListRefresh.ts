@@ -19,7 +19,7 @@ export function useThreadListRefresh(): (opts?: {
   return async (opts) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const runtime = (
-      aui.threads() as any
+      aui.threads as any
     ).__internal_getAssistantRuntime?.() as AssistantRuntime | undefined;
     if (!runtime) return;
 

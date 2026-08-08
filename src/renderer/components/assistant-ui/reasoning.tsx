@@ -18,7 +18,7 @@ import {
   type ReasoningMessagePartComponent,
   type ReasoningGroupComponent,
 } from "@assistant-ui/react";
-import { MarkdownText } from "@/components/ai-chat/streamdown";
+import { MarkdownText } from "@/components/assistant-ui/markdown-text";
 import {
   Collapsible,
   CollapsibleContent,
@@ -52,10 +52,13 @@ export type ReasoningRootProps = Omit<
     onOpenChange?: (open: boolean) => void;
     defaultOpen?: boolean;
     /**
-     * Whether the reasoning is currently streaming. When provided, it
-     * supersedes `defaultOpen`: the disclosure auto-opens while streaming
-     * with a bottom-pinned live preview, auto-collapses when streaming
-     * ends, and the first manual toggle takes over permanently.
+     * Whether the reasoning is currently streaming. While `true` the
+     * disclosure is held open with a bottom-pinned live preview; when
+     * streaming ends it returns to `defaultOpen`, and the first manual
+     * toggle takes over the open/close state permanently. The live preview
+     * keeps following the newest tokens while the disclosure is open during
+     * streaming, even after a manual toggle, and pauses while the reader is
+     * scrolled up.
      */
     streaming?: boolean;
   };
@@ -78,16 +81,19 @@ function ReasoningRoot({
   const isControlled = controlledOpen !== undefined;
   const isOpen =
     isControlled ? controlledOpen : (
-      (userOpen ?? streaming ?? initialOpenRef.current)
+      (userOpen ?? (streaming || initialOpenRef.current))
     );
-  const isAutoMode = isControlled || userOpen === null;
-  const isPreview = streaming === true && isOpen && isAutoMode;
+  const isPreview = streaming === true && isOpen;
 
   const prevStreamingRef = useRef(streaming);
   useLayoutEffect(() => {
     if (prevStreamingRef.current === streaming) return;
     prevStreamingRef.current = streaming;
-    if (!isControlled && userOpen === null) lockScroll();
+    // A streaming transition only animates the panel when the resting state
+    // is collapsed; with `defaultOpen` the disclosure stays open across it.
+    if (!isControlled && userOpen === null && !initialOpenRef.current) {
+      lockScroll();
+    }
   }, [streaming, isControlled, userOpen, lockScroll]);
 
   const handleOpenChange = useCallback(
@@ -138,7 +144,7 @@ function ReasoningFade({
         className={cn(
           "aui-reasoning-fade pointer-events-none absolute inset-x-0 top-0 z-10 h-8",
           "bg-[linear-gradient(to_bottom,var(--color-background),transparent)]",
-          "group-data-[variant=muted]/reasoning-root:bg-[linear-gradient(to_bottom,hsl(var(--muted)/0.5),transparent)]",
+          "group-data-[variant=muted]/reasoning-root:bg-[linear-gradient(to_bottom,color-mix(in_oklab,var(--color-muted)_50%,var(--color-background)),transparent)]",
           "fade-in-0 animate-in",
           "duration-(--animation-duration)",
           className,
@@ -154,7 +160,7 @@ function ReasoningFade({
       className={cn(
         "aui-reasoning-fade pointer-events-none absolute inset-x-0 bottom-0 z-10 h-8",
         "bg-[linear-gradient(to_top,var(--color-background),transparent)]",
-        "group-data-[variant=muted]/reasoning-root:bg-[linear-gradient(to_top,hsl(var(--muted)/0.5),transparent)]",
+        "group-data-[variant=muted]/reasoning-root:bg-[linear-gradient(to_top,color-mix(in_oklab,var(--color-muted)_50%,var(--color-background)),transparent)]",
         "fade-in-0 animate-in",
         "duration-(--animation-duration)",
         className,
@@ -208,8 +214,9 @@ function ReasoningTrigger({
         className={cn(
           "aui-reasoning-trigger-chevron mt-0.5 size-4 shrink-0",
           "transition-transform duration-(--animation-duration) ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:transition-none",
-          "group-data-[state=closed]/trigger:-rotate-90",
-          "group-data-[state=open]/trigger:rotate-0",
+          "-rotate-90",
+          "group-data-open/trigger:rotate-0",
+          "group-data-panel-open/trigger:rotate-0",
         )}
       />
     </CollapsibleTrigger>
@@ -229,12 +236,12 @@ function ReasoningContent({
       className={cn(
         "aui-reasoning-content text-muted-foreground relative overflow-hidden text-sm outline-none",
         "group/collapsible-content ease-[cubic-bezier(0.32,0.72,0,1)] motion-reduce:animate-none",
-        "data-[state=closed]:animate-collapsible-up",
-        "data-[state=open]:animate-collapsible-down",
-        "data-[state=closed]:fill-mode-forwards",
-        "data-[state=closed]:pointer-events-none",
-        "data-[state=open]:duration-(--animation-duration)",
-        "data-[state=closed]:duration-(--animation-duration)",
+        "data-closed:animate-collapsible-up",
+        "data-open:animate-collapsible-down",
+        "data-closed:fill-mode-forwards",
+        "data-closed:pointer-events-none",
+        "data-open:duration-(--animation-duration)",
+        "data-closed:duration-(--animation-duration)",
         className,
       )}
       {...props}
@@ -262,13 +269,43 @@ function ReasoningText({
     const scrollEl = scrollRef.current;
     const contentEl = contentRef.current;
     if (!scrollEl || !contentEl) return;
+
+    let pinned = true;
+    let lastScrollTop = scrollEl.scrollTop;
+    let lastScrollHeight = scrollEl.scrollHeight;
+    const isAtBottom = () =>
+      Math.abs(
+        scrollEl.scrollHeight - scrollEl.scrollTop - scrollEl.clientHeight,
+      ) <= 1 || scrollEl.scrollHeight <= scrollEl.clientHeight;
+
     const pin = () => {
+      if (!pinned) return;
       scrollEl.scrollTop = scrollEl.scrollHeight;
     };
+    // A pin's own scroll event can arrive after new content grew the scroll
+    // height and read as "not at bottom"; only an upward move at unchanged
+    // scroll height is user intent.
+    const onScroll = () => {
+      if (isAtBottom()) {
+        pinned = true;
+      } else if (
+        scrollEl.scrollTop < lastScrollTop &&
+        scrollEl.scrollHeight === lastScrollHeight
+      ) {
+        pinned = false;
+      }
+      lastScrollTop = scrollEl.scrollTop;
+      lastScrollHeight = scrollEl.scrollHeight;
+    };
+
     pin();
+    scrollEl.addEventListener("scroll", onScroll);
     const observer = new ResizeObserver(pin);
     observer.observe(contentEl);
-    return () => observer.disconnect();
+    return () => {
+      scrollEl.removeEventListener("scroll", onScroll);
+      observer.disconnect();
+    };
   }, [isPreview]);
 
   return (
@@ -279,16 +316,16 @@ function ReasoningText({
         "aui-reasoning-text relative z-0 max-h-64 overflow-y-auto ps-6 pt-2 pb-2 leading-relaxed text-pretty",
         "transform-gpu transition-[transform,opacity] ease-[cubic-bezier(0.32,0.72,0,1)]",
         "motion-reduce:animate-none",
-        "group-data-[state=open]/collapsible-content:animate-in",
-        "group-data-[state=closed]/collapsible-content:animate-out",
-        "group-data-[state=open]/collapsible-content:fade-in-0",
-        "group-data-[state=closed]/collapsible-content:fade-out-0",
-        "group-data-[state=open]/collapsible-content:slide-in-from-top-4",
-        "group-data-[state=closed]/collapsible-content:slide-out-to-top-4",
-        "group-data-[state=open]/collapsible-content:blur-in-[2px]",
-        "group-data-[state=closed]/collapsible-content:blur-out-[2px]",
-        "group-data-[state=open]/collapsible-content:duration-(--animation-duration)",
-        "group-data-[state=closed]/collapsible-content:duration-(--animation-duration)",
+        "group-data-open/collapsible-content:animate-in",
+        "group-data-closed/collapsible-content:animate-out",
+        "group-data-open/collapsible-content:fade-in-0",
+        "group-data-closed/collapsible-content:fade-out-0",
+        "group-data-open/collapsible-content:slide-in-from-top-4",
+        "group-data-closed/collapsible-content:slide-out-to-top-4",
+        "group-data-open/collapsible-content:blur-in-[2px]",
+        "group-data-closed/collapsible-content:blur-out-[2px]",
+        "group-data-open/collapsible-content:duration-(--animation-duration)",
+        "group-data-closed/collapsible-content:duration-(--animation-duration)",
         className,
       )}
       {...props}
@@ -309,11 +346,10 @@ const ReasoningGroupImpl: ReasoningGroupComponent = ({
 }) => {
   const isReasoningStreaming = useAuiState((s) => {
     if (s.message.status?.type !== "running") return false;
-    const lastIndex = s.message.parts.length - 1;
-    if (lastIndex < 0) return false;
-    const lastType = s.message.parts[lastIndex]?.type;
-    if (lastType !== "reasoning") return false;
-    return lastIndex >= startIndex && lastIndex <= endIndex;
+    for (let index = startIndex; index <= endIndex; index++) {
+      if (s.message.parts[index]?.status.type === "running") return true;
+    }
+    return false;
   });
 
   return (

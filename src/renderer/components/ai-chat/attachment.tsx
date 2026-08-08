@@ -311,7 +311,7 @@ export const ComposerAddAttachment: FC = () => {
     for (const { file, fsPath, name } of await pickFiles()) {
       if (!file) continue;
       if (fsPath) filePathStore.set(name, fsPath);
-      await aui.composer().addAttachment(file);
+      await aui.composer.addAttachment(file);
     }
   };
 
