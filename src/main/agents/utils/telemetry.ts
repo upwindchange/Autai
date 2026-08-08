@@ -1,7 +1,7 @@
 import { LangfuseSpanProcessor, ShouldExportSpan } from "@langfuse/otel";
 import { NodeSDK } from "@opentelemetry/sdk-node";
-import { registerTelemetryIntegration } from "ai";
-import { OpenTelemetryIntegration } from "@ai-sdk/otel";
+import { registerTelemetry } from "ai";
+import { OpenTelemetry } from "@ai-sdk/otel";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
 
@@ -55,7 +55,7 @@ export function initializeTelemetry(): void {
 
     // Register AI SDK's OpenTelemetry integration so streamText/generateText
     // calls create proper spans that the LangfuseSpanProcessor can collect.
-    registerTelemetryIntegration(new OpenTelemetryIntegration() as any);
+    registerTelemetry(new OpenTelemetry());
 
     logger.info("Langfuse telemetry initialized successfully");
   } catch (error) {

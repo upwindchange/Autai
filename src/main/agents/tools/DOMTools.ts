@@ -1,8 +1,9 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { toolContextSchema } from "./types/context";
 import { SessionTabService } from "@/services";
 import { PQueueManager } from "@agents/utils";
-import type { ToolExecutionContext } from "./types/context";
+
 import type { DOMService } from "@/services";
 
 // ===== Shared Helper =====
@@ -47,8 +48,8 @@ export const getDOMTreeTool = tool({
   description:
     "Extract DOM tree with intelligent change detection to identify if the page has changed since last analysis",
   inputSchema: z.object({}),
-  execute: async (_input, { experimental_context }) => {
-    const context = experimental_context as ToolExecutionContext;
+  contextSchema: toolContextSchema,
+  execute: async (_input, { context }) => {
 
     if (!context.activeTabId) {
       throw new Error(
@@ -101,8 +102,8 @@ export const getFlattenDOMTool = tool({
   description:
     "Generate an LLM-optimized textual representation of the DOM tree root node",
   inputSchema: z.object({}),
-  execute: async (_input, { experimental_context }) => {
-    const context = experimental_context as ToolExecutionContext;
+  contextSchema: toolContextSchema,
+  execute: async (_input, { context }) => {
 
     if (!context.activeTabId) {
       throw new Error(

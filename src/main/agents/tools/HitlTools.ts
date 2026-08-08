@@ -31,15 +31,13 @@ export const requestHumanInterventionTool = tool({
       .optional()
       .describe('Label for the confirmation button. Default: "Done"'),
   }),
-  execute: async ({ reason }, { toolCallId, experimental_context }) => {
+  execute: async ({ reason }, options) => {
     const hitlService = HitlService.getInstance();
-    const ctx = experimental_context as
-      { abortSignal?: AbortSignal } | undefined;
 
     const response = await hitlService.request<{
       completed: boolean;
       message?: string;
-    }>(toolCallId, undefined, ctx?.abortSignal);
+    }>(options.toolCallId, undefined, options.abortSignal);
 
     return {
       completed: response.completed,
@@ -80,15 +78,13 @@ export const requestUserInputTool = tool({
       .optional()
       .describe('Label for the submit button. Default: "Submit"'),
   }),
-  execute: async ({ question }, { toolCallId, experimental_context }) => {
+  execute: async ({ question }, options) => {
     const hitlService = HitlService.getInstance();
-    const ctx = experimental_context as
-      { abortSignal?: AbortSignal } | undefined;
 
     const response = await hitlService.request<{ answer: string }>(
-      toolCallId,
+      options.toolCallId,
       undefined,
-      ctx?.abortSignal,
+      options.abortSignal,
     );
 
     return {
@@ -155,17 +151,15 @@ export const requestOptionListTool = tool({
       .describe("Pre-selected option ID(s)"),
   }),
   execute: async (
-    { prompt, options },
-    { toolCallId, experimental_context },
+    { prompt, options: opt },
+    execOptions,
   ) => {
     const hitlService = HitlService.getInstance();
-    const ctx = experimental_context as
-      { abortSignal?: AbortSignal } | undefined;
 
     const response = await hitlService.request<{
       selection: string | string[] | null;
       cancelled: boolean;
-    }>(toolCallId, undefined, ctx?.abortSignal);
+    }>(execOptions.toolCallId, undefined, execOptions.abortSignal);
 
     if (response.cancelled || response.selection == null) {
       return {
@@ -183,7 +177,7 @@ export const requestOptionListTool = tool({
       cancelled: false,
       selection: response.selection,
       prompt,
-      selectedOptions: options.filter((opt) => ids.includes(opt.id)),
+      selectedOptions: opt.filter((o) => ids.includes(o.id)),
     };
   },
 });
@@ -247,15 +241,13 @@ export const requestQuestionFlowTool = tool({
       .max(5)
       .describe("Steps to present (max 5)"),
   }),
-  execute: async ({ prompt, steps }, { toolCallId, experimental_context }) => {
+  execute: async ({ prompt, steps }, options) => {
     const hitlService = HitlService.getInstance();
-    const ctx = experimental_context as
-      { abortSignal?: AbortSignal } | undefined;
 
     const response = await hitlService.request<{
       answers: Record<string, string[]>;
       cancelled: boolean;
-    }>(toolCallId, undefined, ctx?.abortSignal);
+    }>(options.toolCallId, undefined, options.abortSignal);
 
     if (response.cancelled) {
       return { cancelled: true, answers: {}, prompt };

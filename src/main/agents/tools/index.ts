@@ -1,7 +1,7 @@
 /**
  * AI SDK Browser Automation Tools
  *
- * Uses experimental_context for zero-token context passing
+ * Uses toolsContext for zero-token context passing
  */
 
 // Export tool collections as objects

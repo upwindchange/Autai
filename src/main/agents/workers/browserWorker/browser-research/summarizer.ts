@@ -79,11 +79,11 @@ ${quotesText}`;
   const result = streamText({
     model: chatLanguageModel,
     messages: summaryMessages,
-    system: summarizerSystemPrompt,
+    instructions: summarizerSystemPrompt,
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.chat,
     abortSignal: signal,
-    experimental_telemetry: {
+    telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "research-summarizer",
     },
@@ -130,11 +130,11 @@ Snippet: ${result.snippet}`;
   const result = streamText({
     model: chatLanguageModel,
     messages: summaryMessages,
-    system: summarizerSystemPrompt,
+    instructions: summarizerSystemPrompt,
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.chat,
     abortSignal: signal,
-    experimental_telemetry: {
+    telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "research-summarizer-quick",
     },

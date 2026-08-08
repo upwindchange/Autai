@@ -1,4 +1,4 @@
-import { streamText, stepCountIs, tool } from "ai";
+import { streamText, isStepCount, tool } from "ai";
 import { z } from "zod";
 import log from "electron-log/main";
 import {
@@ -26,7 +26,7 @@ export type RewriteOutcome = "rewritten" | "error";
  * chapter prose; execute writes that prose + the `"rewritten"` status to
  * `rewritten_chapters(N)` in one shot, and `hasSuccessfulToolResult` then stops
  * the stream — so this single tool call both persists the result and terminates
- * the agent. `threadId` / `chapterNumber` arrive via `experimental_context`
+ * the agent. `threadId` / `chapterNumber` arrive via `toolsContext`
  * (zero-token — never in the prompt). Named as an output verb so the model
  * reads it as "this is how I hand back the rewritten text", not a side-effect
  * save it might skip in favor of plain-text output.
@@ -43,11 +43,11 @@ const outputProcessedContentTool = tool({
       .min(1)
       .describe("The full rewritten chapter content, content only."),
   }),
-  execute: async (input, { experimental_context }) => {
-    const ctx = experimental_context as {
-      threadId: string;
-      chapterNumber: number;
-    };
+  contextSchema: z.object({
+    threadId: z.string(),
+    chapterNumber: z.number(),
+  }),
+  execute: async (input, { context: ctx }) => {
     entertainmentBackendService.updateRewrittenChapter(
       ctx.threadId,
       ctx.chapterNumber,
@@ -106,7 +106,7 @@ async function runRewriteAgent(
   );
   const result = streamText({
     model: resolved.model,
-    system: systemPrompt,
+    instructions: systemPrompt,
     messages: [{ role: "user", content: sourceText }],
     tools: {
       outputProcessedContent: outputProcessedContentTool,
@@ -114,18 +114,17 @@ async function runRewriteAgent(
     toolChoice: { type: "tool", toolName: "outputProcessedContent" },
     stopWhen: [
       hasSuccessfulToolResult("outputProcessedContent"),
-      stepCountIs(3),
+      isStepCount(3),
     ],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.novel,
     abortSignal: signal,
     ...sampling,
     ...(reasoning && { providerOptions: reasoning }),
-    experimental_context: { threadId, chapterNumber },
-    experimental_telemetry: {
+    toolsContext: { outputProcessedContent: { threadId, chapterNumber } },
+    telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "entertainment-rewriter",
-      metadata: { threadId, chapterNumber },
     },
   });
   const steps = await result.steps;

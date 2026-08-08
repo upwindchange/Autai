@@ -1,5 +1,5 @@
 import {
-  stepCountIs,
+  isStepCount,
   streamText,
   tool,
   createUIMessageStream,
@@ -308,11 +308,12 @@ export async function executeSubtasks(
 
           // ============================================================
           // EXECUTE ACTIONS FOR THIS SUBTASK USING streamText
+          const toolCtx = { sessionId, activeTabId, chatModel: chatLanguageModel, writer, abortSignal: signal };
           // ============================================================
           const result = streamText({
             model: complexModel().model,
             messages: [{ role: "user", content: subtaskContext }],
-            system: ACTION_EXECUTOR_PROMPT,
+            instructions: ACTION_EXECUTOR_PROMPT,
             tools: {
               getFlattenDOMTool,
               ...interactiveTools,
@@ -380,27 +381,24 @@ export async function executeSubtasks(
             toolChoice: "auto",
             stopWhen: [
               hasSuccessfulToolResult("subtaskComplete"),
-              stepCountIs(100),
+              isStepCount(100),
             ],
             maxRetries: settingsService.settings.maxRetries,
             timeout: TIMEOUTS.actionExecution,
             abortSignal: signal,
-            experimental_telemetry: {
+            telemetry: {
               isEnabled: settingsService.settings.langfuse.enabled,
               functionId: "browser-use-action-executor",
-              metadata: {
-                sessionId,
-                subtaskId: subtask.id,
-                subtaskLabel: subtask.label,
-                subtaskIndex: i,
-              },
             },
-            experimental_context: {
-              sessionId,
-              activeTabId,
-              chatModel: chatLanguageModel,
-              writer,
-              abortSignal: signal,
+            toolsContext: {
+              getFlattenDOMTool: toolCtx,
+              clickElement: toolCtx, interceptClickUrl: toolCtx, fillElement: toolCtx,
+              selectOption: toolCtx, hoverElement: toolCtx, dragToElement: toolCtx,
+              scrollPages: toolCtx, scrollAtCoordinate: toolCtx,
+              getAttribute: toolCtx, getAllAttributes: toolCtx,
+              evaluate: toolCtx, getBasicInfo: toolCtx,
+              navigate: toolCtx, refresh: toolCtx, goBack: toolCtx, goForward: toolCtx,
+              askUser: toolCtx,
             },
           });
 

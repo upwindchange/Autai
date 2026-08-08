@@ -9,7 +9,7 @@ import {
 export const ChatRequestSchema = z.object({
   id: z.string().optional(),
   messages: z.array(z.any()), // UIMessage[] - structurally validated by AI SDK
-  system: z.string().optional(),
+  instructions: z.string().optional(),
   // Per-thread model parameters override. Absent ⇒ backend falls back to the
   // system-level defaultModelParams from settings.
   modelParams: ModelParametersSchema.optional(),

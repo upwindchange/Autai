@@ -1,4 +1,4 @@
-import { stepCountIs, streamText, tool } from "ai";
+import { isStepCount, streamText, tool, toUIMessageStream } from "ai";
 import { z } from "zod";
 import { chatModel } from "@agents/providers";
 import { hitlTools } from "./HitlTools";
@@ -8,7 +8,7 @@ import {
   createToolFilteredStream,
   TIMEOUTS,
 } from "@agents/utils";
-import type { ToolExecutionContext } from "./types/context";
+import { toolContextSchema } from "./types/context";
 import log from "electron-log/main";
 
 const logger = log.scope("hitl-agent");
@@ -59,40 +59,33 @@ export const askUserTool = tool({
           "For open-ended needs, describe what is known and what is missing.",
       ),
   }),
-  execute: async ({ request, context }, { experimental_context }) => {
-    const ctx = experimental_context as ToolExecutionContext;
-    const writer = ctx.writer;
+  contextSchema: toolContextSchema,
+  execute: async ({ request, context: contextInfo }, { context }) => {
+    const writer = context.writer;
 
     if (!writer) {
       throw new Error(
         "askUser tool requires a stream writer in context - " +
-          "it can only be used within streaming workers that pass the writer through experimental_context",
+          "it can only be used within streaming workers that pass the writer through toolsContext",
       );
     }
 
     logger.debug("HITL agent invoked", { request });
 
     const userMessage =
-      context ? `## Request\n${request}\n\n## Context\n${context}` : request;
+      contextInfo ? `## Request\n${request}\n\n## Context\n${contextInfo}` : request;
 
     const result = streamText({
-      model: ctx.chatModel ?? chatModel().model,
+      model: context.chatModel ?? chatModel().model,
       messages: [{ role: "user", content: userMessage }],
-      system: HITL_AGENT_PROMPT,
+      instructions: HITL_AGENT_PROMPT,
       tools: hitlTools,
       toolChoice: "auto",
-      stopWhen: [stepCountIs(10)],
+      stopWhen: [isStepCount(10)],
       maxRetries: settingsService.settings.maxRetries,
       timeout: TIMEOUTS.hitlAgent,
-      abortSignal: ctx.abortSignal,
-      experimental_context: {
-        sessionId: ctx.sessionId,
-        activeTabId: ctx.activeTabId,
-        chatModel: ctx.chatModel,
-        writer: ctx.writer,
-        abortSignal: ctx.abortSignal,
-      },
-      experimental_telemetry: {
+      abortSignal: context.abortSignal,
+      telemetry: {
         isEnabled: settingsService.settings.langfuse.enabled,
         functionId: "hitl-agent",
       },
@@ -100,7 +93,7 @@ export const askUserTool = tool({
 
     await mergeStreamAndWait(
       createToolFilteredStream(
-        result.toUIMessageStream({ sendStart: false }),
+        toUIMessageStream({ stream: result.stream, sendStart: false }),
         HITL_TOOL_NAMES,
       ),
       writer,

@@ -11,7 +11,7 @@ import { extractChapter } from "./phase2Extract";
 const logger = log.scope("Dehydrate:InternetFetch");
 
 /**
- * Context injected into every phase agent's tools via `experimental_context`.
+ * Context injected into every phase agent's tools via `toolsContext`.
  * Carries `threadId` + `chapterNumber` (which chapter the terminal tools write
  * to) alongside the browser `sessionId` + `activeTabId` the existing tools
  * expect — all zero-token (never appears in a prompt). This is the "context
@@ -66,7 +66,7 @@ async function ensureCrawlTab(sessionId: string): Promise<string> {
   const tabId = tabs[0];
   // Point the session's active-tab pointer at our crawl tab so split-view
   // visibility (if enabled) tracks it. (Tools target the tab via the
-  // `activeTabId` we pass in experimental_context, not this pointer.)
+  // `activeTabId` we pass in toolsContext, not this pointer.)
   const state = sts.getSessionTabState(sessionId);
   if (state) state.activeTabId = tabId;
   return tabId;

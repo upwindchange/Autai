@@ -423,7 +423,7 @@ function App() {
                 trigger,
                 messageId,
                 ...(threadSel?.systemPrompt && {
-                  system: threadSel.systemPrompt,
+                  instructions: threadSel.systemPrompt,
                 }),
                 ...(threadSel?.params && { modelParams: threadSel.params }),
               },

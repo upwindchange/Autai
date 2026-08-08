@@ -1,8 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { toolContextSchema } from "./types/context";
 import { SessionTabService } from "@/services";
-import type { ToolExecutionContext } from "./types/context";
-
 // ===== Result Types =====
 
 /**
@@ -100,8 +99,8 @@ export const getSessionTabsTool = tool({
   description:
     "Get all tabs for the current browser session including their metadata. Uses the current session ID automatically.",
   inputSchema: z.object({}),
-  execute: async (_input, { experimental_context }) => {
-    const context = experimental_context as ToolExecutionContext;
+  contextSchema: toolContextSchema,
+  execute: async (_input, { context }) => {
 
     if (!context.sessionId) {
       return {
@@ -162,8 +161,8 @@ export const getSessionTabsTool = tool({
 export const getTabInfoTool = tool({
   description: "Get detailed information about a specific tab",
   inputSchema: z.object({}),
-  execute: async (_input, { experimental_context }) => {
-    const context = experimental_context as ToolExecutionContext;
+  contextSchema: toolContextSchema,
+  execute: async (_input, { context }) => {
 
     if (!context.activeTabId) {
       throw new Error(
@@ -219,8 +218,8 @@ export const createTabTool = tool({
         "The URL to load in the tab (optional, defaults to welcome page)",
       ),
   }),
-  execute: async ({ url }, { experimental_context }) => {
-    const context = experimental_context as ToolExecutionContext;
+  contextSchema: toolContextSchema,
+  execute: async ({ url }: { url?: string }, { context }) => {
     const sessionTabService = SessionTabService.getInstance();
 
     if (!context.sessionId) {
@@ -277,8 +276,8 @@ export const getCurrentSessionContextTool = tool({
   description:
     "Get information about the current session context including its tabs. Uses the current session ID automatically.",
   inputSchema: z.object({}),
-  execute: async (_input, { experimental_context }) => {
-    const context = experimental_context as ToolExecutionContext;
+  contextSchema: toolContextSchema,
+  execute: async (_input, { context }) => {
 
     if (!context.sessionId) {
       const result: GetCurrentSessionContextResult = {

@@ -1,6 +1,6 @@
 import {
   streamText,
-  stepCountIs,
+  isStepCount,
   tool,
   type LanguageModel,
   type ModelMessage,
@@ -127,7 +127,7 @@ export async function runPreResearch(
         streamText({
           model: complexModel().model,
           prompt: userQuestion,
-          system: PRE_RESEARCH_QUERY_PROMPT,
+          instructions: PRE_RESEARCH_QUERY_PROMPT,
           tools: {
             showBroadQueries: showBroadQueriesTool,
           },
@@ -137,12 +137,12 @@ export async function runPreResearch(
           },
           stopWhen: [
             hasSuccessfulToolResult("showBroadQueries"),
-            stepCountIs(10),
+            isStepCount(10),
           ],
           maxRetries,
           timeout: TIMEOUTS.planning,
           abortSignal: signal,
-          experimental_telemetry: {
+          telemetry: {
             isEnabled: settingsService.settings.langfuse.enabled,
             functionId: "deep-research-pre-research-queries",
           },
@@ -216,11 +216,11 @@ export async function runPreResearch(
           content: `## User's Research Question\n${userQuestion}\n\n## Quick Search Snippets\n${snippetsContext}\n\nBased on these snippets, provide a concise summary of what you found about this topic. Focus on: major areas discovered, different perspectives, and anything surprising or unexpected.`,
         },
       ],
-      system: INTERNAL_SUMMARY_PROMPT,
+      instructions: INTERNAL_SUMMARY_PROMPT,
       maxRetries,
       timeout: TIMEOUTS.chat,
       abortSignal: signal,
-      experimental_telemetry: {
+      telemetry: {
         isEnabled: settingsService.settings.langfuse.enabled,
         functionId: "deep-research-pre-research-summary",
       },

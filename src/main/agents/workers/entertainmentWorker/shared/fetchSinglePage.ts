@@ -20,7 +20,7 @@
  * candidate judging, advance) that is irrelevant to a single continuous piece.
  */
 
-import { streamText, stepCountIs, tool } from "ai";
+import { streamText, isStepCount, tool } from "ai";
 import { z } from "zod";
 import log from "electron-log/main";
 import { complexModel } from "@agents/providers";
@@ -41,7 +41,7 @@ import type { InternetNovel } from "@shared";
 const logger = log.scope("Dehydrate:Pipeline3:FetchSinglePage");
 
 /**
- * Context injected into the extract agent's tool via `experimental_context` —
+ * Context injected into the extract agent's tool via `toolsContext` —
  * the zero-token "context API" pattern: `threadId` + `chapterNumber` (always 1
  * here) reach the tool's business logic alongside the browser `sessionId` +
  * `activeTabId` the existing DOM/interactive tools expect, without ever
@@ -77,8 +77,13 @@ const saveContentTool = tool({
       .nullable()
       .describe("A short title for the post/article if visible, else null."),
   }),
-  execute: async (input, { experimental_context }) => {
-    const ctx = experimental_context as SinglePageFetchContext;
+  contextSchema: z.object({
+    sessionId: z.string(),
+    activeTabId: z.string(),
+    threadId: z.string(),
+    chapterNumber: z.number(),
+  }),
+  execute: async (input, { context: ctx }) => {
     entertainmentBackendService.updateSourceChapter(
       ctx.threadId,
       ctx.chapterNumber,
@@ -132,7 +137,7 @@ async function ensureCrawlTab(sessionId: string): Promise<string> {
   const tabId = sts.getTabsForSession(sessionId)[0];
   // Point the session's active-tab pointer at our crawl tab so split-view
   // visibility (if enabled) tracks it. Tools target the tab via the
-  // `activeTabId` passed in experimental_context, not this pointer.
+  // `activeTabId` passed in toolsContext, not this pointer.
   const state = sts.getSessionTabState(sessionId);
   if (state) state.activeTabId = tabId;
   return tabId;
@@ -235,7 +240,7 @@ async function extractPage(
 ): Promise<boolean> {
   const result = streamText({
     model: complexModel().model,
-    system: buildExtractSystemPrompt(novel),
+    instructions: buildExtractSystemPrompt(novel),
     messages: [
       {
         role: "user",
@@ -248,15 +253,14 @@ async function extractPage(
       clickElement: clickElementTool,
       saveContent: saveContentTool,
     },
-    stopWhen: [hasSuccessfulToolResult("saveContent"), stepCountIs(20)],
+    stopWhen: [hasSuccessfulToolResult("saveContent"), isStepCount(20)],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.actionExecution,
     abortSignal: ctx.abortSignal,
-    experimental_context: ctx,
-    experimental_telemetry: {
+    toolsContext: { getFlattenDOM: ctx, clickElement: ctx, saveContent: ctx },
+    telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "entertainment-pipeline3-fetch-single-page",
-      metadata: { threadId: ctx.threadId },
     },
   });
   const steps = await result.steps;

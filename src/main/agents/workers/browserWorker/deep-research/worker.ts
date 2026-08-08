@@ -1,7 +1,7 @@
 import {
   streamText,
   createUIMessageStream,
-  stepCountIs,
+  isStepCount,
   type LanguageModel,
   type UIMessageChunk,
   type ModelMessage,
@@ -181,7 +181,7 @@ export async function browserDeepResearchWorker(
     async () => {
       return createUIMessageStream({
         originalMessages,
-        onFinish:
+        onEnd:
           onFinish ?
             ({ messages: finalMessages }) => onFinish(finalMessages)
           : undefined,
@@ -260,22 +260,24 @@ export async function browserDeepResearchWorker(
               const hitlResult = streamText({
                 model: chatLanguageModel,
                 messages: hitlDecisionMessages,
-                system: hitlDecisionSystemPrompt,
+                instructions: hitlDecisionSystemPrompt,
                 tools: {
                   askUser: askUserTool,
                 },
                 toolChoice: "auto",
-                stopWhen: [stepCountIs(3)],
+                stopWhen: [isStepCount(3)],
                 maxRetries,
                 timeout: TIMEOUTS.hitlAgent,
                 abortSignal: signal,
-                experimental_context: {
-                  sessionId,
-                  writer,
-                  chatModel: chatLanguageModel,
-                  abortSignal: signal,
+                toolsContext: {
+                  askUser: {
+                    sessionId,
+                    writer,
+                    chatModel: chatLanguageModel,
+                    abortSignal: signal,
+                  },
                 },
-                experimental_telemetry: {
+                telemetry: {
                   isEnabled: settingsService.settings.langfuse.enabled,
                   functionId: "deep-research-hitl-decision",
                 },
@@ -560,12 +562,12 @@ export async function browserDeepResearchWorker(
               const noResultStream = streamText({
                 model: chatLanguageModel,
                 messages,
-                system:
+                instructions: 
                   "You are a research assistant. Inform the user that no relevant search results were found for their query across multiple research subtopics, and suggest they try rephrasing their question.",
                 maxRetries,
                 timeout: TIMEOUTS.chat,
                 abortSignal: signal,
-                experimental_telemetry: {
+                telemetry: {
                   isEnabled: settingsService.settings.langfuse.enabled,
                   functionId: "deep-research-no-results",
                 },
@@ -600,11 +602,11 @@ export async function browserDeepResearchWorker(
             const compositionResult = streamText({
               model: chatLanguageModel,
               messages: compositionMessages,
-              system: compositionSystemPrompt,
+              instructions: compositionSystemPrompt,
               maxRetries,
               timeout: TIMEOUTS.chat,
               abortSignal: signal,
-              experimental_telemetry: {
+              telemetry: {
                 isEnabled: settingsService.settings.langfuse.enabled,
                 functionId: "deep-research-composer",
               },

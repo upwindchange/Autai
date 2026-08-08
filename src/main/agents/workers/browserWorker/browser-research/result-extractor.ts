@@ -1,4 +1,4 @@
-import { streamText, stepCountIs, tool } from "ai";
+import { streamText, isStepCount, tool } from "ai";
 import { z } from "zod";
 import { createIdGenerator } from "@ai-sdk/provider-utils";
 import { complexModel } from "@agents/providers";
@@ -99,7 +99,7 @@ async function navigateTo(
     {
       toolCallId: generateId(),
       messages: [],
-      experimental_context: { sessionId, activeTabId },
+      context: { sessionId, activeTabId },
     },
   );
 }
@@ -113,7 +113,7 @@ async function getFlattenDOM(
     {
       toolCallId: generateId(),
       messages: [],
-      experimental_context: { sessionId, activeTabId },
+      context: { sessionId, activeTabId },
     },
   );
   return (result as { representation: string }).representation;
@@ -163,7 +163,7 @@ async function executeSingleExtraction(
           content: `Research focus: "${focusDescription}"\nSource URL: ${searchResult.url}\nSource title: ${searchResult.title}\n\nPage DOM:\n${truncatedDom}`,
         },
       ],
-      system: extractionPrompt,
+      instructions: extractionPrompt,
       tools: {
         showExtractionResult: showExtractionResultTool,
       },
@@ -173,17 +173,14 @@ async function executeSingleExtraction(
       },
       stopWhen: [
         hasSuccessfulToolResult("showExtractionResult"),
-        stepCountIs(10),
+        isStepCount(10),
       ],
       maxRetries: settingsService.settings.maxRetries,
       timeout: TIMEOUTS.actionExecution,
       abortSignal: signal,
-      experimental_telemetry: {
+      telemetry: {
         isEnabled: settingsService.settings.langfuse.enabled,
         functionId: "research-result-extraction",
-        metadata: {
-          url: searchResult.url,
-        },
       },
     });
 

@@ -2,15 +2,14 @@ import { z } from "zod";
 import type { LanguageModel } from "ai";
 
 /**
- * Context passed to tools via experimental_context
- * Provides tabId and sessionId without consuming tokens
+ * Context passed to tools via toolsContext
  */
 export interface ToolExecutionContext {
   sessionId: string;
   activeTabId?: string;
   /** Per-thread chat model for sub-agents (e.g. askUser). Falls back to global. */
   chatModel?: LanguageModel;
-  writer?: { write: (chunk: unknown) => void };
+  writer?: unknown;
   abortSignal?: AbortSignal;
 }
 
@@ -20,6 +19,9 @@ export interface ToolExecutionContext {
 export const toolContextSchema = z.object({
   sessionId: z.string().describe("Current browser session ID"),
   activeTabId: z.string().optional().describe("Active tab ID for operations"),
+  chatModel: z.custom<LanguageModel>().optional().describe("Per-thread chat model"),
+  writer: z.any().optional().describe("Stream writer for forwarding sub-agent output"),
+  abortSignal: z.custom<AbortSignal>().optional().describe("Abort signal"),
 });
 
 /**

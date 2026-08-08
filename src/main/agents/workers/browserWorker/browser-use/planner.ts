@@ -1,4 +1,4 @@
-import { streamText, stepCountIs, ModelMessage, tool } from "ai";
+import { streamText, isStepCount, ModelMessage, tool } from "ai";
 import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@/agents/utils";
@@ -73,8 +73,8 @@ export const planInputSchema = z.object({
 const generatePlanTool = tool({
   description: "Generate a browser automation execution plan",
   inputSchema: planInputSchema,
-  execute: async (input, { experimental_context }) => {
-    const context = experimental_context as { sessionId: string };
+  contextSchema: z.object({ sessionId: z.string() }),
+  execute: async (input, { context }) => {
     // Populate plan id and maxVisibleTodos
     const plan = {
       ...input,
@@ -151,15 +151,10 @@ export async function browserUsePlanner(
     messageCount: messages.length,
   });
 
-  // Create a context for tool execution
-  const context = {
-    sessionId,
-  };
-
   const result = streamText({
     model: complexModel().model,
     messages,
-    system: plannerSystemPrompt,
+    instructions: plannerSystemPrompt,
     tools: {
       plan: generatePlanTool,
     },
@@ -167,12 +162,12 @@ export async function browserUsePlanner(
       type: "tool",
       toolName: "plan",
     },
-    stopWhen: [hasSuccessfulToolResult("plan"), stepCountIs(100)],
+    stopWhen: [hasSuccessfulToolResult("plan"), isStepCount(100)],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.planning,
     abortSignal: signal,
-    experimental_context: context,
-    experimental_telemetry: {
+    toolsContext: { plan: { sessionId } },
+    telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "browser-use-planner",
     },
@@ -318,7 +313,7 @@ export async function browserUseReplanner(
         content: "Create the revised plan for the remaining work.",
       },
     ],
-    system: systemPrompt,
+    instructions: systemPrompt,
     tools: {
       plan: generatePlanTool,
     },
@@ -326,18 +321,14 @@ export async function browserUseReplanner(
       type: "tool",
       toolName: "plan",
     },
-    stopWhen: [hasSuccessfulToolResult("plan"), stepCountIs(100)],
+    stopWhen: [hasSuccessfulToolResult("plan"), isStepCount(100)],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.planning,
     abortSignal: signal,
-    experimental_context: { sessionId },
-    experimental_telemetry: {
+    toolsContext: { plan: { sessionId } },
+    telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "browser-use-replanner",
-      metadata: {
-        replanFromIndex,
-        previousPlanId: previousPlan.id,
-      },
     },
   });
 

@@ -1,6 +1,6 @@
 import {
   convertToModelMessages,
-  stepCountIs,
+  isStepCount,
   type LanguageModel,
   type ToolSet,
   type UIMessage,
@@ -24,7 +24,7 @@ const systemPrompt = `When your response can benefit from a visual diagram, outp
 For inline math expressions, use double dollar signs like $$E = mc^2$$. Never use single dollar signs for math.`;
 
 export interface ChatWorkerResult {
-  result: StreamTextResult<any, any>;
+  result: StreamTextResult<any, any, any>;
   mcpClients: MCPClient[];
 }
 
@@ -78,7 +78,7 @@ export class ChatWorker {
       // Configure stop conditions based on available tools
       const stopConditions = [
         // Safety limit to prevent infinite loops
-        stepCountIs(20),
+        isStepCount(20),
       ];
 
       // User-provided system prompt comes FIRST (primary instruction), the
@@ -109,7 +109,7 @@ export class ChatWorker {
       const result = streamText({
         model: chatLanguageModel,
         messages: await convertToModelMessages(messages),
-        system: mergedSystem,
+        instructions: mergedSystem,
         stopWhen: stopConditions,
         maxRetries: settingsService.settings.maxRetries,
         timeout: TIMEOUTS.chat,
@@ -118,7 +118,7 @@ export class ChatWorker {
         ...(reasoningOptions && { providerOptions: reasoningOptions }),
         ...(Object.keys(mergedTools).length > 0 && { tools: mergedTools }),
         experimental_repairToolCall: repairToolCall,
-        experimental_telemetry: {
+        telemetry: {
           isEnabled: settingsService.settings.langfuse.enabled,
           functionId: "chat-worker",
         },

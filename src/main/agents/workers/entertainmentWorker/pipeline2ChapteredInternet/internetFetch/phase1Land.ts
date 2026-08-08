@@ -1,4 +1,4 @@
-import { streamText, stepCountIs, tool } from "ai";
+import { streamText, isStepCount, tool } from "ai";
 import { z } from "zod";
 import log from "electron-log/main";
 import { complexModel } from "@agents/providers";
@@ -34,8 +34,13 @@ const landHereTool = tool({
   description:
     "Call this when the browser is showing the BEGINNING of the target chapter's prose. Captures the real page URL and records it.",
   inputSchema: z.object({}),
-  execute: async (_input, { experimental_context }) => {
-    const ctx = experimental_context as InternetFetchContext;
+  contextSchema: z.object({
+    sessionId: z.string(),
+    activeTabId: z.string(),
+    threadId: z.string(),
+    chapterNumber: z.number(),
+  }),
+  execute: async (_input, { context: ctx }) => {
     const sts = SessionTabService.getInstance();
     const tab = sts.getTab(ctx.activeTabId);
     const url =
@@ -170,19 +175,19 @@ Rules:
 /**
  * Run the minimal judge agent against the page already loaded in the crawl tab.
  * The agent never sees the candidate URL — it only reads the DOM and decides
- * landHere vs rejectCandidate. Bounded by `stepCountIs(4)` and the agent-level
+ * landHere vs rejectCandidate. Bounded by `isStepCount(4)` and the agent-level
  * step timeout; on reject / timeout / exhaustion the caller moves to the next
  * candidate. Returns true iff `landHere` fired (URL already written by it).
  */
 async function judgeCandidate(
   novel: InternetNovel,
   ctx: InternetFetchContext,
-  candidateIndex: number,
+  _candidateIndex: number,
 ): Promise<boolean> {
   const label = `chapter ${ctx.chapterNumber}`;
   const result = streamText({
     model: complexModel().model,
-    system: buildJudgeSystemPrompt(novel, ctx.chapterNumber),
+    instructions: buildJudgeSystemPrompt(novel, ctx.chapterNumber),
     messages: [
       {
         role: "user",
@@ -197,20 +202,15 @@ async function judgeCandidate(
     stopWhen: [
       hasSuccessfulToolResult("landHere"),
       hasSuccessfulToolResult("rejectCandidate"),
-      stepCountIs(4),
+      isStepCount(4),
     ],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.actionExecution,
     abortSignal: ctx.abortSignal,
-    experimental_context: ctx,
-    experimental_telemetry: {
+    toolsContext: { getFlattenDOM: ctx, landHere: ctx },
+    telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "entertainment-internet-judge",
-      metadata: {
-        threadId: ctx.threadId,
-        chapterNumber: ctx.chapterNumber,
-        candidateIndex,
-      },
     },
   });
   const steps = await result.steps;
@@ -335,7 +335,7 @@ async function landViaAdvance(
 
   const result = streamText({
     model: complexModel().model,
-    system: buildAdvanceSystemPrompt(novel, ctx.chapterNumber),
+    instructions: buildAdvanceSystemPrompt(novel, ctx.chapterNumber),
     messages: [
       {
         role: "user",
@@ -351,16 +351,15 @@ async function landViaAdvance(
     stopWhen: [
       hasSuccessfulToolResult("landHere"),
       hasSuccessfulToolResult("abortChapter"),
-      stepCountIs(12),
+      isStepCount(12),
     ],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.actionExecution,
     abortSignal: ctx.abortSignal,
-    experimental_context: ctx,
-    experimental_telemetry: {
+    toolsContext: { getFlattenDOM: ctx, clickElement: ctx, landHere: ctx },
+    telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "entertainment-internet-land",
-      metadata: { threadId: ctx.threadId, chapterNumber: ctx.chapterNumber },
     },
   });
 

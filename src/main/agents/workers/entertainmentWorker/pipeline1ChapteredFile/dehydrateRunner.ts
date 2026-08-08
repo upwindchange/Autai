@@ -26,7 +26,7 @@
  * takes effect on the next pass.
  */
 
-import { streamText, stepCountIs, tool, generateText } from "ai";
+import { streamText, isStepCount, tool, generateText } from "ai";
 import type { LanguageModel } from "ai";
 import { z } from "zod";
 import log from "electron-log/main";
@@ -110,10 +110,9 @@ async function probeCharsPerToken(
       maxOutputTokens: 1,
       maxRetries: settingsService.settings.maxRetries,
       timeout: TIMEOUTS.chat,
-      experimental_telemetry: {
+      telemetry: {
         isEnabled: settingsService.settings.langfuse.enabled,
         functionId: "entertainment-pipeline1-probe",
-        metadata: { threadId, sampleChars: sample.length },
       },
     });
     const inputTokens = result.usage?.inputTokens;
@@ -194,7 +193,7 @@ interface OutputChaptersContext {
  *   - on the last batch, sets `finalChapterNumber` (the full chapter count is
  *     known once the final chunk's rows land).
  * `threadId` / `chunkStart` / `chunkLength` / `isLastBatch` arrive via
- * `experimental_context` (zero-token — never in the prompt).
+ * `toolsContext` (zero-token — never in the prompt).
  */
 const outputChaptersTool = tool({
   description:
@@ -235,8 +234,13 @@ const outputChaptersTool = tool({
       )
       .min(1),
   }),
-  execute: async (input, { experimental_context }) => {
-    const ctx = experimental_context as OutputChaptersContext;
+  contextSchema: z.object({
+    threadId: z.string(),
+    chunkStart: z.number(),
+    chunkLength: z.number(),
+    isLastBatch: z.boolean(),
+  }),
+  execute: async (input, { context: ctx }) => {
     const startNum =
       entertainmentBackendService.maxRewrittenChapterNumber(ctx.threadId) + 1;
     for (let i = 0; i < input.chapters.length; i++) {
@@ -312,11 +316,11 @@ async function runDehydrateAgent(params: {
   );
   const result = streamText({
     model: resolved.model,
-    system: systemPrompt,
+    instructions: systemPrompt,
     messages: [{ role: "user", content: chunk }],
     tools: { outputChapters: outputChaptersTool },
     toolChoice: { type: "tool", toolName: "outputChapters" },
-    stopWhen: [hasSuccessfulToolResult("outputChapters"), stepCountIs(3)],
+    stopWhen: [hasSuccessfulToolResult("outputChapters"), isStepCount(3)],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.novel,
     abortSignal: signal,
@@ -327,11 +331,10 @@ async function runDehydrateAgent(params: {
       maxOutputTokens: resolved.maxOutputTokens,
     }),
     ...(reasoning && { providerOptions: reasoning }),
-    experimental_context: ctx,
-    experimental_telemetry: {
+    toolsContext: { outputChapters: ctx },
+    telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "entertainment-pipeline1-dehydrate",
-      metadata: { threadId: ctx.threadId },
     },
   });
   const steps = await result.steps;

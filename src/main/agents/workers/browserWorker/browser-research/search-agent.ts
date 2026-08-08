@@ -1,4 +1,4 @@
-import { streamText, stepCountIs, tool } from "ai";
+import { streamText, isStepCount, tool } from "ai";
 import { z } from "zod";
 import { createIdGenerator } from "@ai-sdk/provider-utils";
 import { complexModel } from "@agents/providers";
@@ -198,7 +198,7 @@ async function navigateTo(
     {
       toolCallId: generateId(),
       messages: [],
-      experimental_context: { sessionId, activeTabId },
+      context: { sessionId, activeTabId },
     },
   );
 }
@@ -212,7 +212,7 @@ async function getFlattenDOM(
     {
       toolCallId: generateId(),
       messages: [],
-      experimental_context: { sessionId, activeTabId },
+      context: { sessionId, activeTabId },
     },
   );
   return (result as { representation: string }).representation;
@@ -236,7 +236,7 @@ async function interceptLinkUrl(
   const toolContext = {
     toolCallId: generateId(),
     messages: [],
-    experimental_context: { sessionId, activeTabId },
+    context: { sessionId, activeTabId },
   };
 
   // Tier 1: Try getAttribute("href") — single CDP call, ~10ms
@@ -383,7 +383,7 @@ async function executeSingleSearchQuery(
           content: `Search query: "${query}"\nFocus: "${focus}"\n\n${engineConfig.displayName} search results DOM:\n${truncatedDom}`,
         },
       ],
-      system: buildSearchAnalysisPrompt(engineConfig),
+      instructions: buildSearchAnalysisPrompt(engineConfig),
       tools: {
         showSearchResults: showSearchResultsTool,
       },
@@ -391,17 +391,13 @@ async function executeSingleSearchQuery(
         type: "tool",
         toolName: "showSearchResults",
       },
-      stopWhen: [hasSuccessfulToolResult("showSearchResults"), stepCountIs(10)],
+      stopWhen: [hasSuccessfulToolResult("showSearchResults"), isStepCount(10)],
       maxRetries: settingsService.settings.maxRetries,
       timeout: TIMEOUTS.actionExecution,
       abortSignal: signal,
-      experimental_telemetry: {
+      telemetry: {
         isEnabled: settingsService.settings.langfuse.enabled,
         functionId: "research-search-analysis",
-        metadata: {
-          queryIndex,
-          query,
-        },
       },
     });
 

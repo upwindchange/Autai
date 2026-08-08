@@ -40,7 +40,7 @@ export async function browserResearchWorker(
     async () => {
       return createUIMessageStream({
         originalMessages,
-        onFinish:
+        onEnd:
           onFinish ?
             ({ messages: finalMessages }) => onFinish(finalMessages)
           : undefined,

@@ -1,4 +1,4 @@
-import { streamText, stepCountIs, type ModelMessage, tool } from "ai";
+import { streamText, isStepCount, type ModelMessage, tool } from "ai";
 import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@/agents/utils";
@@ -48,8 +48,8 @@ const deepResearchPlanSchema = z.object({
 const showDeepResearchPlanTool = tool({
   description: "Generate a deep research plan with independent subtopics",
   inputSchema: deepResearchPlanSchema,
-  execute: async (input, { experimental_context }) => {
-    const context = experimental_context as { sessionId: string };
+  contextSchema: z.object({ sessionId: z.string() }),
+  execute: async (input, { context }) => {
     const plan: DeepResearchPlan = {
       id: `deep-plan-${context.sessionId}`,
       title: input.title,
@@ -97,7 +97,7 @@ export async function deepResearchPlanner(
   const result = streamText({
     model: complexModel().model,
     messages,
-    system: deepPlannerSystemPrompt,
+    instructions: deepPlannerSystemPrompt,
     tools: {
       showDeepResearchPlan: showDeepResearchPlanTool,
     },
@@ -107,13 +107,13 @@ export async function deepResearchPlanner(
     },
     stopWhen: [
       hasSuccessfulToolResult("showDeepResearchPlan"),
-      stepCountIs(20),
+      isStepCount(20),
     ],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.planning,
     abortSignal: signal,
-    experimental_context: { sessionId },
-    experimental_telemetry: {
+    toolsContext: { showDeepResearchPlan: { sessionId } },
+    telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "deep-research-planner",
     },

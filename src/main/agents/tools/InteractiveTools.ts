@@ -1,5 +1,6 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { toolContextSchema } from "./types/context";
 import { SessionTabService } from "@/services";
 import { PQueueManager } from "@agents/utils";
 import type {
@@ -22,8 +23,6 @@ import type {
   EvaluateResult,
   GetBasicInfoResult,
 } from "@shared/dom/interaction";
-import type { ToolExecutionContext } from "./types/context";
-
 export type GetAllAttributesToolResult = GetAllAttributesResult;
 
 // ===== Result Types =====
@@ -85,8 +84,8 @@ export const clickElementTool = tool({
       .number()
       .describe("Required (number): Backend node ID of the element to click"),
   }),
-  execute: async ({ backendNodeId }, { experimental_context }) => {
-    const context = experimental_context as ToolExecutionContext;
+  contextSchema: toolContextSchema,
+  execute: async ({ backendNodeId }, { context }) => {
 
     if (!context.activeTabId) {
       throw new Error(
@@ -185,11 +184,11 @@ export const fillElementTool = tool({
       .optional()
       .describe("Delay between keystrokes in ms (default: 18)"),
   }),
+  contextSchema: toolContextSchema,
   execute: async (
     { backendNodeId, value, clear = true, keystrokeDelay = 18 },
-    { experimental_context },
+    { context },
   ) => {
-    const context = experimental_context as ToolExecutionContext;
 
     if (!context.activeTabId) {
       throw new Error(
@@ -290,11 +289,11 @@ export const selectOptionTool = tool({
       .describe("Clear existing selections (default: true)"),
     timeout: z.number().optional().describe("Timeout in ms (default: 5000)"),
   }),
+  contextSchema: toolContextSchema,
   execute: async (
     { backendNodeId, values, clear = true, timeout = 5000 },
-    { experimental_context },
+    { context },
   ) => {
-    const context = experimental_context as ToolExecutionContext;
 
     if (!context.activeTabId) {
       throw new Error(
@@ -386,11 +385,11 @@ export const hoverElementTool = tool({
       .describe("Required (number): Backend node ID of the element to hover"),
     timeout: z.number().optional().describe("Timeout in ms (default: 3000)"),
   }),
+  contextSchema: toolContextSchema,
   execute: async (
     { backendNodeId, timeout = 3000 },
-    { experimental_context },
+    { context },
   ) => {
-    const context = experimental_context as ToolExecutionContext;
 
     if (!context.activeTabId) {
       throw new Error(
@@ -490,11 +489,11 @@ export const dragToElementTool = tool({
         "Required ({x: number, y: number} | number): Target position {x, y} or backend node ID of target element",
       ),
   }),
+  contextSchema: toolContextSchema,
   execute: async (
     { sourceBackendNodeId, target },
-    { experimental_context },
+    { context },
   ) => {
-    const context = experimental_context as ToolExecutionContext;
 
     if (!context.activeTabId) {
       throw new Error(
@@ -581,7 +580,7 @@ export const scrollPagesTool = tool({
   inputSchema: z.object({
     direction: z
       .enum(["up", "down"])
-      .optional()
+      .default("down")
       .describe("Scroll direction (default: down)"),
     pages: z
       .number()
@@ -596,11 +595,11 @@ export const scrollPagesTool = tool({
       .optional()
       .describe("Whether to scroll smoothly (default: true)"),
   }),
+  contextSchema: toolContextSchema,
   execute: async (
-    { direction = "down", pages = 1.0, scrollDelay = 300, smooth = true },
-    { experimental_context },
+    { direction, pages = 1.0, scrollDelay = 300, smooth = true },
+    { context },
   ) => {
-    const context = experimental_context as ToolExecutionContext;
 
     if (!context.activeTabId) {
       throw new Error(
@@ -700,11 +699,11 @@ export const scrollAtCoordinateTool = tool({
       .optional()
       .describe("Vertical scroll delta (default: 0)"),
   }),
+  contextSchema: toolContextSchema,
   execute: async (
     { x, y, deltaX = 0, deltaY = 0 },
-    { experimental_context },
+    { context },
   ) => {
-    const context = experimental_context as ToolExecutionContext;
 
     if (!context.activeTabId) {
       throw new Error(
@@ -797,11 +796,11 @@ export const getAttributeTool = tool({
       .string()
       .describe("Required (string): Name of the attribute to retrieve"),
   }),
+  contextSchema: toolContextSchema,
   execute: async (
     { backendNodeId, attributeName },
-    { experimental_context },
+    { context },
   ) => {
-    const context = experimental_context as ToolExecutionContext;
 
     if (!context.activeTabId) {
       throw new Error(
@@ -842,30 +841,26 @@ export const evaluateTool = tool({
       .optional()
       .describe("Arguments to pass to the function (default: [])"),
   }),
+  contextSchema: toolContextSchema,
   execute: async (
-    { backendNodeId, expression, args = [] },
-    { experimental_context },
+    { backendNodeId, expression, args = [] }: { backendNodeId: number; expression: string; args?: unknown[] },
+    { context },
   ) => {
-    const context = experimental_context as ToolExecutionContext;
-
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
           "Ensure tab selection has run before calling this tool.",
       );
     }
-
     const sessionTabService = SessionTabService.getInstance();
     const interactionService = sessionTabService.getInteractionService(
       context.activeTabId!,
     );
-
     if (!interactionService) {
       throw new Error(
         `Interaction service not found for tab ${context.activeTabId}`,
       );
     }
-
     return await interactionService.evaluate(backendNodeId, expression, args);
   },
 });
@@ -878,8 +873,8 @@ export const getBasicInfoTool = tool({
       .number()
       .describe("Required (number): Backend node ID of the element"),
   }),
-  execute: async ({ backendNodeId }, { experimental_context }) => {
-    const context = experimental_context as ToolExecutionContext;
+  contextSchema: toolContextSchema,
+  execute: async ({ backendNodeId }, { context }) => {
 
     if (!context.activeTabId) {
       throw new Error(
@@ -912,8 +907,8 @@ export const getAllAttributesTool = tool({
       .number()
       .describe("Required (number): Backend node ID of the element"),
   }),
-  execute: async ({ backendNodeId }, { experimental_context }) => {
-    const context = experimental_context as ToolExecutionContext;
+  contextSchema: toolContextSchema,
+  execute: async ({ backendNodeId }, { context }) => {
 
     if (!context.activeTabId) {
       throw new Error(
@@ -947,8 +942,8 @@ export const interceptClickUrlTool = tool({
       .number()
       .describe("Backend node ID of the element to click"),
   }),
-  execute: async ({ backendNodeId }, { experimental_context }) => {
-    const context = experimental_context as ToolExecutionContext;
+  contextSchema: toolContextSchema,
+  execute: async ({ backendNodeId }, { context }) => {
 
     if (!context.activeTabId) {
       throw new Error(

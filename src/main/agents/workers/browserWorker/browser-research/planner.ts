@@ -1,4 +1,4 @@
-import { streamText, stepCountIs, ModelMessage, tool } from "ai";
+import { streamText, isStepCount, ModelMessage, tool } from "ai";
 import { z } from "zod";
 import { complexModel } from "@agents/providers";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@/agents/utils";
@@ -49,8 +49,8 @@ const researchPlanSchema = z.object({
 const showResearchPlanTool = tool({
   description: "Generate a web research plan with search queries",
   inputSchema: researchPlanSchema,
-  execute: async (input, { experimental_context }) => {
-    const context = experimental_context as { sessionId: string };
+  contextSchema: z.object({ sessionId: z.string() }),
+  execute: async (input, { context }) => {
     const plan = {
       ...input,
       id: `research-plan-${context.sessionId}`,
@@ -98,7 +98,7 @@ export async function researchPlanner(
   const result = streamText({
     model: complexModel().model,
     messages,
-    system: plannerSystemPrompt,
+    instructions: plannerSystemPrompt,
     tools: {
       showResearchPlan: showResearchPlanTool,
     },
@@ -106,12 +106,12 @@ export async function researchPlanner(
       type: "tool",
       toolName: "showResearchPlan",
     },
-    stopWhen: [hasSuccessfulToolResult("showResearchPlan"), stepCountIs(20)],
+    stopWhen: [hasSuccessfulToolResult("showResearchPlan"), isStepCount(20)],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.planning,
     abortSignal: signal,
-    experimental_context: { sessionId },
-    experimental_telemetry: {
+    toolsContext: { showResearchPlan: { sessionId } },
+    telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "research-planner",
     },

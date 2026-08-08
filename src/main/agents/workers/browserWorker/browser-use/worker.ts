@@ -55,7 +55,7 @@ export async function browserUseWorker(
     );
     return createUIMessageStream({
       originalMessages,
-      onFinish:
+      onEnd:
         onFinish ?
           ({ messages: finalMessages }) => onFinish(finalMessages)
         : undefined,
@@ -75,7 +75,7 @@ export async function browserUseWorker(
     async () => {
       return createUIMessageStream({
         originalMessages,
-        onFinish:
+        onEnd:
           onFinish ?
             ({ messages: finalMessages }) => onFinish(finalMessages)
           : undefined,
@@ -340,11 +340,11 @@ export async function browserUseWorker(
             const summaryResult = streamText({
               model: chatLanguageModel,
               messages,
-              system: systemPrompt,
+              instructions: systemPrompt,
               maxRetries,
               timeout: TIMEOUTS.chat,
               abortSignal: signal,
-              experimental_telemetry: {
+              telemetry: {
                 isEnabled: settingsService.settings.langfuse.enabled,
                 functionId: "browser-use-summary",
               },

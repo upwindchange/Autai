@@ -1,8 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { toolContextSchema } from "./types/context";
 import { TabControlService } from "@/services";
-import type { ToolExecutionContext } from "./types/context";
-
 // ===== Result Types =====
 
 /**
@@ -23,8 +22,8 @@ export const navigateTool = tool({
         "Required (string): The URL to navigate to (must be a valid URL)",
       ),
   }),
-  execute: async ({ url }, { experimental_context }) => {
-    const context = experimental_context as ToolExecutionContext;
+  contextSchema: toolContextSchema,
+  execute: async ({ url }, { context }) => {
 
     if (!context.activeTabId) {
       throw new Error(
@@ -42,8 +41,8 @@ export const navigateTool = tool({
 export const refreshTool = tool({
   description: "Refresh the current page in a browser tab",
   inputSchema: z.object({}),
-  execute: async (_input, { experimental_context }) => {
-    const context = experimental_context as ToolExecutionContext;
+  contextSchema: toolContextSchema,
+  execute: async (_input, { context }) => {
 
     if (!context.activeTabId) {
       throw new Error(
@@ -61,8 +60,8 @@ export const refreshTool = tool({
 export const goBackTool = tool({
   description: "Navigate back in the browser history of a tab",
   inputSchema: z.object({}),
-  execute: async (_input, { experimental_context }) => {
-    const context = experimental_context as ToolExecutionContext;
+  contextSchema: toolContextSchema,
+  execute: async (_input, { context }) => {
 
     if (!context.activeTabId) {
       throw new Error(
@@ -80,8 +79,8 @@ export const goBackTool = tool({
 export const goForwardTool = tool({
   description: "Navigate forward in the browser history of a tab",
   inputSchema: z.object({}),
-  execute: async (_input, { experimental_context }) => {
-    const context = experimental_context as ToolExecutionContext;
+  contextSchema: toolContextSchema,
+  execute: async (_input, { context }) => {
 
     if (!context.activeTabId) {
       throw new Error(

@@ -1,4 +1,4 @@
-import { streamText, stepCountIs, tool } from "ai";
+import { streamText, isStepCount, tool } from "ai";
 import { z } from "zod";
 import log from "electron-log/main";
 import { complexModel } from "@agents/providers";
@@ -31,8 +31,13 @@ const saveChapterContentTool = tool({
       .nullable()
       .describe("The chapter title if visible on the page, else null."),
   }),
-  execute: async (input, { experimental_context }) => {
-    const ctx = experimental_context as InternetFetchContext;
+  contextSchema: z.object({
+    sessionId: z.string(),
+    activeTabId: z.string(),
+    threadId: z.string(),
+    chapterNumber: z.number(),
+  }),
+  execute: async (input, { context: ctx }) => {
     entertainmentBackendService.updateSourceChapter(
       ctx.threadId,
       ctx.chapterNumber,
@@ -87,7 +92,7 @@ export async function extractChapter(
   const label = `chapter ${ctx.chapterNumber}`;
   const result = streamText({
     model: complexModel().model,
-    system: buildExtractSystemPrompt(novel, ctx.chapterNumber),
+    instructions: buildExtractSystemPrompt(novel, ctx.chapterNumber),
     messages: [
       { role: "user", content: `Read ${label} and save its full prose.` },
     ],
@@ -96,15 +101,14 @@ export async function extractChapter(
       clickElement: clickElementTool,
       saveChapterContent: saveChapterContentTool,
     },
-    stopWhen: [hasSuccessfulToolResult("saveChapterContent"), stepCountIs(20)],
+    stopWhen: [hasSuccessfulToolResult("saveChapterContent"), isStepCount(20)],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.actionExecution,
     abortSignal: ctx.abortSignal,
-    experimental_context: ctx,
-    experimental_telemetry: {
+    toolsContext: { getFlattenDOM: ctx, clickElement: ctx, saveChapterContent: ctx },
+    telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "entertainment-internet-extract",
-      metadata: { threadId: ctx.threadId, chapterNumber: ctx.chapterNumber },
     },
   });
 

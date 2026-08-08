@@ -31,7 +31,7 @@ export type ToolExecutionOptions = {
   toolCallId: string;
   messages: unknown[];
   abortSignal?: AbortSignal;
-  experimental_context?: unknown;
+  context?: unknown;
 };
 
 export type ToolExecutionResult = {
@@ -313,7 +313,7 @@ export async function executeToolDirectly({
         toolCallId,
         messages: [],
         abortSignal: undefined,
-        experimental_context: undefined,
+        context: undefined,
       });
       logger.debug("Tool executed successfully", {
         toolName,

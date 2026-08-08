@@ -29,7 +29,7 @@ chatRoutes.post("/", async (c) => {
       );
     }
 
-    const { messages, system, modelParams, tools } = parsed.data;
+    const { messages, instructions: system, modelParams, tools } = parsed.data;
 
     // Read metadata from headers
     const useBrowser = c.req.header("x-use-browser") === "true";
@@ -207,8 +207,8 @@ chatRoutes.post("/", async (c) => {
           }
           return undefined;
         },
-        onFinish: async ({ messages: finalMessages }) => {
-          logger.info("Chat onFinish fired", {
+        onEnd: async ({ messages: finalMessages }) => {
+          logger.info("Chat onEnd fired", {
             sessionId,
             messageCount: finalMessages.length,
           });

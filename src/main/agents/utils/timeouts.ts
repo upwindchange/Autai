@@ -20,11 +20,11 @@ const DEFAULT_TIMEOUTS = {
  * Values are stored as seconds in settings and converted to ms here.
  */
 export function getTimeouts(): {
-  chat: TimeoutConfiguration;
-  planning: TimeoutConfiguration;
-  actionExecution: TimeoutConfiguration;
-  hitlAgent: TimeoutConfiguration;
-  novel: TimeoutConfiguration;
+  chat: TimeoutConfiguration<any>;
+  planning: TimeoutConfiguration<any>;
+  actionExecution: TimeoutConfiguration<any>;
+  hitlAgent: TimeoutConfiguration<any>;
+  novel: TimeoutConfiguration<any>;
 } {
   const t = settingsService.settings.timeouts ?? DEFAULT_TIMEOUTS;
 
