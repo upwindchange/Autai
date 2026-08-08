@@ -38,6 +38,11 @@ export interface ReaderSettings {
   fontWeight: 300 | 400 | 500 | 600;
 }
 
+// Minimal side margin so prose fills the width without hugging the viewport
+// edge. The slider (0–40rem) still lets users widen it; this is just the
+// out-of-the-box default. Bumped down from 12rem — that left far too much air.
+export const DEFAULT_READER_MARGIN = 2;
+
 export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   theme: "auto",
   background: null,
@@ -49,7 +54,7 @@ export const DEFAULT_READER_SETTINGS: ReaderSettings = {
   indent: true,
   indentAmount: 2,
   textAlign: "left",
-  margin: 12,
+  margin: DEFAULT_READER_MARGIN,
   fontWeight: 400,
 };
 
@@ -81,16 +86,19 @@ export const useReaderSettingsStore = create<ReaderSettingsState>()(
     }),
     {
       name: "autai.reader-settings",
-      version: 2,
+      version: 3,
       // v1 stored maxWidth (a content column width in rem); v2 replaced it with
-      // margin (side padding). There's no sensible remap (content width ≠ side
-      // margin), so drop the old field and start margin at the default.
+      // margin (side padding). v3 lowered the default margin (12 → 2rem) —
+      // anyone still on the old default is reset; a deliberately chosen value
+      // survives untouched.
       migrate: (persistedState, _version) => {
         const s = persistedState as
           { settings?: Record<string, unknown> } | undefined;
         if (s?.settings) {
           delete s.settings.maxWidth;
-          if (s.settings.margin == null) s.settings.margin = 12;
+          if (s.settings.margin == null || s.settings.margin === 12) {
+            s.settings.margin = DEFAULT_READER_MARGIN;
+          }
         }
         return persistedState as ReaderSettingsState;
       },

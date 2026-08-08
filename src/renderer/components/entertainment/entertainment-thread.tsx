@@ -319,7 +319,7 @@ export const EntertainmentThread: FC = () => {
             className="flex w-full flex-1 flex-col pt-4 pb-24"
             // Prose column width is pure side margin (--reader-margin); the
             // 40vw cap keeps it from collapsing on narrow windows.
-            style={{ paddingInline: "min(var(--reader-margin, 12rem), 40vw)" }}
+            style={{ paddingInline: "min(var(--reader-margin, 2rem), 40vw)" }}
           >
             {fetchError && currentChapterNumber != null && (
               // Surface fetch failures so they don't look like a "fetching" spinner.
