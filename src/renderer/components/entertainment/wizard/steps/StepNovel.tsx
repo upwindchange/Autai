@@ -97,9 +97,9 @@ export const StepNovel: FC<StepNovelProps> = ({
           structure (chaptered vs non-chaptered fiction) and acquisition
           (file upload vs internet fetch). Both long explanations live under
           help tooltips so the card stays compact. */}
-      <div className="space-y-4 rounded-lg border bg-card px-4 py-3">
+      <div className="grid gap-4 sm:grid-cols-2 sm:divide-x">
         {/* Structure — chaptered fiction vs a single continuous text. */}
-        <div className="space-y-2">
+        <div className="flex flex-col gap-2 sm:px-1">
           <div className="flex items-center gap-1.5">
             <span className="text-sm">
               {t("novel.source.structureLabel")}
@@ -136,7 +136,7 @@ export const StepNovel: FC<StepNovelProps> = ({
         </div>
 
         {/* Acquisition — file upload vs internet fetch. */}
-        <div className="space-y-2">
+        <div className="flex flex-col gap-2 sm:px-1">
           <div className="flex items-center gap-1.5">
             <span className="text-sm">
               {t("novel.source.acquisitionLabel")}

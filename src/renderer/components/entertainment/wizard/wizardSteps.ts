@@ -40,10 +40,10 @@ export const DEFAULT_CROSS_CHAPTER: CrossChapterDehydrate = {
   tactics: fillCrossChapterTactics(false),
 };
 
-// Rewrite-intensity (depth) defaults: both OFF, opt-in per category.
+// Rewrite-intensity (depth) defaults: both ON at 中 (medium), opt-out per category.
 export const DEFAULT_DEPTH: DehydrateDepth = {
-  prosePolish: { enabled: false, level: 2 },
-  proseExpand: { enabled: false, level: 2 },
+  prosePolish: { enabled: true, level: 2 },
+  proseExpand: { enabled: true, level: 2 },
 };
 
 // Language adaptation defaults to all-off; translation is rarely wanted.
