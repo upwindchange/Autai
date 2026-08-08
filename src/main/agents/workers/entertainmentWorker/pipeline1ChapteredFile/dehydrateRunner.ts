@@ -199,8 +199,8 @@ const outputChaptersTool = tool({
   description:
     "The ONLY way to end your output and deliver the chapters — " +
     "call this outputChapters tool with an array of chapters, each carrying " +
-    "`title` (a short reader-facing chapter name) and `content` (the full " +
-    "dehydrated/rewritten prose). " +
+    "`title` (the source chapter range + a short reader-facing name) and " +
+    "`content` (the full dehydrated/rewritten prose). " +
     "You are NOT ALLOWED to output the prose as plain text and stop; it must " +
     "go through this outputChapters tool.",
   inputSchema: z.object({
@@ -211,11 +211,17 @@ const outputChaptersTool = tool({
             .string()
             .min(1)
             .describe(
-              "A short, reader-facing chapter title for THIS dehydrated " +
-                "chapter (the chapter you just produced, NOT the source's). " +
-                "The evocative name only — e.g. '风起天南'; do NOT include any " +
-                "'第N章' / 'Chapter N' number prefix (the app renders the " +
-                "number separately, so a prefix would be duplicated).",
+              "Reader-facing chapter title for THIS dehydrated chapter = the " +
+                "source chapter range + the evocative name. Read the original " +
+                "chapter headings in the input to see which source chapters you " +
+                "merged AND the numbering convention they use, then copy that " +
+                "convention exactly (number format, script, and language — do not " +
+                "translate or romanize it). Examples of the SAME title under " +
+                "different sources' conventions: '第三十一至三十五章 风起天南', " +
+                "'Chapter 31–35 The Storm', '第31〜35章 嵐の夜'. One source chapter " +
+                "→ no range, just that heading's number. Do NOT include a new " +
+                "sequential output number — the app renders its own chapter " +
+                "number separately.",
             ),
           content: z
             .string()
@@ -283,7 +289,7 @@ const outputChaptersTool = tool({
 const RETRY_SUFFIX = `
 
 ## ⚠ Your previous submission was invalid — you must resubmit through the tool
-Your last response did not call the outputChapters tool; instead, you stopped after emitting plain text. Plain text is not accepted, so the result is invalid. Please resubmit now: call the outputChapters tool with an array of chapters, each carrying \`title\` (the bare chapter name, no '第N章' prefix) and \`content\` (the full dehydrated prose). Do not output plain text, and do not write any prose outside of the tool call.`;
+Your last response did not call the outputChapters tool; instead, you stopped after emitting plain text. Plain text is not accepted, so the result is invalid. Please resubmit now: call the outputChapters tool with an array of chapters, each carrying \`title\` (the source chapter range in the source's own numbering convention + the evocative name) and \`content\` (the full dehydrated prose). Do not output plain text, and do not write any prose outside of the tool call.`;
 
 // ---------------------------------------------------------------------------
 // One agent pass

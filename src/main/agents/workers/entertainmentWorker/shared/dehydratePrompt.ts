@@ -776,9 +776,16 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
     "- Pass an array of chapters; each entry has `title` (a short, reader-facing " +
     "chapter name for the chapter you just produced), `content` (the full " +
     "dehydrated chapter prose).\n" +
-    "- `title` is the evocative chapter name only — e.g. '风起天南'. Do NOT " +
-    "include any '第N章' / 'Chapter N' number prefix; the app renders the number " +
-    "separately, so a prefix would be duplicated.\n" +
+    "- `title` = the SOURCE chapter range, copied in the SAME numbering format " +
+    "and language the source itself uses for its chapter headings, followed by " +
+    "the evocative chapter name. Read the original chapter headings in the input " +
+    "to see (a) which source chapters you merged into this output chapter and " +
+    "(b) the numbering convention to copy — then mirror it exactly. Examples of " +
+    "the SAME title in different sources' conventions: '第三十一至三十五章 风起天南', " +
+    "'Chapter 31–35 The Storm', '第31〜35章 嵐の夜'. Single source chapter → no " +
+    "range, just that one heading's number. Do NOT invent a new sequential " +
+    "output number — the app renders its own chapter number separately, so that " +
+    "would be duplicated.\n" +
     "- `content` must contain only the prose itself: no explanations, no Markdown, " +
     "no chapter titles; preserve sensible paragraph breaks.\n" +
     "- Keep the output language the same as the source unless translation/" +
