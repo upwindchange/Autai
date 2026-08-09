@@ -28,9 +28,8 @@ import { Label } from "@/components/ui/label";
 import { ReaderSettingsPanel } from "./reader-settings/ReaderSettingsPanel";
 import { TableOfContents } from "./table-of-contents/TableOfContents";
 import { Bookmarks } from "./bookmarks/Bookmarks";
+import { serverEvents } from "@/lib/serverEvents";
 
-// Refresh cadence for the chapter list while the footer is shown.
-const POLL_MS = 1500;
 
 interface ReaderFooterProps {
   canGoPrev: boolean;
@@ -58,9 +57,9 @@ interface ReaderFooterProps {
  * symmetric. Hidden by default; reveals on desktop hover (bottom reveal band) or
  * a surface tap (`pinned`), and hides again when the pointer leaves or the
  * surface is tapped a second time. Settings/TOC open as a Popover (desktop) or
- * bottom-sheet Drawer (mobile). While visible, the chapter list is polled every
- * POLL_MS so the TOC and next-chapter indicator stay fresh; polling stops when
- * it hides.
+ * bottom-sheet Drawer (mobile). While visible, the chapter list is refreshed
+ * via SSE push when chapter data changes, so the TOC and next-chapter
+ * indicator stay fresh without polling.
  */
 export const ReaderFooter: FC<ReaderFooterProps> = ({
   canGoPrev,
@@ -110,18 +109,38 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     downloadOpen ||
     processOpen;
 
-  // Poll the chapter list while the footer is shown so the TOC rows and
-  // next-chapter indicator track progress. Stops when it hides. The fetch
-  // preserves cached per-chapter content (store merge), so it's flicker-free.
+  // Event-driven chapter refresh: refetch the chapter list only when the
+  // backend reports a change (SSE push), not on a blind timer. The store's
+  // diff guard (sameChapterView) already skips re-renders when the data is
+  // unchanged, so this eliminates both unnecessary fetches AND the
+  // parse/reducer work that caused the jank.
   useEffect(() => {
     if (!visible || !currentThreadId) return;
-    const tick = () => {
-      if (useChaptersStore.getState().loading) return;
+
+    // Initial fetch on visibility — picks up current state.
+    void loadChapters(currentThreadId);
+
+    // Refetch when the backend reports a chapter change for this thread.
+    // The loading guard prevents concurrent fetches; the next event
+    // self-corrects any change missed during an in-flight fetch.
+    const dispose = serverEvents.on(
+      "entertainment:chaptersChanged",
+      (payload) => {
+        if (payload.threadId !== currentThreadId) return;
+        if (useChaptersStore.getState().loading) return;
+        void loadChapters(currentThreadId);
+      },
+    );
+
+    // Catch up on any events missed during an SSE reconnect gap.
+    const disposeReconnect = serverEvents.onReconnect(() => {
       void loadChapters(currentThreadId);
+    });
+
+    return () => {
+      dispose();
+      disposeReconnect();
     };
-    tick();
-    const timer = setInterval(tick, POLL_MS);
-    return () => clearInterval(timer);
   }, [visible, currentThreadId, loadChapters]);
 
   // Load bookmarks once per thread switch (no poll — they only change via this

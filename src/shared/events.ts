@@ -21,6 +21,10 @@ export interface ThreadSuggestionsPayload {
   suggestions: { prompt: string }[];
 }
 
+export interface ChaptersChangedPayload {
+  threadId: string;
+}
+
 /**
  * Payload for the `app:message` server-push event: a toast notification shown
  * to the user (info / alert / warning / success). `alert` is a fatal, persistent
@@ -42,6 +46,7 @@ export interface ServerEvents {
   "threads:metadataUpdated": ThreadMetadataPayload;
   "threads:suggestionsUpdated": ThreadSuggestionsPayload;
   "app:message": AppMessage;
+  "entertainment:chaptersChanged": ChaptersChangedPayload;
 }
 
 export type ServerEventName = keyof ServerEvents;
@@ -57,4 +62,5 @@ export const SERVER_EVENT_NAMES: readonly ServerEventName[] = [
   "threads:metadataUpdated",
   "threads:suggestionsUpdated",
   "app:message",
+  "entertainment:chaptersChanged",
 ];

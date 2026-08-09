@@ -7,6 +7,7 @@ import {
 } from "@/db/schema";
 import type { RewrittenChapterStatus, SourceChapterStatus } from "@shared";
 import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { eventBus } from "@/utils/eventBus";
 
 /**
  * Entertainment backend persistence — the DB CRUD layer the entertainment
@@ -40,6 +41,9 @@ class EntertainmentBackendService {
         status: input.status,
       })
       .run();
+    eventBus.emitEvent("entertainment:chaptersChanged", {
+      threadId: input.threadId,
+    });
   }
 
   /** Patch a source row's mutable columns. */
@@ -63,6 +67,7 @@ class EntertainmentBackendService {
         ),
       )
       .run();
+    eventBus.emitEvent("entertainment:chaptersChanged", { threadId });
   }
 
   /**
@@ -80,6 +85,7 @@ class EntertainmentBackendService {
         ),
       )
       .run();
+    eventBus.emitEvent("entertainment:chaptersChanged", { threadId });
   }
 
   // --- rewritten chapters (重写) — writes ---------------------------------
@@ -105,6 +111,9 @@ class EntertainmentBackendService {
         status: input.status,
       })
       .run();
+    eventBus.emitEvent("entertainment:chaptersChanged", {
+      threadId: input.threadId,
+    });
   }
 
   /** Patch a rewrite row's mutable columns. */
@@ -126,6 +135,7 @@ class EntertainmentBackendService {
         ),
       )
       .run();
+    eventBus.emitEvent("entertainment:chaptersChanged", { threadId });
   }
 
   // --- output numbering ---------------------------------------------------
@@ -216,6 +226,7 @@ class EntertainmentBackendService {
       })
       .where(eq(entertainmentConfigs.threadId, threadId))
       .run();
+    eventBus.emitEvent("entertainment:chaptersChanged", { threadId });
   }
 
   // --- thread touch -------------------------------------------------------
