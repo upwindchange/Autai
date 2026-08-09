@@ -31,10 +31,15 @@ import { createGatewayProvider } from "@ai-sdk/gateway";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createAihubmix } from "@aihubmix/ai-sdk-provider";
 import { createVenice } from "venice-ai-sdk-provider";
+import { createMergeGateway } from "merge-gateway-ai-sdk-provider";
+import { createSaladCloud } from "@saladtechnologies-oss/ai-sdk-provider";
+import { createQvac } from "@qvac/ai-sdk-provider";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { createAzure } from "@ai-sdk/azure";
 import { createGitLab } from "gitlab-ai-provider";
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
+import { createSAPAIProvider } from "@jerome-benoit/sap-ai-provider-v2";
+import { createAiGateway } from "ai-gateway-provider";
 import { createVertex } from "@ai-sdk/google-vertex";
 import { createVertexAnthropic } from "@ai-sdk/google-vertex/anthropic";
 
@@ -62,6 +67,9 @@ const STANDARD_PROVIDERS: Record<string, StandardCreator> = {
   "@openrouter/ai-sdk-provider": createOpenRouter,
   "@aihubmix/ai-sdk-provider": createAihubmix,
   "venice-ai-sdk-provider": createVenice,
+  "merge-gateway-ai-sdk-provider": createMergeGateway,
+  "@saladtechnologies-oss/ai-sdk-provider": createSaladCloud,
+  "@qvac/ai-sdk-provider": createQvac,
 };
 
 export class Provider {
@@ -136,6 +144,26 @@ export class Provider {
       // there is no apiKey to pass; project/location still come from env vars.
       case "@ai-sdk/google-vertex/anthropic": {
         return createVertexAnthropic()(modelName);
+      }
+
+      // Auth via SAP AI Core service binding — AICORE_SERVICE_KEY env var,
+      // documented in the provider TOML. No apiKey/baseURL accepted.
+      case "@jerome-benoit/sap-ai-provider-v2": {
+        return createSAPAIProvider()(modelName);
+      }
+
+      // Cloudflare AI Gateway is a meta-provider: it wraps an upstream
+      // LanguageModelV4 and routes its fetch through gateway.ai.cloudflare.com.
+      // gateway/accountId come from env vars (CLOUDFLARE_GATEWAY_ID/
+      // CLOUDFLARE_ACCOUNT_ID, documented in the provider TOML); the upstream
+      // apiKey carries the Cloudflare token; vendor routing is the gateway's job.
+      case "ai-gateway-provider": {
+        const gateway = createAiGateway({
+          apiKey,
+          gateway: process.env.CLOUDFLARE_GATEWAY_ID ?? "",
+          accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "",
+        });
+        return gateway(createOpenAI({ apiKey })(modelName));
       }
 
       default: {
