@@ -719,7 +719,8 @@ const CORE_INVARIANTS: Record<DehydrateVariant, string> = {
     "- 不增加情节、不改写事实，你改的是“怎么写”，不是“写了什么”。\n" +
     "- 可以大幅改写章节衔接处的文字，把原本割裂的章节熔成一章；" +
     "但不要补写原文没有的情节或事实，不要擅自续写或收尾。\n" +
-    "- 保留对话的信息量与潜台词：只在表达层面优化，不要让人物说出原本没说过的话。",
+    "- 保留对话的信息量与潜台词：只在表达层面优化，不要让人物说出原本没说过的话。\n" +
+    "- 必须覆盖本段输入的全部内容：不得静默跳过任何源章节。最后一段原文若在中途截断，由你调用 terminate 时产出的最后一章覆盖该截断点。",
 };
 
 const ROLE_LINE: Record<DehydrateVariant, string> = {
@@ -765,14 +766,17 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
     "this is the only way to deliver the result.\n" +
     "- Emitting plain text without calling outputProcessedContent tool " +
     "will result in fatal failure.",
-  // multi — array of `{ title, content }` via outputChapters. Pure mechanics;
-  // editorial guidance (re-chapter intent, anti-summary) lives in the Chinese
-  // ROLE_LINE + philosophy block — not duplicated here in the wrong language.
+  // multi — two tools: outputChapter (stage one) + terminate (final + flush).
+  // Pure mechanics; editorial guidance (re-chapter intent, anti-summary) lives
+  // in the Chinese ROLE_LINE + philosophy block — not duplicated here.
   multi:
-    "The only thing you are allowed to do is to call the outputChapters tool:\n" +
-    "- Pass an array of chapters; each entry has `title` (a short, reader-facing " +
-    "chapter name for the chapter you just produced), `content` (the full " +
-    "dehydrated chapter prose).\n" +
+    "You deliver your result through TWO tools — never as plain text:\n" +
+    "- `outputChapter` — call once per completed chapter you produce from the " +
+    "input. Each call carries `title` + `content` for that one chapter. The " +
+    "chapter is staged internally; you will NOT see it again.\n" +
+    "- `terminate` — call ONCE, for the FINAL chapter that covers where the " +
+    "input text cuts off. It both emits that chapter and ends the pass. Shape " +
+    "its ending as a clean continuation point.\n" +
     "- `title` = the SOURCE chapter range, copied in the SAME numbering format " +
     "and language the source itself uses for its chapter headings, followed by " +
     "the evocative chapter name. Read the original chapter headings in the input " +
@@ -787,8 +791,12 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
     "no chapter titles; preserve sensible paragraph breaks.\n" +
     "- Keep the output language the same as the source unless translation/" +
     "localization is requested above.\n" +
+    "- You must account for the ENTIRE input: do not silently skip source " +
+    "chapters. If the input was cut mid-scene, your final `terminate` chapter " +
+    "is the one that covers that cut point.\n" +
     "- You are NOT allowed to output prose as plain text; it must go through " +
-    "outputChapters tool call. Emitting plain text without the tool is fatal.",
+    "outputChapter or terminate tool calls. Emitting plain text without the " +
+    "tools is fatal.",
 };
 
 // ---------------------------------------------------------------------------

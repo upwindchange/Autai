@@ -811,7 +811,11 @@ export type CrossChapterDehydrate = z.infer<typeof CrossChapterDehydrateSchema>;
 export type SourceChapterStatus = "fetching" | "fetched" | "error";
 
 /** Lifecycle of a `rewritten_chapters` row (重写 transformation). */
-export type RewrittenChapterStatus = "rewriting" | "rewritten" | "error";
+export type RewrittenChapterStatus =
+  | "rewriting"
+  | "rewritten"
+  | "to_be_continued"
+  | "error";
 
 /**
  * Per-output progress — the reader's list/TOC view. `chapterNumber` is the
@@ -895,6 +899,10 @@ export function deriveChapterStatus(
   // 1. Terminal failure (source OR rewrite errored).
   if (ch.sourceStatus === "error" || ch.rewriteStatus === "error") {
     return { phase: "error", messageKey: `reader.status.${p}.error` };
+  }
+  // 2b. Done + readable, but the chunk ended mid-scene — still being continued.
+  if (ch.rewriteStatus === "to_be_continued") {
+    return { phase: "success", messageKey: `reader.status.${p}.to_be_continued` };
   }
   // 2. Done — rewritten prose is ready to read.
   if (ch.rewriteStatus === "rewritten") {

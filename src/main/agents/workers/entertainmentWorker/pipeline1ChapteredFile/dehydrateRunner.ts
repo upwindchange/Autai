@@ -36,23 +36,25 @@ import {
   reasoningProviderOptions,
   type ResolvedModel,
 } from "@agents/providers";
-import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
+import { TIMEOUTS } from "@agents/utils";
 import {
   settingsService,
   entertainmentFrontendService,
   entertainmentBackendService,
 } from "@/services";
 import { buildDehydrateSystemPrompt } from "../shared/dehydratePrompt";
+import type { RewrittenChapterStatus } from "@shared";
 
 const logger = log.scope("Dehydrate:Pipeline1:Runner");
 
 /**
- * Hard flat cap (in CHARS) on how much original text one pass ingests. Keeps
- * each pass bounded even on huge-context models. The effective per-pass budget
- * is the min of this, the model's max-output (in chars), and 1/5 of the context
- * window (in chars) — see `computeBudget`.
+ * Hard flat cap (in CHARS) on how much original text one pass ingests. Bounds
+ * the worst-case loss from a silent partial skip (one chapter out of a handful,
+ * not dozens) and keeps each pass bounded even on huge-context models. The
+ * effective per-pass budget is the min of this, the model's max-output (in
+ * chars), and 1/5 of the context window (in chars) — see `computeBudget`.
  */
-const MAX_INPUT_CHARS = 200_000;
+const MAX_INPUT_CHARS = 30_000;
 
 /**
  * Number of characters of raw text sent in the one-shot chars-per-token probe.
@@ -164,137 +166,189 @@ function computeBudget(resolved: ResolvedModel, charsPerToken: number): number {
 }
 
 // ---------------------------------------------------------------------------
-// Terminal tool: outputChapters
+// Per-pass staging + two tools: outputChapter (stage) + terminate (flush)
 // ---------------------------------------------------------------------------
 
-interface OutputChaptersContext {
+/**
+ * Per-pass RAM staging buffer. Created fresh at the start of each pass (local
+ * to the pass), passed into both tools via `toolsContext`. An interrupted pass
+ * simply never calls `terminate`, so the staging is discarded with the pass —
+ * crash-safe by construction (no partial DB state).
+ */
+interface PassStage {
   threadId: string;
   /** Char offset into rawText where this pass's chunk STARTS. */
   chunkStart: number;
-  /** Length (chars) of this pass's chunk. The tool advances rawConsumedOffset
-   *  by exactly this — the whole chunk is consumed regardless of how the agent
-   *  re-chapters it. */
+  /** Length (chars) of this pass's chunk. */
   chunkLength: number;
-  /** True when this chunk reaches EOF — the tool finalizes the thread on it. */
+  /** True when this chunk reaches EOF — the terminate chapter gets `rewritten`
+   *  (not `to_be_continued`) AND `finalChapterNumber` is set. */
   isLastBatch: boolean;
+  /** Sequential chapter numbers this pass will write, continuing from the DB.
+   *  When lead-in is present, this is the PRIOR `to_be_continued` chapter's
+   *  number (the first outputChapter REPLACES that row in place). */
+  startNum: number;
+  /** When non-null, the first staged chapter lands on an EXISTING row (the
+   *  prior pass's `to_be_continued` chapter whose content was prepended as
+   *  lead-in). `flushDehydratePass` UPDATEs instead of INSERTing it. */
+  replaceAtChapterNumber: number | null;
+  /** Staged chapters in emit order. */
+  chapters: { title: string; content: string }[];
 }
 
+/** Shared field schemas (identical for outputChapter + terminate). */
+const TITLE_DESC =
+  "Reader-facing chapter title for THIS dehydrated chapter = the " +
+  "source chapter range + the evocative name. Read the original " +
+  "chapter headings in the input to see which source chapters you " +
+  "merged AND the numbering convention they use, then copy that " +
+  "convention exactly (number format, script, and language — do not " +
+  "translate or romanize it). Examples of the SAME title under " +
+  "different sources' conventions: '第三十一至三十五章 风起天南', " +
+  "'Chapter 31–35 The Storm', '第31〜35章 嵐の夜'. One source chapter " +
+  "→ no range, just that heading's number. Do NOT include a new " +
+  "sequential output number — the app renders its own chapter " +
+  "number separately.";
+const CONTENT_DESC =
+  "The full dehydrated/rewritten chapter prose, content only " +
+  "(no title, no Markdown, no explanations).";
+
 /**
- * `outputChapters` — the ONLY way the agent delivers its result. One call per
- * pass: an array of `{ title, content }`, one entry per chapter the
- * agent chose to produce from the chunk. Execute is fully deterministic:
- *   - assigns sequential chapter numbers continuing from the last one in the DB
- *     (`maxRewrittenChapterNumber + 1`, read at execute time → gap-free across
- *     passes and crash-resume);
- *   - inserts the rewritten_chapters row FIRST, then the source_chapters row
- *     (which carries the title the reader joins in for the TOC + app header);
- *   - advances `rawConsumedOffset` to `chunkStart + chunkLength` (the recovery
- *     checkpoint — recoverable after power-off);
- *   - on the last batch, sets `finalChapterNumber` (the full chapter count is
- *     known once the final chunk's rows land).
- * `threadId` / `chunkStart` / `chunkLength` / `isLastBatch` arrive via
- * `toolsContext` (zero-token — never in the prompt).
+ * `outputChapter` — stage ONE completed chapter from the input chunk. Call this
+ * once per chapter you produce. The chapter is staged internally; you will NOT
+ * see it again. After your final chapter of this chunk, call the `terminate`
+ * tool instead of this one. Never emit prose as plain text.
  */
-const outputChaptersTool = tool({
+const outputChapterTool = tool({
   description:
-    "The ONLY way to end your output and deliver the chapters — " +
-    "call this outputChapters tool with an array of chapters, each carrying " +
-    "`title` (the source chapter range + a short reader-facing name) and " +
-    "`content` (the full dehydrated/rewritten prose). " +
-    "You are NOT ALLOWED to output the prose as plain text and stop; it must " +
-    "go through this outputChapters tool.",
+    "Output ONE completed dehydrated chapter from the input chunk. Call this " +
+    "once per chapter you produce. The chapter is staged internally; you will " +
+    "NOT see it again. After your final chapter of this chunk, call the " +
+    "`terminate` tool instead of this one. Never emit prose as plain text.",
   inputSchema: z.object({
-    chapters: z
-      .array(
-        z.object({
-          title: z
-            .string()
-            .min(1)
-            .describe(
-              "Reader-facing chapter title for THIS dehydrated chapter = the " +
-                "source chapter range + the evocative name. Read the original " +
-                "chapter headings in the input to see which source chapters you " +
-                "merged AND the numbering convention they use, then copy that " +
-                "convention exactly (number format, script, and language — do not " +
-                "translate or romanize it). Examples of the SAME title under " +
-                "different sources' conventions: '第三十一至三十五章 风起天南', " +
-                "'Chapter 31–35 The Storm', '第31〜35章 嵐の夜'. One source chapter " +
-                "→ no range, just that heading's number. Do NOT include a new " +
-                "sequential output number — the app renders its own chapter " +
-                "number separately.",
-            ),
-          content: z
-            .string()
-            .min(1)
-            .describe(
-              "The full dehydrated/rewritten chapter prose, content only " +
-                "(no title, no Markdown, no explanations).",
-            ),
-        }),
-      )
-      .min(1),
+    title: z.string().min(1).describe(TITLE_DESC),
+    content: z.string().min(1).describe(CONTENT_DESC),
   }),
-  contextSchema: z.object({
-    threadId: z.string(),
-    chunkStart: z.number(),
-    chunkLength: z.number(),
-    isLastBatch: z.boolean(),
-  }),
+  contextSchema: z.object({ stage: z.custom<PassStage>() }),
   execute: async (input, { context: ctx }) => {
-    const startNum =
-      entertainmentBackendService.maxRewrittenChapterNumber(ctx.threadId) + 1;
-    for (let i = 0; i < input.chapters.length; i++) {
-      const ch = input.chapters[i];
-      const n = startNum + i;
-      // rewritten_chapters row first, then the source_chapters row (title).
-      entertainmentBackendService.insertRewrittenChapter({
-        threadId: ctx.threadId,
-        chapterNumber: n,
-        content: ch.content,
-        status: "rewritten",
-      });
-      // The source_chapters row carries the chapter title, which the reader
-      // joins in for the TOC + app header. status="fetched" is benign here —
-      // the reader's phase derivation returns "success" for rewritten chapters
-      // before ever consulting sourceStatus, and there is no "view original"
-      // affordance. url/content stay null: a file upload has no source URL and
-      // the reader never renders 原文.
-      entertainmentBackendService.insertSourceChapter({
-        threadId: ctx.threadId,
-        chapterNumber: n,
-        title: ch.title,
-        status: "fetched",
-      });
-    }
-    const newOffset = ctx.chunkStart + ctx.chunkLength;
-    entertainmentBackendService.setConsumedOffset(ctx.threadId, newOffset);
-    if (ctx.isLastBatch) {
-      entertainmentBackendService.setFinalChapterNumber(
-        ctx.threadId,
-        startNum + input.chapters.length - 1,
-      );
-    }
-    entertainmentBackendService.touchThread(ctx.threadId);
-    logger.info("chapters committed", {
-      threadId: ctx.threadId,
-      saved: input.chapters.length,
-      newOffset,
-      isLastBatch: ctx.isLastBatch,
-    });
-    return { saved: input.chapters.length };
+    ctx.stage.chapters.push({ title: input.title, content: input.content });
+    return { staged: ctx.stage.chapters.length };
   },
 });
 
 /**
+ * `terminate` — emit the FINAL chapter of this input chunk AND signal
+ * completion. This is the chapter that covers the point where the raw input
+ * text cuts off — shape its ending as a clean continuation point. After this
+ * call the pass ends; do not call outputChapter again. Use terminate instead of
+ * outputChapter ONLY for the last chapter of the chunk. Never emit prose as
+ * plain text.
+ *
+ * Execute: gross-coverage tripwire (refuses to flush if output is absurdly
+ * small vs input), then atomically flushes all staged chapters + offset advance
+ * + optional final-chapter number + thread touch in ONE transaction.
+ */
+const terminateTool = tool({
+  description:
+    "Emit the FINAL chapter of this input chunk AND signal completion. This is " +
+    "the chapter that covers the point where the raw input text cuts off — " +
+    "shape its ending as a clean continuation point. After this call the pass " +
+    "ends; do not call outputChapter again. Use terminate instead of " +
+    "outputChapter ONLY for the last chapter of the chunk. Never emit prose as " +
+    "plain text.",
+  inputSchema: z.object({
+    title: z.string().min(1).describe(TITLE_DESC),
+    content: z.string().min(1).describe(CONTENT_DESC),
+  }),
+  contextSchema: z.object({ stage: z.custom<PassStage>() }),
+  execute: async (input, { context: ctx }) => {
+    const s = ctx.stage;
+    s.chapters.push({ title: input.title, content: input.content });
+    // Gross-coverage tripwire: refuse to flush if output is absurdly small vs
+    // input. Return an error result so the model sees it and keeps going (the
+    // SDK feeds tool errors back into the next step). Do NOT flush, do NOT
+    // advance.
+    const emittedChars = s.chapters.reduce((a, c) => a + c.content.length, 0);
+    if (emittedChars < s.chunkLength * 0.02) {
+      return {
+        error: "insufficient_coverage",
+        emittedChars,
+        chunkChars: s.chunkLength,
+        message:
+          `You have emitted ${emittedChars} chars for a ${s.chunkLength}-char ` +
+          `input chunk — that is far too little. You must cover the WHOLE input. ` +
+          `Continue producing the missing chapters with outputChapter, then call ` +
+          `terminate again only when the entire input has been covered.`,
+      };
+    }
+    // Assign sequential numbers continuing from the DB.
+    const rows = s.chapters.map((c, i) => ({
+      chapterNumber: s.startNum + i,
+      title: c.title,
+      content: c.content,
+      rewriteStatus: (i === s.chapters.length - 1
+        ? (s.isLastBatch ? "rewritten" : "to_be_continued")
+        : "rewritten") as RewrittenChapterStatus,
+    }));
+    entertainmentBackendService.flushDehydratePass({
+      threadId: s.threadId,
+      chapters: rows,
+      newOffset: s.chunkStart + s.chunkLength,
+      ...(s.replaceAtChapterNumber != null && {
+        replaceAtChapterNumber: s.replaceAtChapterNumber,
+      }),
+      ...(s.isLastBatch && {
+        finalChapterNumber: rows[rows.length - 1].chapterNumber,
+      }),
+    });
+    logger.info("dehydrate pass flushed", {
+      threadId: s.threadId,
+      saved: rows.length,
+      newOffset: s.chunkStart + s.chunkLength,
+      isLastBatch: s.isLastBatch,
+      chunkStart: s.chunkStart,
+      chunkLength: s.chunkLength,
+      lastStatus: rows[rows.length - 1].rewriteStatus,
+      replaceAt: s.replaceAtChapterNumber,
+      chapterLengths: rows.map((r) => ({
+        n: r.chapterNumber,
+        titleLen: r.title.length,
+        contentLen: r.content.length,
+      })),
+    });
+    return { saved: rows.length, terminated: true };
+  },
+});
+
+/**
+ * Stop condition: the last step produced a successful (non-error) `terminate`
+ * tool result. Mirrors `hasSuccessfulToolResult` but additionally requires the
+ * result NOT to carry an `error` field (the tripwire returns an error object,
+ * which is still `type: "tool-result"` but must NOT satisfy the stop condition).
+ */
+function terminatedSuccessfully({ steps }: { steps: { toolResults?: Array<{ toolName: string; type: string; output: unknown }> }[] }): boolean {
+  return (
+    steps[steps.length - 1]?.toolResults?.some((r) => {
+      if (r.toolName !== "terminate" || r.type !== "tool-result") return false;
+      const output = r.output as Record<string, unknown> | undefined;
+      return !output?.error;
+    }) ?? false
+  );
+}
+
+/**
  * Reinforcement appended on the one-shot retry when the agent stopped without
- * calling `outputChapters` (it streamed prose as plain text). Tells the model
- * the plain-text output was discarded and it must hand the chapters back
- * through the tool.
+ * calling `outputChapter` / `terminate` (it streamed prose as plain text).
+ * Tells the model the plain-text output was discarded and it must hand the
+ * chapters back through the tools.
  */
 const RETRY_SUFFIX = `
 
-## ⚠ Your previous submission was invalid — you must resubmit through the tool
-Your last response did not call the outputChapters tool; instead, you stopped after emitting plain text. Plain text is not accepted, so the result is invalid. Please resubmit now: call the outputChapters tool with an array of chapters, each carrying \`title\` (the source chapter range in the source's own numbering convention + the evocative name) and \`content\` (the full dehydrated prose). Do not output plain text, and do not write any prose outside of the tool call.`;
+## ⚠ Your previous submission was invalid — you must resubmit through the tools
+Your last response did not call outputChapter or terminate; instead you stopped
+after emitting plain text. Plain text is not accepted. Resubmit now: call
+outputChapter for each completed chapter, then terminate with the final chapter
+that covers the end of the input chunk.`;
 
 // ---------------------------------------------------------------------------
 // One agent pass
@@ -303,11 +357,12 @@ Your last response did not call the outputChapters tool; instead, you stopped af
 async function runDehydrateAgent(params: {
   resolved: ResolvedModel;
   systemPrompt: string;
-  chunk: string;
-  ctx: OutputChaptersContext;
+  userContent: string;
+  stage: PassStage;
+  maxSteps: number;
   signal: AbortSignal;
 }): Promise<boolean> {
-  const { resolved, systemPrompt, chunk, ctx, signal } = params;
+  const { resolved, userContent, stage, maxSteps, signal } = params;
   const sampling = forwardSamplingParams(resolved.params);
   const reasoning = reasoningProviderOptions(
     resolved.params,
@@ -316,11 +371,10 @@ async function runDehydrateAgent(params: {
   );
   const result = streamText({
     model: resolved.model,
-    instructions: systemPrompt,
-    messages: [{ role: "user", content: chunk }],
-    tools: { outputChapters: outputChaptersTool },
-    toolChoice: { type: "tool", toolName: "outputChapters" },
-    stopWhen: [hasSuccessfulToolResult("outputChapters"), isStepCount(3)],
+    messages: [{ role: "user", content: userContent }],
+    tools: { outputChapter: outputChapterTool, terminate: terminateTool },
+    // Free choice across the loop — the model picks outputChapter or terminate.
+    stopWhen: [terminatedSuccessfully, isStepCount(maxSteps)],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.novel,
     abortSignal: signal,
@@ -331,18 +385,64 @@ async function runDehydrateAgent(params: {
       maxOutputTokens: resolved.maxOutputTokens,
     }),
     ...(reasoning && { providerOptions: reasoning }),
-    toolsContext: { outputChapters: ctx },
+    toolsContext: { outputChapter: { stage }, terminate: { stage } },
     telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "entertainment-pipeline1-dehydrate",
     },
   });
   const steps = await result.steps;
-  return steps
-    .flatMap((s) => s.toolResults ?? [])
-    .some(
-      (tr) => tr.toolName === "outputChapters" && tr.type === "tool-result",
-    );
+  // Diagnostic: dump the full reasoning, plain text, and tool-call arguments
+  // for each step so we can see exactly what the model thought and emitted.
+  for (const step of steps) {
+    const u = step.usage;
+    logger.silly("agent step result", {
+      threadId: stage.threadId,
+      stepNumber: step.stepNumber,
+      provider: step.model.provider,
+      modelId: step.model.modelId,
+      finishReason: step.finishReason,
+      rawFinishReason: step.rawFinishReason,
+      inputTokens: u.inputTokens,
+      outputTokens: u.outputTokens,
+      totalTokens: u.totalTokens,
+      reasoningTokens: u.outputTokenDetails?.reasoningTokens,
+      textLen: step.text.length,
+      toolCallNames: step.toolCalls.map((tc) => tc.toolName),
+      hasToolResults: (step.toolResults ?? []).length > 0,
+    });
+    if (step.reasoningText) {
+      logger.silly("agent step reasoning", {
+        threadId: stage.threadId,
+        stepNumber: step.stepNumber,
+        reasoningText: step.reasoningText,
+      });
+    }
+    if (step.text) {
+      logger.silly("agent step text", {
+        threadId: stage.threadId,
+        stepNumber: step.stepNumber,
+        text: step.text,
+      });
+    }
+    for (const tc of step.toolCalls) {
+      logger.silly("agent step tool call", {
+        threadId: stage.threadId,
+        stepNumber: step.stepNumber,
+        toolCallId: tc.toolCallId,
+        toolName: tc.toolName,
+        input: JSON.stringify(tc.input),
+      });
+    }
+  }
+  // `saved` = terminate flushed successfully (a non-error terminate result).
+  return steps.some((s) =>
+    (s.toolResults ?? []).some((r) => {
+      if (r.toolName !== "terminate" || r.type !== "tool-result") return false;
+      const output = r.output as Record<string, unknown> | undefined;
+      return !output?.error;
+    }),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -434,12 +534,45 @@ export async function runDehydrateLoop(
     const chunk = rawText.slice(chunkStart, chunkEnd);
     const isLastBatch = chunkEnd >= rawText.length;
     const systemPrompt = buildDehydrateSystemPrompt(config.options, "multi");
-    const ctx: OutputChaptersContext = {
+
+    // Lead-in: if the previous pass ended with a `to_be_continued` chapter,
+    // prepend its content so the model continues the scene coherently. The
+    // model's first outputChapter of THIS pass replaces that row in place
+    // (same chapter number) with lead-in + continued text merged.
+    const priorMax =
+      entertainmentBackendService.maxRewrittenChapterNumber(threadId);
+    let leadIn: { chapterNumber: number; content: string } | null = null;
+    if (priorMax > 0) {
+      const priorRow =
+        entertainmentFrontendService.getRewrittenChapter(threadId, priorMax);
+      if (priorRow && priorRow.status === "to_be_continued") {
+        leadIn = {
+          chapterNumber: priorMax,
+          content: priorRow.content ?? "",
+        };
+      }
+    }
+
+    const userContent = leadIn
+      ? `【上一章续写】以下是你上一段处理的结尾（章节 ${leadIn.chapterNumber}），请基于它续写，保持连贯；本段你产出的第一章将替换该章，合并上一章结尾与本段续写内容，使用相同的章节号 ${leadIn.chapterNumber}：\n\n${leadIn.content}\n\n【本段原文】\n${chunk}`
+      : chunk;
+
+    const startNum = leadIn ? leadIn.chapterNumber : priorMax + 1;
+    const stage: PassStage = {
       threadId,
       chunkStart,
       chunkLength: chunk.length,
       isLastBatch,
+      startNum,
+      replaceAtChapterNumber: leadIn?.chapterNumber ?? null,
+      chapters: [],
     };
+
+    // Scaled step count: ~one step per expected chapter (~2500 chars/chapter)
+    // + retry headroom. Generous so it never cuts off a well-behaved pass; the
+    // coverage tripwire is the real safety net.
+    const targetChapters = Math.max(2, Math.ceil(chunk.length / 2500));
+    const maxSteps = targetChapters * 3 + 4;
 
     logger.debug("dehydrate pass planned", {
       threadId,
@@ -451,6 +584,9 @@ export async function runDehydrateLoop(
       fastStartup,
       isLastBatch,
       charsPerToken,
+      leadIn: leadIn ? leadIn.chapterNumber : null,
+      startNum,
+      maxSteps,
     });
 
     let saved = false;
@@ -458,20 +594,24 @@ export async function runDehydrateLoop(
       saved = await runDehydrateAgent({
         resolved,
         systemPrompt,
-        chunk,
-        ctx,
+        userContent,
+        stage,
+        maxSteps,
         signal,
       });
       if (!saved && !signal.aborted) {
-        logger.warn("pass stopped without outputChapters; retrying once", {
+        logger.warn("pass stopped without terminate; retrying once", {
           threadId,
           pass,
         });
+        // Fresh stage for the retry — the prior attempt's staging is discarded.
+        const retryStage: PassStage = { ...stage, chapters: [] };
         saved = await runDehydrateAgent({
           resolved,
           systemPrompt: systemPrompt + RETRY_SUFFIX,
-          chunk,
-          ctx,
+          userContent,
+          stage: retryStage,
+          maxSteps,
           signal,
         });
       }

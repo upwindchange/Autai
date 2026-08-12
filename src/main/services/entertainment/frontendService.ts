@@ -223,7 +223,7 @@ class EntertainmentFrontendService {
       sourceStatus: s?.status ?? null,
       rewriteStatus: r.status,
       // Only expose rewritten prose to the reader (never 原文).
-      content: r.status === "rewritten" ? r.content : null,
+      content: r.status === "rewritten" || r.status === "to_be_continued" ? r.content : null,
     };
   }
 

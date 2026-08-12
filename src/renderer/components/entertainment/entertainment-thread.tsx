@@ -174,7 +174,7 @@ export const EntertainmentThread: FC = () => {
       pendingJumpRef.current = null; // navigated elsewhere — discard
       return;
     }
-    if (current?.rewriteStatus !== "rewritten") return; // wait for content
+    if (current?.rewriteStatus !== "rewritten" && current?.rewriteStatus !== "to_be_continued") return; // wait for content
     scrollToPercentile(pending.percentile);
     pendingJumpRef.current = null; // content ready — jump complete
   }, [currentChapterNumber, current?.rewriteStatus, current?.content]);
@@ -355,7 +355,12 @@ export const EntertainmentThread: FC = () => {
  *  markdown) so a large chapter mounts fast; typography comes from the
  *  `.novel-reader` rules in novel-reader.css. */
 const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
-  if (chapter && chapter.rewriteStatus === "rewritten") {
+  const { t } = useTranslation("reader");
+  if (
+    chapter &&
+    (chapter.rewriteStatus === "rewritten" ||
+      chapter.rewriteStatus === "to_be_continued")
+  ) {
     // Split on newline (handles CRLF); blank lines add no node. Each <p> gets
     // the first-line indent + spacing from .novel-reader p. Plain text nodes
     // only, so React/Blink handles a chapter as a handful of elements.
@@ -364,6 +369,11 @@ const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
       <div className="novel-reader text-pretty">
         {paragraphs.map((line, i) =>
           line.trim() ? <p key={i}>{line}</p> : null,
+        )}
+        {chapter.rewriteStatus === "to_be_continued" && (
+          <p className="mt-8 text-center text-sm italic text-muted-foreground">
+            {t("reader.chapter.toBeContinued")}
+          </p>
         )}
       </div>
     );

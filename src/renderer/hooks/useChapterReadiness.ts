@@ -18,6 +18,7 @@ type ChapterDetailWithStatus = ChapterDetail & { status: ChapterStatus };
 const isTerminal = (detail: ChapterDetailWithStatus | undefined): boolean =>
   !!detail &&
   (detail.rewriteStatus === "rewritten" ||
+    detail.rewriteStatus === "to_be_continued" ||
     detail.rewriteStatus === "error" ||
     detail.sourceStatus === "error");
 

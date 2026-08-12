@@ -75,7 +75,7 @@ export const TableOfContents: FC<TableOfContentsProps> = ({
     <ul className="flex flex-col gap-0.5">
       {chapters.map((c) => {
         const active = c.chapterNumber === currentChapterNumber;
-        const dimmed = c.rewriteStatus !== "rewritten"; // not yet readable
+        const dimmed = c.rewriteStatus !== "rewritten" && c.rewriteStatus !== "to_be_continued"; // not yet readable
         return (
           <li key={c.chapterNumber}>
             <button
