@@ -75,7 +75,9 @@ export const TableOfContents: FC<TableOfContentsProps> = ({
     <ul className="flex flex-col gap-0.5">
       {chapters.map((c) => {
         const active = c.chapterNumber === currentChapterNumber;
-        const dimmed = c.rewriteStatus !== "rewritten" && c.rewriteStatus !== "to_be_continued"; // not yet readable
+        const dimmed =
+          c.rewriteStatus !== "rewritten" &&
+          c.rewriteStatus !== "to_be_continued"; // not yet readable
         return (
           <li key={c.chapterNumber}>
             <button
@@ -93,11 +95,15 @@ export const TableOfContents: FC<TableOfContentsProps> = ({
               </span>
               {c.title && <span className="truncate">{c.title}</span>}
               {/* `status.phase` (backend-derived per chapter) drives the
-                  DotMatrix indicator; the message shows as a title tooltip. */}
-              <DotMatrix
-                state={c.status.phase}
-                className="ml-auto size-4 shrink-0"
-              />
+                  DotMatrix indicator; the message shows as a title tooltip.
+                  `success` renders no icon — readable chapters are the resting
+                  state and the check glyph would be noise on every row. */}
+              {c.status.phase !== "success" && (
+                <DotMatrix
+                  state={c.status.phase}
+                  className="ml-auto size-5 shrink-0"
+                />
+              )}
             </button>
           </li>
         );

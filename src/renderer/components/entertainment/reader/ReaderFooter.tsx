@@ -30,7 +30,6 @@ import { TableOfContents } from "./table-of-contents/TableOfContents";
 import { Bookmarks } from "./bookmarks/Bookmarks";
 import { serverEvents } from "@/lib/serverEvents";
 
-
 interface ReaderFooterProps {
   canGoPrev: boolean;
   canGoNext: boolean;
@@ -151,12 +150,13 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   }, [currentThreadId, loadBookmarks]);
 
   // Next chapter's phase — derived on the backend (same `status.phase` the TOC
-  // renders). Swap the chevron for a dot only while it's actively working.
+  // renders). Swap the chevron for a dot only while it's actively working
+  // (acquiring 原文 or rewriting); success/stopped/error keep the chevron.
   const next = chapters.find(
     (c) => c.chapterNumber === (currentChapterNumber ?? 0) + 1,
   );
   const nextPhase =
-    next?.status.phase === "loading" || next?.status.phase === "syncing" ?
+    next?.status.phase === "searching" || next?.status.phase === "loading" ?
       next.status.phase
     : null;
 
@@ -496,7 +496,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
               className="size-9 rounded-full"
             >
               {nextPhase ?
-                <DotMatrix state={nextPhase} className="size-4" />
+                <DotMatrix state={nextPhase} className="size-5" />
               : <NavChevronRight className="size-4" />}
             </Button>
           </div>

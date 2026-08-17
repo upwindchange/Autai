@@ -82,13 +82,18 @@ export const EntertainmentThread: FC = () => {
 
   // On thread switch: load chapters + resume position. The start chapter is a
   // pending jump at percentile 0 so the apply effect scrolls it to the top.
+  // "Has chapters" = has REWRITE rows: the spine also carries source-only rows
+  // (internet fetch in flight), but a thread that never got past prefetch must
+  // keep opening the wizard, not the reader.
   useEffect(() => {
     if (!activeThreadId) return;
     void (async () => {
       await loadChapters(activeThreadId);
       const pos = await getPosition(activeThreadId);
-      const hasChapters = useChaptersStore.getState().chapters.length > 0;
-      const start = pos ?? (hasChapters ? 1 : null);
+      const committed = useChaptersStore
+        .getState()
+        .chapters.some((c) => c.rewriteStatus != null);
+      const start = pos ?? (committed ? 1 : null);
       if (start == null) return; // fresh thread — the wizard drives the first chapter.
       pendingJumpRef.current = { chapterNumber: start, percentile: 0 };
       setCurrentChapter(start);
@@ -174,7 +179,11 @@ export const EntertainmentThread: FC = () => {
       pendingJumpRef.current = null; // navigated elsewhere — discard
       return;
     }
-    if (current?.rewriteStatus !== "rewritten" && current?.rewriteStatus !== "to_be_continued") return; // wait for content
+    if (
+      current?.rewriteStatus !== "rewritten" &&
+      current?.rewriteStatus !== "to_be_continued"
+    )
+      return; // wait for content
     scrollToPercentile(pending.percentile);
     pendingJumpRef.current = null; // content ready — jump complete
   }, [currentChapterNumber, current?.rewriteStatus, current?.content]);
@@ -200,10 +209,14 @@ export const EntertainmentThread: FC = () => {
     };
   }, [isMobile]);
 
-  // Wizard on a fresh surface: no chapters and no open chapter. With lazy
+  // Wizard on a fresh surface: no REWRITE rows and no open chapter. With lazy
   // creation this includes activeThreadId === null — the wizard IS the empty
-  // state; no thread exists until the user commits at StepNovel.
-  const showWizard = chapters.length === 0 && currentChapterNumber == null;
+  // state; no thread exists until the user commits at StepNovel. Rewrite-row
+  // presence (not spine length) is the gate: the spine also carries source-only
+  // rows created by the internet wizard's background prefetch, and a thread
+  // that never got past prefetch must keep opening the wizard.
+  const hasRewriteRows = chapters.some((c) => c.rewriteStatus != null);
+  const showWizard = !hasRewriteRows && currentChapterNumber == null;
 
   const handlePrev = () => {
     if (!canGoPrev || currentChapterNumber == null) return;
@@ -353,7 +366,9 @@ export const EntertainmentThread: FC = () => {
 
 /** Renders the current chapter. Ready prose is plain <p> paragraphs (no
  *  markdown) so a large chapter mounts fast; typography comes from the
- *  `.novel-reader` rules in novel-reader.css. */
+ * `.novel-reader` rules in novel-reader.css. A `to_be_continued` chapter is
+ * readable NOW but its continuation is still being written, so the prose ends
+ * with a `streaming` DotMatrix marker. */
 const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
   const { t } = useTranslation("reader");
   if (
@@ -371,9 +386,12 @@ const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
           line.trim() ? <p key={i}>{line}</p> : null,
         )}
         {chapter.rewriteStatus === "to_be_continued" && (
-          <p className="mt-8 text-center text-sm italic text-muted-foreground">
-            {t("reader.chapter.toBeContinued")}
-          </p>
+          <div className="mt-8 flex flex-col items-center gap-3 text-muted-foreground">
+            <DotMatrix state="streaming" className="size-10" />
+            <p className="text-sm italic">
+              {t("reader.chapter.toBeContinued")}
+            </p>
+          </div>
         )}
       </div>
     );
@@ -385,21 +403,33 @@ const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
 };
 
 /**
- * Status placeholder for a chapter that isn't ready to read yet. Renders the
- * DotMatrix indicator for `status.phase` (DotMatrix natively draws a glyph per
- * state — `loading`, `syncing`, `error`, `paused`, `stopped` — so no custom
- * icon is needed) plus the pipeline-aware message from `status.messageKey`.
+ * Status placeholder for a chapter that isn't ready to read yet. Renders a
+ * large DotMatrix indicator centered in the content area, with a short
+ * pipeline-aware message under it. `success` never renders here (readable
+ * chapters render prose), so every phase shown is icon-bearing. On `error`,
+ * adds a hint that processing can be retried via the footer's Process button.
  */
 const ChapterStatusPlaceholder: FC<{ status: ChapterStatus | undefined }> = ({
   status,
 }) => {
   const { t } = useTranslation("reader");
   return (
-    <div className="flex flex-col items-center justify-center gap-3 py-20 text-center text-muted-foreground">
-      <DotMatrix state={status?.phase ?? "loading"} className="size-6" />
+    <div className="flex min-h-[50vh] w-full flex-1 flex-col items-center justify-center gap-4 py-20 text-center text-muted-foreground">
+      <DotMatrix
+        state={status?.phase ?? "loading"}
+        className="size-12"
+        label={
+          status ? t(status.messageKey, status.messageParams ?? {}) : undefined
+        }
+      />
       {status && (
-        <p className="text-sm max-w-md">
+        <p className="max-w-md text-sm">
           {t(status.messageKey, status.messageParams ?? {})}
+        </p>
+      )}
+      {status?.phase === "error" && (
+        <p className="max-w-md text-sm text-muted-foreground/80">
+          {t("reader.status.retryHint")}
         </p>
       )}
     </div>

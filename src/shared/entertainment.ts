@@ -812,19 +812,18 @@ export type SourceChapterStatus = "fetching" | "fetched" | "error";
 
 /** Lifecycle of a `rewritten_chapters` row (重写 transformation). */
 export type RewrittenChapterStatus =
-  | "rewriting"
-  | "rewritten"
-  | "to_be_continued"
-  | "error";
+  "rewriting" | "rewritten" | "to_be_continued" | "error";
 
 /**
- * Per-output progress — the reader's list/TOC view. `chapterNumber` is the
- * REWRITE OUTPUT sequential number (the reader spine). `title` and
- * `sourceStatus` come from the source row at the same number. `rewriteStatus` is
- * the output row's own status (the only signal that matters for "prose ready").
+ * Per-chapter progress — the reader's list/TOC view. The spine is the UNION of
+ * source and rewrite rows: a chapter that only has a source row (internet
+ * fetch in flight / fetched but not yet rewritten) appears with
+ * `rewriteStatus: null`. `title` and `sourceStatus` come from the source row
+ * at the same number; `rewriteStatus` is the output row's own status (the only
+ * signal that matters for "prose ready").
  */
 export interface ChapterProgress {
-  /** REWRITE OUTPUT sequential number (reader spine). */
+  /** Reader spine chapter number (output numbering; source rows mirror it). */
   chapterNumber: number;
   title: string | null;
   sourceStatus: SourceChapterStatus | null;
@@ -845,16 +844,20 @@ export type ChapterPipeline = "file" | "internet" | "nonNovel";
 
 /**
  * Reader-facing per-chapter DotMatrix state. Values deliberately match DotMatrix
- * state names so `ChapterStatus.phase` renders with no client mapping:
- *   - `loading`  acquiring 原文 (sourceStatus "fetching").
- *   - `syncing`  rewriting 重写 (rewriteStatus "rewriting").
- *   - `error`    source or rewrite failed — terminal.
- *   - `success`  rewritten — ready to read.
- *   - `stopped`  not yet processed (no row / not reached).
- *                `ChapterStatus.messageKey` is the not-yet-processed copy.
+ * state names so `ChapterStatus.phase` renders with no client mapping. The
+ * mapping is pipeline-blind — file and internet threads show identical
+ * iconography; only the message copy varies by pipeline:
+ *   - `searching` acquiring 原文 (sourceStatus "fetching").
+ *   - `loading`   原文 acquired but rewrite not started (queued), or actively
+ *                 rewriting (rewriteStatus "rewriting").
+ *   - `streaming` readable prose, but the chunk ended mid-scene and the
+ *                 continuation is still being written ("to_be_continued").
+ *   - `error`     source or rewrite failed — terminal.
+ *   - `success`   rewritten — ready to read; the renderer draws NO icon for it.
+ *   - `stopped`   not yet processed (no rows / not reached).
  */
 export type ChapterPhase =
-  "loading" | "syncing" | "error" | "success" | "stopped";
+  "searching" | "loading" | "streaming" | "error" | "success" | "stopped";
 
 /**
  * Reader-facing per-chapter status — the single source the renderer renders from.
@@ -887,8 +890,9 @@ export interface ChapterStatus {
  *                  message vocabulary so each shows accurate copy (e.g. a file
  *                  thread shows "Rewriting chapter N…", never "Fetching…").
  *
- * Priority order (first match wins): terminal error → done → actively working
- * (rewriting/fetching) → not yet processed.
+ * Priority order (first match wins): terminal error → done (streaming before
+ * success) → actively working (rewriting, then fetching) → queued (source
+ * fetched, no rewrite row) → not yet processed.
  */
 export function deriveChapterStatus(
   ch: ChapterProgress,
@@ -900,31 +904,42 @@ export function deriveChapterStatus(
   if (ch.sourceStatus === "error" || ch.rewriteStatus === "error") {
     return { phase: "error", messageKey: `reader.status.${p}.error` };
   }
-  // 2b. Done + readable, but the chunk ended mid-scene — still being continued.
+  // 2. Done + readable, but the chunk ended mid-scene — still being continued.
   if (ch.rewriteStatus === "to_be_continued") {
-    return { phase: "success", messageKey: `reader.status.${p}.to_be_continued` };
+    return {
+      phase: "streaming",
+      messageKey: `reader.status.${p}.to_be_continued`,
+    };
   }
-  // 2. Done — rewritten prose is ready to read.
+  // 3. Done — rewritten prose is ready to read (no icon in the renderer).
   if (ch.rewriteStatus === "rewritten") {
     return { phase: "success", messageKey: `reader.status.${p}.success` };
   }
-  // 3. Actively rewriting.
+  // 4. Actively rewriting 重写.
   if (ch.rewriteStatus === "rewriting") {
     return {
-      phase: "syncing",
+      phase: "loading",
       messageKey: `reader.status.${p}.rewriting`,
       messageParams: { n },
     };
   }
-  // 4. Actively acquiring 原文 (sourceStatus "fetching").
+  // 5. Actively acquiring 原文.
   if (ch.sourceStatus === "fetching") {
     return {
-      phase: "loading",
+      phase: "searching",
       messageKey: `reader.status.${p}.fetching`,
       messageParams: { n },
     };
   }
-  // 5. Not yet processed.
+  // 6. 原文 acquired, rewrite not started — queued for the agent.
+  if (ch.sourceStatus === "fetched") {
+    return {
+      phase: "loading",
+      messageKey: `reader.status.${p}.queued`,
+      messageParams: { n },
+    };
+  }
+  // 7. Not yet processed.
   return { phase: "stopped", messageKey: `reader.status.${p}.pending` };
 }
 

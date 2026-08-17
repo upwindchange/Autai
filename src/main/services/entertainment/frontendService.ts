@@ -172,42 +172,61 @@ class EntertainmentFrontendService {
   }
 
   // --- merged reader view -------------------------------------------------
-  // The reader's SPINE is `rewritten_chapters`. Each rewrite row joins its
-  // source row directly — title + sourceStatus come from the source row at the
-  // same number. Source chapters with no rewrite row yet are NOT shown (the
-  // reader never renders 原文); a not-yet-rewritten chapter shows as `stopped`.
+  // The reader's spine is the UNION of source_chapters and rewritten_chapters
+  // keyed by chapterNumber: rewrite rows (title joins from the source row at
+  // the same number) PLUS source-only rows (internet fetch in flight / fetched
+  // but not yet rewritten — `rewriteStatus: null`), so the reader's TOC and
+  // chapter body can show acquisition/queued states as they happen. The reader
+  // never shows 原文 content — progress rows carry statuses only.
 
   /**
-   * Per-chapter progress, spine'd on `rewritten_chapters`. title/sourceStatus
-   * come from the source row at the same chapterNumber.
+   * Per-chapter progress across the union spine. title/sourceStatus come from
+   * the source row at the same chapterNumber; a source-only row appears with
+   * `rewriteStatus: null`.
    */
   listChapterProgress(threadId: string): ChapterProgress[] {
-    const outputs = this.listRewrittenChapters(threadId);
-    if (outputs.length === 0) return [];
-    const sourceByNum = new Map(
-      this.listSourceChapters(threadId).map((s) => [s.chapterNumber, s]),
+    const sources = this.listSourceChapters(threadId);
+    const rewriteByNum = new Map(
+      this.listRewrittenChapters(threadId).map((r) => [r.chapterNumber, r]),
     );
-    return outputs.map((r) => {
+    const byNum = new Map<number, ChapterProgress>();
+    // Source rows first: they seed the union (and are the ONLY rows for
+    // source-only chapters).
+    const sourceByNum = new Map(sources.map((s) => [s.chapterNumber, s]));
+    for (const s of sources) {
+      byNum.set(s.chapterNumber, {
+        chapterNumber: s.chapterNumber,
+        title: s.title,
+        sourceStatus: s.status,
+        rewriteStatus: null,
+      });
+    }
+    for (const r of rewriteByNum.values()) {
       const s = sourceByNum.get(r.chapterNumber);
-      return {
+      byNum.set(r.chapterNumber, {
         chapterNumber: r.chapterNumber,
         title: s?.title ?? null,
         sourceStatus: s?.status ?? null,
         rewriteStatus: r.status,
-      };
-    });
+      });
+    }
+    return [...byNum.values()].sort(
+      (a, b) => a.chapterNumber - b.chapterNumber,
+    );
   }
 
   /**
    * Single-chapter detail (1:1 keyed). Prose comes from the rewrite row (only
-   * when `rewritten`); title/sourceStatus from the source row at the same
-   * number.
+   * when `rewritten`/`to_be_continued`); title/sourceStatus from the source row
+   * at the same number. A source-only chapter returns statuses with
+   * `rewriteStatus: null` so the reader renders the acquisition/queued state.
    */
   getChapterDetail(threadId: string, chapterNumber: number): ChapterDetail {
     const r = this.getRewrittenChapter(threadId, chapterNumber);
-    if (!r) {
-      // No rewrite row yet — synthesize null statuses so the reader's phase
-      // derivation renders `stopped`/`paused` rather than erroring.
+    const s = this.getSourceChapter(threadId, chapterNumber);
+    if (!r && !s) {
+      // No rows yet — synthesize null statuses so the reader's phase
+      // derivation renders `stopped` rather than erroring.
       return {
         chapterNumber,
         title: null,
@@ -216,14 +235,19 @@ class EntertainmentFrontendService {
         content: null,
       };
     }
-    const s = this.getSourceChapter(threadId, chapterNumber);
     return {
-      chapterNumber: r.chapterNumber,
+      chapterNumber,
       title: s?.title ?? null,
       sourceStatus: s?.status ?? null,
-      rewriteStatus: r.status,
+      rewriteStatus: r?.status ?? null,
       // Only expose rewritten prose to the reader (never 原文).
-      content: r.status === "rewritten" || r.status === "to_be_continued" ? r.content : null,
+      content:
+        (
+          r != null &&
+          (r.status === "rewritten" || r.status === "to_be_continued")
+        ) ?
+          r.content
+        : null,
     };
   }
 
