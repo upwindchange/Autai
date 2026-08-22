@@ -1,9 +1,9 @@
 # Store Signing & CI
 
-`.github/workflows/build-store.yml` (manual `workflow_dispatch`) builds and
-signs Mac App Store (`.pkg`) and Microsoft Store (`.appx`) packages. Store
-submission itself stays manual: download artifacts from the run and upload to
-App Store Connect / Partner Center.
+The manual (`workflow_dispatch`) store job in `.github/workflows/build.yml`
+builds and signs Mac App Store (`.pkg`) and Microsoft Store (`.appx`)
+packages. Store submission itself stays manual: download artifacts from the
+run and upload to App Store Connect / Partner Center.
 
 ## Mac App Store
 
