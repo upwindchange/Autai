@@ -30,13 +30,7 @@ const zh = {
   },
   update: {
     availableTitle: "发现新版本",
-    availableBody: "正在后台下载 v{{version}}...",
-    readyTitle: "可以更新了",
-    readyBody: "v{{version}} 会在重启后自动安装。",
-    errorTitle: "更新出错",
-    notPackaged:
-      "当前安装方式不支持应用内更新，请从原来的下载渠道获取最新版本。",
-    networkError: "网络错误",
+    availableBody: "v{{version}} 已发布，请从原来的下载渠道（GitHub Releases）获取。",
   },
   settings: {
     testingTitle: "测试连接",

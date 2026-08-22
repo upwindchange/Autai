@@ -21,8 +21,8 @@ where artifacts land, and the one-time GitHub setup you need.
               published GitHub Release │ artifact download (stores)
                                         ▼
                     ┌──────────────────────────────────────────────┐
-                    │ src/main/update.ts (electron-updater)        │
-                    │ installed apps auto-download new versions    │
+                    │ src/main/update.ts (update CHECK + notify)   │
+                    │ users install from their download source     │
                     └──────────────────────────────────────────────┘
 ```
 
@@ -80,15 +80,17 @@ section.**
   3. Wait for the Actions matrix to go green.
   4. Releases → draft → verify artifacts → **Publish**.
 
-### 3. In-app auto-updates (users' machines)
+### 3. In-app update notification (users' machines)
 
-`src/main/update.ts` runs `electron-updater` with `autoDownload = true`. It
-fetches `latest.yml` (Windows) / `latest-linux.yml` / `latest-mac.yml` from
-the **published** GitHub Releases and compares against the running version.
-Higher version → download → toast prompt → restart to install.
+`src/main/update.ts` performs a **check-only** update flow: it fetches the
+latest release tag from the GitHub API and, if newer than the running
+version, shows a success toast telling the user to get it from their
+download source. It never downloads or installs anything — required for
+App Store (Guideline 2.4.5(vii)) and Microsoft Store (policy 10.2.5)
+compliance, and applied to all builds uniformly.
 
-Requirements already satisfied by the repo: `publish.provider: github` in
-`electron-builder.json`, and `electron-updater` in dependencies.
+Store builds (`process.mas` / `process.windowsStore`) skip the check
+entirely: their stores already notify users about updates.
 
 ## Store packages (manual dispatch)
 
@@ -109,9 +111,8 @@ the GitHub website, once:
 | Capability | Have? | Where |
 |---|---|---|
 | Automatic build on PR/tag | ✅ | `build` job |
-| Automatic installers to draft release | ✅ | `build` job, tag push |
+| In-app update notification | ✅ | `src/main/update.ts` — check + toast only, no download (store-policy compliant) |
 | Manual publish gate | ✅ | GitHub Releases UI (by design) |
-| In-app auto-update | ✅ | `src/main/update.ts` + published releases |
 | Local all-platform packaging | ✅ | `pnpm build:all` (`scripts/build-all-platforms.mjs`) |
 | Store package builds + signing | ✅ (needs one-time secrets) | `mac-store` / `windows-store` jobs |
 | Automatic tagging / version bumps | ❌ | You tag manually (`git tag vX.Y.Z`) |

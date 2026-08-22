@@ -30,13 +30,8 @@ const en = {
   },
   update: {
     availableTitle: "Update Available",
-    availableBody: "Downloading v{{version}} in the background...",
-    readyTitle: "Update Ready",
-    readyBody: "v{{version}} will be installed after restart.",
-    errorTitle: "Update Error",
-    notPackaged:
-      "In-app updates are not supported with your current installation. Please download the latest version from the same source.",
-    networkError: "Network error",
+    availableBody:
+      "v{{version}} is available. Get it from your download source (GitHub Releases).",
   },
   settings: {
     testingTitle: "Testing Connection",

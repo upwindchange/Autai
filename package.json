@@ -111,7 +111,6 @@
     "electron": "^43.4.1",
     "electron-builder": "^26.15.3",
     "electron-log": "^5.4.4",
-    "electron-updater": "^6.8.9",
     "electron-vite": "^5.0.0",
     "embla-carousel-react": "^8.6.0",
     "eslint": "^10.8.1",
