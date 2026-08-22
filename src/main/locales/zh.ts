@@ -30,7 +30,7 @@ const zh = {
   },
   update: {
     availableTitle: "发现新版本",
-    availableBody: "v{{version}} 已发布，请从原来的下载渠道（GitHub Releases）获取。",
+    availableBody: "v{{version}} 已发布，请通过你安装本应用的应用商店或下载页面更新。",
   },
   settings: {
     testingTitle: "测试连接",

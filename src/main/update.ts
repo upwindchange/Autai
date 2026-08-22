@@ -10,8 +10,8 @@ import { i18n } from "@/i18n";
 // installing app code is not. This module never downloads anything.
 //
 // Direct (non-store) builds previously used electron-updater to auto-install
-// from GitHub Releases; users now get the same notification and update from
-// their install source (GitHub Releases page).
+// from GitHub Releases; all builds now get the same channel-neutral
+// notification pointing users to wherever they installed the app from.
 
 // Owner/repo of the GitHub Releases feed to check against.
 const GITHUB_REPO = "upwindchange/Autai";

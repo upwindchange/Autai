@@ -31,7 +31,7 @@ const en = {
   update: {
     availableTitle: "Update Available",
     availableBody:
-      "v{{version}} is available. Get it from your download source (GitHub Releases).",
+      "v{{version}} is available. Install it from the store or page where you got the app.",
   },
   settings: {
     testingTitle: "Testing Connection",
