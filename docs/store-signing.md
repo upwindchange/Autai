@@ -14,20 +14,36 @@ certificates — do not confuse them:
   MAS builds need).
 - **"3rd Party Mac Developer Installer"** — signs the `.pkg` installer.
 
-Both live in the same exported `.p12`. The workflow imports it into a
-temporary keychain; `electron-builder` picks the right identity for each
+electron-builder 26 matches these **exact** certificate names. Apple's newer
+portal may offer "Mac App Distribution"/"Mac Installer Distribution" certs
+whose issued CN is `Apple Distribution:`/`Mac Installer Distribution:` — the
+app-level one still matches, but a `Mac Installer Distribution:` installer
+cert will **not** be found by `createMasInstaller` (it hard-codes the legacy
+name; see upstream PR #9226, unmerged). Verify what you have:
+
+```bash
+openssl x509 -in mac_app.pem -noout -subject   # must say "3rd Party Mac Developer Application" or "Apple Distribution"
+openssl x509 -in mac_installer.pem -noout -subject  # must say "3rd Party Mac Developer Installer"
+```
+
+The current assets (verified 2026-08): both certs use the legacy names and
+are valid until 2027-06 — fully compatible.
+
+Each cert is exported as its own `.p12` (see the `~/apple-signing/mac`
+README for the openssl CSR/p12 procedure). The workflow imports both into
+one temporary keychain; `electron-builder` picks the right identity for each
 phase automatically.
 
 ### Secrets
 
 | Secret | Value |
 |---|---|
-| `MAC_CERT_BASE64` | `base64 < AppleDistribution.p12` — containing *both* 3rd-party certificates above |
-| `MAC_CERT_PASSWORD` | password of that `.p12` |
-| `MAS_PROVISION_BASE64` | `base64 < embedded.provisionprofile` from App Store Connect (optional; omit to build unsigned-profile pkgs) |
+| `MAC_APP_P12_BASE64` | `base64 -w 0 mac/app/app.p12` ("3rd Party Mac Developer Application") |
+| `MAC_INSTALLER_P12_BASE64` | `base64 -w 0 mac/installer/installer.p12` ("3rd Party Mac Developer Installer") |
+| `MAC_SIGNING_PASSWORD` | the `.p12` password (use the same password for both p12s and the temp keychain) |
+| `MAS_PROVISION_BASE64` | `base64 -w 0 < embedded.provisionprofile` from App Store Connect (optional; omit to build without an embedded profile) |
 
-Export the `.p12` in Keychain Access (select the *private key*, export as
-`.p12`). Create the provisioning profile in App Store Connect →
+Create the provisioning profile in App Store Connect →
 Certificates, Identifiers & Profiles → Profiles (type: Mac App Store) with
 the app's bundle id `com.upwindchange.Autai`.
 

@@ -102,23 +102,27 @@ jobs:
         run: pnpm install --no-frozen-lockfile
 
       # Secrets (see docs/store-signing.md):
-      #   MAC_CERT_BASE64 — "3rd Party Mac Developer Application/Installer" .p12, base64
-      #   MAC_CERT_PASSWORD — password for that .p12
+      #   MAC_APP_P12_BASE64 — "3rd Party Mac Developer Application" .p12, base64
+      #   MAC_INSTALLER_P12_BASE64 — "3rd Party Mac Developer Installer" .p12, base64
+      #   MAC_SIGNING_PASSWORD — password for both .p12 files + the temp keychain
       #   MAS_PROVISION_BASE64 — embedded.provisionprofile, base64 (optional)
-      - name: Import signing certificate into keychain
+      - name: Import signing certificates into keychain
         env:
-          MAC_CERT_BASE64: ${{ secrets.MAC_CERT_BASE64 }}
-          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+          MAC_APP_P12_BASE64: ${{ secrets.MAC_APP_P12_BASE64 }}
+          MAC_INSTALLER_P12_BASE64: ${{ secrets.MAC_INSTALLER_P12_BASE64 }}
+          MAC_SIGNING_PASSWORD: ${{ secrets.MAC_SIGNING_PASSWORD }}
         run: |
-          CERT_P12=build/cert.p12
           KEYCHAIN=build.keychain
-          echo -n "$MAC_CERT_BASE64" | base64 --decode > "$CERT_P12"
-          security create-keychain -p "$MAC_CERT_PASSWORD" "$KEYCHAIN"
+          echo -n "$MAC_APP_P12_BASE64" | base64 --decode > app.p12
+          echo -n "$MAC_INSTALLER_P12_BASE64" | base64 --decode > installer.p12
+          security create-keychain -p "$MAC_SIGNING_PASSWORD" "$KEYCHAIN"
           security default-keychain -s "$KEYCHAIN"
-          security unlock-keychain -p "$MAC_CERT_PASSWORD" "$KEYCHAIN"
-          security import "$CERT_P12" -k "$KEYCHAIN" -P "$MAC_CERT_PASSWORD" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$MAC_CERT_PASSWORD" "$KEYCHAIN"
-          rm -f "$CERT_P12"
+          security unlock-keychain -p "$MAC_SIGNING_PASSWORD" "$KEYCHAIN"
+          security import app.p12 -k "$KEYCHAIN" -P "$MAC_SIGNING_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+          security import installer.p12 -k "$KEYCHAIN" -P "$MAC_SIGNING_PASSWORD" -T /usr/bin/codesign -T /usr/bin/productbuild
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$MAC_SIGNING_PASSWORD" "$KEYCHAIN"
+          security find-identity -v -p codesigning "$KEYCHAIN"
+          rm -f app.p12 installer.p12
 
       - name: Write provisioning profile
         if: ${{ secrets.MAS_PROVISION_BASE64 != '' }}
