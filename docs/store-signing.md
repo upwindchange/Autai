@@ -52,6 +52,31 @@ memory — required by Electron's V8). Add store-specific entitlements there
 if you need them (e.g. network access is allowed by default; file access
 outside the sandbox requires explicit entries).
 
+## Renewing after expiry
+
+Certs (issued ~1-year, current pair valid to 2027-06-08) only gate NEW
+signing — published store apps and installed copies are unaffected. The
+renewal reuses the existing private keys; no new CSR is needed and no repo
+or workflow change is required:
+
+1. Apple Developer portal → Certificates → create new cert of the same
+   type, uploading the **same** `app.certSigningRequest` /
+   `installer.certSigningRequest` from `~/apple-signing/mac/`.
+2. Convert the new `.cer` to PEM and confirm the public-key fingerprint
+   still matches the private key (steps 4–5 / 7–8 of the local README).
+3. Re-export the `.p12` files with the same password
+   (`openssl pkcs12 -export ...`).
+4. `base64 -w 0` each new `.p12` and update the GitHub secrets
+   `MAC_APP_P12_BASE64` / `MAC_INSTALLER_P12_BASE64`.
+5. Run the manual `mac-store` job; the `security find-identity` step should
+   list both identities, then the build signs green.
+
+Renew ahead of expiry: Apple allows a couple of concurrent certs per type,
+so you can flip the secret and verify a green build while the old cert is
+still valid, then revoke the old one. If the portal reports the limit
+reached, revoke the expiring cert first. Only generate fresh keys/CSRs if
+you suspect key compromise.
+
 ### Notes
 
 - `electron-builder --mac mas` runs the `mas` config block in
