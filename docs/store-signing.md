@@ -39,8 +39,9 @@ phase automatically.
 | Secret | Value |
 |---|---|
 | `MAC_APP_P12_BASE64` | `base64 -w 0 mac/app/app.p12` ("3rd Party Mac Developer Application") |
+| `MAC_APP_P12_PASSWORD` | password of the app `.p12` |
 | `MAC_INSTALLER_P12_BASE64` | `base64 -w 0 mac/installer/installer.p12` ("3rd Party Mac Developer Installer") |
-| `MAC_SIGNING_PASSWORD` | the `.p12` password (use the same password for both p12s and the temp keychain) |
+| `MAC_INSTALLER_P12_PASSWORD` | password of the installer `.p12` (independent of the app one) |
 | `MAS_PROVISION_BASE64` | `base64 -w 0 < embedded.provisionprofile` from App Store Connect (optional; omit to build without an embedded profile) |
 
 Create the provisioning profile in App Store Connect →
