@@ -2,6 +2,8 @@
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
   "appId": "com.upwindchange.Autai",
   "productName": "Autai",
+  "afterPack": "scripts/after-pack.mjs",
+  "npmRebuild": false,
   "asar": true,
   "asarUnpack": ["out/main/better_sqlite3.node"],
   "directories": {
@@ -38,9 +40,17 @@
     "target": [{ "target": "AppImage", "arch": ["x64", "arm64"] }],
     "category": "Utility"
   },
-  "flatpak": {
-    "runtimeVersion": "25.08",
-    "baseVersion": "25.08"
+  "mas": {
+    "target": [{ "target": "pkg", "arch": ["x64", "arm64"] }],
+    "entitlements": "build/entitlements.mas.plist",
+    "entitlementsInherit": "build/entitlements.mas.plist",
+    "hardenedRuntime": false,
+    "gatekeeperAssess": false,
+    "artifactName": "${productName}_${version}_mas_${arch}.${ext}"
+  },
+  "appx": {
+    "artifactName": "${productName}_${version}_${arch}.${ext}",
+    "backgroundColor": "#0f1116"
   },
   "publish": {
     "provider": "github",

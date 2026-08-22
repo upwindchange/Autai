@@ -29,7 +29,7 @@ pnpm build:vite   # electron-vite build only (no packaging)
 pnpm build:win    # build Windows installer (NSIS)
 pnpm build:linux  # build Linux AppImage
 pnpm build:mac    # build macOS zip
-pnpm build:all    # build all platforms via scripts/build-all-platforms.js
+pnpm build:all    # cross-build all platforms from one host (scripts/build-all-platforms.mjs)
 
 # Quality
 pnpm tsc          # Type-check both main and renderer (tsc:node && tsc:web)
@@ -96,7 +96,7 @@ The main process initializes in `src/main/index.ts` with this startup sequence: 
 - SQLite via better-sqlite3 with Drizzle ORM (1.0.0-beta.22)
 - Schema in `schema.ts` (9 tables): `settings` (key-value), `userProviders`, `modelAssignments` (per-role model selection), `threads` (includes `mode` = `chat`|`entertainment`, plus per-thread `chatProviderId`/`chatModelId`/`chatModelParams`/`chatSystemPrompt` overrides), `messages`, `tags`, `mcpServers`, `threadTags` (many-to-many), `authSessions`
 - Migrations generated to `drizzle/` via `pnpm db:generate`, copied to `out/main/drizzle/` at build time
-- Custom Vite plugins in `electron.vite.config.ts` handle native binding copy (`bindingSqlite3`), migration copy (`copyMigrations`), and dev main-process reload (`watch-main-reload`)
+- Custom Vite plugins in `electron.vite.config.ts` handle native binding copy (`bindingSqlite3`, copies the Node-API prebuilt from `node_modules/better-sqlite3/prebuilds/`), migration copy (`copyMigrations`), and dev main-process reload (`watch-main-reload`)
 
 ### App Modes
 
@@ -186,10 +186,10 @@ Note: `@/` resolves differently for main vs renderer (configured in `tsconfig.no
 - WebView tags are disabled for security; use `WebContentsView` instead.
 - **Run modes**: standalone (`127.0.0.1` + random port, local) vs remote access (network bind on configurable host/port, default `0.0.0.0:8787`, with optional password auth).
 - Build tooling is electron-vite. Main-process `externalizeDeps` excludes `drizzle-orm` (it is bundled); the renderer dedupes `@assistant-ui/*` plus `react`/`react-dom`. The dev server runs on port 7777.
-- Custom Vite plugins in `electron.vite.config.ts`: `bindingSqlite3` (copies `better_sqlite3.node` to `out/main/`; supports cross-platform builds via the `NATIVE_BINDING_TARGET` env var by downloading prebuilt binaries, cached under `native/`), `copyMigrations` (`drizzle/` → `out/main/drizzle/`), `watch-main-reload`.
+- Custom Vite plugins in `electron.vite.config.ts`: `bindingSqlite3` (copies the host platform's `better_sqlite3.node` Node-API prebuilt from `node_modules/better-sqlite3/prebuilds/` to `out/main/`; cross-arch packages get the correct prebuild stamped per-arch by the `scripts/after-pack.mjs` electron-builder hook), `copyMigrations` (`drizzle/` → `out/main/drizzle/`), `watch-main-reload`.
 - Tailwind CSS v4 (via `@tailwindcss/vite` plugin, not PostCSS).
 - Logging: `electron-log/main` with scoped loggers (e.g., `log.scope("ApiServer")`).
 - Drizzle ORM (1.0.0-beta.22) with SQLite dialect; migrations live in `drizzle/`.
-- Tooling: ESLint flat config (`eslint.config.ts`) with types-eslint recommended; it ignores the vendored `components/ui/` and `components/assistant-ui/` directories. Prettier config lives in `package.json` (2-space indent, no tabs). Repo helper scripts live in `scripts/` (e.g., `build-all-platforms.js`, `postinstall.js`).
-- Packaging (`electron-builder.json`): appId `com.upwindchange.Autai`; asar with `better_sqlite3.node` unpacked; Windows NSIS (x64 + arm64), Linux AppImage (x64 + arm64), macOS zip; Flatpak target; published to GitHub (`upwindchange/Autai`).
+- Tooling: ESLint flat config (`eslint.config.ts`) with types-eslint recommended; it ignores the vendored `components/ui/` and `components/assistant-ui/` directories. Prettier config lives in `package.json` (2-space indent, no tabs). Repo helper scripts live in `scripts/` (e.g., `after-pack.mjs`).
+- Packaging (`electron-builder.json`): appId `com.upwindchange.Autai`; asar with `better_sqlite3.node` unpacked; per-arch native binding stamped by `afterPack` hook (`npmRebuild: false` — better-sqlite3 v13 prebuilts are Node-API and need no rebuild against Electron); Windows NSIS (x64 + arm64), Linux AppImage (x64 + arm64), macOS zip; published to GitHub (`upwindchange/Autai`).
 - Stack highlights: React 19, TypeScript 6, @assistant-ui/react 0.14 + @assistant-ui/react-ai-sdk, Zustand 5, Zod 4, Hono, better-sqlite3, p-queue, electron-log, electron-updater, Langfuse, @ai-sdk/mcp, i18next/react-i18next, the streamdown suite (cjk/code/math/mermaid) with remark-gfm + KaTeX, and react-hook-form.

@@ -33,9 +33,6 @@ yarn.lock
 /playwright-report/
 /playwright/.cache/
 
-#native module cache
-native/
-
 #project tools
 .roo/
 .claude/

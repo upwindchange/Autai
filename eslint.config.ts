@@ -15,12 +15,20 @@ export default defineConfig(
       "*.config.js",
       "*.config.ts",
       "src/main/scripts/*.js",
-      "scripts/postinstall.js",
       "src/renderer/components/ui/**",
       "src/renderer/components/assistant-ui/**",
       "reference/**",
       "test/**",
     ],
+  },
+  {
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      globals: {
+        console: "readonly",
+        process: "readonly",
+      },
+    },
   },
   {
     files: ["**/*.ts", "**/*.tsx"],

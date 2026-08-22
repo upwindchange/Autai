@@ -1,0 +1,148 @@
+name: Build Store Packages
+
+# Builds Mac App Store (.pkg) and Microsoft Store (.appx/upload) packages
+# with code signing. Triggered manually — store submissions are reviewed
+# steps, not part of the normal PR/tag pipeline.
+#
+# Required secrets (see docs/store-signing.md):
+#   macOS:  MAC_CERT_BASE64        — "3rd Party Mac Developer Application: <name>" .p12, base64
+#           MAC_CERT_PASSWORD      — password for that .p12
+#           MAS_PROVISION_BASE64   — embedded.provisionprofile, base64 (optional; omit to sign without)
+#   Windows (choose ONE):
+#           Azure Trusted Signing (recommended, no .p12 to manage):
+#             AZURE_TENANT_ID / AZURE_CLIENT_ID / AZURE_CLIENT_SECRET — Entra service principal
+#             (certificateName/publisher set via env: AZURE_SIGNING_CERTIFICATE_NAME, APPX_PUBLISHER)
+#           or classic EV .p12:
+#             WIN_CERT_BASE64 / WIN_CERT_PASSWORD / APPX_PUBLISHER
+#
+# Artifacts are uploaded for manual upload to App Store Connect / Partner
+# Center — publishing to the stores is intentionally manual.
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_mas:
+        description: "Build Mac App Store packages"
+        type: boolean
+        default: true
+      build_appx:
+        description: "Build Microsoft Store package"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  mac-store:
+    if: ${{ inputs.build_mas }}
+    runs-on: macos-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Import signing certificate into keychain
+        env:
+          MAC_CERT_BASE64: ${{ secrets.MAC_CERT_BASE64 }}
+          MAC_CERT_PASSWORD: ${{ secrets.MAC_CERT_PASSWORD }}
+        run: |
+          CERT_P12=build/cert.p12
+          KEYCHAIN=build.keychain
+          echo -n "$MAC_CERT_BASE64" | base64 --decode > "$CERT_P12"
+          security create-keychain -p "$MAC_CERT_PASSWORD" "$KEYCHAIN"
+          security default-keychain -s "$KEYCHAIN"
+          security unlock-keychain -p "$MAC_CERT_PASSWORD" "$KEYCHAIN"
+          security import "$CERT_P12" -k "$KEYCHAIN" -P "$MAC_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$MAC_CERT_PASSWORD" "$KEYCHAIN"
+          rm -f "$CERT_P12"
+
+      - name: Write provisioning profile
+        if: ${{ secrets.MAS_PROVISION_BASE64 != '' }}
+        env:
+          MAS_PROVISION_BASE64: ${{ secrets.MAS_PROVISION_BASE64 }}
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo -n "$MAS_PROVISION_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/embedded.provisionprofile
+
+      - name: Build MAS packages (electron-builder)
+        env:
+          CSC_KEYCHAIN: build.keychain
+        run: |
+          pnpm exec electron-vite build
+          pnpm exec electron-builder --mac mas --publish never
+
+      - name: Upload MAS artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: mas-packages
+          path: release/*/Autai_*_mas_*.pkg
+          if-no-files-found: error
+
+      # Keychain cleanup is best-effort; the runner is ephemeral anyway.
+      - name: Cleanup keychain
+        if: always()
+        run: |
+          security delete-keychain build.keychain || true
+
+  windows-store:
+    if: ${{ inputs.build_appx }}
+    runs-on: windows-latest
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Write classic certificate (if provided)
+        if: ${{ secrets.WIN_CERT_BASE64 != '' && secrets.AZURE_CLIENT_ID == '' }}
+        shell: bash
+        env:
+          WIN_CERT_BASE64: ${{ secrets.WIN_CERT_BASE64 }}
+          WIN_CERT_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+        run: |
+          echo -n "$WIN_CERT_BASE64" | base64 --decode > cert.p12
+          echo "CSC_LINK=$(pwd)/cert.p12" >> "$GITHUB_ENV"
+
+      - name: Build APPX (electron-builder)
+        shell: bash
+        env:
+          # Classic .p12 path
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+          # Azure Trusted Signing path (all three must be non-empty)
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          AZURE_SIGNING_CERTIFICATE_NAME: ${{ secrets.AZURE_SIGNING_CERTIFICATE_NAME }}
+          # Publisher string from Partner Center, e.g.
+          # CN=XXXX-XXXX-XXXX-XXXX-XXXX (or your company display name)
+          APPX_PUBLISHER: ${{ secrets.APPX_PUBLISHER }}
+        run: |
+          pnpm exec electron-vite build
+          pnpm exec electron-builder --win appx --publish never
+
+      - name: Upload APPX artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: appx-packages
+          path: release/*/Autai_*.appx*
+          if-no-files-found: error
