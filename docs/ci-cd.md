@@ -41,7 +41,7 @@ One workflow, three jobs, mutually exclusive by trigger:
 | `mac-store` | `macos-latest` | Manual dispatch, `build_mas` ticked | Signed Mac App Store `.pkg` (x64 + arm64) as workflow artifact |
 | `windows-store` | `windows-latest` | Manual dispatch, `build_appx` ticked | Signed Microsoft Store `.appx` as workflow artifact |
 
-All jobs: pnpm 11 + Node 22 (`better-sqlite3` v13 requires ≥ 22), install
+All jobs: pnpm 11 + Node 24 (LTS; `better-sqlite3` v13 requires ≥ 22), install
 with `--no-frozen-lockfile` (lockfiles are gitignored in this repo),
 `electron-vite build`, then `electron-builder`. The `afterPack` hook
 (`scripts/after-pack.mjs`) stamps the correct Node-API prebuild into every
