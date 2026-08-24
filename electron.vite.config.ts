@@ -38,6 +38,16 @@ export default defineConfig(async () => ({
         "@": resolve("src/main"),
         "@agents": resolve("src/main/agents"),
         "@shared": resolve("src/shared"),
+        // Force the CommonJS entry of this package: its ESM dist chunks each
+        // declare a top-level `var require = createRequire(...)` (tsup output).
+        // When rolldown (Vite 8) merges those chunks into one output chunk it
+        // injects its own `const require` CJS shim there and fails to
+        // deconflict the two — SyntaxError: Identifier 'require' has already
+        // been declared. The CJS entry is wrapped in a function scope instead.
+        // Remove once rolldown fixes require-binding deconfliction.
+        "@jerome-benoit/sap-ai-provider-v2": require.resolve(
+          "@jerome-benoit/sap-ai-provider-v2",
+        ),
       },
     },
   },
