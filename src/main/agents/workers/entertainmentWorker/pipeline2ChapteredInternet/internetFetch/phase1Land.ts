@@ -124,7 +124,7 @@ function buildSearchPlan(
       {
         id: `ent-fetch-plan-${chapterNumber}-q0`,
         query,
-        focus: `chapter ${chapterNumber} of ${base} — the page where the chapter content begins`,
+        focus: `chapter ${chapterNumber} of ${base} — the page where the chapter content begins; NOT wiki/encyclopedia/pedia pages (Wikipedia, 百度百科, 搜狗百科, 360百科, etc.), which only have introductions`,
       },
     ],
   };
@@ -144,6 +144,7 @@ Target: ${label} of "${titlePart}"${authorPart}.
 The page is ALREADY open — do NOT navigate anywhere. Read it with getFlattenDOM, then decide:
 - If the page IS the beginning of ${label}'s actual prose content, call landHere.
 - If it is NOT (a search engine, login wall, paywall, recaptcha, age gate, 404/error page, site homepage, table of contents / index, or a DIFFERENT piece of content), call rejectCandidate with a short reason.
+- Encyclopedia/wiki/pedia pages (Wikipedia, 百度百科, 搜狗百科, 360百科, 互动百科, etc.) are NEVER the target — they only contain an introduction ABOUT the novel, never its chapter prose. Call rejectCandidate immediately, without spending further steps examining them.
 
 Call landHere ONLY when the page is truly showing the start of ${label}'s prose.`;
 }
@@ -167,6 +168,7 @@ ONLY call abortChapter when you are CONFIDENT there is NO next-chapter link AND 
 
 Rules:
 - Use only the tools provided.
+- Never click into encyclopedia/wiki/pedia pages (Wikipedia, 百度百科, 搜狗百科, 360百科, 互动百科, etc.) — they only contain an introduction ABOUT the novel, never chapter content.
 - Do not call landHere until you are certain you are on chapter ${chapterNumber}'s beginning.`;
 }
 
