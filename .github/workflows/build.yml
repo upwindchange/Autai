@@ -84,6 +84,9 @@ jobs:
   mac-store:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_mas }}
     runs-on: macos-latest
+    # Store-signing credentials live in the `store-signing` GitHub
+    # environment (Settings → Environments), not repo-level secrets.
+    environment: store-signing
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4
@@ -158,6 +161,9 @@ jobs:
   windows-store:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_appx }}
     runs-on: windows-latest
+    # Store-signing credentials live in the `store-signing` GitHub
+    # environment (Settings → Environments), not repo-level secrets.
+    environment: store-signing
     steps:
       - name: Check out Git repository
         uses: actions/checkout@v4

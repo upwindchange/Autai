@@ -99,8 +99,8 @@ Azure Trusted Signing vs classic EV cert, `APPX_PUBLISHER`): see
 **[store-signing.md](./store-signing.md)**. Summary of what YOU must do on
 the GitHub website, once:
 
-1. **Settings → Secrets and variables → Actions → New repository secret**,
-   add the store secrets listed in store-signing.md.
+1. **Settings → Environments → New environment** (name `store-signing`),
+   then add the environment secrets listed in store-signing.md there.
 2. **Actions tab → Build → Run workflow** → tick the store targets → Run.
 3. When green, download `mas-packages` / `appx-packages` artifacts and
    upload to App Store Connect / Partner Center in your browser. Submission

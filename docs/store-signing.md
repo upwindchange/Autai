@@ -5,6 +5,48 @@ builds and signs Mac App Store (`.pkg`) and Microsoft Store (`.appx`)
 packages. Store submission itself stays manual: download artifacts from the
 run and upload to App Store Connect / Partner Center.
 
+## Secret setup (`store-signing` environment)
+
+All store-signing secrets are **environment secrets**, not repository
+secrets. Both store jobs declare `environment: store-signing`, so add the
+secrets below to that environment (name matching matters; `secrets.NAME`
+resolves environment first, then falls back to any same-named repository
+secret).
+
+Create it once: **Settings → Environments → New environment →
+`store-signing`**, then **Add environment secret** for each row you need:
+
+| Secret | Job | When |
+|---|---|---|
+| `MAC_APP_P12_BASE64` | mac-store | always |
+| `MAC_APP_P12_PASSWORD` | mac-store | always |
+| `MAC_INSTALLER_P12_BASE64` | mac-store | always |
+| `MAC_INSTALLER_P12_PASSWORD` | mac-store | always |
+| `MAS_PROVISION_BASE64` | mac-store | optional |
+| `AZURE_TENANT_ID` | windows-store | Option A (Azure) |
+| `AZURE_CLIENT_ID` | windows-store | Option A (Azure) |
+| `AZURE_CLIENT_SECRET` | windows-store | Option A (Azure) |
+| `AZURE_SIGNING_CERTIFICATE_NAME` | windows-store | Option A (Azure) |
+| `WIN_CERT_BASE64` | windows-store | Option B (classic EV) |
+| `WIN_CERT_PASSWORD` | windows-store | Option B (classic EV) |
+| `APPX_PUBLISHER` | windows-store | always |
+
+For Windows signing pick **exactly one** of Option A / Option B — the
+workflow uses the classic cert only when `WIN_CERT_BASE64` is set and
+`AZURE_CLIENT_ID` is not (see the `windows-store` job's `if` conditions).
+
+Recommended environment settings (also under the environment page):
+
+- **Deployment branches and tags → Restricted** — allow `master` and `v*`
+  tags, so a workflow edited on a random branch can never reach the
+  signing secrets.
+- **Required reviewers** (optional) — a human approval click before the
+  signing material lands on a runner; fits the already-manual dispatch.
+
+Don't duplicate these names as repository secrets: environment secrets
+take precedence, but a stale repo-level copy invites confusion. `GITHUB_TOKEN`
+stays automatic and needs no setup.
+
 ## Mac App Store
 
 Signing requires an Apple Developer Program membership and **two** different
@@ -67,8 +109,8 @@ or workflow change is required:
    still matches the private key (steps 4–5 / 7–8 of the local README).
 3. Re-export the `.p12` files with the same password
    (`openssl pkcs12 -export ...`).
-4. `base64 -w 0` each new `.p12` and update the GitHub secrets
-   `MAC_APP_P12_BASE64` / `MAC_INSTALLER_P12_BASE64`.
+4. `base64 -w 0` each new `.p12` and update the `store-signing`
+   environment secrets `MAC_APP_P12_BASE64` / `MAC_INSTALLER_P12_BASE64`.
 5. Run the manual `mac-store` job; the `security find-identity` step should
    list both identities, then the build signs green.
 
