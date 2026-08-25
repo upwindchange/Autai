@@ -945,16 +945,20 @@ export function deriveChapterStatus(
 
 /**
  * Resolve which pipeline owns a thread from its config — the message-vocabulary
- * selector used by status derivation. Non-dehydrate / missing config resolves to
- * `"file"` as a harmless default (status derivation is read-only; a mis-typed
- * pipeline only affects copy).
+ * selector used by status derivation. Type first: file threads always run the
+ * multi-chapter dehydrate runner (even non-chaptered ones — it re-chapters
+ * from the text itself), so they use the per-chapter `file` vocabulary;
+ * `"nonNovel"` (n-less copy for a single row) applies only to internet +
+ * non-chaptered. Non-dehydrate / missing config resolves to `"file"` as a
+ * harmless default (status derivation is read-only; a mis-typed pipeline only
+ * affects copy).
  */
 export function resolvePipelineType(
   config: EntertainmentConfig | null,
 ): ChapterPipeline {
   if (!config || config.mode !== "dehydrate") return "file";
-  if (config.options.nonNovelSource) return "nonNovel";
   if (config.novel.type === "file") return "file";
+  if (config.options.nonNovelSource) return "nonNovel";
   return "internet";
 }
 

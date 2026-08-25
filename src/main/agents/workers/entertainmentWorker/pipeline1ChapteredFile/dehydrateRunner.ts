@@ -24,6 +24,9 @@
  * dehydrate options re-read (`getParsedConfig`) on EVERY pass, so a mid-run
  * change to the global complex model or to the reader's Options (PUT /config)
  * takes effect on the next pass.
+ *
+ * Also serves non-chaptered file uploads (`nonNovelSource`): the multi
+ * variant re-chapters from the text itself and needs no source chapter markers.
  */
 
 import { streamText, isStepCount, tool, generateText } from "ai";

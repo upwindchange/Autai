@@ -1,13 +1,15 @@
 /**
- * Single-page fetcher for NON-NOVEL internet sources (a long post, an email
- * thread, an article — one continuous piece, not a chaptered novel).
+ * Pipeline 3's fetcher — NON-CHAPTERED internet sources (a long post, an
+ * email thread, an article — one continuous piece, not a chaptered novel).
  *
- * Unlike the chaptered fetcher (`internetFetch`), this does NOT loop chapters,
- * advance, or detect a final chapter. It lands ONCE — either by navigating
- * directly to `novel.source` when it's an absolute URL, or by running a single
- * search query to discover the page URL — then extracts the WHOLE page's prose
- * into ONE `source_chapters` row (always `chapterNumber = 1`, the single output
- * it produces).
+ * Unlike the chaptered fetcher (`pipeline2ChapteredInternet/internetFetch`),
+ * this does NOT loop chapters, advance, or detect a final chapter. It lands
+ * ONCE — either by navigating directly to `novel.source` when it's an absolute
+ * URL, or by running a single search query to discover the page URL — then
+ * extracts the WHOLE page's prose into ONE `source_chapters` row (always
+ * `chapterNumber = 1`, the single output it produces). The book this row
+ * belongs to has exactly one chapter: never split, never re-chaptered —
+ * 「开启后，阅读器不会对当前内容进行分章处理」.
  *
  * Reuses only the LEAF tools of the chaptered fetcher:
  *  - `getFlattenDOMTool` + `clickElementTool` (DOM read / pagination click)
@@ -51,7 +53,7 @@ interface SinglePageFetchContext {
   sessionId: string;
   activeTabId: string;
   threadId: string;
-  /** Always 1 — a non-novel source produces exactly one source row. */
+  /** Always 1 — a non-chaptered source produces exactly one source row. */
   chapterNumber: number;
   abortSignal?: AbortSignal;
 }
@@ -127,9 +129,11 @@ Rules:
 }
 
 /**
- * Find-or-create the thread's crawl tab (mirrors internetFetch's `ensureCrawlTab`).
- * `activateSession` creates the session + an initial tab on first use; the tab
- * is reused for the read. Functional regardless of split-view visibility.
+ * Find-or-create the thread's crawl tab. `activateSession` creates the session
+ * + an initial tab on first use; the tab is then reused for the read (there is
+ * exactly one acquisition, so one tab serves the whole pipeline). Functional
+ * regardless of split-view visibility: the WebContentsView + CDP/DOM services
+ * work hidden.
  */
 async function ensureCrawlTab(sessionId: string): Promise<string> {
   const sts = SessionTabService.getInstance();
@@ -141,6 +145,12 @@ async function ensureCrawlTab(sessionId: string): Promise<string> {
   const state = sts.getSessionTabState(sessionId);
   if (state) state.activeTabId = tabId;
   return tabId;
+}
+
+/** Release the crawl tab once the single page is acquired (book end). */
+async function destroyCrawlTab(sessionId: string): Promise<void> {
+  const sts = SessionTabService.getInstance();
+  await sts.destroyAllTabs(sessionId);
 }
 
 /**
@@ -270,19 +280,23 @@ async function extractPage(
 }
 
 /**
- * Acquire a single non-novel internet page and own its `source_chapters` row
- * lifecycle end to end. Marks the row `"fetching"` up front (inserting a fresh
- * row or resetting a stale one), lands the crawl tab on the page, then extracts
- * the whole-page prose into that one row (always `chapterNumber = 1`).
+ * Acquire a single non-chaptered internet page and own its `source_chapters`
+ * row lifecycle end to end. Marks the row `"fetching"` up front (inserting a
+ * fresh row or resetting a stale one), lands the crawl tab on the page, then
+ * extracts the whole-page prose into that one row (always `chapterNumber = 1`).
+ * On success the crawl tab is released (this fetch IS the book's end); on
+ * `"error"` it is kept — a retry may reuse the tab.
  *
  * Returns the terminal status — never throws for expected outcomes:
  *  - `"fetched"` — the page prose was acquired; the caller may proceed to rewrite.
- *  - `"error"` — no URL could be landed, or extraction failed / exhausted its
- *    step budget without saving. The row is marked `"error"`.
+ *  - `"error"` — no URL could be landed, extraction failed / exhausted its
+ *    step budget without saving, or `abortSignal` aborted the run. The row is
+ *    marked `"error"`.
  */
 export async function fetchSinglePage(
   novel: InternetNovel,
   threadId: string,
+  abortSignal?: AbortSignal,
 ): Promise<"fetched" | "error"> {
   // There is always exactly one source row at chapterNumber 1.
   const chapterNumber = 1;
@@ -311,6 +325,7 @@ export async function fetchSinglePage(
     activeTabId: tabId,
     threadId,
     chapterNumber,
+    abortSignal,
   };
 
   logger.info("fetch single page", { threadId });
@@ -335,6 +350,8 @@ export async function fetchSinglePage(
     entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
       status: "fetched",
     });
+    // Book end — this row is the whole book. Release the crawl tab.
+    await destroyCrawlTab(sessionId);
     return "fetched";
   } catch (err) {
     logger.error("single-page fetch failed", { threadId, err });

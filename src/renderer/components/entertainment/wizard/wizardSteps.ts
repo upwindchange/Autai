@@ -338,7 +338,9 @@ export function isStepValid(
   }
 }
 
-/** Whether 章节并写 is available — only for a chaptered local file upload. */
+/** Whether 章节并写 is available — for any local file upload (chaptered or
+ * not): the multi runner re-chapters from the text itself and judges the
+ * cross-chapter tactics across its output chapters either way. */
 export function isCrossChapterAvailable(config: EntertainmentConfig): boolean {
-  return config.novel.type === "file" && !config.options.nonNovelSource;
+  return config.novel.type === "file";
 }

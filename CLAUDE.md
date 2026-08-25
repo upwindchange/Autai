@@ -77,7 +77,7 @@ The main process initializes in `src/main/index.ts` with this startup sequence: 
   - `browserWorker/browser-use/` — **bonus alpha** browser automation: planner → HITL approval → action-executor → replanner → summary (planned mode), or simple direct execution
   - `browserWorker/browser-research/` — normal + quick research: setup → researchPlanner (queries) → executeSearchQueries (per-query tabs) → extractResultsFromUrls (skipped in quick mode) → summarizeFindings / summarizeFindingsFromSnippets → references
   - `browserWorker/deep-research/` — deep research: pre-research → optional HITL clarification (`askUser`) → deepResearchPlanner (subtopics) → per-subtopic loop (plan → search → extract → summarize) → citation remap → composition → references
-  - `entertainmentWorker/worker.ts` — **router** on `config.mode`: `dehydrate` | `interactive`. Both sub-agents are currently **placeholders** that stream sample CJK content to validate the entertainment UI; the intended behavior is novel "dehydration" (stripping filler for cleaner reading) and interactive-fiction transformation.
+  - `entertainmentWorker/scheduler.ts` — entertainment background-worker trigger layer (REST-event driven, no queue): `pipeline1ChapteredFile/dehydrateRunner` (file dehydrate loop — serves chaptered and non-chaptered uploads alike), `pipeline2ChapteredInternet/` (per-chapter internet fetch + rewrite), `pipeline3NonChapteredInternet/` (single-page fetch + one-shot rewrite for non-chaptered internet sources).
 
 **Services** (`src/main/services/`):
 
@@ -102,7 +102,7 @@ The main process initializes in `src/main/index.ts` with this startup sequence: 
 
 - **Top-level `appMode`** (`chat` | `entertainment`), toggled in `components/side-bar/nav-secondary.tsx`. Threads are partitioned by `threads.mode`, and the thread list is scoped to the active app mode.
 - **Research sub-modes** (within `chat`, mutually exclusive, held in `uiStore`): `webSearch` (normal research), `quickSearch` (quick research — skips content extraction, summarizes from snippets), `deepResearch` (deep research), and `useBrowser` / `usePlannedBrowser` (bonus alpha browser automation). Each sub-mode maps to a worker under `browserWorker/` (see Agent System).
-- **Entertainment sub-modes**: `dehydrate` | `interactive`, served by `entertainmentWorker/` (currently placeholders).
+- **Entertainment sub-modes**: `dehydrate` (implemented via `entertainmentWorker/`); `audiobook` is a disabled UI placeholder.
 
 ### Renderer Process
 
