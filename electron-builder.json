@@ -1,6 +1,6 @@
 {
   "$schema": "https://raw.githubusercontent.com/electron-userland/electron-builder/master/packages/app-builder-lib/scheme.json",
-  "appId": "com.upwindchange.Autai",
+  "appId": "ai.autai.app",
   "productName": "Autai",
   "afterPack": "scripts/after-pack.mjs",
   "npmRebuild": false,

@@ -84,11 +84,16 @@ phase automatically.
 | `MAC_APP_P12_PASSWORD` | password of the app `.p12` |
 | `MAC_INSTALLER_P12_BASE64` | `base64 -w 0 mac/installer/installer.p12` ("3rd Party Mac Developer Installer") |
 | `MAC_INSTALLER_P12_PASSWORD` | password of the installer `.p12` (independent of the app one) |
-| `MAS_PROVISION_BASE64` | `base64 -w 0 < embedded.provisionprofile` from App Store Connect (optional; omit to build without an embedded profile) |
+| `MAS_PROVISION_BASE64` | `base64 -w 0 < embedded.provisionprofile` generated on the Apple Developer portal (optional; omit to build without an embedded profile) |
 
-Create the provisioning profile in App Store Connect →
-Certificates, Identifiers & Profiles → Profiles (type: Mac App Store) with
-the app's bundle id `com.upwindchange.Autai`.
+Create the profile on the **Apple Developer portal** — not App Store Connect
+(App Store Connect has no Profiles page; that's why you won't find it there):
+developer.apple.com → Account → Certificates, Identifiers & Profiles →
+Profiles → **+** → type **Mac App Store** → select the App ID
+`ai.autai.app` → select the "3rd Party Mac Developer Application"
+certificate → Generate → Download. That downloaded file
+(`<name>.provisionprofile`) is what `base64 -w 0` encodes into
+`MAS_PROVISION_BASE64`.
 
 The build uses `build/entitlements.mas.plist` (JIT + unsigned executable
 memory — required by Electron's V8). Add store-specific entitlements there

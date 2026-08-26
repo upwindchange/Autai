@@ -23,9 +23,11 @@ choose based on which secrets are present.
 
 ## 2. `MAS_PROVISION_BASE64` (optional but recommended)
 
-Base64 of the `embedded.provisionprofile` from App Store Connect
-(Certificates, Identifiers & Profiles → Profiles → type **Mac App Store**,
-bundle id `com.upwindchange.Autai`). Most MAS submissions need it embedded:
+Base64 of the `embedded.provisionprofile` — generated on the **Apple
+Developer portal** (developer.apple.com), not App Store Connect: Account →
+Certificates, Identifiers & Profiles → Profiles → **+** → type
+**Mac App Store** → App ID `ai.autai.app` → select the "3rd Party Mac
+Developer Application" cert → Generate → Download. Then:
 
 ```bash
 base64 -w 0 embedded.provisionprofile | pbcopy   # paste as secret
