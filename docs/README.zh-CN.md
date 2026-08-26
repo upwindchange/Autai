@@ -1,145 +1,222 @@
 <div align="center">
-<img src="../build/icon.png" alt="Autai" width="64" valign="middle" />
-<h1>Autai</h1>
 
-### 你的 AI 浏览器助手
+<img src="../build/icon.png" alt="Autai 图标" width="96" />
 
-告诉 Autai 你想做什么，AI 就会替你操控浏览器——订机票、填表格、比价、查资料，日常上网能做的事它都能帮你做。我们还在拓展到完整的电脑操控能力，敬请期待。
+# Autai
 
-[下载](https://github.com/upwindchange/autai/releases) · [功能介绍](#功能介绍) · [使用方法](#使用方法)
+**会说人话、也会干活的 AI 助手。**
+
+你只管说，它负责动手：帮你订票、填表、比价、跑腿；帮你搜网页、读来源、汇总答案；追的书注水了？丢给它「脱水」完再端上来。Key 是你自己的，模型随你挑，全程在你自己的电脑上跑。
+
+[下载](https://github.com/upwindchange/autai/releases) · [功能一览](#功能一览) · [娱乐模式](#-娱乐模式网文脱水器) · [三步上手](#三步上手)
+
+[![Release](https://img.shields.io/github/v/release/upwindchange/autai?include_prereleases&style=flat-square)](https://github.com/upwindchange/autai/releases)
+[![License](https://img.shields.io/badge/license-MIT-007EC7?style=flat-square)](../LICENSE)
+[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-999999?style=flat-square)](https://github.com/upwindchange/autai/releases)
+
+</div>
 
 ---
 
 ## 实际效果
 
-### 浏览器自动化
-
-比如说一句"帮我把这些商品加到购物车里"——Autai就会打开浏览器，搜索商品，一个个加进购物车。
+**「帮我把这几样东西加进 Target 购物车。」** 一句话说完，Autai 自己开浏览器、挨个搜索、挨个加购，你在旁边看着就行。
 
 <video src="https://github.com/user-attachments/assets/f8b8d85e-3679-4deb-a5de-8fe64092d161" controls="controls" style="max-width:100%;"></video>
 
-视频因GitHub 10MB大小限制做了加速，实际速度取决于你用的 LLM。
-
-### 深度研究
-
-切换到研究模式，问一句"2026 年有哪些千元以下值得买的笔记本？"——Autai 会自动搜索网页、阅读多个来源，帮你整理出清晰的答案。
+**「2026 年一千块以内有哪些笔记本值得买？」** 别再自己开二十个标签页一个个翻了——Autai 自己搜、自己读、自己汇总，答案直接带着来源回来。
 
 <video src="https://github.com/user-attachments/assets/7ac38b43-3e9c-4034-a7cf-8b8ef081bb13" controls="controls" style="max-width:100%;"></video>
 
----
-
-觉得好用的话，加个星⭐吧，让更多人看到这个项目！
-
-<img width="320" height="180" alt="star" src="https://github.com/user-attachments/assets/ac160fea-7073-4f77-9af7-addaba1708d4" />
-
-</div align="center">
+<sub>视频为迁就 GitHub 10MB 限制做了加速，实际速度看你用的模型。</sub>
 
 ---
 
-## 功能介绍
+## 功能一览
 
-### 100+ AI 服务商，4000+ 模型
+### 模型随便挑
 
-OpenAI、Anthropic、Google、DeepSeek、Mistral、xAI，国际/国内主流 AI 服务商全部支持。想用哪家用哪家，也可以用 Ollama 跑本地模型。填上你的 API Key，选个模型，直接开干。[完整列表：models.dev](https://models.dev/)。
+OpenAI、Anthropic、Google、DeepSeek、Mistral、xAI……100+ 家服务商、4000+ 个模型随便切，本地 Ollama 也行。填上 Key 就能用。[完整目录](https://models.dev/)。
 
-<p align="center">
-  <img src="../docs/screenshots/config-provider.png" alt="配置 AI 服务商" width="45%" />
-  <img src="../docs/screenshots/cofig-models.png" alt="浏览 4000+ 模型" width="45%" />
-</p>
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="../docs/screenshots/config-provider.png" alt="配置 AI 服务商" width="100%" />
+      <br /><sub><b>填个 Key 就能跑</b>——服务商随便加。</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="../docs/screenshots/cofig-models.png" alt="四千多个模型里挑" width="100%" />
+      <br /><sub><b>四千多个模型</b>——能搜能筛，一键换。</sub>
+    </td>
+  </tr>
+</table>
 
-### 两种模式，各有擅长
+### 浏览器替你开
 
-**浏览器自动化**——AI 规划好任务步骤，然后操控真实浏览器来完成。订机票、填申请表、加购物车、跨平台比价，你在浏览器里能做的事，Autai 都可以试试。
+- **两种开法**——「简单」模式你说它就做；「规划」模式先列步骤给你过目，点头了才动手。
+- **分屏盯着**——聊天一边、浏览器一边，点哪里、填哪里，全程看得见，没有黑箱。
+- **该停就停**——验证码、登录、支付这种事它不碰，直接把方向盘还给你。
+- **多开互不耽误**——几个独立会话同时跑，这边查资料，那边让它订酒店。
 
-**深度研究**——需要查资料的时候，Autai 会自动搜索网页、逐页阅读，然后给你整理出一份清晰的总结报告。不用再自己开二十个标签页一个个翻了。
+### 查资料不用自己翻
 
-### 智能对话管理
+一个输入框，三档力度：快速搜一下要个事实、标准搜索要个靠谱答案、深度调研直接把问题拆开、逐个子话题搜过去读过去，最后连出处一起写给你。
 
-对话会自动打上彩色标签，方便你以后翻找。可以在列表视图和标签分组视图之间切换，按关键词搜索、按标签筛选，还可以批量归档旧对话。对话也会自动命名，侧边栏永远整整齐齐。
+### 对话自己会整理
 
-<p align="center">
-  <img src="../docs/screenshots/Thread-list.png" alt="对话列表" width="45%" />
-  <img src="../docs/screenshots/tag-grouping.png" alt="标签分组视图" width="45%" />
-</p>
-<p align="center">
-  <img src="../docs/screenshots/tag-select.png" alt="选择标签" width="30%" />
-  <img src="../docs/screenshots/tag-management-1.png" alt="标签管理" width="30%" />
-  <img src="../docs/screenshots/tag-management-2.png" alt="标签管理" width="30%" />
-</p>
-<p align="center">
-  <img src="../docs/screenshots/search.png" alt="搜索对话" width="45%" />
-</p>
+聊过的自动起标题、自动打彩色标签。想按类别看就切标签分组视图，全文搜索一句话翻出半个月前的对话，旧账还能批量归档——侧边栏不用你动手收拾。
 
-### 漂亮的 AI 回复
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="../docs/screenshots/Thread-list.png" alt="对话列表" width="100%" />
+      <br /><sub><b>自动命名</b>——每个对话自己起标题。</sub>
+    </td>
+    <td width="50%" valign="top">
+      <img src="../docs/screenshots/tag-grouping.png" alt="标签分组视图" width="100%" />
+      <br /><sub><b>标签分组</b>——按类别一屏看全。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="33%" valign="top">
+      <img src="../docs/screenshots/tag-select.png" alt="打彩色标签" width="100%" />
+      <br /><sub><b>彩色标签</b>，扫一眼就分清。</sub>
+    </td>
+    <td width="33%" valign="top">
+      <img src="../docs/screenshots/tag-management-1.png" alt="标签管理" width="100%" />
+      <br /><sub><b>标签随手管</b>——改名、换色。</sub>
+    </td>
+    <td width="33%" valign="top">
+      <img src="../docs/screenshots/tag-management-2.png" alt="标签管理" width="100%" />
+      <br /><sub><b>每个对话独立打标</b>，随时改。</sub>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="../docs/screenshots/search.png" alt="全文搜索" width="100%" />
+      <br /><sub><b>全文搜索</b>——每个字都翻得到。</sub>
+    </td>
+  </tr>
+</table>
 
-AI 的回复不是干巴巴的纯文本。代码有语法高亮，数学公式排版精美，Mermaid 图表直接渲染成可视化，富文本格式一应俱全——复杂的回答也能看得赏心悦目。
+### 回答不是一坨纯文本
 
-<p align="center">
-  <img src="../docs/screenshots/code-highlighting.png" alt="代码语法高亮" width="30%" />
-  <img src="../docs/screenshots/math-equation.png" alt="数学公式渲染" width="30%" />
-  <img src="../docs/screenshots/mermaid-rendering.png" alt="Mermaid 图表渲染" width="30%" />
-</p>
+代码带高亮，公式排版像教材，Mermaid 图直接渲染成图，富文本一样不缺。复杂答案回来看着不头疼。
 
-### 图片和文件附件
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <img src="../docs/screenshots/code-highlighting.png" alt="代码高亮" width="100%" />
+      <br /><sub><b>代码</b>——高亮、一键复制。</sub>
+    </td>
+    <td width="33%" valign="top">
+      <img src="../docs/screenshots/math-equation.png" alt="公式渲染" width="100%" />
+      <br /><sub><b>公式</b>——正经排版，不是 ASCII。</sub>
+    </td>
+    <td width="33%" valign="top">
+      <img src="../docs/screenshots/mermaid-rendering.png" alt="Mermaid 图表渲染" width="100%" />
+      <br /><sub><b>图表</b>——Mermaid 直接成图。</sub>
+    </td>
+  </tr>
+</table>
 
-上传截图、文档或任意文件，AI 会把它融入到对话中。
+### 文件拖进去就能聊
 
-<p align="center">
-  <img src="../docs/screenshots/attach-image.png" alt="上传图片" width="30%" />
-  <img src="../docs/screenshots/attach-file.png" alt="上传文件" width="30%" />
-  <img src="../docs/screenshots/attach-image-conversation.png" alt="图片对话" width="30%" />
-</p>
+截图、文档、手头有什么拖什么，AI 拿来就能用。
 
-### 更多亮点
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <img src="../docs/screenshots/attach-image.png" alt="上传图片" width="100%" />
+      <br /><sub><b>拖张图</b>——截图也行。</sub>
+    </td>
+    <td width="33%" valign="top">
+      <img src="../docs/screenshots/attach-file.png" alt="上传文件" width="100%" />
+      <br /><sub><b>拖个文件</b>——模型认的都行。</sub>
+    </td>
+    <td width="33%" valign="top">
+      <img src="../docs/screenshots/attach-image-conversation.png" alt="图片进入对话" width="100%" />
+      <br /><sub><b>进了对话</b>——是拿来讨论的。</sub>
+    </td>
+  </tr>
+</table>
 
-- **多会话浏览**——同时跑多个独立的浏览器会话。一边查资料，一边让 AI 在另一个窗口帮你订酒店，互不干扰。
-- **全程可控**——遇到验证码、登录页面、支付表单这些不该自动处理的场景，AI 会暂停交给你操作。分屏模式下聊天和浏览器各占一边，每一步点击、滚动、填写都看得清清楚楚，没有黑箱。
-- **语音朗读**——AI 可以把回答读出来，内置语音合成。
-- **深色 / 浅色 / 跟随系统**——怎么舒服怎么来。
-- **中英双语界面**——两种语言随心切换，更多语言持续增加中。
+### 还有一些顺手的东西
+
+<details>
+<summary><b>展开看全部</b></summary>
+
+- **每个对话单独调参**——模型、温度、最大 token、系统提示词，按对话覆盖。
+- **斜杠命令**——不碰鼠标，键盘上就把浏览器、快速搜索、深度调研切来切去。
+- **MCP 服务器**——设置里接入外部工具。
+- **远程访问**——设个密码把 Autai 挂到局域网，手机浏览器也能用。
+- **语音朗读**——回答可以直接读给你听。
+- **深色 / 浅色 / 跟随系统**。
+- **中文 / English 界面**随时切。
+
+</details>
 
 ---
 
-## 使用方法
+## 📚 娱乐模式：网文脱水器
 
-1. **下载安装** Autai。
-2. **填入 API Key**——从国际/国内服务商获取 API Key，粘贴到设置里。
-3. **告诉它你要做什么**——用大白话说就行，就像跟朋友聊天一样。
+追更十年，我们都练出一种本事：一目十行。不是想跳，是被逼的。
 
-就这样，上手即用。
+日更八千，干货两千；这章开头复述上章，下章开头复述这章；设定第三次讲解，功法第四次冲击窍穴；擂台又开打了，群众又倒吸凉气了，反派又觉得「这次他必死」了。书是好书，就是泡在水里。
+
+娱乐模式干的就是拧干这件事：**把书脱水，把故事留下。**
+
+- **一键脱水**——复述、重复讲解、擂台车轮、群体震惊这类水文，遇到就压。一个力度旋钮四档可调，从「轻扫一下」到「别废话赶紧推剧情」。剧情、人物、爽点、伏笔一个字不动，砍掉的只有水。
+- **顺手翻新文笔**——错别字、病句、单边引号这类硬伤顺手治；「倒吸一口凉气」「嘴角勾起一抹冷笑」这种被写烂的套话直接重写。也可以反着来：开「文笔扩写」，把干瘪的打斗补成拳拳到肉的名场面——扩的是表现力，不是字数。
+- **什么语言的书都能看**——整本翻译成中文、把拗口的音译人名理顺、给省略主语的日轻补上「谁在说话」，都不在话下。嫌选项不够？一句话自定义：「文言文翻成白话文，定场诗判词原样保留」——照办。
+
+书的来源随便给：本地 TXT 拖进来，或者只说个书名——贴链接、提站名、丢几个关键词都行，它自己上网找。天涯长帖、邮件串这种没有章节的连续文本，勾一下「非章节小说」照读不误。
+
+<details>
+<summary><b>它认识的水字数套路——16 大类 85 种，逐条可勾</b></summary>
+<br />
+
+擂台赛/排名赛循环 · 打小怪刷杂兵 · 战斗拆帧描写（一拳两千字）· 招式名技能说明刷屏 · 战力等级每到新图重新科普 · 假逆风真底牌 · 打了小的来老的 · 群众倒吸凉气 · 群体心理描写 · 路人解说背景 · 弹幕评论论坛体刷屏 · 震惊体媒体报道 · 世界观百科 · 物品宝物档案 · 新城地图导览 · 家族宗门谱系 · 修炼流程复写 · 系统面板整页刷新 · 抽奖签到开盲盒 · 误会不解释拉扯三十章 · 内心戏反复横跳 · 吃醋桥段循环 · 换装妆造描写 · 主角外貌每次重新夸 · 宴会舞会宫宴 · 家长里短亲戚群像 · 反派嘲讽铺垫 · 降智反派反复送人头 · 阴谋全程旁白直播 · 审判对质反转再反转 · 吃饭描写 · 赶路旅行 · 逛街购物打脸 · 做任务刷副本 · 训练学习顿悟 · 车轱辘话 · 明知故问引设定 · 开会轮流表态 · 「真的？」「是真的。」· 高潮前切视角 · 同一件事五视角重播 · 回忆杀 · 梦境幻境试炼 · 秘境遗迹探索 · 拍卖会 · 宗门学院考核 · 反复隐藏实力 · 马甲一层层揭 · 没人认识主角 · 阶段排行榜 · 奖励结算界面 · 真假千金家庭拉扯 · 恶毒女配作妖 · 霸总控制欲日常 · 萌宝助攻撮合 · 综艺直播任务 · 退婚三年之约 · 收小弟纳头便拜 · 后宫角色轮番出场 · 捡漏鉴宝 · 医术救人拜服 · 科技参数说明 · 末世物资清单 · 基地建设流水账 · 副本规则说明书 · 解谜反复试错 · 商战会议 · 公司对赌项目竞争 · 试镜拍戏热搜爆 · 粉圈撕番控评 · 章首复述前情 · 章末强行悬念 · 同义句堆叠 · 形容词连打 · 环境气氛反复渲染 · 数字化堆砌 · 小地图升大地图模板 · 危机解决更大危机 · 准备阶段无限拉长 · 等待结果 · 宫斗请安赏赐规矩 · 宅斗账本嫁妆 · 种田农活流程 · 年代文票证邻里 · 克苏鲁不可名状拖延
+
+每种套路都能单独勾选强制处理；不过多数时候不用动——力度旋钮本身就够聪明，哪类删不干净再回来点名。
+
+</details>
+
+脱完的书装在一个正经阅读器里：11 套主题、字号字距行距段距全可调、目录、书签、沉浸模式，读到哪自动记住，章节随时导出成文件离线存档。
+
+另外，「有声小说」模式开发中：男女主配角分别配音的多人有声剧，或按评书路子讲播，敬请期待。
 
 ---
 
-## 路线图
+## 三步上手
 
-- **alpha 1**——初始概念验证
-- **alpha 2**——深度研究模式，研究 Agent 优化，输入焦点修复
-- **alpha 3**——简易浏览器操控模式，浏览器 Agent 优化，工具修复
-- **alpha 4**——标签颜色编辑，研究 Agent UI 优化，附件功能改进
-- **alpha 5**——MCP 工具支持
-- **alpha 6**——浏览器 Agent 自定义系统提示词和配置
-- **alpha 7**——每个对话独立选择模型和工具
-- **alpha 8**——对话全文搜索
-- **alpha 9**——电脑操控概念验证（终端）
-- **alpha 10**——CI/CD 流水线，macOS、Windows、Flathub 代码签名
-- **beta 1**——开放 Issue 追踪，社区驱动 Bug 修复
+1. **[下载安装](https://github.com/upwindchange/autai/releases)**——macOS、Windows、Linux 都有。
+2. **填个 API Key**——哪家服务商都行，本地 Ollama 也可以。
+3. **说人话**——想干嘛直接说，没有配置文件，没有学习成本。
+
+发现问题、想提需求？[开个 Issue](https://github.com/upwindchange/autai/issues)。
 
 ---
 
-## 项目状态
+## 接下来会做
 
-Autai 目前处于 **活跃的 Alpha 开发阶段**。功能可用且迭代迅速。进入 Beta 阶段后将开放 GitHub Issues 和 Pull Requests。
+- **电脑操控**——不限于浏览器：终端、整个桌面。
+- **有声小说**——多人有声剧与评书体讲播。
+- **Flathub 上架与自动更新**。
+- **界面语言持续增加**。
 
 ---
 
 ## 开源协议
 
-[MIT](../LICENSE)——自由使用、修改和分享。
+[MIT](../LICENSE)——随便用、随便改、随便分享。
 
 ---
 
-觉得好用的话，给个 Star ⭐ 吧，让更多人看到这个项目！
+<div align="center">
+
+**觉得省事了，点个 Star ⭐——让更多人少翻二十个标签页。**
 
 <img width="320" height="180" alt="star" src="https://github.com/user-attachments/assets/ac160fea-7073-4f77-9af7-addaba1708d4" />
 
-</div align="center">
+</div>
