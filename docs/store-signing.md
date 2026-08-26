@@ -119,17 +119,30 @@ developer.apple.com → Account → Certificates, Identifiers & Profiles →
 Profiles → **+** → type **Mac App Store Connect** → select the App ID
 `ai.autai.app` → Continue.
 
-The Configure step lists only **"Mac App Distribution"** certificates, so
-the legacy "3rd Party Mac Developer Application" cert will not appear
-("No Certificates are available"). On that screen:
+The Configure step may report "No Certificates are available" even though
+the Certificates tab shows a valid `Mac App Distribution` cert (portal
+filter quirk). The rule that matters: **the profile must embed the exact
+cert the app is signed with**. So, after any Create Certificate detour,
+refresh the Select Certificates screen:
+
+- **Old ("3rd Party Mac Developer Application", created 2026-06-08) cert
+  listed → select IT.** No p12 change, no secret update; the downloaded
+  `.cer` from the detour is then redundant (keep for renewal or discard).
+  Preferred: the existing CI secrets are verified working.
+- **Only the new cert listed → select it**, then re-export the app p12
+  (below) so signing cert == profile cert. The old p12 keeps working
+  until the profile switches; this is the only reason to re-export.
+
+Create Certificate detour (only if the old cert truly can't be selected):
 
 1. **Create Certificate** → type **Mac App Distribution**. Apple allows
    **one** distribution cert of each type per team — if it reports the
    limit reached, revoke the existing `Mac App Distribution` row first
-   (safe: the CI secret is about to be replaced by the re-exported p12
-   anyway; leave the installer cert untouched).
+   (leave the installer cert untouched), then immediately re-export the
+   replacement p12 and update `MAC_APP_P12_BASE64` before the next
+   dispatch, since revocation invalidates the old cert chain.
 2. Upload the **existing** `~/apple-signing/mac/app.certSigningRequest`
-3. Download the issued `.cer`; back in the wizard, select it →
+3. Download the issued `.cer`; refresh the wizard, select the cert →
    Continue → Generate → Download the `.provisionprofile`.
 4. Re-export the app `.p12` from the same private key + new cert
    (`openssl pkcs12 -export`, same password) and update
