@@ -90,10 +90,25 @@ Create the profile on the **Apple Developer portal** — not App Store Connect
 (App Store Connect has no Profiles page; that's why you won't find it there):
 developer.apple.com → Account → Certificates, Identifiers & Profiles →
 Profiles → **+** → type **Mac App Store Connect** → select the App ID
-`ai.autai.app` → select the "3rd Party Mac Developer Application"
-certificate → Generate → Download. That downloaded file
-(`<name>.provisionprofile`) is what `base64 -w 0` encodes into
-`MAS_PROVISION_BASE64`.
+`ai.autai.app` → Continue.
+
+The Configure step lists only **"Mac App Distribution"** certificates, so
+the legacy "3rd Party Mac Developer Application" cert will not appear
+("No Certificates are available"). On that screen:
+
+1. **Create Certificate** → type **Mac App Distribution**.
+2. Upload the **existing** `~/apple-signing/mac/app.certSigningRequest`
+   (reuses the current private key — do NOT generate a new keypair).
+3. Download the issued `.cer`; back in the wizard, select it →
+   Continue → Generate → Download the `.provisionprofile`.
+4. Re-export the app `.p12` from the same private key + new cert
+   (`openssl pkcs12 -export`, same password) and update
+   `MAC_APP_P12_BASE64` — App Store validation requires the signing
+   identity to match the embedded profile cert. The resulting
+   `Apple Distribution:` CN is fine for MAS app signing (only the
+   installer cert must keep its legacy CN — do NOT also create a
+   "Mac Installer Distribution" cert).
+5. `base64 -w 0 <name>.provisionprofile` → `MAS_PROVISION_BASE64`.
 
 The build uses `build/entitlements.mas.plist` (JIT + unsigned executable
 memory — required by Electron's V8). Add store-specific entitlements there
