@@ -81,11 +81,15 @@ openssl pkcs12 -in installer.p12 -nokeys -passin pass:PW | openssl x509 -noout -
 # installer: MUST say "3rd Party Mac Developer Installer" with builder 26.15.3
 ```
 
-Both portal certs expire 2027-06-08. Status of the CI secrets' p12s:
-**unverified** — run the check above before dispatching; if the installer
-p12 carries the modern `Mac Installer Distribution:` CN, pkg signing will
-fail (workaround: patch `MacTargetHelper.js` in CI after `pnpm install`,
-replacing the hard-coded legacy name with `Mac Installer Distribution`).
+Both portal certs expire 2027-06-08. **Verified 2026-08-26**: both CI
+secret p12s carry the legacy CNs (`3rd Party Mac Developer Application:`
+/ `3rd Party Mac Developer Installer:`, issued 2026-06-08) — fully
+compatible with builder 26.15.3 as-is; the workaround below is only for
+future renewals (re-check with the commands above after any re-issue).
+Renewed portal certs may carry the modern `Mac Installer Distribution:`
+CN, in which case pkg signing will fail (workaround: patch
+`MacTargetHelper.js` in CI after `pnpm install`, replacing the
+hard-coded legacy name with `Mac Installer Distribution`).
 
 Each cert is exported as its own `.p12` (see the `~/apple-signing/mac`
 README for the openssl CSR/p12 procedure). The workflow imports both into
@@ -101,6 +105,13 @@ phase automatically.
 | `MAC_INSTALLER_P12_BASE64` | `base64 -w 0 mac/installer/installer.p12` ("3rd Party Mac Developer Installer") |
 | `MAC_INSTALLER_P12_PASSWORD` | password of the installer `.p12` (independent of the app one) |
 | `MAS_PROVISION_BASE64` | `base64 -w 0 < embedded.provisionprofile` generated on the Apple Developer portal (optional; omit to build without an embedded profile) |
+
+The build uses `build/entitlements.mas.plist`: sandbox + network
+(client AND server — the app's renderer↔main link is localhost HTTP/SSE)
++ user-selected file access + the V8 keys (JIT, unsigned executable
+memory). Sandbox is mandatory for MAS; network and file access are NOT
+allowed by default once sandboxed — add entitlements there as needed
+(e.g. `com.apple.security.print`, device access).
 
 Create the profile on the **Apple Developer portal** — not App Store Connect
 (App Store Connect has no Profiles page; that's why you won't find it there):
@@ -129,10 +140,6 @@ the legacy "3rd Party Mac Developer Application" cert will not appear
    "Mac Installer Distribution" cert).
 5. `base64 -w 0 <name>.provisionprofile` → `MAS_PROVISION_BASE64`.
 
-The build uses `build/entitlements.mas.plist` (JIT + unsigned executable
-memory — required by Electron's V8). Add store-specific entitlements there
-if you need them (e.g. network access is allowed by default; file access
-outside the sandbox requires explicit entries).
 
 ## Renewing after expiry
 

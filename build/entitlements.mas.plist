@@ -2,10 +2,23 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-    <!-- Mac App Store distribution entitlements.
-         Electron main-process apps need JIT and unsigned executable memory
-         for V8; these are the standard entitlements from osx-sign's repo:
+    <!-- Mac App Store distribution entitlements. -->
+    <!-- Sandbox is REQUIRED for MAS submission; once sandboxed, network is
+         denied by default — this app's renderer↔main communication is
+         localhost HTTP REST + SSE (Hono server in main), so it needs both
+         network.server (listen) and network.client (fetch + outbound AI
+         API calls). V8 needs JIT + unsigned executable memory:
          https://github.com/electron/osx-sign/tree/main/entitlements -->
+    <key>com.apple.security.app-sandbox</key>
+    <true/>
+    <key>com.apple.security.network.client</key>
+    <true/>
+    <key>com.apple.security.network.server</key>
+    <true/>
+    <key>com.apple.security.files.user-selected.read-write</key>
+    <true/>
+    <key>com.apple.security.files.bookmarks.app-scope</key>
+    <true/>
     <key>com.apple.security.cs.allow-jit</key>
     <true/>
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
