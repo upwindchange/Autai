@@ -78,20 +78,20 @@ OpenAI、Anthropic、Google、DeepSeek、Mistral、xAI……100+ 家服务商、
     </td>
   </tr>
   <tr>
-    <td width="33%" valign="top">
+    <td width="50%" valign="top">
       <img src="../docs/screenshots/tag-select.png" alt="打彩色标签" width="100%" />
       <br /><sub><b>彩色标签</b>，扫一眼就分清。</sub>
     </td>
-    <td width="33%" valign="top">
+    <td width="50%" valign="top">
       <img src="../docs/screenshots/tag-management-1.png" alt="标签管理" width="100%" />
       <br /><sub><b>标签随手管</b>——改名、换色。</sub>
     </td>
-    <td width="33%" valign="top">
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
       <img src="../docs/screenshots/tag-management-2.png" alt="标签管理" width="100%" />
       <br /><sub><b>每个对话独立打标</b>，随时改。</sub>
     </td>
-  </tr>
-  <tr>
     <td width="50%" valign="top">
       <img src="../docs/screenshots/search.png" alt="全文搜索" width="100%" />
       <br /><sub><b>全文搜索</b>——每个字都翻得到。</sub>
@@ -105,15 +105,17 @@ OpenAI、Anthropic、Google、DeepSeek、Mistral、xAI……100+ 家服务商、
 
 <table>
   <tr>
-    <td width="33%" valign="top">
+    <td width="50%" valign="top">
       <img src="../docs/screenshots/code-highlighting.png" alt="代码高亮" width="100%" />
       <br /><sub><b>代码</b>——高亮、一键复制。</sub>
     </td>
-    <td width="33%" valign="top">
+    <td width="50%" valign="top">
       <img src="../docs/screenshots/math-equation.png" alt="公式渲染" width="100%" />
       <br /><sub><b>公式</b>——正经排版，不是 ASCII。</sub>
     </td>
-    <td width="33%" valign="top">
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
       <img src="../docs/screenshots/mermaid-rendering.png" alt="Mermaid 图表渲染" width="100%" />
       <br /><sub><b>图表</b>——Mermaid 直接成图。</sub>
     </td>
@@ -126,15 +128,17 @@ OpenAI、Anthropic、Google、DeepSeek、Mistral、xAI……100+ 家服务商、
 
 <table>
   <tr>
-    <td width="33%" valign="top">
+    <td width="50%" valign="top">
       <img src="../docs/screenshots/attach-image.png" alt="上传图片" width="100%" />
       <br /><sub><b>拖张图</b>——截图也行。</sub>
     </td>
-    <td width="33%" valign="top">
+    <td width="50%" valign="top">
       <img src="../docs/screenshots/attach-file.png" alt="上传文件" width="100%" />
       <br /><sub><b>拖个文件</b>——模型认的都行。</sub>
     </td>
-    <td width="33%" valign="top">
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
       <img src="../docs/screenshots/attach-image-conversation.png" alt="图片进入对话" width="100%" />
       <br /><sub><b>进了对话</b>——是拿来讨论的。</sub>
     </td>

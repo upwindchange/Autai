@@ -100,20 +100,20 @@ Threads get auto-titled and tagged with color-coded labels. Flip to a tag-groupe
     </td>
   </tr>
   <tr>
-    <td width="33%" valign="top">
+    <td width="50%" valign="top">
       <img src="docs/screenshots/tag-select.png" alt="Assigning colored tags" width="100%" />
       <br /><sub><b>Color-coded tags</b> for quick scanning.</sub>
     </td>
-    <td width="33%" valign="top">
+    <td width="50%" valign="top">
       <img src="docs/screenshots/tag-management-1.png" alt="Tag management" width="100%" />
       <br /><sub><b>Tag management</b> — rename, recolor, merge.</sub>
     </td>
-    <td width="33%" valign="top">
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
       <img src="docs/screenshots/tag-management-2.png" alt="Tag management" width="100%" />
       <br /><sub><b>Per-thread labels</b>, editable anytime.</sub>
     </td>
-  </tr>
-  <tr>
     <td width="50%" valign="top">
       <img src="docs/screenshots/search.png" alt="Full-text search across conversations" width="100%" />
       <br /><sub><b>Full-text search</b> — every word, every conversation.</sub>
@@ -127,15 +127,17 @@ Code with syntax highlighting, math typeset like a textbook, Mermaid diagrams re
 
 <table>
   <tr>
-    <td width="33%" valign="top">
+    <td width="50%" valign="top">
       <img src="docs/screenshots/code-highlighting.png" alt="Syntax-highlighted code block" width="100%" />
       <br /><sub><b>Code</b> — syntax-highlighted, copy-ready.</sub>
     </td>
-    <td width="33%" valign="top">
+    <td width="50%" valign="top">
       <img src="docs/screenshots/math-equation.png" alt="Rendered math equation" width="100%" />
       <br /><sub><b>Math</b> — properly typeset equations.</sub>
     </td>
-    <td width="33%" valign="top">
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
       <img src="docs/screenshots/mermaid-rendering.png" alt="Rendered Mermaid diagram" width="100%" />
       <br /><sub><b>Diagrams</b> — Mermaid rendered as charts.</sub>
     </td>
@@ -148,15 +150,17 @@ Screenshots, documents, whatever you have — drop them in and the AI works with
 
 <table>
   <tr>
-    <td width="33%" valign="top">
+    <td width="50%" valign="top">
       <img src="docs/screenshots/attach-image.png" alt="Attaching an image" width="100%" />
       <br /><sub><b>Attach an image</b> — screenshots included.</sub>
     </td>
-    <td width="33%" valign="top">
+    <td width="50%" valign="top">
       <img src="docs/screenshots/attach-file.png" alt="Attaching a file" width="100%" />
       <br /><sub><b>Attach a file</b> — any format the model reads.</sub>
     </td>
-    <td width="33%" valign="top">
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
       <img src="docs/screenshots/attach-image-conversation.png" alt="Image being discussed in a conversation" width="100%" />
       <br /><sub><b>In context</b> — discussed, not just stored.</sub>
     </td>
