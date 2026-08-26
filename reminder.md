@@ -21,16 +21,20 @@ dispatching, or add to the `store-signing` environment:
 Pick exactly one of Option A / Option B; the workflow's `if` conditions
 choose based on which secrets are present.
 
-## 2. `MAS_PROVISION_BASE64` (optional but recommended)
+## 2. `MAS_PROVISION_BASE64` — optional; try CI without it first
 
-Base64 of the `embedded.provisionprofile` — generated on the **Apple
-Developer portal** (developer.apple.com), not App Store Connect: Account →
+The workflow's `electron-builder.json` sets no `provisioningProfile`, and
+the "Write provisioning profile" step is `if`-guarded on the secret being
+present. **Dispatch with the secret absent to test CI today** — MAS builds
+sign with the verified certs regardless. Only add it if App Store Connect
+upload validation rejects the pkg (common for sandboxed apps on first
+submission). To add later: Apple Developer portal → Account →
 Certificates, Identifiers & Profiles → Profiles → **+** → type
-**Mac App Store Connect** → App ID `ai.autai.app` → select the "3rd Party Mac
-Developer Application" cert → Generate → Download. Then:
+**Mac App Store Connect** → App ID `ai.autai.app` → select the
+"3rd Party Mac Developer Application" cert → Generate → Download. Then:
 
 ```bash
-base64 -w 0 embedded.provisionprofile | pbcopy   # paste as secret
+base64 -w 0 <name>.provisionprofile   # paste as secret (Linux: no pbcopy)
 ```
 
 ## 3. Environment protection (Settings → Environments → `store-signing`)

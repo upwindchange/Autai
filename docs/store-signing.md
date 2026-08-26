@@ -104,7 +104,12 @@ phase automatically.
 | `MAC_APP_P12_PASSWORD` | password of the app `.p12` |
 | `MAC_INSTALLER_P12_BASE64` | `base64 -w 0 mac/installer/installer.p12` ("3rd Party Mac Developer Installer") |
 | `MAC_INSTALLER_P12_PASSWORD` | password of the installer `.p12` (independent of the app one) |
-| `MAS_PROVISION_BASE64` | `base64 -w 0 < embedded.provisionprofile` generated on the Apple Developer portal (optional; omit to build without an embedded profile) |
+| `MAS_PROVISION_BASE64` | `base64 -w 0 < embedded.provisionprofile` generated on the Apple Developer portal (**optional** — no `provisioningProfile` in `electron-builder.json`; the workflow step is `if`-guarded. Try a dispatch without it: builds sign fine. Add it only if App Store Connect upload validation rejects the pkg) |
+
+> Why it exists at all: a provisioning profile ties bundle id + team +
+allowed signing certs together and carries the sandbox entitlement grants;
+MAS apps use it for App Store **receipt validation**. First-time sandboxed
+submissions are where its absence is most often flagged.
 
 The build uses `build/entitlements.mas.plist`: sandbox + network
 (client AND server — the app's renderer↔main link is localhost HTTP/SSE)
