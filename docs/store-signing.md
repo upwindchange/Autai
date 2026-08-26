@@ -107,9 +107,16 @@ signing — published store apps and installed copies are unaffected. The
 renewal reuses the existing private keys; no new CSR is needed and no repo
 or workflow change is required:
 
-1. Apple Developer portal → Certificates → create new cert of the same
-   type, uploading the **same** `app.certSigningRequest` /
-   `installer.certSigningRequest` from `~/apple-signing/mac/`.
+1. Apple Developer portal → Certificates → create a new cert, uploading the
+   **same** `app.certSigningRequest` / `installer.certSigningRequest` from
+   `~/apple-signing/mac/`. Portal names: "Mac App Distribution" (app) /
+   "Mac Installer Distribution" (installer) — these are the renamed
+   equivalents of the legacy types; the issued cert may carry the new
+   `Mac Installer Distribution:` CN, which `createMasInstaller` cannot
+   match (see the note above). If the renewed installer cert gets the new
+   CN, patch `node_modules/app-builder-lib/out/codeSign/macSign` or pin a
+   fixed electron-builder version; verify with the `openssl x509 -subject`
+   check before uploading secrets.
 2. Convert the new `.cer` to PEM and confirm the public-key fingerprint
    still matches the private key (steps 4–5 / 7–8 of the local README).
 3. Re-export the `.p12` files with the same password
