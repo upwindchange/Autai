@@ -1,1 +1,0 @@
-ALTER TABLE `source_chapters` ADD `url` text;
