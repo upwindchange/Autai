@@ -56,20 +56,36 @@ certificates — do not confuse them:
   MAS builds need).
 - **"3rd Party Mac Developer Installer"** — signs the `.pkg` installer.
 
-electron-builder 26 matches these **exact** certificate names. Apple's newer
-portal may offer "Mac App Distribution"/"Mac Installer Distribution" certs
-whose issued CN is `Apple Distribution:`/`Mac Installer Distribution:` — the
-app-level one still matches, but a `Mac Installer Distribution:` installer
-cert will **not** be found by `createMasInstaller` (it hard-codes the legacy
-name; see upstream PR #9226, unmerged). Verify what you have:
+electron-builder 26.15.3 matches by certificate CN, and the two roles
+differ in what they accept (verified against the installed source):
+
+- MAS `.app` signing accepts **either** `Apple Distribution:` **or**
+  `3rd Party Mac Developer Application:` (`MacTargetHelper.js` —
+  `["Apple Distribution", "3rd Party Mac Developer Application"]`).
+- MAS `.pkg` signing (`createMasInstaller`) hard-codes
+  `"3rd Party Mac Developer Installer"` — a `Mac Installer Distribution:`
+  cert **cannot** be matched, even via an explicit `identity` qualifier or
+  `CSC_NAME` (`_findIdentity` requires the prefix inside the identity
+  name; see upstream PR #9226, unmerged).
+
+The portal's Type column (`Mac App Distribution` /
+`Mac Installer Distribution`) no longer reveals the CN — check the p12s
+directly (the Type column and the CN can disagree; the profile wizard
+filters by certificate policy, which is why a Type-matching cert may not
+be offered there):
 
 ```bash
-openssl x509 -in mac_app.pem -noout -subject   # must say "3rd Party Mac Developer Application" or "Apple Distribution"
-openssl x509 -in mac_installer.pem -noout -subject  # must say "3rd Party Mac Developer Installer"
+openssl pkcs12 -in app.p12 -nokeys -passin pass:PW | openssl x509 -noout -subject
+openssl pkcs12 -in installer.p12 -nokeys -passin pass:PW | openssl x509 -noout -subject
+# app:      "3rd Party Mac Developer Application" or "Apple Distribution" — both OK
+# installer: MUST say "3rd Party Mac Developer Installer" with builder 26.15.3
 ```
 
-The current assets (verified 2026-08): both certs use the legacy names and
-are valid until 2027-06 — fully compatible.
+Both portal certs expire 2027-06-08. Status of the CI secrets' p12s:
+**unverified** — run the check above before dispatching; if the installer
+p12 carries the modern `Mac Installer Distribution:` CN, pkg signing will
+fail (workaround: patch `MacTargetHelper.js` in CI after `pnpm install`,
+replacing the hard-coded legacy name with `Mac Installer Distribution`).
 
 Each cert is exported as its own `.p12` (see the `~/apple-signing/mac`
 README for the openssl CSR/p12 procedure). The workflow imports both into
@@ -96,9 +112,12 @@ The Configure step lists only **"Mac App Distribution"** certificates, so
 the legacy "3rd Party Mac Developer Application" cert will not appear
 ("No Certificates are available"). On that screen:
 
-1. **Create Certificate** → type **Mac App Distribution**.
+1. **Create Certificate** → type **Mac App Distribution**. Apple allows
+   **one** distribution cert of each type per team — if it reports the
+   limit reached, revoke the existing `Mac App Distribution` row first
+   (safe: the CI secret is about to be replaced by the re-exported p12
+   anyway; leave the installer cert untouched).
 2. Upload the **existing** `~/apple-signing/mac/app.certSigningRequest`
-   (reuses the current private key — do NOT generate a new keypair).
 3. Download the issued `.cer`; back in the wizard, select it →
    Continue → Generate → Download the `.provisionprofile`.
 4. Re-export the app `.p12` from the same private key + new cert
