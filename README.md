@@ -86,7 +86,7 @@ Three efforts, one command bar: a quick pass when you just need a fact, standard
 
 ### Conversations that organize themselves
 
-Threads get auto-titled and tagged with color-coded labels. Flip to a tag-grouped view to see everything by category, search the full text of every conversation, and bulk-archive the old stuff. The sidebar stays tidy with zero effort on your part.
+Threads get auto-titled and tagged with color-coded labels. Flip to a tag-grouped view to see everything by category, search through your conversation history, and bulk-archive the old stuff. The sidebar stays tidy with zero effort on your part.
 
 <table>
   <tr>
@@ -115,8 +115,8 @@ Threads get auto-titled and tagged with color-coded labels. Flip to a tag-groupe
       <br /><sub><b>Per-thread labels</b>, editable anytime.</sub>
     </td>
     <td width="50%" valign="top">
-      <img src="docs/screenshots/search.png" alt="Full-text search across conversations" width="100%" />
-      <br /><sub><b>Full-text search</b> — every word, every conversation.</sub>
+      <img src="docs/screenshots/search.png" alt="Search conversation history" width="100%" />
+      <br /><sub><b>Search</b> — dig up any past conversation.</sub>
     </td>
   </tr>
 </table>

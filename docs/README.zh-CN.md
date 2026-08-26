@@ -64,7 +64,7 @@ OpenAI、Anthropic、Google、DeepSeek、Mistral、xAI……100+ 家服务商、
 
 ### 对话自己会整理
 
-聊过的自动起标题、自动打彩色标签。想按类别看就切标签分组视图，全文搜索一句话翻出半个月前的对话，旧账还能批量归档——侧边栏不用你动手收拾。
+聊过的自动起标题、自动打彩色标签。想按类别看就切标签分组视图，搜一下就能翻出半个月前的对话，旧账还能批量归档——侧边栏不用你动手收拾。
 
 <table>
   <tr>
@@ -93,8 +93,8 @@ OpenAI、Anthropic、Google、DeepSeek、Mistral、xAI……100+ 家服务商、
       <br /><sub><b>每个对话独立打标</b>，随时改。</sub>
     </td>
     <td width="50%" valign="top">
-      <img src="../docs/screenshots/search.png" alt="全文搜索" width="100%" />
-      <br /><sub><b>全文搜索</b>——每个字都翻得到。</sub>
+      <img src="../docs/screenshots/search.png" alt="搜索历史对话" width="100%" />
+      <br /><sub><b>搜索</b>——历史对话随搜随到。</sub>
     </td>
   </tr>
 </table>
