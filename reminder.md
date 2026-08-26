@@ -26,7 +26,7 @@ choose based on which secrets are present.
 Base64 of the `embedded.provisionprofile` — generated on the **Apple
 Developer portal** (developer.apple.com), not App Store Connect: Account →
 Certificates, Identifiers & Profiles → Profiles → **+** → type
-**Mac App Store** → App ID `ai.autai.app` → select the "3rd Party Mac
+**Mac App Store Connect** → App ID `ai.autai.app` → select the "3rd Party Mac
 Developer Application" cert → Generate → Download. Then:
 
 ```bash

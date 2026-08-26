@@ -89,7 +89,7 @@ phase automatically.
 Create the profile on the **Apple Developer portal** — not App Store Connect
 (App Store Connect has no Profiles page; that's why you won't find it there):
 developer.apple.com → Account → Certificates, Identifiers & Profiles →
-Profiles → **+** → type **Mac App Store** → select the App ID
+Profiles → **+** → type **Mac App Store Connect** → select the App ID
 `ai.autai.app` → select the "3rd Party Mac Developer Application"
 certificate → Generate → Download. That downloaded file
 (`<name>.provisionprofile`) is what `base64 -w 0` encodes into
