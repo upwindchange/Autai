@@ -131,13 +131,18 @@ jobs:
           security find-identity -v -p codesigning "$KEYCHAIN"
           rm -f app.p12 installer.p12
 
-      - name: Write provisioning profile
-        if: ${{ secrets.MAS_PROVISION_BASE64 != '' }}
+      # `secrets` is not available in step-level `if` expressions; the
+      # guard lives in the shell instead (empty secret → profile-less build).
+      - name: Write provisioning profile (if MAS_PROVISION_BASE64 is set)
         env:
           MAS_PROVISION_BASE64: ${{ secrets.MAS_PROVISION_BASE64 }}
         run: |
-          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-          echo -n "$MAS_PROVISION_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/embedded.provisionprofile
+          if [ -n "$MAS_PROVISION_BASE64" ]; then
+            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+            echo -n "$MAS_PROVISION_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/embedded.provisionprofile
+          else
+            echo "MAS_PROVISION_BASE64 not set; building without a profile"
+          fi
 
       - name: Build MAS packages
         env:

@@ -103,7 +103,7 @@ phase automatically.
 | `MAC_APP_P12_BASE64` | `base64 -w 0 mac/app/app.p12` ("3rd Party Mac Developer Application") |
 | `MAC_APP_P12_PASSWORD` | password of the app `.p12` |
 | `MAC_INSTALLER_P12_BASE64` | `base64 -w 0 mac/installer/installer.p12` ("3rd Party Mac Developer Installer") |
-| `MAS_PROVISION_BASE64` | `base64 -w 0 < embedded.provisionprofile` from the Apple Developer portal — **set 2026-08-27**. No `provisioningProfile` key in `electron-builder.json`; the workflow's write step is `if`-guarded on the secret, so a future dispatch with the secret removed silently reverts to profile-less builds |
+| `MAS_PROVISION_BASE64` | `base64 -w 0 < embedded.provisionprofile` from the Apple Developer portal — **set 2026-08-27**. No `provisioningProfile` key in `electron-builder.json`; the workflow's write step guards in-shell on the secret (`secrets` is unavailable in step-level `if`), so a future dispatch with the secret removed silently reverts to profile-less builds |
 
 > Why it exists: a provisioning profile ties bundle id + team + allowed
 > signing certs together and carries the sandbox entitlement grants; MAS
