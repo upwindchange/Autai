@@ -1,68 +1,40 @@
 # CI/CD Setup Reminders
 
-Status: Mac secrets (`MAC_APP_P12_BASE64`, `MAC_APP_P12_PASSWORD`,
-`MAC_INSTALLER_P12_BASE64`, `MAC_INSTALLER_P12_PASSWORD`) are already in the
-`store-signing` environment. Remaining items:
+Status: **all `store-signing` environment secrets are set** — Mac cert
+pair, passwords, and `MAS_PROVISION_BASE64` (added 2026-08-27). Nothing
+pending on the Windows side (appx builds unsigned; Partner Center
+re-signs — see docs/store-signing.md).
 
-## 1. Windows store job secrets (or disable it)
-
-`workflow_dispatch` defaults `build_appx: true`, and none of its secrets
-exist yet. Either uncheck **Build Microsoft Store package** when
-dispatching, or add to the `store-signing` environment:
-
-- **Option A (Azure Trusted Signing, recommended):**
-  `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`,
-  `AZURE_SIGNING_CERTIFICATE_NAME`
-- **Option B (classic EV `.p12`):** `WIN_CERT_BASE64`, `WIN_CERT_PASSWORD`
-- **Always:** `APPX_PUBLISHER` — exact publisher string from Partner Center
-  → Product → Product identity (e.g. `CN=XXXXXXXX-XXXX-...`). Appx is
-  rejected on upload if it doesn't match.
-
-Pick exactly one of Option A / Option B; the workflow's `if` conditions
-choose based on which secrets are present.
-
-## 2. `MAS_PROVISION_BASE64` — optional; try CI without it first
-
-The workflow's `electron-builder.json` sets no `provisioningProfile`, and
-the "Write provisioning profile" step is `if`-guarded on the secret being
-present. **Dispatch with the secret absent to test CI today** — MAS builds
-sign with the verified certs regardless. Only add it if App Store Connect
-upload validation rejects the pkg (common for sandboxed apps on first
-submission). To add later: Apple Developer portal → Account →
-Certificates, Identifiers & Profiles → Profiles → **+** → type
-**Mac App Store Connect** → App ID `ai.autai.app` → select the
-"3rd Party Mac Developer Application" cert → Generate → Download. Then:
-
-```bash
-base64 -w 0 <name>.provisionprofile   # paste as secret (Linux: no pbcopy)
-```
-
-## 3. Environment protection (Settings → Environments → `store-signing`)
+## 1. Environment protection — TODO (Settings → Environments → `store-signing`)
 
 - **Deployment branches → Restricted** — allow `master` and `v*` tags.
   Without this, any branch can reach the signing certs.
 - **Required reviewers** (optional) — each dispatch pauses for a manual
   approval click before secrets are exposed.
+- With branch restriction on, dispatches must run from `master` (the
+  default).
 
-Note: with branch restriction on, the dispatch must run from `master`
-(the default).
+## 2. Dispatch & submit — TODO
 
-## 4. Regular build/tag jobs — nothing to do
+Actions → Build → Run workflow, from `master`, both boxes ticked →
+download `mas-packages` / `appx-packages` artifacts → upload `.pkg` to
+App Store Connect and `.appx` to Partner Center. Listing content
+(descriptions, screenshots, privacy policy URL, age ratings, AI-content
+declarations) is portal-side work, not CI.
 
-`GITHUB_TOKEN` is automatic; the workflow already grants `contents: write`
-for the draft release on tag push.
+## 3. Contingencies — only if a run or upload fails
 
-## 5. Local dry-run before burning a CI run
+- **MAS signing/identity failure**: verify the p12 CNs with
+  `openssl x509 -subject` (docs/store-signing.md) — the installer p12
+  must keep its legacy `3rd Party Mac Developer Installer` CN.
+- **App Store Connect rejects the pkg at upload validation**: first
+  check that the provisioning profile's embedded cert == the app signing
+  cert. If the profile was generated against a newly created cert (not
+  the verified 2026-06-08 one), re-export the app `.p12` from that cert
+  and update `MAC_APP_P12_BASE64` (details in docs/store-signing.md).
 
-Unsigned local packaging check per `docs/store-signing.md`:
+## 4. Local dry-run before burning a CI run
 
 ```bash
 pnpm exec electron-vite build && pnpm exec electron-builder --mac mas --publish never
 ```
-
-## Minimal path to a green dispatch now
-
-Untick `build_appx`, run the dispatch from `master`. The Mac cert pair uses
-the legacy `3rd Party Mac Developer …` names (verified 2026-08, valid to
-2027-06), so `security find-identity` should list both identities and the
-MAS build should sign.

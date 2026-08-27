@@ -22,18 +22,18 @@ Create it once: **Settings → Environments → New environment →
 | `MAC_APP_P12_PASSWORD` | mac-store | always |
 | `MAC_INSTALLER_P12_BASE64` | mac-store | always |
 | `MAC_INSTALLER_P12_PASSWORD` | mac-store | always |
-| `MAS_PROVISION_BASE64` | mac-store | optional |
-| `AZURE_TENANT_ID` | windows-store | Option A (Azure) |
-| `AZURE_CLIENT_ID` | windows-store | Option A (Azure) |
-| `AZURE_CLIENT_SECRET` | windows-store | Option A (Azure) |
-| `AZURE_SIGNING_CERTIFICATE_NAME` | windows-store | Option A (Azure) |
-| `WIN_CERT_BASE64` | windows-store | Option B (classic EV) |
-| `WIN_CERT_PASSWORD` | windows-store | Option B (classic EV) |
-| `APPX_PUBLISHER` | windows-store | always |
+| `MAS_PROVISION_BASE64` | mac-store | **set 2026-08-27** |
+| `AZURE_TENANT_ID` | windows-store | optional (additive signing) |
+| `AZURE_CLIENT_ID` | windows-store | optional (additive signing) |
+| `AZURE_CLIENT_SECRET` | windows-store | optional (additive signing) |
+| `AZURE_SIGNING_CERTIFICATE_NAME` | windows-store | optional (additive signing) |
 
-For Windows signing pick **exactly one** of Option A / Option B — the
-workflow uses the classic cert only when `WIN_CERT_BASE64` is set and
-`AZURE_CLIENT_ID` is not (see the `windows-store` job's `if` conditions).
+Status: all five mac secrets are set. The `AZURE_*` rows below remain
+unset and **unneeded** — Partner Center re-signs uploaded appx packages,
+and the identity the Store validates (`identityName` / `publisher`)
+lives in `electron-builder.json` `appx.*`, not in secrets. They exist
+only for the optional additive Authenticode signing (Microsoft Store
+section); set them only if that is ever enabled.
 
 Recommended environment settings (also under the environment page):
 
@@ -103,13 +103,12 @@ phase automatically.
 | `MAC_APP_P12_BASE64` | `base64 -w 0 mac/app/app.p12` ("3rd Party Mac Developer Application") |
 | `MAC_APP_P12_PASSWORD` | password of the app `.p12` |
 | `MAC_INSTALLER_P12_BASE64` | `base64 -w 0 mac/installer/installer.p12` ("3rd Party Mac Developer Installer") |
-| `MAC_INSTALLER_P12_PASSWORD` | password of the installer `.p12` (independent of the app one) |
-| `MAS_PROVISION_BASE64` | `base64 -w 0 < embedded.provisionprofile` generated on the Apple Developer portal (**optional** — no `provisioningProfile` in `electron-builder.json`; the workflow step is `if`-guarded. Try a dispatch without it: builds sign fine. Add it only if App Store Connect upload validation rejects the pkg) |
+| `MAS_PROVISION_BASE64` | `base64 -w 0 < embedded.provisionprofile` from the Apple Developer portal — **set 2026-08-27**. No `provisioningProfile` key in `electron-builder.json`; the workflow's write step is `if`-guarded on the secret, so a future dispatch with the secret removed silently reverts to profile-less builds |
 
-> Why it exists at all: a provisioning profile ties bundle id + team +
-allowed signing certs together and carries the sandbox entitlement grants;
-MAS apps use it for App Store **receipt validation**. First-time sandboxed
-submissions are where its absence is most often flagged.
+> Why it exists: a provisioning profile ties bundle id + team + allowed
+> signing certs together and carries the sandbox entitlement grants; MAS
+> apps use it for App Store **receipt validation**.
+> Profile renewal rides along with cert renewal (see below).
 
 The build uses `build/entitlements.mas.plist`: sandbox + network
 (client AND server — the app's renderer↔main link is localhost HTTP/SSE)
@@ -164,7 +163,9 @@ Create Certificate detour (only if the old cert truly can't be selected):
 Certs (issued ~1-year, current pair valid to 2027-06-08) only gate NEW
 signing — published store apps and installed copies are unaffected. The
 renewal reuses the existing private keys; no new CSR is needed and no repo
-or workflow change is required:
+or workflow change is required. **The provisioning profile must also be
+regenerated** against the renewed app cert (profiles embed a specific
+cert; they do not survive cert renewal):
 
 1. Apple Developer portal → Certificates → create a new cert, uploading the
    **same** `app.certSigningRequest` / `installer.certSigningRequest` from
@@ -182,7 +183,11 @@ or workflow change is required:
    (`openssl pkcs12 -export ...`).
 4. `base64 -w 0` each new `.p12` and update the `store-signing`
    environment secrets `MAC_APP_P12_BASE64` / `MAC_INSTALLER_P12_BASE64`.
-5. Run the manual `mac-store` job; the `security find-identity` step should
+5. Regenerate the provisioning profile (portal → Profiles → **+** →
+   Mac App Store Connect → App ID `ai.autai.app` → select the renewed
+   app cert) and update `MAS_PROVISION_BASE64` with
+   `base64 -w 0 <name>.provisionprofile`.
+6. Run the manual `mac-store` job; the `security find-identity` step should
    list both identities, then the build signs green.
 
 Renew ahead of expiry: Apple allows a couple of concurrent certs per type,
@@ -205,54 +210,107 @@ you suspect key compromise.
 
 ## Microsoft Store
 
-Two signing options; Azure Trusted Signing is the modern path (no cert
-files, auto-renewing):
+**Short answer: you do not need a code-signing certificate.** Microsoft
+Store MSIX/APPX submissions are re-signed by the Store with a Microsoft
+certificate during ingestion — no CA cert, no `.pfx`, no USB token, no
+Azure account (see "Code signing for Microsoft Store submissions" in
+https://learn.microsoft.com/en-us/windows/apps/publish/publish-your-app/msix/app-package-requirements ).
+CA signing is only required for MSI/EXE installers or sideloaded MSIX,
+which this repo doesn't ship.
 
-### Option A — Azure Trusted Signing (recommended)
+### Package identity (the part that IS mandatory)
 
-1. Create a Trusted Signing account in Azure (`Trusted Signing Accounts`).
-2. Create a certificate profile; its name goes in
-   `AZURE_SIGNING_CERTIFICATE_NAME`.
-3. Create an Entra service principal with access; set
-   `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`.
-4. Onboarding individual validation happens on Microsoft's side (org
-   validation, ~days). Individual developers: see
-   https://learn.microsoft.com/en-us/azure/trusted-signing/ .
+The AppxManifest `Identity` must byte-for-byte match Partner Center →
+Product → Product identity (values are case-sensitive; verified against
+this product 2026-08-26). These live in `electron-builder.json` `appx.*`,
+not in CI secrets:
 
-electron-builder detects the `AZURE_*` env trio and uses Azure signing
-instead of signtool with a local cert (its `windowsSignAzureManager`).
+| `appx.` key | Value | Partner Center field |
+|---|---|---|
+| `identityName` | `YuweiZhu.Autai` | Package/Identity/Name |
+| `publisher` | `CN=36582D6A-6F9D-4D61-8B74-8CABAC43E1A2` | Package/Identity/Publisher |
+| `publisherDisplayName` | `Yuwei Zhu` | Package/Properties/PublisherDisplayName |
 
-### Option B — classic EV code-signing certificate
+The remaining identity values from that page (PFN
+`YuweiZhu.Autai_61x5jjmwq5462`, Package SID, Store ID `9PPB6S1X5CBT`)
+are derived by the Store — nothing to configure.
 
-Export as `.p12`, then:
+Store logo assets live in `build/appx/` (`StoreLogo.png`,
+`Square44x44Logo.png`, `Square150x150Logo.png`, `Wide310x150Logo.png`,
+plus `Square44x44Logo.targetsize-88.png` and `SplashScreen.png` — the
+splash filename must contain the case-sensitive substring `SplashScreen`
+or electron-builder's `splashScreenTag` skips the manifest element).
+Without them electron-builder embeds Microsoft's SampleAppx placeholders,
+which fail store certification. `appx.languages` pins the manifest
+resource languages (`en-US`, `zh-Hans` — declare English + Chinese
+(Simplified) in the Partner Center listing to match). Package version
+`1.0.0` in package.json maps to appx `1.0.0.0` (4th quad reserved for
+the Store, must be 0) — keep the npm version three-part.
 
-| Secret | Value |
-|---|---|
-| `WIN_CERT_BASE64` | `base64 < cert.p12` |
-| `WIN_CERT_PASSWORD` | `.p12` password |
+### Build & submit
 
-The workflow writes it to disk and points `CSC_LINK` at it.
+1. Dispatch the workflow (Actions → Build → Run workflow, tick
+   `build_appx`) → download the `appx-packages` artifact.
+2. Partner Center → the Autai product → Start submission → Packages →
+   upload the `.appx` (a single arch package is fine; per-arch packages
+   may share a version).
+3. The Store re-signs on ingestion; your uploaded signature (none, if
+   unsigned) is discarded.
 
-### Publisher (both options)
+Store submission stays manual — like App Store Connect, it is a review
+process (certification typically hours–3 days for a first submission).
 
-| Secret | Value |
-|---|---|
-| `APPX_PUBLISHER` | Publisher/Identity string from Partner Center → Product → Product identity, e.g. `CN=XXXXXXXX-XXXX-...` |
+### Optional: additive Authenticode signing (Azure Trusted Signing)
 
-For appx, publisher **must match** what Partner Center shows, or the package
-is rejected on upload.
+If you later want a real signature on the shipped package (e.g. the same
+binary also distributed outside the Store), sign additionally with Azure
+Artifact Signing (formerly Trusted Signing). Config-driven, not env-driven:
+
+1. Azure Portal → Trusted Signing account (identity validation required;
+   orgs: US/CA/EU/UK, **individuals: US/CA only** — an individual outside
+   those regions cannot onboard; skip this section) → certificate profile.
+2. Entra app registration with the Certificate Profile Signer role →
+   `AZURE_TENANT_ID`, `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`
+   environment secrets (the PS module reads them at sign time).
+3. Add to `electron-builder.json` (the manager activates only when this
+   block exists; electron-builder 26.15.3 reads no `AZURE_*` env itself —
+   `winPackager.js` selects `WindowsSignAzureManager` on
+   `azureSignOptions != null`):
+
+   ```json
+   "win": {
+     "azureSignOptions": {
+       "endpoint": "https://<region>.codesigning.azure.net/",
+       "codeSigningAccountName": "<account>",
+       "certificateProfileName": "<profile>",
+       "publisherName": "CN=36582D6A-6F9D-4D61-8B74-8CABAC43E1A2"
+     }
+   }
+   ```
+
+   `azureSignOptions.publisherName` must stay the Partner Center publisher
+   (the Azure manager takes the appx manifest publisher from it, not from
+   `appx.publisher`). The workflow already exports the `AZURE_*` env
+   secrets to the build step. Note Trusted Signing signs Windows 10 1809+.
+
+Classic EV `.p12` (old Option B) remains possible via `WIN_CERT_BASE64` /
+`WIN_CERT_PASSWORD`-style `CSC_LINK` setup if you ever switch to NSIS/MSI
+distribution, but it is dead config for pure Store appx flow — not set up.
 
 ### Notes
 
-- Target: `electron-builder --win appx`. `.appx` output is uploaded to
-  Partner Center manually (or via their HTTP submission API later).
-- Runs on `windows-latest` — signtool and the appx packaging toolchain are
-  present.
+- Target: `electron-builder --win appx` (unsigned; Store re-signs).
+- Runs on `windows-latest` — makeappx/signtool toolchain present.
 - The `afterPack` hook stamps `win32-{x64,arm64}.node` as usual; Node-API
   prebuilts need no ABI-specific rebuild.
+- If the same package is ever signed by both Azure and the classic cert
+  path, remove the other's config — `windowsCodeSign` warns when both
+  `azureSignOptions` and `signtoolOptions` are set.
 
 ## Local dry-run (unsigned)
 
-`pnpm exec electron-builder --mac mas` / `--win appx` run locally without
-secrets — output is unsigned. Useful for catching packaging errors before
-burning a CI run.
+`pnpm exec electron-builder --mac mas` runs locally on a mac without
+secrets (output unsigned). `--win appx` requires a Windows (or mac) host —
+the appx target refuses Linux (`AppX is supported only on Windows 10 or
+Windows Server 2012 R2`); use the CI job as the appx dry-run. Useful for
+catching packaging errors before burning a CI run.

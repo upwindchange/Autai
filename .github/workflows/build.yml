@@ -158,6 +158,13 @@ jobs:
         if: always()
         run: security delete-keychain build.keychain || true
 
+  # Store upload path: appx packages for the Microsoft Store are NOT signed
+  # by us — Partner Center re-signs them during ingestion, so a CA cert is
+  # not required for Store distribution (MSI/EXE installers would be).
+  # Additive signing (optional, opt-in via config change in
+  # electron-builder.json, see docs/store-signing.md): set the four
+  # AZURE_* env vars below and add win.azureSignOptions — the appx gets a
+  # real Authenticode signature in addition to the Store's.
   windows-store:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_appx }}
     runs-on: windows-latest
@@ -181,31 +188,17 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
-      # Classic EV .p12 path (skip if using Azure Trusted Signing instead)
-      - name: Write classic certificate
-        if: ${{ secrets.WIN_CERT_BASE64 != '' && secrets.AZURE_CLIENT_ID == '' }}
-        shell: bash
-        env:
-          WIN_CERT_BASE64: ${{ secrets.WIN_CERT_BASE64 }}
-          WIN_CERT_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
-        run: |
-          echo -n "$WIN_CERT_BASE64" | base64 --decode > cert.p12
-          echo "CSC_LINK=$(pwd)/cert.p12" >> "$GITHUB_ENV"
-
-      # Windows signing secrets (see docs/store-signing.md):
-      #   Azure Trusted Signing (recommended): AZURE_TENANT_ID, AZURE_CLIENT_ID,
-      #     AZURE_CLIENT_SECRET, AZURE_SIGNING_CERTIFICATE_NAME
-      #   Classic: WIN_CERT_BASE64, WIN_CERT_PASSWORD (written above)
-      #   Both: APPX_PUBLISHER — publisher string from Partner Center
       - name: Build APPX package
         shell: bash
         env:
-          CSC_KEY_PASSWORD: ${{ secrets.WIN_CERT_PASSWORD }}
+          # Only consumed if win.azureSignOptions is enabled in
+          # electron-builder.json (read by the TrustedSigning PS module).
           AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
           AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
           AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          # AZURE_SIGNING_CERTIFICATE_NAME maps to
+          # azureSignOptions.certificateProfileName in electron-builder.json.
           AZURE_SIGNING_CERTIFICATE_NAME: ${{ secrets.AZURE_SIGNING_CERTIFICATE_NAME }}
-          APPX_PUBLISHER: ${{ secrets.APPX_PUBLISHER }}
         run: |
           pnpm exec electron-vite build
           pnpm exec electron-builder --win appx --publish never

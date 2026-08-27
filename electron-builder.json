@@ -17,6 +17,7 @@
     }
   ],
   "mac": {
+    "category": "public.app-category.productivity",
     "artifactName": "${productName}_${version}_${os}_${arch}.${ext}",
     "target": ["zip"]
   },
@@ -36,7 +37,6 @@
     "deleteAppDataOnUninstall": false
   },
   "linux": {
-    "artifactName": "${productName}_${version}_${os}_${arch}.${ext}",
     "target": [{ "target": "AppImage", "arch": ["x64", "arm64"] }],
     "category": "Utility"
   },
@@ -49,6 +49,10 @@
     "artifactName": "${productName}_${version}_mas_${arch}.${ext}"
   },
   "appx": {
+    "identityName": "YuweiZhu.Autai",
+    "publisher": "CN=36582D6A-6F9D-4D61-8B74-8CABAC43E1A2",
+    "publisherDisplayName": "Yuwei Zhu",
+    "languages": ["en-US", "zh-Hans"],
     "artifactName": "${productName}_${version}_${arch}.${ext}",
     "backgroundColor": "#0f1116"
   },

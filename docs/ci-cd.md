@@ -89,22 +89,25 @@ download source. It never downloads or installs anything — required for
 App Store (Guideline 2.4.5(vii)) and Microsoft Store (policy 10.2.5)
 compliance, and applied to all builds uniformly.
 
-Store builds (`process.mas` / `process.windowsStore`) skip the check
-entirely: their stores already notify users about updates.
+The update check runs identically in store builds (no download/install
+ever happens anywhere — see `src/main/update.ts`); the toast wording is
+channel-neutral ("install from where you got the app"), so it stays
+compliant in MAS/Store builds without a store-specific branch.
 
 ## Store packages (manual dispatch)
 
-Full secret-acquisition walkthrough (Apple p12s, provisioning profile,
-Azure Trusted Signing vs classic EV cert, `APPX_PUBLISHER`): see
-**[store-signing.md](./store-signing.md)**. Summary of what YOU must do on
-the GitHub website, once:
+Status: **all store secrets are already set** (mac certs, passwords,
+provisioning profile; the Microsoft Store needs no cert at all — Partner
+Center re-signs). Reference material for renewals/contingencies:
+[store-signing.md](./store-signing.md). What's left to do:
 
-1. **Settings → Environments → New environment** (name `store-signing`),
-   then add the environment secrets listed in store-signing.md there.
-2. **Actions tab → Build → Run workflow** → tick the store targets → Run.
-3. When green, download `mas-packages` / `appx-packages` artifacts and
+1. **Actions tab → Build → Run workflow** (from `master`) → tick the
+   store targets → Run.
+2. When green, download `mas-packages` / `appx-packages` artifacts and
    upload to App Store Connect / Partner Center in your browser. Submission
    to the stores stays manual on purpose — they are review processes.
+3. One-time GitHub setting if not done yet: `store-signing` environment →
+   deployment branches restricted to `master` + `v*` (reminder.md §1).
 
 ## What exists vs what doesn't
 
@@ -114,7 +117,7 @@ the GitHub website, once:
 | In-app update notification | ✅ | `src/main/update.ts` — check + toast only, no download (store-policy compliant) |
 | Manual publish gate | ✅ | GitHub Releases UI (by design) |
 | Local all-platform packaging | ✅ | `pnpm build:all` (`scripts/build-all-platforms.mjs`) |
-| Store package builds + signing | ✅ (needs one-time secrets) | `mac-store` / `windows-store` jobs |
+| Store package builds + signing | ✅ (mac secrets only; appx ships unsigned — Store re-signs) | `mac-store` / `windows-store` jobs |
 | Automatic tagging / version bumps | ❌ | You tag manually (`git tag vX.Y.Z`) |
 | Automatic PR labeling | ❌ | Not configured |
 | Automatic store submission | ❌ | Manual upload to store portals |
