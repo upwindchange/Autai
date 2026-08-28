@@ -1,5 +1,5 @@
 allowBuilds:
-  better-sqlite3: true
+  better-sqlite3: false # N-API prebuilds shipped in-package; pnpm would otherwise inject node-gyp rebuild (needs Python)
   electron: true
   electron-winstaller: true
   esbuild: true

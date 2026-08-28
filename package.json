@@ -24,7 +24,8 @@
     "lint": "eslint .",
     "format": "prettier --write src/",
     "db:generate": "drizzle-kit generate",
-    "db:generate:custom": "drizzle-kit generate --custom"
+    "db:generate:custom": "drizzle-kit generate --custom",
+    "postinstall": "install-electron"
   },
   "prettier": {
     "experimentalTernaries": true,
