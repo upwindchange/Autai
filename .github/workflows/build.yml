@@ -43,15 +43,15 @@ jobs:
 
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6.0.10
         with:
           version: 11
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.0.0
         with:
           node-version: 24 # LTS; better-sqlite3 v13 requires >= 22
 
@@ -75,7 +75,7 @@ jobs:
 
       - name: Upload build artifacts
         if: ${{ !startsWith(github.ref, 'refs/tags/') }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: release_${{ matrix.os }}
           path: release/
@@ -89,15 +89,15 @@ jobs:
     environment: store-signing
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6.0.10
         with:
           version: 11
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.0.0
         with:
           node-version: 24
 
@@ -152,7 +152,7 @@ jobs:
           pnpm exec electron-builder --mac mas --publish never
 
       - name: Upload MAS artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: mas-packages
           path: release/*/Autai_*_mas_*.pkg
@@ -178,15 +178,15 @@ jobs:
     environment: store-signing
     steps:
       - name: Check out Git repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7.0.1
 
       - name: Set up pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6.0.10
         with:
           version: 11
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7.0.0
         with:
           node-version: 24
 
@@ -209,7 +209,7 @@ jobs:
           pnpm exec electron-builder --win appx --publish never
 
       - name: Upload APPX artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: appx-packages
           path: release/*/Autai_*.appx*
