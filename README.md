@@ -4,22 +4,40 @@
 
 # Autai
 
-**The AI assistant that actually does things.**
+**An AI editor for the books you read — on top of a first-class AI chat app.**
 
-Tell it what you need and it drives a real browser for you — booking flights, filling forms, comparing prices. Ask a question and it reads the web so you don't have to. Hand it a bloated novel and it edits the filler out before you read a word. Your API keys, your models, running on your machine.
+Entertainment Mode is the star: hand it a web serial, a fan translation, or a text file and it wrings the filler out, polishes the prose, translates, and serves the book in a proper reader. Underneath, Autai is a full-featured AI chat client that stands with the best of them — 200+ providers and 7,000+ models, self-hosted and local APIs included, rich rendered answers with math, code, and graphs plotted right in the conversation, MCP tool servers, a built-in browser the AI operates for you, and Perplexity-style research that reads the web and answers with citations. Your API keys, your models, running on your machine.
 
-[Download](https://github.com/upwindchange/autai/releases) · [Features](#features) · [Entertainment Mode](#-entertainment-mode) · [Getting Started](#getting-started) · [简体中文](docs/README.zh-CN.md)
+[Download](https://github.com/upwindchange/autai/releases) · [Entertainment Mode](#-entertainment-mode) · [Features](#features) · [Getting Started](#getting-started) · [简体中文](docs/README.zh-CN.md)
 
 [![Release](https://img.shields.io/github/v/release/upwindchange/autai?include_prereleases&style=flat-square)](https://github.com/upwindchange/autai/releases)
 [![License](https://img.shields.io/badge/license-MIT-007EC7?style=flat-square)](LICENSE)
 [![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-999999?style=flat-square)](https://github.com/upwindchange/autai/releases)
-[![Models](https://img.shields.io/badge/models-100%2B%20providers%20%C2%B7%204%2C000%2B%20models-8B5CF6?style=flat-square)](https://models.dev/)
+[![Models](https://img.shields.io/badge/models-200%2B%20providers%20%C2%B7%207%2C000%2B%20models-8B5CF6?style=flat-square)](https://models.dev/)
 
 </div>
 
 ---
 
+## 📖 Entertainment Mode
+
+Not everything you want to read was edited by someone who cared. Web serials ship a chapter a day and it shows. Fan translations fight grammar to a draw. Some books are 40% story and 60% word count. Entertainment Mode puts an AI editor between you and the rough draft: **it cuts the word count and keeps the story.**
+
+- **Cut the word count, keep the story.** Last chapter recapped again, the magic system re-explained, another tournament round, one more collective gasp from the crowd — compressed on contact. A single dial sets how hard, from *light touch* to *get on with it*. The plot, characters, payoffs, and foreshadowing stay exactly where the author left them.
+- **Fix the prose.** Grammar, punctuation, and the clichés every serial leans on — rewritten until they stop being clichés. Or run it the other direction: an expansion pass turns flat fight scenes into set pieces, without padding a single paragraph.
+- **Read fiction from any language.** Translate the whole book, untangle transliterated names until you can actually tell the cast apart, restore the *"…," she said* that Japanese light novels drop, or type one custom instruction — *"keep the poems in verse"* — and it complies.
+
+Where the book comes from is your call: drop in a local TXT, or just say the title — paste a link, name a site, or throw a few keywords at it and Autai goes and finds it online. Continuous reads with no chapters to parse — forum epics, email threads — get a "not chaptered fiction" toggle and go down just as smooth.
+
+The rewritten book lives in a proper reader — eleven themes, typography controls down to letter spacing, a table of contents, bookmarks, zen mode, and it remembers exactly where you stopped. Chapters export as files whenever you want them offline.
+
+Audiobook mode — full multi-voice audio drama, or podcast-style narration — is in development.
+
+---
+
 ## Watch it work
+
+Beyond the reader, it's a full-featured AI chat client in its own right:
 
 **"Add these five things to my Target cart."** One sentence. Autai opens the browser, searches for each item, and drops it in the cart while you watch.
 
@@ -33,21 +51,17 @@ Tell it what you need and it drives a real browser for you — booking flights, 
 
 ---
 
-## Three ways to put it to work
+## Two more ways to put it to work
 
 <table>
   <tr>
-    <td width="33%" valign="top">
+    <td width="50%" valign="top">
       <h3 align="center">🖥️ Browser Automation</h3>
       <p align="center">The AI plans the steps, then operates a real browser to finish the job — forms, bookings, carts, cross-store comparisons. It pauses and hands control back to you the moment a CAPTCHA, login, or payment shows up.</p>
     </td>
-    <td width="33%" valign="top">
+    <td width="50%" valign="top">
       <h3 align="center">🔎 Research</h3>
       <p align="center">Quick, standard, or deep — Autai searches, opens the promising results, and reads them so you don't have to. Deep research splits your question into subtopics and returns a cited synthesis.</p>
-    </td>
-    <td width="33%" valign="top">
-      <h3 align="center">📖 Entertainment Mode</h3>
-      <p align="center">An AI copyeditor for the fiction you read. Feed it a web serial or a text file and it strips the padding, fixes the prose, translates, and serves the book in a proper reader. <a href="#-entertainment-mode">More below ↓</a></p>
     </td>
   </tr>
 </table>
@@ -58,7 +72,7 @@ Tell it what you need and it drives a real browser for you — booking flights, 
 
 ### Any provider, any model
 
-OpenAI, Anthropic, Google, DeepSeek, Mistral, xAI, and 100+ more — or run models locally with Ollama. Bring your own API key, pick from 4,000+ models, switch whenever you like. See the [full catalog](https://models.dev/).
+OpenAI, Anthropic, Google, DeepSeek, Mistral, xAI, and 200+ more — or point it at any self-hosted or local API. Bring your own API key, pick from 7,000+ models, switch whenever you like. See the [full catalog](https://models.dev/).
 
 <table>
   <tr>
@@ -68,7 +82,7 @@ OpenAI, Anthropic, Google, DeepSeek, Mistral, xAI, and 100+ more — or run mode
     </td>
     <td width="50%" valign="top">
       <img src="docs/screenshots/cofig-models.png" alt="Model browser with thousands of models" width="100%" />
-      <br /><sub><b>4,000+ models</b> — searchable, filterable, one click to switch.</sub>
+      <br /><sub><b>7,000+ models</b> — searchable, filterable, one click to switch.</sub>
     </td>
   </tr>
 </table>
@@ -82,7 +96,7 @@ OpenAI, Anthropic, Google, DeepSeek, Mistral, xAI, and 100+ more — or run mode
 
 ### Research that reads so you don't have to
 
-Three efforts, one command bar: a quick pass when you just need a fact, standard search when you want a solid answer, and deep research that decomposes the question, chases every subtopic across sources, and writes it up with references.
+Three efforts, one command bar: a quick pass when you just need a fact, standard search when you want a solid answer, and deep research that decomposes the question, chases every subtopic across sources, and writes it up with references — like having Perplexity built into your chat app.
 
 ### Conversations that organize themselves
 
@@ -123,7 +137,7 @@ Threads get auto-titled and tagged with color-coded labels. Flip to a tag-groupe
 
 ### Answers worth reading
 
-Code with syntax highlighting, math typeset like a textbook, Mermaid diagrams rendered as charts, full rich text. Complex answers come back looking like they were cared about.
+Code with syntax highlighting, math typeset like a textbook, Mermaid diagrams — flowcharts to charts and graphs — plotted right in the conversation, full rich text. Complex answers come back looking like they were cared about.
 
 <table>
   <tr>
@@ -184,27 +198,10 @@ Screenshots, documents, whatever you have — drop them in and the AI works with
 
 ---
 
-## 📖 Entertainment Mode
-
-Not everything you want to read was edited by someone who cared. Web serials ship a chapter a day and it shows. Fan translations fight grammar to a draw. Some books are 40% story and 60% word count. Entertainment Mode puts an AI editor between you and the rough draft.
-
-Point Autai at any readable web page, or drop in a text file, and it rebuilds the book before you read it:
-
-- **Cut the word count, keep the story.** Last chapter recapped again, the magic system re-explained, another tournament round, one more collective gasp from the crowd — compressed on contact. A single dial sets how hard, from *light touch* to *get on with it*. The plot, characters, payoffs, and foreshadowing stay exactly where the author left them.
-- **Fix the prose.** Grammar, punctuation, and the clichés every serial leans on — rewritten until they stop being clichés. Or run it the other direction: an expansion pass turns flat fight scenes into set pieces, without padding a single paragraph.
-- **Read fiction from any language.** Translate the whole book, untangle transliterated names until you can actually tell the cast apart, restore the *"…," she said* that Japanese light novels drop, or type one custom instruction — *"keep the poems in verse"* — and it complies.
-
-
-The rewritten book lives in a proper reader — eleven themes, typography controls down to letter spacing, a table of contents, bookmarks, zen mode, and it remembers exactly where you stopped. Chapters export as files whenever you want them offline.
-
-Audiobook mode — full multi-voice audio drama, or podcast-style narration — is in development.
-
----
-
 ## Getting Started
 
 1. **[Download](https://github.com/upwindchange/autai/releases) and install** Autai — builds for macOS, Windows, and Linux.
-2. **Add an API key** from any supported provider (or point it at your local Ollama).
+2. **Add an API key** from any supported provider (or point it at your self-hosted or local API).
 3. **Say what you want** — plain language, no config files, no learning curve.
 
 Bugs and ideas? [Open an issue](https://github.com/upwindchange/autai/issues).
@@ -226,7 +223,7 @@ Bugs and ideas? [Open an issue](https://github.com/upwindchange/autai/issues).
 
 <div align="center">
 
-**If Autai saved you some tab-hopping, a ⭐ helps others find it.**
+**If Autai made a padded serial worth reading again, a ⭐ helps others find it.**
 
 <img width="320" height="180" alt="star" src="https://github.com/user-attachments/assets/ac160fea-7073-4f77-9af7-addaba1708d4" />
 
