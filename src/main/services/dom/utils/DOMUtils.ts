@@ -247,6 +247,12 @@ export async function detachDebugger(
   webContents: WebContents,
   logger?: LogFunctions,
 ): Promise<void> {
+  // Idempotent: both DOMService and ElementInteractionService detach on tab
+  // teardown; a second detach on an unattached debugger must be a no-op.
+  if (!webContents.debugger.isAttached()) {
+    logger?.debug("Debugger already detached");
+    return;
+  }
   try {
     webContents.debugger.detach();
     logger?.info("Debugger detached");

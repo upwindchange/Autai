@@ -273,6 +273,23 @@ export class SessionTabService extends EventEmitter {
       return;
     }
 
+    // Cleanup DOM service (detaches its debugger) — previously only deleted
+    // from the map, leaving the CDP debugger attached during webContents
+    // teardown below.
+    try {
+      const domService = this.domServices.get(tabId);
+      if (domService) {
+        await domService.destroy();
+        this.domServices.delete(tabId);
+        this.logger.debug(`DOMService destroyed for tab ${tabId}`);
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error cleaning up DOMService for tab ${tabId}:`,
+        error,
+      );
+    }
+
     // Cleanup interaction service
     try {
       const interactionService = this.interactionServices.get(tabId);
@@ -297,8 +314,12 @@ export class SessionTabService extends EventEmitter {
           this.logger.debug(`Stopping webContents for tab ${tabId}`);
           tab.webContents.stop();
           tab.webContents.removeAllListeners();
+          // close({waitForBeforeUnload:false}) destroys the webContents; that
+          // plus removeChildView below is complete teardown. Do NOT call
+          // forcefullyCrashRenderer() here: it is a recovery API for
+          // unresponsive pages, and on an already-closed renderer it can take
+          // down the whole process (crashpad "not connected" → app exit).
           tab.webContents.close({ waitForBeforeUnload: false });
-          tab.webContents.forcefullyCrashRenderer();
           this.logger.debug(`WebContents for tab ${tabId} stopped`);
         } catch (error) {
           this.logger.error(

@@ -53,7 +53,23 @@ export class TabControlService {
     }
 
     this.sessionTabService.updateTabTimestamp(TabId);
-    await tab.webContents.loadURL(url);
+    // ERR_ABORTED is normal for pages that redirect themselves right after
+    // commit (Google appends &sei=, Sogou/Baidu add tracking params): the
+    // page starts a new navigation and Chromium aborts the original loadURL
+    // promise. Only genuine failures (name resolution, TLS, net errors that
+    // leave the tab without a page) should reject.
+    const previousUrl = tab.webContents.getURL();
+    await tab.webContents.loadURL(url).catch((err: { code?: string }) => {
+      const moved = tab.webContents.getURL() !== previousUrl;
+      if (err && err.code === "ERR_ABORTED" && moved) {
+        this.logger.debug(
+          "Navigation superseded by client redirect (ERR_ABORTED); treating as success",
+          { TabId, url, redirectedTo: tab.webContents.getURL() },
+        );
+        return;
+      }
+      throw err;
+    });
     this.logger.info("Navigation successful", { TabId, url });
     return `Successfully navigated tab ${TabId} to ${url}`;
   }
