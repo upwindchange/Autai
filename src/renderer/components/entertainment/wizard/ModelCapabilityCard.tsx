@@ -1,4 +1,4 @@
-import { type FC } from "react";
+import { type FC, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Cpu,
@@ -27,7 +27,10 @@ function formatTokens(tokens: number): string {
   return `${tokens}`;
 }
 
-export const ModelCapabilityCard: FC = () => {
+export const ModelCapabilityCard: FC<{
+  /** Reports whether both agent models resolve to a configured pair. */
+  onModelsConfiguredChange?: (ready: boolean) => void;
+}> = ({ onModelsConfiguredChange }) => {
   const { t } = useTranslation("entertainment");
   const { settings } = useSettings();
   const { models } = useConfiguredModels();
@@ -62,6 +65,14 @@ export const ModelCapabilityCard: FC = () => {
 
   const complex = resolve("complex");
   const simple = resolve("simple");
+
+  // Same condition as the no-provider warning below — when either agent role
+  // has no (providerId, modelId), a job cannot run. Reported up so Step 0
+  // can disable its Next button.
+  const modelsConfigured = !!complex && !!simple;
+  useEffect(() => {
+    onModelsConfiguredChange?.(modelsConfigured);
+  }, [modelsConfigured, onModelsConfiguredChange]);
 
   const openProvidersSettings = () => {
     setActiveSettingsSection("providers");

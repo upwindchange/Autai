@@ -11,6 +11,8 @@ import { ModelCapabilityCard } from "../ModelCapabilityCard";
 interface StepModeProps {
   config: EntertainmentConfig;
   setConfig: Dispatch<SetStateAction<EntertainmentConfig>>;
+  /** Passed through to ModelCapabilityCard; the wizard uses it to gate Next. */
+  onModelsConfiguredChange?: (ready: boolean) => void;
 }
 
 const MODES: {
@@ -33,11 +35,15 @@ const MODES: {
   },
 ];
 
-export const StepMode: FC<StepModeProps> = ({ config, setConfig }) => {
+export const StepMode: FC<StepModeProps> = ({
+  config,
+  setConfig,
+  onModelsConfiguredChange,
+}) => {
   const { t } = useTranslation("entertainment");
   return (
     <div className="space-y-4">
-      <ModelCapabilityCard />
+      <ModelCapabilityCard onModelsConfiguredChange={onModelsConfiguredChange} />
       <RadioGroup
         value={config.mode}
         onValueChange={(v) =>

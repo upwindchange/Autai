@@ -28,6 +28,9 @@ export const EntertainmentWizard: FC = () => {
 
   const [config, setConfig] = useState<EntertainmentConfig>(INITIAL_DEHYDRATE);
   const [pendingFile, setPendingFile] = useState<File | undefined>(undefined);
+  // Whether both agent roles resolve to a configured (provider, model) pair —
+  // reported by ModelCapabilityCard on Step 0. While false, Next is disabled.
+  const [modelsConfigured, setModelsConfigured] = useState(true);
   const [submitted, setSubmitted] = useState(false);
   // Legal acknowledgment — UI-only (not sent to the backend or persisted). Gates
   // forward navigation to reduce the author's legal exposure.
@@ -123,7 +126,7 @@ export const EntertainmentWizard: FC = () => {
   };
 
   const advance = () => {
-    if (!isStepValid(step, config) || submitted) return;
+    if (!isStepValid(step, config, modelsConfigured) || submitted) return;
     if (isLast) {
       void submit();
       return;
@@ -197,7 +200,7 @@ export const EntertainmentWizard: FC = () => {
     }
   };
 
-  const valid = isStepValid(step, config);
+  const valid = isStepValid(step, config, modelsConfigured);
 
   // The options page locks the thread to its source (uploaded file OR internet
   // source) — no Back, for EITHER mode. Step 0↔1 still allows Back (nothing is
@@ -210,7 +213,7 @@ export const EntertainmentWizard: FC = () => {
     isLast && (prepareError !== null || (isFile && ingesting));
   // Agreement is acknowledged on the novel step (step 1). It blocks the novel
   // step's commit and — as belt-and-suspenders — the final Start; step 0's Next
-  // is always free.
+  // is gated by isStepValid (mode set + both agent models configured).
   const agreeBlocked = step >= 1 && !agreed;
 
   return (
@@ -231,8 +234,14 @@ export const EntertainmentWizard: FC = () => {
         step={step}
         labels={[t("step.0.title"), t("step.1.title"), t("step.2.title")]}
       />
+      {step === 0 && (
+        <StepMode
+          config={config}
+          setConfig={setConfig}
+          onModelsConfiguredChange={setModelsConfigured}
+        />
+      )}
 
-      {step === 0 && <StepMode config={config} setConfig={setConfig} />}
       {step === 1 && (
         <StepNovel
           config={config}

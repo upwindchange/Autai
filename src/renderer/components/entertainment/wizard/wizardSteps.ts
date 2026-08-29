@@ -311,10 +311,13 @@ export function patchSharedOptions(
 export function isStepValid(
   step: number,
   config: EntertainmentConfig,
+  modelsConfigured = true,
 ): boolean {
   switch (step) {
     case 0:
-      return true; // mode always set
+      // Mode itself is always set, but both agent models must resolve to a
+      // configured (provider, model) pair before the user can advance.
+      return modelsConfigured;
     case 1: {
       // novel
       if (config.novel.type === "file") return config.novel.filename.length > 0;
