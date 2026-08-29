@@ -520,8 +520,9 @@ INSTRUCTIONS:
         (entertainmentBackendService
           .getRawNovelText(threadId)
           ?.slice(0, ENTERTAINMENT_SAMPLE_CHARS) ?? null)
-      : (entertainmentFrontendService.getSourceChapter(threadId, 1)?.content ??
-        null);
+      : (entertainmentFrontendService
+          .listSourceChapters(threadId)
+          .find((c) => c.content)?.content ?? null);
     if (!sample) {
       logger.warn("entertainment enrichment — no source content yet", {
         threadId,

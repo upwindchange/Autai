@@ -16,7 +16,11 @@ import { executeSearchQueries } from "@agents/workers/browserWorker/browser-rese
 import type { ResearchPlan } from "@agents/workers/browserWorker/browser-research/planner";
 import type { InternetNovel } from "@shared";
 import type { FetchChapterOptions, InternetFetchContext } from "./index";
-import { FinalChapterError } from "./index";
+import {
+  FinalChapterError,
+  blockDomainForThread,
+  getBlockedDomains,
+} from "./index";
 
 const logger = log.scope("Dehydrate:InternetFetch:Phase1");
 
@@ -77,8 +81,11 @@ const rejectCandidateTool = tool({
 
 /**
  * `abortChapter` — the advance-path failure terminal. An explicit, confident
- * abort means no next-chapter link AND no TOC entry exist → the previous
- * chapter was the LAST one (→ `FinalChapterError`).
+ * abort means the agent sees no next-chapter link AND no TOC entry for N on
+ * the CURRENT page. It NO LONGER maps straight to `FinalChapterError`: a
+ * paywalled last-visible page is indistinguishable from the book's true end at
+ * this point. `landOnChapter` routes it into the TOC fallback first, and only
+ * a TOC that READS the chapter list and finds no N confirms finality.
  */
 const abortChapterTool = tool({
   description:
@@ -86,8 +93,6 @@ const abortChapterTool = tool({
   inputSchema: z.object({ reason: z.string() }),
   execute: async ({ reason }) => ({ aborted: true, reason }),
 });
-
-// --- Helpers ----------------------------------------------------------------
 
 function isAbsoluteUrl(value: string): boolean {
   try {
@@ -97,6 +102,39 @@ function isAbsoluteUrl(value: string): boolean {
     return false;
   }
 }
+
+/** Hostname of a URL, or null when unparseable. */
+function hostnameOf(url: string): string | null {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
+  }
+}
+
+// --- Landing outcomes -------------------------------------------------------
+//
+// Phase 1's paths report discriminated outcomes instead of throwing, so
+// `landOnChapter` can chain fallbacks:
+//   landed          — `landHere` fired; the URL is already written; phase 2
+//                     may start immediately.
+//   aborted         — advance-path `abortChapter`: the agent believes the
+//                     current site has no chapter N. NOT finality on its own.
+//   blocked         — the current site is unusable (paywall/captcha/step
+//                     exhaustion/etc.). The chain marks the site dead and
+//                     searches for a different one.
+//   chapterMissing  — a READABLE TOC provably has no entry for N: the only
+//                     legitimate `FinalChapterError` signal.
+
+type AdvanceOutcome =
+  | { kind: "landed" }
+  | { kind: "aborted"; reason: string }
+  | { kind: "blocked"; reason: string };
+
+type TocOutcome =
+  | { kind: "landed" }
+  | { kind: "chapterMissing" }
+  | { kind: "blocked"; reason: string };
 
 /**
  * Build a one-query `ResearchPlan` for `executeSearchQueries` from the wizard's
@@ -172,6 +210,59 @@ Rules:
 - Do not call landHere until you are certain you are on chapter ${chapterNumber}'s beginning.`;
 }
 
+/**
+ * TOC-fallback prompt. Given an anchor page ON THE CURRENT SITE (a rejected
+ * candidate, the previous chapter's page, or the source URL), find and click
+ * the table of contents (目录 / 章节列表), then the entry for chapter N. This
+ * recovers two cases the main paths can't:
+ *   - search/judge landed on the right site but the wrong page (TOC/chapter 1)
+ *   - the site hides per-chapter links but exposes a TOC
+ * A readable TOC with NO entry for N → chapterMissing (finality signal). A
+ * paywalled/captcha'd TOC is NOT finality — the agent must report blocked.
+ */
+function buildTocSystemPrompt(
+  novel: InternetNovel,
+  chapterNumber: number,
+): string {
+  const titlePart = novel.title.trim() || "the novel";
+  return `You are a web-navigation agent controlling a browser via tools. A page of "${titlePart}" is open on a reading site. Your goal is to reach the BEGINNING of chapter ${chapterNumber} using the site's table of contents.
+
+Steps:
+1. Call getFlattenDOM to read the current page.
+2. Find the site's table of contents (目录 / 章节列表 / chapter list / contents). It may be a link or button on this page; click it with clickElement. If the current page already contains the TOC, use it directly.
+3. In the TOC, find the entry for chapter ${chapterNumber} (match the number, e.g. "第${chapterNumber}章", "${chapterNumber}", or the chapter title). Long TOCs are often paginated — use the TOC's own pagination controls until the entry is visible.
+4. clickElement on that entry, then getFlattenDOM to confirm the new page shows the BEGINNING of chapter ${chapterNumber}.
+5. On success call landHere.
+
+If the TOC is readable and loaded but there is genuinely NO entry for chapter ${chapterNumber} anywhere in it (you paginated through the end), call chapterMissing.
+
+If you cannot proceed because of a paywall (付费 / VIP / 登录后阅读 / subscription), a human-verification challenge (captcha / 人机验证 / 滑动验证), a login wall, or the TOC simply never loads, call siteBlocked with a short reason.
+
+Rules:
+- Use only the tools provided.
+- Do not guess or fabricate: chapterMissing only after actually reading the TOC list.
+- Do not call landHere until you are certain you are on chapter ${chapterNumber}'s beginning.`;
+}
+
+/**
+ * `chapterMissing` / `siteBlocked` — the TOC agent's failure terminals.
+ * `chapterMissing` (readable TOC, provably no N) is the ONLY signal that
+ * confirms `FinalChapterError`; `siteBlocked` marks the site dead instead.
+ */
+const chapterMissingTool = tool({
+  description:
+    "Call this when the table of contents is readable and fully examined (paginated to the end) and there is genuinely no entry for the target chapter.",
+  inputSchema: z.object({ reason: z.string() }),
+  execute: async ({ reason }) => ({ missing: true, reason }),
+});
+
+const siteBlockedTool = tool({
+  description:
+    "Call this when you cannot proceed on this site: paywall, captcha/human verification, login wall, or the TOC never loads.",
+  inputSchema: z.object({ reason: z.string() }),
+  execute: async ({ reason }) => ({ blocked: true, reason }),
+});
+
 // --- Search-path judge (one candidate) --------------------------------------
 
 /**
@@ -184,7 +275,6 @@ Rules:
 async function judgeCandidate(
   novel: InternetNovel,
   ctx: InternetFetchContext,
-  _candidateIndex: number,
 ): Promise<boolean> {
   const label = `chapter ${ctx.chapterNumber}`;
   const result = streamText({
@@ -229,11 +319,23 @@ async function judgeCandidate(
  * convergence) and bounds each judgment to its own agent-level timeout instead
  * of one giant multi-candidate agent. On `landHere` the loop exits early; on
  * reject / navigate-failure / timeout it continues to the next candidate.
+ *
+ * `excludeUrls` — URLs already probed (or known bad) this chapter; skipped.
+ * `excludeDomains` — hostnames judged dead for this thread; their candidates
+ *   are filtered out entirely (a re-search after blocking a site must land on
+ *   a DIFFERENT site).
+ *
+ * REJECTED candidates are returned as `tocAnchors`: a page the judge rejects
+ * as "not the beginning of chapter N" (a TOC page, chapter 1's page, the
+ * novel's homepage) is still a perfectly good NAVIGATION anchor — the TOC
+ * fallback can open it and click through to chapter N.
  */
 async function landViaSearch(
   novel: InternetNovel,
   ctx: InternetFetchContext,
-): Promise<void> {
+  excludeUrls: ReadonlySet<string>,
+  excludeDomains: ReadonlySet<string>,
+): Promise<{ landed: boolean; tocAnchors: string[] }> {
   // 1) Gather candidates (RAM-only). [novel.source] if it's already a URL;
   //    otherwise one query via executeSearchQueries in a transient search session.
   let candidates: string[];
@@ -263,53 +365,61 @@ async function landViaSearch(
       await sts.activateSession(ctx.sessionId);
     }
   }
-  if (candidates.length === 0) {
-    throw new Error(`No candidate URLs found for chapter ${ctx.chapterNumber}`);
-  }
+  // Filter dead domains + already-probed URLs. Keep first occurrence only.
+  const seen = new Set<string>(excludeUrls);
+  const tocAnchors: string[] = [];
+  const filtered = candidates.filter((url) => {
+    const host = hostnameOf(url);
+    if (host && excludeDomains.has(host)) return false;
+    if (seen.has(url)) return false;
+    seen.add(url);
+    return true;
+  });
   logger.info("search candidates", {
     threadId: ctx.threadId,
     chapterNumber: ctx.chapterNumber,
-    count: candidates.length,
+    raw: candidates.length,
+    count: filtered.length,
   });
 
   // 2) Probe each candidate deterministically: navigate, then ask the judge.
+  //    Rejects are collected as TOC anchors for the fallback.
   const tcs = TabControlService.getInstance();
-  for (let i = 0; i < candidates.length; i++) {
-    const candidateUrl = candidates[i];
+  for (const candidateUrl of filtered) {
     logger.debug("probing candidate", {
       threadId: ctx.threadId,
       chapterNumber: ctx.chapterNumber,
-      index: i,
       url: candidateUrl,
     });
     try {
       await tcs.navigateTo(ctx.activeTabId, candidateUrl);
     } catch (err) {
       logger.warn("navigate to candidate failed; trying next", {
-        index: i,
         url: candidateUrl,
         err,
       });
       continue;
     }
-    if (await judgeCandidate(novel, ctx, i)) return; // landHere wrote the URL
+    if (await judgeCandidate(novel, ctx)) {
+      return { landed: true, tocAnchors };
+    }
+    tocAnchors.push(candidateUrl); // rejected — but useful as a nav anchor
   }
-  throw new Error(
-    `Could not land on chapter ${ctx.chapterNumber} (no candidate matched)`,
-  );
+  return { landed: false, tocAnchors };
 }
 
 /**
  * Advance path — from the carried-over crawl tab, click next-chapter / TOC to
  * reach chapter N. Recovery: if the tab isn't on a real page (e.g. after
  * restart), re-navigate to `source_chapters(N-1).url` first — the sole DB-URL
- * read. An explicit `abortChapter` → `FinalChapterError` (N-1 was the last);
- * step exhaustion → generic error (transient, not finality).
+ * read. Outcomes: `landed` (landHere fired) / `aborted` (agent's confident
+ * no-chapter-N claim — pending TOC confirmation) / `blocked` (step exhaustion
+ * or no recovery anchor — paywall/captcha typically exhaust here).
  */
 async function landViaAdvance(
   novel: InternetNovel,
   ctx: InternetFetchContext,
-): Promise<void> {
+): Promise<AdvanceOutcome> {
   const sts = SessionTabService.getInstance();
   const tab = sts.getTab(ctx.activeTabId);
   const current =
@@ -323,9 +433,10 @@ async function landViaAdvance(
     );
     const prevUrl = prev?.url;
     if (!prevUrl) {
-      throw new Error(
-        `No anchor URL for previous chapter ${ctx.chapterNumber - 1}`,
-      );
+      return {
+        kind: "blocked",
+        reason: `No anchor URL for previous chapter ${ctx.chapterNumber - 1}`,
+      };
     }
     logger.info("recovery re-anchor", {
       threadId: ctx.threadId,
@@ -365,48 +476,202 @@ async function landViaAdvance(
     },
   });
 
-  const steps = await result.steps;
-  const toolResults = steps.flatMap((s) => s.toolResults ?? []);
+  const toolResults = (await result.steps).flatMap((s) => s.toolResults ?? []);
   if (
     toolResults.some(
       (tr) => tr.toolName === "landHere" && tr.type === "tool-result",
     )
   ) {
-    return; // url already written by landHere
+    return { kind: "landed" }; // url already written by landHere
   }
-  const aborted = toolResults.some(
+  const abort = toolResults.find(
     (tr) => tr.toolName === "abortChapter" && tr.type === "tool-result",
   );
-  if (aborted) throw new FinalChapterError();
-  throw new Error(`Could not advance to chapter ${ctx.chapterNumber}`);
+  if (abort) {
+    const reason =
+      typeof abort.output === "object" && abort.output !== null ?
+        String((abort.output as { reason?: unknown }).reason ?? "")
+      : "";
+    return { kind: "aborted", reason };
+  }
+  return {
+    kind: "blocked",
+    reason: `advance step exhaustion for chapter ${ctx.chapterNumber}`,
+  };
+}
+
+/**
+ * TOC fallback — navigate to one anchor URL, then let the TOC agent find and
+ * click chapter N's entry. Anchors are tried in order (rejected search
+ * candidates first — richest navigation surface — then the DB's N-1 URL);
+ * `landed` short-circuits, `chapterMissing` confirms finality, per-anchor
+ * failure moves to the next anchor. All anchors exhausted → `blocked`.
+ */
+async function landViaToc(
+  novel: InternetNovel,
+  ctx: InternetFetchContext,
+  anchors: readonly string[],
+): Promise<TocOutcome> {
+  const tcs = TabControlService.getInstance();
+  for (const anchor of anchors) {
+    logger.info("toc fallback anchor", {
+      threadId: ctx.threadId,
+      chapterNumber: ctx.chapterNumber,
+      anchor,
+    });
+    try {
+      await tcs.navigateTo(ctx.activeTabId, anchor);
+    } catch (err) {
+      logger.warn("toc anchor navigate failed", { anchor, err });
+      continue;
+    }
+    const result = streamText({
+      model: complexModel().model,
+      instructions: buildTocSystemPrompt(novel, ctx.chapterNumber),
+      messages: [
+        {
+          role: "user",
+          content: `Find chapter ${ctx.chapterNumber} in the table of contents and open it.`,
+        },
+      ],
+      tools: {
+        getFlattenDOM: getFlattenDOMTool,
+        clickElement: clickElementTool,
+        landHere: landHereTool,
+        chapterMissing: chapterMissingTool,
+        siteBlocked: siteBlockedTool,
+      },
+      stopWhen: [
+        hasSuccessfulToolResult("landHere"),
+        hasSuccessfulToolResult("chapterMissing"),
+        hasSuccessfulToolResult("siteBlocked"),
+        isStepCount(16),
+      ],
+      maxRetries: settingsService.settings.maxRetries,
+      timeout: TIMEOUTS.actionExecution,
+      abortSignal: ctx.abortSignal,
+      toolsContext: { getFlattenDOM: ctx, clickElement: ctx, landHere: ctx },
+      telemetry: {
+        isEnabled: settingsService.settings.langfuse.enabled,
+        functionId: "entertainment-internet-toc",
+      },
+    });
+    const toolResults = (await result.steps).flatMap(
+      (s) => s.toolResults ?? [],
+    );
+    const fired = (name: string) =>
+      toolResults.some(
+        (tr) => tr.toolName === name && tr.type === "tool-result",
+      );
+    if (fired("landHere")) return { kind: "landed" }; // url written by landHere
+    if (fired("chapterMissing")) return { kind: "chapterMissing" };
+    // siteBlocked or step exhaustion on this anchor → try the next anchor.
+  }
+  return {
+    kind: "blocked",
+    reason: `TOC fallback exhausted ${anchors.length} anchor(s)`,
+  };
 }
 
 // --- Phase 1 entry ----------------------------------------------------------
 
 /**
- * Phase 1 — land the crawl tab on the chapter's beginning + persist the URL +
- * detect finality. Two paths, picked by chapter number / `useSearch`:
- *   - search  (chapter 1 or a retried errored chapter): deterministic candidate
- *     loop — the orchestrator navigates each candidate via
- *     `TabControlService.navigateTo` and a minimal judge agent reads + decides
- *     land/reject (candidates never enter the prompt).
- *   - advance (normal N>1): one agent loop clicks next-chapter / TOC from the
- *     carried-over tab.
+ * Phase 1 — land the crawl tab on chapter N's beginning + persist the URL.
+ * Fallback chain (per the site-death model):
  *
- * Outcome: `landHere` writes `url`; on success the tab is left on chapter N's
- * beginning for phase 2. Advance-path `abortChapter` → `FinalChapterError`
- * (N-1 was the last). Anything else throws a generic error. Timeouts live at
- * the agent level (per `streamText` call).
+ *  1. PRIMARY — advance (N>1 from the carried tab) or search (chapter 1 /
+ *     mid-book start / retry). Success = landHere → phase 2 runs.
+ *  2. TOC fallback — same-site rescue: rejected search candidates + the N-1
+ *     DB URL become anchors; a TOC agent clicks through to N. `chapterMissing`
+ *     (readable TOC, provably no N) → FinalChapterError — the ONLY finality
+ *     signal. Advance `abortChapter` is routed here too: its "no next link"
+ *     claim must be confirmed by actually reading a TOC (a paywalled tail page
+ *     looks identical to the book's end).
+ *  3. SITE DEATH + re-search — primary+TOC failed on the current site
+ *     (paywall/captcha/unreachable). Mark the site's hostname dead for the
+ *     thread (`blockDomainForThread`) and re-run the search path with dead
+ *     domains + probed URLs excluded, so the chain lands on a DIFFERENT site;
+ *     its rejected candidates feed one more TOC pass there.
+ *
+ * FinalChapterError only from step 2. Everything else exhausted → generic
+ * error (row marked `error`; user retry re-enters the chain at search).
  */
 export async function landOnChapter(
   novel: InternetNovel,
   ctx: InternetFetchContext,
   options: FetchChapterOptions,
 ): Promise<void> {
-  const useSearch = ctx.chapterNumber === 1 || options.useSearch === true;
+  const n = ctx.chapterNumber;
+  const probedUrls = new Set<string>();
+  const tocAnchors: string[] = [];
+
+  // --- Step 1: primary path -------------------------------------------------
+  const useSearch = n === 1 || options.useSearch === true;
   if (useSearch) {
-    await landViaSearch(novel, ctx);
+    const search = await landViaSearch(
+      novel,
+      ctx,
+      probedUrls,
+      getBlockedDomains(ctx.threadId),
+    );
+    for (const u of search.tocAnchors) {
+      probedUrls.add(u);
+      tocAnchors.push(u);
+    }
+    if (search.landed) return;
   } else {
-    await landViaAdvance(novel, ctx);
+    const advance = await landViaAdvance(novel, ctx);
+    if (advance.kind === "landed") return;
+    // abortChapter claims book-end — confirm via TOC before believing it.
+    if (advance.kind === "aborted") {
+      logger.info("advance aborted — confirming via TOC", {
+        threadId: ctx.threadId,
+        chapterNumber: n,
+        reason: advance.reason,
+      });
+    }
+    // The carried tab (or DB N-1 URL) is the natural same-site anchor.
+    const prev = entertainmentFrontendService.getSourceChapter(
+      ctx.threadId,
+      n - 1,
+    );
+    if (prev?.url && !probedUrls.has(prev.url)) {
+      probedUrls.add(prev.url);
+      tocAnchors.push(prev.url);
+    }
   }
+
+  // --- Step 2: same-site TOC fallback ---------------------------------------
+  if (tocAnchors.length > 0) {
+    const toc = await landViaToc(novel, ctx, tocAnchors);
+    if (toc.kind === "landed") return;
+    if (toc.kind === "chapterMissing") throw new FinalChapterError();
+    // blocked → site death
+  }
+
+  // --- Step 3: block the site, re-search on a different one -----------------
+  const sts = SessionTabService.getInstance();
+  const tab = sts.getTab(ctx.activeTabId);
+  const deadHost =
+    tab?.webContents && !tab.webContents.isDestroyed() ?
+      hostnameOf(tab.webContents.getURL())
+    : null;
+  if (deadHost) blockDomainForThread(ctx.threadId, deadHost);
+
+  const reSearch = await landViaSearch(
+    novel,
+    ctx,
+    probedUrls,
+    getBlockedDomains(ctx.threadId),
+  );
+  if (reSearch.landed) return;
+
+  // One TOC pass on the NEW site's rejected candidates (different site, so a
+  // chapterMissing here is still trustworthy — the dead site's TOC wasn't).
+  if (reSearch.tocAnchors.length > 0) {
+    const toc = await landViaToc(novel, ctx, reSearch.tocAnchors);
+    if (toc.kind === "landed") return;
+    if (toc.kind === "chapterMissing") throw new FinalChapterError();
+  }
+  throw new Error(`Could not land on chapter ${n} (all fallbacks exhausted)`);
 }

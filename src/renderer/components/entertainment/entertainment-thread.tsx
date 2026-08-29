@@ -84,16 +84,18 @@ export const EntertainmentThread: FC = () => {
   // pending jump at percentile 0 so the apply effect scrolls it to the top.
   // "Has chapters" = has REWRITE rows: the spine also carries source-only rows
   // (internet fetch in flight), but a thread that never got past prefetch must
-  // keep opening the wizard, not the reader.
+  // keep opening the wizard, not the reader. A mid-book internet thread (start
+  // chapter >1) has no chapter-1 rows at all, so the fresh-thread default is
+  // the spine's FIRST chapter, not hardcoded 1.
   useEffect(() => {
     if (!activeThreadId) return;
     void (async () => {
       await loadChapters(activeThreadId);
       const pos = await getPosition(activeThreadId);
-      const committed = useChaptersStore
-        .getState()
-        .chapters.some((c) => c.rewriteStatus != null);
-      const start = pos ?? (committed ? 1 : null);
+      const { chapters: spine } = useChaptersStore.getState();
+      const firstChapter = spine[0]?.chapterNumber ?? 1;
+      const committed = spine.some((c) => c.rewriteStatus != null);
+      const start = pos ?? (committed ? firstChapter : null);
       if (start == null) return; // fresh thread — the wizard drives the first chapter.
       pendingJumpRef.current = { chapterNumber: start, percentile: 0 };
       setCurrentChapter(start);
@@ -125,7 +127,11 @@ export const EntertainmentThread: FC = () => {
     (m, c) => Math.max(m, c.chapterNumber),
     0,
   );
-  const canGoPrev = (currentChapterNumber ?? 1) > 1;
+  // A mid-book internet thread's spine begins at N>1; prev must stop at the
+  // first REAL chapter, not at 1 (chapters before the start were never fetched).
+  const firstChapterNumber = chapters[0]?.chapterNumber ?? 1;
+  const canGoPrev =
+    currentChapterNumber != null && currentChapterNumber > firstChapterNumber;
   const canGoNext =
     currentChapterNumber != null &&
     (finalChapterNumber != null ?

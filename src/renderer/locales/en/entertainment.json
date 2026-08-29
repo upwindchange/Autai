@@ -39,6 +39,8 @@
   "novel.internet.title.placeholder": "Bookname of the novel",
   "novel.internet.author.label": "Author (optional)",
   "novel.internet.author.placeholder": "Author name",
+  "novel.internet.startChapter.label": "Start at chapter",
+  "novel.internet.startChapter.tooltip": "By default the crawl starts at chapter 1. Set a higher chapter number to begin mid-book: the reader lands directly on that chapter via web search instead of walking through every earlier one — useful when the opening is already familiar. Chapters before it are simply skipped (not fetched).",
   "novel.internet.source.label": "Source",
   "novel.internet.source.placeholder": "Paste a direct link, name the site, or drop a few search keywords — I'll search the web to track it down. Not sure where? Just type \"use search engine\".",
   "novel.internet.source.tooltip": "Tell me where to read it — a link, a search hint, anything that points the way. It has to be live text on a web page I can open and read, not text baked into an image or a PDF/TXT I'd have to download.",

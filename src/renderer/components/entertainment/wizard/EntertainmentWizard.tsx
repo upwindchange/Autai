@@ -109,14 +109,14 @@ export const EntertainmentWizard: FC = () => {
     try {
       // Load novelType (+ whatever chapters exist) so canGoNext + the reader work.
       await store.loadChapters(activeThreadId);
-      store.setCurrentChapter(1);
-      void store.setPosition(activeThreadId, 1);
-      // Internet threads start fetch+rewrite here (file threads already
-      // started at /ingest). Use the wizard's own config.novel.type — store.novelType
-      // is only populated after loadChapters resolves (race-free here).
-      if (config.novel.type === "internet" && activeThreadId) {
-        await store.startInternet(activeThreadId, config);
-      }
+      // Internet threads with a configured start chapter >1 have no chapter-1
+      // rows — open the reader at the start chapter itself.
+      const startChapter =
+        config.novel.type === "internet" ?
+          config.novel.startChapterNumber
+        : undefined;
+      store.setCurrentChapter(startChapter ?? 1);
+      void store.setPosition(activeThreadId, startChapter ?? 1);
       setSubmitted(true);
     } catch {
       // httpClient throws a status-only Error (no backend message), so a single

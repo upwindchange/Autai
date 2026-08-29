@@ -48,6 +48,11 @@ export const InternetNovelSchema = z.object({
   author: z.string().trim().optional(),
   // A URL, a search instruction, or other guidance on where to read the novel.
   source: z.string().trim().min(1),
+  // Chaptered internet mode only: which chapter the crawl STARTS at. Absent/1
+  // = begin at chapter 1 as before. >1 lands the crawl directly on chapter N
+  // via search (phase 1's search path) instead of advancing through 1..N-1.
+  // Chapters before N are simply never fetched — the reader's spine starts at N.
+  startChapterNumber: z.number().int().min(1).optional(),
 });
 
 // Both modes (dehydrate + audiobook) accept file OR internet.
@@ -188,10 +193,6 @@ const TACTIC_SCOPE = {
   cthulhuDelaying: "cross",
 } as const satisfies Record<string, "single" | "cross" | "both">;
 
-/** All 85 tactic keys, in `situation.md` order. */
-export const ALL_TACTIC_KEYS = Object.keys(
-  TACTIC_SCOPE,
-) as (keyof typeof TACTIC_SCOPE)[];
 /** Union of all 85 tactic keys. The concrete `SituationTactics`/`CrossChapterTactics` types each narrow this. */
 export type TacticKey = keyof typeof TACTIC_SCOPE;
 
@@ -436,13 +437,7 @@ export const CROSS_CHAPTER_CATEGORIES = TACTIC_CATEGORIES.map((c) => ({
   tactics: c.tactics.filter((k) => TACTIC_SCOPE[k] === "cross"),
 })).filter((c) => c.tactics.length > 0);
 
-// Kept for back-compat with the old per-block category-key tuples — the two
-// views now share the same `CATEGORY_KEYS` (a category appears in a block iff it
-// has tactics there). New code should use `CATEGORY_KEYS` / `TACTIC_CATEGORIES`.
-export const SITUATION_CATEGORY_KEYS = CATEGORY_KEYS;
 export type SituationCategory = TacticCategory;
-export const CROSS_CHAPTER_CATEGORY_KEYS = CATEGORY_KEYS;
-export type CrossChapterCategory = TacticCategory;
 
 /**
  * The tactics table for 脱水提速 (single-chapter filler stripping) — one
@@ -783,11 +778,8 @@ export const EntertainmentConfigSchema = z.discriminatedUnion("mode", [
 ]);
 
 export type DehydrateConfig = z.infer<typeof DehydrateConfigSchema>;
-export type AudiobookConfig = z.infer<typeof AudiobookConfigSchema>;
 export type EntertainmentConfig = z.infer<typeof EntertainmentConfigSchema>;
 export type EntertainmentMode = EntertainmentConfig["mode"];
-export type NovelInput = z.infer<typeof NovelInputSchema>;
-export type FileNovel = z.infer<typeof FileNovelSchema>;
 export type InternetNovel = z.infer<typeof InternetNovelSchema>;
 export type DehydrateBasic = z.infer<typeof DehydrateBasicSchema>;
 export type DehydrateDepth = z.infer<typeof DehydrateDepthSchema>;

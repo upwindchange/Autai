@@ -16,6 +16,12 @@ const logger = log.scope("Dehydrate:InternetFetch");
  * to) alongside the browser `sessionId` + `activeTabId` the existing tools
  * expect — all zero-token (never appears in a prompt). This is the "context
  * API" pattern: data reaches tool business logic without consuming tokens.
+ *
+ * `blockedDomains` — hostnames the fetch chain has judged DEAD for this thread
+ * (paywall/captcha/永久性无法导航 on that site). Held in memory, keyed by
+ * threadId, shared across chapters: a site that blocked chapter N is not
+ * retried for N+1; the chain moves to a different site instead. Lost on main
+ * restart — acceptable: a fresh process re-probes and re-blocks if needed.
  */
 export interface InternetFetchContext {
   sessionId: string;
@@ -25,25 +31,53 @@ export interface InternetFetchContext {
   abortSignal?: AbortSignal;
 }
 
+// threadId → set of blocked hostnames (see InternetFetchContext above).
+const blockedDomains = new Map<string, Set<string>>();
+
+/** Mark a hostname dead for a thread (phase 1's fallback chain). */
+export function blockDomainForThread(threadId: string, hostname: string): void {
+  let set = blockedDomains.get(threadId);
+  if (!set) {
+    set = new Set();
+    blockedDomains.set(threadId, set);
+  }
+  set.add(hostname);
+  logger.info("domain blocked for thread", { threadId, hostname });
+}
+
+/** Hostnames known dead for a thread (empty set when none). */
+export function getBlockedDomains(threadId: string): Set<string> {
+  return blockedDomains.get(threadId) ?? new Set<string>();
+}
+
+/** Drop a thread's blocklist (called when the thread's crawl tab is released). */
+export function clearBlockedDomains(threadId: string): void {
+  blockedDomains.delete(threadId);
+}
+
 export interface FetchChapterOptions {
   threadId: string;
   /**
-   * true = force the search/landing path even for N>1. No longer caller-supplied
-   * — `fetchInternetChapter` derives it from the chapter's prior status
-   * (chapter 1, or a retried `error` row → re-anchor via search) and threads it
-   * down to phase 1/phase 2, which still read it from here.
+   * true = force the search/landing path even for N>1. Derived by
+   * `fetchInternetChapter` from the chapter's prior status (chapter 1, a
+   * retried `error` row, or a mid-book start chapter with no fetched
+   * predecessor → re-anchor via search) and threaded down to phase 1, which
+   * reads it here.
    */
   useSearch?: boolean;
   abortSignal?: AbortSignal;
 }
 
 /**
- * Thrown by phase 1's anchor path when it cannot find chapter N (no
- * next-chapter link AND no table-of-contents entry) — meaning chapter N-1 was
- * the LAST chapter of the book. `fetchInternetChapter` catches this and treats
- * it distinctly from a generic acquisition error: it sets `finalChapterNumber`
- * to N-1, removes the phantom chapter-N row, releases the crawl tab, and
- * reports `"finalChapter"` (instead of marking the chapter `error`).
+ * Thrown by phase 1 when it is CONFIDENT chapter N does not exist on any
+ * reachable site: an explicit advance-path `abortChapter` (agent believes no
+ * next-chapter link / TOC entry exists on the current site) that the TOC
+ * fallback then CONFIRMS (a readable TOC with no entry for N). A
+ * paywalled/captcha'd TOC never confirms finality; the chain instead marks
+ * the site dead and searches for a different one. So when this error
+ * surfaces, N-1 was the last chapter. `fetchInternetChapter` catches it and
+ * treats it distinctly: sets `finalChapterNumber` to N-1, removes the phantom
+ * chapter-N row, releases the crawl tab, reports `"finalChapter"`.
  */
 export class FinalChapterError extends Error {
   constructor(message = "Reached the final chapter") {
@@ -72,10 +106,14 @@ async function ensureCrawlTab(sessionId: string): Promise<string> {
   return tabId;
 }
 
-/** Release the crawl tab at book end (FinalChapterError). */
-async function destroyCrawlTab(sessionId: string): Promise<void> {
+/** Release the crawl tab at book end (FinalChapterError) + the site blocklist. */
+async function destroyCrawlTab(
+  sessionId: string,
+  threadId: string,
+): Promise<void> {
   const sts = SessionTabService.getInstance();
   await sts.destroyAllTabs(sessionId);
+  clearBlockedDomains(threadId);
 }
 
 /** Terminal status the fetch reports back to its caller. */
@@ -104,14 +142,20 @@ export async function fetchInternetChapter(
   options: FetchChapterOptions,
 ): Promise<FetchOutcome> {
   const threadId = options.threadId;
-
   // Own the source-row lifecycle + derive the landing path. A retry of an
-  // errored chapter re-anchors via search; chapter 1 always searches.
+  // errored chapter re-anchors via search; chapter 1 always searches. A start
+  // chapter >1 with no fetched predecessor must ALSO search — there is no
+  // chapter N-1 URL in the DB to advance from (the crawl begins mid-book).
   const prior = entertainmentFrontendService.getSourceChapter(
     threadId,
     chapterNumber,
   );
-  const useSearch = chapterNumber === 1 || prior?.status === "error";
+  const useSearch =
+    chapterNumber === 1 ||
+    prior?.status === "error" ||
+    (novel.startChapterNumber === chapterNumber &&
+      entertainmentFrontendService.getSourceChapter(threadId, chapterNumber - 1)
+        ?.status !== "fetched");
   if (!prior) {
     entertainmentBackendService.insertSourceChapter({
       threadId,
@@ -148,7 +192,7 @@ export async function fetchInternetChapter(
     return "fetched";
   } catch (err) {
     if (err instanceof FinalChapterError) {
-      await destroyCrawlTab(sessionId); // book done — release the crawl tab
+      await destroyCrawlTab(sessionId, threadId); // book done — release tab + blocklist
       entertainmentBackendService.setFinalChapterNumber(
         threadId,
         chapterNumber - 1,

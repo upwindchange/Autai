@@ -289,9 +289,11 @@ const terminateTool = tool({
       chapterNumber: s.startNum + i,
       title: c.title,
       content: c.content,
-      rewriteStatus: (i === s.chapters.length - 1
-        ? (s.isLastBatch ? "rewritten" : "to_be_continued")
-        : "rewritten") as RewrittenChapterStatus,
+      rewriteStatus: (i === s.chapters.length - 1 ?
+        s.isLastBatch ?
+          "rewritten"
+        : "to_be_continued"
+      : "rewritten") as RewrittenChapterStatus,
     }));
     entertainmentBackendService.flushDehydratePass({
       threadId: s.threadId,
@@ -329,7 +331,13 @@ const terminateTool = tool({
  * result NOT to carry an `error` field (the tripwire returns an error object,
  * which is still `type: "tool-result"` but must NOT satisfy the stop condition).
  */
-function terminatedSuccessfully({ steps }: { steps: { toolResults?: Array<{ toolName: string; type: string; output: unknown }> }[] }): boolean {
+function terminatedSuccessfully({
+  steps,
+}: {
+  steps: {
+    toolResults?: Array<{ toolName: string; type: string; output: unknown }>;
+  }[];
+}): boolean {
   return (
     steps[steps.length - 1]?.toolResults?.some((r) => {
       if (r.toolName !== "terminate" || r.type !== "tool-result") return false;
@@ -546,8 +554,10 @@ export async function runDehydrateLoop(
       entertainmentBackendService.maxRewrittenChapterNumber(threadId);
     let leadIn: { chapterNumber: number; content: string } | null = null;
     if (priorMax > 0) {
-      const priorRow =
-        entertainmentFrontendService.getRewrittenChapter(threadId, priorMax);
+      const priorRow = entertainmentFrontendService.getRewrittenChapter(
+        threadId,
+        priorMax,
+      );
       if (priorRow && priorRow.status === "to_be_continued") {
         leadIn = {
           chapterNumber: priorMax,
@@ -556,8 +566,9 @@ export async function runDehydrateLoop(
       }
     }
 
-    const userContent = leadIn
-      ? `【上一章续写】以下是你上一段处理的结尾（章节 ${leadIn.chapterNumber}），请基于它续写，保持连贯；本段你产出的第一章将替换该章，合并上一章结尾与本段续写内容，使用相同的章节号 ${leadIn.chapterNumber}：\n\n${leadIn.content}\n\n【本段原文】\n${chunk}`
+    const userContent =
+      leadIn ?
+        `【上一章续写】以下是你上一段处理的结尾（章节 ${leadIn.chapterNumber}），请基于它续写，保持连贯；本段你产出的第一章将替换该章，合并上一章结尾与本段续写内容，使用相同的章节号 ${leadIn.chapterNumber}：\n\n${leadIn.content}\n\n【本段原文】\n${chunk}`
       : chunk;
 
     const startNum = leadIn ? leadIn.chapterNumber : priorMax + 1;

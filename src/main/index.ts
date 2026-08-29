@@ -15,6 +15,7 @@ import {
   TabControlService,
   threadPersistenceService,
   threadIntelligenceService,
+  entertainmentBackendService,
 } from "@/services";
 import { PQueueManager } from "@agents/utils";
 import { apiServer } from "@agents";
@@ -24,8 +25,6 @@ import { eventBus } from "@/utils/eventBus";
 import { searchService } from "@/services/searchService";
 import { initializeDatabase, closeDatabase } from "@/db";
 import { initI18n, i18n } from "@/i18n";
-
-// const _require = createRequire(import.meta.url);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Create scoped logger for main process
@@ -96,16 +95,6 @@ async function createWindow(splash?: BrowserWindow) {
   // Native application menu: default menus (File/Edit/View/Window/Help) plus a
   // custom "Option" menu. See src/main/menu.ts.
   Menu.setApplicationMenu(buildApplicationMenu(win));
-
-  // Disable default keyboard shortcuts for zoom
-  // win.webContents.on("before-input-event", (event, input) => {
-  //   if (input.control && ["+", "-", "="].includes(input.key)) {
-  //     event.preventDefault();
-  //   }
-  //   if (input.control && input.key === "0") {
-  //     event.preventDefault();
-  //   }
-  // });
 
   /**
    * Initialize core services BEFORE loading renderer to avoid IPC race conditions
@@ -183,17 +172,26 @@ async function createWindow(splash?: BrowserWindow) {
     win.loadFile(indexHtml, { query: { apiPort: String(currentApiPort) } });
   }
 
+  // `did-finish-load` fires on EVERY load — including later renderer reloads
+  // (Ctrl+R, dev HMR, CDP). By then the boot splash may already be destroyed
+  // and, on the activate-recreate path, `win` can be destroyed mid-gap, so
+  // every access is guarded.
   win.webContents.on("did-finish-load", () => {
-    splash?.close();
-    win?.show();
-    // Role-based menu items (zoom, reload, devtools, …) act on the focused
-    // webContents and are disabled while none has focus. At startup the main
-    // window's page isn't focused, so they stay disabled until the user clicks
-    // into the renderer. win.focus() activates the native window but doesn't
-    // reliably focus the webContents page on Windows — webContents.focus() is
-    // what makes the page the focused webContents, so the roles work at startup.
-    win?.focus();
-    win?.webContents?.focus();
+    if (splash && !splash.isDestroyed()) {
+      splash.close();
+    }
+    if (win && !win.isDestroyed()) {
+      win.show();
+      // Role-based menu items (zoom, reload, devtools, …) act on the focused
+      // webContents and are disabled while none has focus. At startup the main
+      // window's page isn't focused, so they stay disabled until the user
+      // clicks into the renderer. win.focus() activates the native window but
+      // doesn't reliably focus the webContents page on Windows —
+      // webContents.focus() is what makes the page the focused webContents,
+      // so the roles work at startup.
+      win.focus();
+      win.webContents.focus();
+    }
   });
 
   update();
@@ -233,20 +231,15 @@ app.whenReady().then(async () => {
     const filename = app.isPackaged ? `main-${date}.log` : "main.log";
     return path.join(logPath, filename);
   };
-
-  // Catch errors
-  log.errorHandler.startCatching({
-    showDialog: false,
-    onError: (error) => {
-      log.error("Uncaught error:", error);
-    },
-  });
-
   // Initialize database (single connection, runs Drizzle migrations)
   updateSplashStatus("Initializing database...");
   initializeDatabase();
 
-  // Initialize services that use the database
+  // Crash recovery: demote in-progress chapter statuses left frozen by a
+  // previous process that died mid-run (power loss / crash / force-quit) to
+  // `error` so they become ordinary retryable rows. Must run BEFORE any
+  // scheduler can start a runner (those would re-freeze the rows).
+  entertainmentBackendService.sweepStaleInProgress();
   searchService.initialize();
   threadPersistenceService.initialize();
 

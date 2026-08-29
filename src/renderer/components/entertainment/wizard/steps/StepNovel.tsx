@@ -90,6 +90,23 @@ export const StepNovel: FC<StepNovelProps> = ({
     );
   };
 
+  // Start chapter — chaptered internet mode only. Empty = start at chapter 1
+  // (the default). Typed text parses on the fly: a non-empty value that isn't
+  // a positive integer stores an invalid number, which `isStepValid` rejects
+  // (and the backend schema would too) — that's the whole error story.
+  const startChapter =
+    config.novel.type === "internet" ?
+      (config.novel.startChapterNumber?.toString() ?? "")
+    : "";
+  const setStartChapter = (value: string) => {
+    const parsed = value.trim() === "" ? undefined : Number.parseInt(value, 10);
+    setConfig((prev) =>
+      prev.novel.type === "internet" ?
+        { ...prev, novel: { ...prev.novel, startChapterNumber: parsed } }
+      : prev,
+    );
+  };
+
   // Small form — cap to a centered column (max-w-3xl) to avoid wide whitespace.
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-4">
@@ -217,6 +234,28 @@ export const StepNovel: FC<StepNovelProps> = ({
                 disabled={nonNovel}
               />
             </Field>
+
+            {/* Start chapter — chaptered internet mode only: begin reading at
+                chapter N instead of chapter 1. Never required (empty = 1). */}
+            {!nonNovel && (
+              <Field className="sm:max-w-48">
+                <FieldLabel htmlFor="ent-novel-start-chapter">
+                  <span>{t("novel.internet.startChapter.label")}</span>
+                  <HelpTooltip
+                    content={t("novel.internet.startChapter.tooltip")}
+                  />
+                </FieldLabel>
+                <Input
+                  id="ent-novel-start-chapter"
+                  type="number"
+                  min={1}
+                  step={1}
+                  inputMode="numeric"
+                  value={startChapter}
+                  onChange={(e) => setStartChapter(e.target.value)}
+                />
+              </Field>
+            )}
           </div>
 
           {/* Source — always required (where to read it), never disabled. */}

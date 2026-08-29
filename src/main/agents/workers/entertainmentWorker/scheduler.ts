@@ -248,8 +248,7 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
                 });
                 continue;
               }
-              // ensureFetched semantics: a fresh fetch means the book is
-              // exactly one chapter.
+              // A fresh successful fetch means the book is exactly one chapter.
               entertainmentBackendService.setFinalChapterNumber(threadId, 1);
             }
             // Rewrite errored (or source is fresh) ⇒ re-rewrite.
@@ -392,12 +391,13 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
     logger.info("fetchLoop start", {
       threadId,
       rewrite: opts.rewrite,
+      startChapter: novel.startChapterNumber ?? 1,
     });
-    let n = 1;
-    // One-shot entertainment enrichment (title + tags) after chapter 1's
-    // source text is available. Fire-and-forget — runs alongside the rest of
-    // the fetch/rewrite loop; the deterministic title from applyConfig is the
-    // instant placeholder this refines.
+    let n = novel.startChapterNumber ?? 1;
+    // One-shot entertainment enrichment (title + tags) once the FIRST fetched
+    // chapter's source text is available. Fire-and-forget — runs alongside the
+    // rest of the fetch/rewrite loop; the deterministic title from applyConfig
+    // is the instant placeholder this refines.
     let enriched = false;
     while (!signal.aborted) {
       const final =
@@ -430,8 +430,10 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
           break;
         }
       }
-      // Trigger enrichment once chapter 1 has source content.
-      if (!enriched && n === 1) {
+      // Trigger enrichment once the first fetched chapter has source content
+      // (chapter 1 normally; the configured start chapter when the crawl
+      // begins mid-book — enrichment reads the first available source row).
+      if (!enriched && n === (novel.startChapterNumber ?? 1)) {
         enriched = true;
         threadIntelligenceService
           .enrichEntertainmentThreadFromDb(threadId)

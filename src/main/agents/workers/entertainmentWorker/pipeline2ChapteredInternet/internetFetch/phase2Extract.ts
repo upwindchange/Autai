@@ -14,9 +14,10 @@ const logger = log.scope("Dehydrate:InternetFetch:Phase2");
 /**
  * `saveChapterContent` — phase 2's terminal. The agent calls it once it has
  * collected the chapter's full prose (across however many next-PAGE clicks).
- * Writes `content` + `title` to `source_chapters(N)`. No `isFinal` here —
- * finality is phase 1's call (advance-path abort). `threadId` / `chapterNumber`
- * arrive via context, never via the prompt.
+ * Writes `content` + `title` to `source_chapters(N)`. No finality decision
+ * here — that is phase 1's call (advance abort confirmed by the TOC
+ * fallback). `threadId` / `chapterNumber` arrive via context, never via the
+ * prompt.
  */
 const saveChapterContentTool = tool({
   description:
@@ -105,7 +106,11 @@ export async function extractChapter(
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.actionExecution,
     abortSignal: ctx.abortSignal,
-    toolsContext: { getFlattenDOM: ctx, clickElement: ctx, saveChapterContent: ctx },
+    toolsContext: {
+      getFlattenDOM: ctx,
+      clickElement: ctx,
+      saveChapterContent: ctx,
+    },
     telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
       functionId: "entertainment-internet-extract",

@@ -1,3 +1,4 @@
+import log from "electron-log/main";
 import { getDb } from "@/db";
 import {
   sourceChapters,
@@ -6,9 +7,10 @@ import {
   threads,
 } from "@/db/schema";
 import type { RewrittenChapterStatus, SourceChapterStatus } from "@shared";
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { eventBus } from "@/utils/eventBus";
 
+const logger = log.scope("EntertainmentBackend");
 /**
  * Entertainment backend persistence — the DB CRUD layer the entertainment
  * chapter tables write through. Pure writes + the write-side readers
@@ -245,6 +247,77 @@ class EntertainmentBackendService {
     });
   }
 
+  // --- crash recovery ------------------------------------------------------
+
+  /**
+   * Demote every in-progress status left over from a previous process that
+   * died mid-run (power loss, crash, force-quit): `fetching` sources and
+   * `rewriting` rewrites become `error`. No runner survives a process exit,
+   * so such rows are permanently frozen otherwise — they'd spin the UI as
+   * "fetching/rewriting" forever and `retryFailed` (which collects only
+   * `error`) would never pick them up. As `error` they are ordinary retryable
+   * rows: the reader's 重试 button, footer reprocess, and resume paths all
+   * handle them; refetch/refine resets the status before running.
+   *
+   * One global sweep at startup, BEFORE any scheduler runs (main index calls
+   * this right after DB init). Per-row updates keep it simple — the counts
+   * are tiny (at most one frozen chapter per thread), and a bulk UPDATE ...
+   * RETURNING would complicate the per-thread event emission for no gain.
+   */
+  sweepStaleInProgress(): void {
+    const db = getDb();
+    const staleSources = db
+      .select({
+        threadId: sourceChapters.threadId,
+        chapterNumber: sourceChapters.chapterNumber,
+      })
+      .from(sourceChapters)
+      .where(eq(sourceChapters.status, "fetching"))
+      .all();
+    for (const row of staleSources) {
+      db.update(sourceChapters)
+        .set({ status: "error", updatedAt: sql`(datetime('now'))` })
+        .where(
+          and(
+            eq(sourceChapters.threadId, row.threadId),
+            eq(sourceChapters.chapterNumber, row.chapterNumber),
+          ),
+        )
+        .run();
+      eventBus.emitEvent("entertainment:chaptersChanged", {
+        threadId: row.threadId,
+      });
+    }
+    const staleRewrites = db
+      .select({
+        threadId: rewrittenChapters.threadId,
+        chapterNumber: rewrittenChapters.chapterNumber,
+      })
+      .from(rewrittenChapters)
+      .where(eq(rewrittenChapters.status, "rewriting"))
+      .all();
+    for (const row of staleRewrites) {
+      db.update(rewrittenChapters)
+        .set({ status: "error", updatedAt: sql`(datetime('now'))` })
+        .where(
+          and(
+            eq(rewrittenChapters.threadId, row.threadId),
+            eq(rewrittenChapters.chapterNumber, row.chapterNumber),
+          ),
+        )
+        .run();
+      eventBus.emitEvent("entertainment:chaptersChanged", {
+        threadId: row.threadId,
+      });
+    }
+    if (staleSources.length > 0 || staleRewrites.length > 0) {
+      logger.info("swept stale in-progress rows", {
+        sources: staleSources.length,
+        rewrites: staleRewrites.length,
+      });
+    }
+  }
+
   // --- output numbering ---------------------------------------------------
 
   /**
@@ -363,37 +436,6 @@ class EntertainmentBackendService {
       .where(eq(rewrittenChapters.threadId, threadId))
       .get();
     return row?.count ?? 0;
-  }
-
-  /**
-   * Smallest chapter number whose source row is `fetched` but has no matching
-   * rewrite OUTPUT row yet — the internet rewrite frontier. `null` when every
-   * fetched source already has a rewrite, or there are none. LEFT JOIN on
-   * chapterNumber; rewrite-side NULL ⇒ unprocessed.
-   */
-  nextFetchedSourceWithoutRewrite(threadId: string): number | null {
-    const db = getDb();
-    const row = db
-      .select({ chapterNumber: sourceChapters.chapterNumber })
-      .from(sourceChapters)
-      .leftJoin(
-        rewrittenChapters,
-        and(
-          eq(rewrittenChapters.threadId, sourceChapters.threadId),
-          eq(rewrittenChapters.chapterNumber, sourceChapters.chapterNumber),
-        ),
-      )
-      .where(
-        and(
-          eq(sourceChapters.threadId, threadId),
-          eq(sourceChapters.status, "fetched"),
-          isNull(rewrittenChapters.id),
-        ),
-      )
-      .orderBy(asc(sourceChapters.chapterNumber))
-      .limit(1)
-      .get();
-    return row?.chapterNumber ?? null;
   }
 }
 

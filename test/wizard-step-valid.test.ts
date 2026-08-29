@@ -34,3 +34,41 @@ describe("isStepValid step 0 (mode) — models-configured gate", () => {
     expect(isStepValid(1, novelConfig, false)).toBe(true);
   });
 });
+
+describe("isStepValid step 1 (novel) — start chapter gate", () => {
+  const base = {
+    ...INITIAL_DEHYDRATE,
+    novel: { type: "internet", title: "T", source: "s" },
+  } as EntertainmentConfig;
+
+  test("unset start chapter (default) → valid", () => {
+    expect(base.novel).toMatchObject({ type: "internet" });
+    expect(isStepValid(1, base, true)).toBe(true);
+  });
+
+  test("positive integer start chapter → valid", () => {
+    const config = {
+      ...base,
+      novel: { ...base.novel, startChapterNumber: 42 },
+    } as EntertainmentConfig;
+    expect(isStepValid(1, config, true)).toBe(true);
+  });
+
+  test("NaN (non-numeric input past the number field) → invalid", () => {
+    const config = {
+      ...base,
+      novel: { ...base.novel, startChapterNumber: Number.NaN },
+    } as EntertainmentConfig;
+    expect(isStepValid(1, config, true)).toBe(false);
+  });
+
+  test("zero / negative / fractional → invalid", () => {
+    for (const startChapterNumber of [0, -3, 1.5]) {
+      const config = {
+        ...base,
+        novel: { ...base.novel, startChapterNumber },
+      } as EntertainmentConfig;
+      expect(isStepValid(1, config, true)).toBe(false);
+    }
+  });
+});

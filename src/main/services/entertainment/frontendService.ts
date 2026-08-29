@@ -32,10 +32,6 @@ const logger = log.scope("EntertainmentFrontend");
  * (`listChapterProgress` / `getChapterDetail`).
  */
 class EntertainmentFrontendService {
-  initialize(): void {
-    logger.info("EntertainmentFrontendService ready");
-  }
-
   // --- config -------------------------------------------------------------
 
   getEntertainmentConfig(threadId: string): EntertainmentConfigRow | undefined {

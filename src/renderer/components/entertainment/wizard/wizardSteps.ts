@@ -326,7 +326,13 @@ export function isStepValid(
       // field is disabled in the UI and the schema allows it empty).
       const titleOk =
         config.options.nonNovelSource || config.novel.title.trim().length > 0;
-      return titleOk && config.novel.source.trim().length > 0;
+      // Start chapter (chaptered internet only): unset = 1; set = a positive
+      // integer. A NaN (non-numeric input sneaking past the number field)
+      // blocks advance here and fails the backend schema as a second line.
+      const start = config.novel.startChapterNumber;
+      const startOk =
+        start === undefined || (Number.isInteger(start) && start >= 1);
+      return titleOk && startOk && config.novel.source.trim().length > 0;
     }
     case 2: {
       // Translation target language is required when translate is on.
