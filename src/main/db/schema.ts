@@ -27,6 +27,7 @@ export const userProviders = sqliteTable("user_providers", {
   apiUrlOverride: text("api_url_override"),
   npm: text().notNull(),
   defaultApiUrl: text("default_api_url"),
+  displayName: text("display_name"),
 });
 
 export const modelAssignments = sqliteTable("model_assignments", {
