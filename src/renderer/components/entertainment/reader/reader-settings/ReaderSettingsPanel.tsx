@@ -236,7 +236,6 @@ function SliderRow({
   min,
   max,
   step,
-  unit,
   format,
   disabled,
   onChange,
@@ -246,7 +245,6 @@ function SliderRow({
   min: number;
   max: number;
   step: number;
-  unit?: string;
   format?: (v: number) => string;
   disabled?: boolean;
   onChange: (v: number) => void;
@@ -261,7 +259,7 @@ function SliderRow({
       <div className="flex items-center justify-between">
         <Label className="text-xs text-muted-foreground">{label}</Label>
         <span className="font-mono text-xs tabular-nums text-muted-foreground">
-          {format ? format(value) : `${value}${unit ?? ""}`}
+          {format ? format(value) : String(value)}
         </span>
       </div>
       <Slider

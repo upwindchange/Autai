@@ -62,7 +62,7 @@ providerRoutes.get("/configured/models", async (c) => {
       result.push({
         providerId: p.id,
         providerDir: p.providerDir,
-        providerName: def?.name ?? p.providerDir,
+        providerName: p.displayName ?? def?.name ?? p.providerDir,
         ...(def?.logo && { logo: def.logo }),
         modelId: m.file,
         modelName: m.name,

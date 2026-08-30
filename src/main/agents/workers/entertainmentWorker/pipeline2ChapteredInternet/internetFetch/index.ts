@@ -96,8 +96,10 @@ export class FinalChapterError extends Error {
 async function ensureCrawlTab(sessionId: string): Promise<string> {
   const sts = SessionTabService.getInstance();
   await sts.activateSession(sessionId);
-  const tabs = sts.getTabsForSession(sessionId);
-  const tabId = tabs[0];
+  const tabId = sts.getTabsForSession(sessionId)[0];
+  if (!tabId) {
+    throw new Error(`crawl session ${sessionId} has no tab`);
+  }
   // Point the session's active-tab pointer at our crawl tab so split-view
   // visibility (if enabled) tracks it. (Tools target the tab via the
   // `activeTabId` we pass in toolsContext, not this pointer.)
@@ -156,17 +158,10 @@ export async function fetchInternetChapter(
     (novel.startChapterNumber === chapterNumber &&
       entertainmentFrontendService.getSourceChapter(threadId, chapterNumber - 1)
         ?.status !== "fetched");
-  if (!prior) {
-    entertainmentBackendService.insertSourceChapter({
-      threadId,
-      chapterNumber,
-      status: "fetching",
-    });
-  } else {
-    entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
-      status: "fetching",
-    });
-  }
+  entertainmentBackendService.markSourceChapterFetching({
+    threadId,
+    chapterNumber,
+  });
 
   const sessionId = `ent-fetch-${threadId}`;
   const tabId = await ensureCrawlTab(sessionId);

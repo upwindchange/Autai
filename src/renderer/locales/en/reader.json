@@ -80,7 +80,6 @@
   "reader.download.current": "This chapter",
   "reader.download.fromCurrent": "This chapter to end of processed",
   "reader.download.all": "All processed chapters",
-  "reader.download.empty": "No processed chapters yet",
   "reader.process.title": "Process chapters",
   "reader.process.countLabel": "Chapters to process",
   "reader.process.next": "Process next",

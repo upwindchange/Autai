@@ -141,21 +141,29 @@ export function ProvidersModelsSection({
 
   const providers = settings.providers || [];
 
+  // Re-seed the selectors only when the slices they mirror actually change.
+  // Deps are the individual fields (not the whole `settings` object): an
+  // unrelated settings write — notably the per-keystroke `modelOverrides` save
+  // from the openai-compatible context-window input — would otherwise land here,
+  // revert the unsaved provider/model drafts to their persisted values, and
+  // visibly clear the selection mid-typing. Spreads preserve these references.
+  const {
+    modelAssignments,
+    useSameModelForAgents: sameModel,
+    systemPrompt,
+    defaultModelParams,
+  } = settings;
   useEffect(() => {
-    setChatModelConfig(settings.modelAssignments?.chat ?? chatModelConfig);
-    setSimpleModelConfig(
-      settings.modelAssignments?.simple ?? simpleModelConfig,
-    );
-    setComplexModelConfig(
-      settings.modelAssignments?.complex ?? complexModelConfig,
-    );
-    setUseSameModelForAgents(settings.useSameModelForAgents ?? true);
+    setChatModelConfig(modelAssignments?.chat ?? chatModelConfig);
+    setSimpleModelConfig(modelAssignments?.simple ?? simpleModelConfig);
+    setComplexModelConfig(modelAssignments?.complex ?? complexModelConfig);
+    setUseSameModelForAgents(sameModel ?? true);
     setChatDefaultsDraft({
-      systemPrompt: settings.systemPrompt ?? null,
-      params: settings.defaultModelParams ?? null,
+      systemPrompt: systemPrompt ?? null,
+      params: defaultModelParams ?? null,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [settings]);
+  }, [modelAssignments, sameModel, systemPrompt, defaultModelParams]);
 
   // Resolve the catalog reasoning_options for the currently-selected models so
   // each params card renders the right thinking controls (or none). When

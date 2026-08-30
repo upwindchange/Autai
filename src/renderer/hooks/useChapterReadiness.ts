@@ -44,52 +44,26 @@ export function useChapterReadiness(
     if (!threadId || chapterNumber == null) return;
     const store = useChaptersStore.getState;
     let cancelled = false;
-    let timer: ReturnType<typeof setInterval> | null = null;
+    let timer: number | undefined;
     let latest: ChapterDetailWithStatus | undefined;
 
     const attempt = async (): Promise<void> => {
-      console.debug("[ent:readiness] start", { threadId, chapterNumber });
       // 1. Poll once.
       latest = await store().loadChapterDetail(threadId, chapterNumber);
-      if (cancelled || isTerminal(latest)) {
-        if (isTerminal(latest))
-          console.debug("[ent:readiness] terminal (initial poll)", {
-            chapterNumber,
-            rewriteStatus: latest?.rewriteStatus,
-            sourceStatus: latest?.sourceStatus,
-          });
-        return;
-      }
-
-      console.debug("[ent:readiness] not ready — polling", {
-        chapterNumber,
-        sourceStatus: latest?.sourceStatus,
-        rewriteStatus: latest?.rewriteStatus,
-      });
+      if (cancelled || isTerminal(latest)) return;
 
       // 2. Poll until ready or deadline.
       const deadline = Date.now() + RETRY_DEADLINE_MS;
       await new Promise<void>((resolve) => {
-        timer = setInterval(async () => {
+        timer = window.setInterval(async () => {
           if (cancelled) {
+            clearInterval(timer);
             resolve();
             return;
           }
           latest = await store().loadChapterDetail(threadId, chapterNumber);
-          if (isTerminal(latest)) {
-            console.debug("[ent:readiness] terminal", {
-              chapterNumber,
-              rewriteStatus: latest?.rewriteStatus,
-              sourceStatus: latest?.sourceStatus,
-            });
-            if (timer) clearInterval(timer);
-            timer = null;
-            resolve();
-            return;
-          }
-          if (Date.now() > deadline) {
-            if (timer) clearInterval(timer);
-            timer = null;
+          if (isTerminal(latest) || Date.now() > deadline) {
+            clearInterval(timer);
             resolve();
           }
         }, POLL_INTERVAL_MS);
@@ -98,19 +72,13 @@ export function useChapterReadiness(
 
       // 3. Timeout retrigger if still not terminal. A terminally errored chapter
       //    is not retriggered — it needs "Redo failed", not more polling.
-      if (!isTerminal(latest)) {
-        console.warn("[ent:readiness] timeout — retriggering", {
-          threadId,
-          chapterNumber,
-        });
-        await attempt();
-      }
+      if (!isTerminal(latest)) await attempt();
     };
 
     void attempt();
     return () => {
       cancelled = true;
-      if (timer) clearInterval(timer);
+      clearInterval(timer);
     };
   }, [threadId, chapterNumber]);
 }

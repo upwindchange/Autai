@@ -17,7 +17,7 @@ import {
 import { rewriteChapter } from "../pipeline2ChapteredInternet/rewriter";
 import { fetchSinglePage } from "./fetchSinglePage";
 
-const logger = log.scope("Dehydrate:Pipeline3");
+const logger = log.scope("Dehydrate:SinglePage");
 
 export { fetchSinglePage };
 

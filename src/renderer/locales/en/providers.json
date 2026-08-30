@@ -16,6 +16,8 @@
   "form.apiUrlOverride.label": "Custom API URL",
   "form.apiUrlOverride.placeholder": "Leave empty to use default",
   "form.apiUrlOverride.hint": "Leave empty to use default URL",
+  "form.displayName.label": "Display Name",
+  "form.displayName.placeholder": "Optional custom name (e.g. \"Work endpoint\")",
   "roles.title": "Model Roles",
   "roles.description": "Choose which models handle different types of tasks",
   "roles.chat.label": "Primary Chat Model",

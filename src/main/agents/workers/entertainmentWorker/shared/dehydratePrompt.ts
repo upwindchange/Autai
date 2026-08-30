@@ -6,20 +6,22 @@
  * share the SAME option→prompt logic. The wizard options
  * (basic / situation / crossChapter / depth / language / customInstruction) all
  * feed one builder; the prompt body that translates them into instructions is
- * identical except for four variant-specific pieces:
+ * identical except for three variant-specific pieces:
  *
  *   1. The ROLE line — `multi` re-chapters + merges + dehydrates a chunk into N
  *      chapters; `single` rewrites one already-chaptered chapter in place.
  *   2. The CORE INVARIANTS — the chapter-boundary rule differs: `single` stays
  *      within this one chapter; `multi` may weld chapters together but not
  *      invent beyond the source material.
- *   3. The OUTPUT CONTRACT — `multi` must hand back an array of `{ title,
- *      content }` via the `outputChapters` tool; `single` must hand back a
- *      single `content` via the `outputProcessedContent` tool.
- *   4. The 脱水块 tactic sources — `single` uses only `situation.tactics`;
- *      `multi` merges `situation.tactics` + `crossChapter.tactics` into one
- *      array (cross-chapter 套路 need multi-chapter context, which only `multi`
- *      has).
+ *   3. The OUTPUT CONTRACT — `multi` stages chapters via the `outputChapter` +
+ *      `terminate` tools; `single` hands back a single `content` via the
+ *      `outputProcessedContent` tool.
+ *
+ * The 脱水块 tactic sources differ by variant (a builder-level
+ * conditional, not a record): `single` emits only the situational sub-block;
+ * `multi` emits both the situational and the cross-chapter (章节并写)
+ * sub-blocks, each driven by its own strength dial (cross-chapter 套路 need
+ * multi-chapter context, which only `multi` has).
  *
  * Everything else is built here, once, by injection: every enabled feature
  * contributes its piece, disabled features are silent (no "don't do X" noise).
@@ -127,6 +129,20 @@ const SITUATION_STRENGTH_LEVELS: Record<1 | 2 | 3, string> = {
   1: "轻度收紧：只修剪最明显的重复套话与注水段落（同义句堆叠、反复确认、模板化拆帧、刷屏式群众反应等），保留其中的场景、动作与情绪细节。读者几乎感觉不到删减，只是节奏更顺。绝不把任何场景概括成一两句话。",
   2: "中度收紧：对注水段落做实质性精简——删掉重复的反应、多余的铺垫、流水账式的流程描写，但保留场景本身的过程、关键细节与情绪起伏。场景仍是完整的场景，只是去掉了水分；不要用一句话代替一段戏。",
   3: "重度收紧：对注水段落做大幅度删减，只保留推进剧情或承载信息的核心要素，可以跳过大量重复与堆砌。但即便如此，凡是有信息量或情绪推进的场景，都必须以完整的叙事 prose 呈现，严禁改写成概括、提纲或'本章主要讲了……'式的陈述句。",
+};
+
+/**
+ * 章节并写 strength dial — the on/off + intensity control for CROSS-chapter
+ * tightening (multi variant only): material redundant ACROSS the chapters being
+ * merged — settings re-explained after the reader already absorbed them, beats
+ * repeating, plot loops re-running. Same 轻/中/重 discipline as the
+ * situational dial: prose-tightening, never summarization; the identical
+ * protective invariant applies (first-bearing scenes stay full scenes).
+ */
+const CROSS_CHAPTER_STRENGTH_LEVELS: Record<1 | 2 | 3, string> = {
+  1: "轻度收紧：只处理最明显的跨章重复——同一设定在相邻章节被反复解释、同一段往事被反复提起、明显复读的桥段。保留原有叙事节奏，仅在重复处精简；绝不把任何场景概括成一两句话。",
+  2: "中度收紧：跨章重复做实质性合并——前文已完整交代过的设定、背景、能力说明，后文再次出现时大幅精简或点到即止；重复的桥段与冲突节奏保留一次完整呈现，其余压缩。被保留的部分仍以完整场景呈现。",
+  3: "重度收紧：跨章冗余做大幅削减——凡前文已交代的信息，后文重复出现时只保留最小必要的呼应；重复桥段、循环剧情只保留信息量最大的一次。但首次承载该信息或情绪的场景必须完整保留，严禁改写成概括。",
 };
 
 const SITUATION_TACTICS: Record<
@@ -777,16 +793,12 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
     "- `terminate` — call ONCE, for the FINAL chapter that covers where the " +
     "input text cuts off. It both emits that chapter and ends the pass. Shape " +
     "its ending as a clean continuation point.\n" +
-    "- `title` = the SOURCE chapter range, copied in the SAME numbering format " +
-    "and language the source itself uses for its chapter headings, followed by " +
-    "the evocative chapter name. Read the original chapter headings in the input " +
-    "to see (a) which source chapters you merged into this output chapter and " +
-    "(b) the numbering convention to copy — then mirror it exactly. Examples of " +
-    "the SAME title in different sources' conventions: '第三十一至三十五章 风起天南', " +
-    "'Chapter 31–35 The Storm', '第31〜35章 嵐の夜'. Single source chapter → no " +
-    "range, just that one heading's number. Do NOT invent a new sequential " +
-    "output number — the app renders its own chapter number separately, so that " +
-    "would be duplicated.\n" +
+    "- `title` = the SOURCE chapter range + the evocative name, in the SAME " +
+    "numbering format and language the source's own chapter headings use " +
+    "(copy the convention exactly — see the `title` field description). " +
+    "Single source chapter → no range, just that one heading's number. Do NOT " +
+    "invent a new sequential output number — the app renders its own chapter " +
+    "number separately.\n" +
     "- `content` must contain only the prose itself: no explanations, no Markdown, " +
     "no chapter titles; preserve sensible paragraph breaks.\n" +
     "- Keep the output language the same as the source unless translation/" +
@@ -805,27 +817,12 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
 
 /**
  * Build the Chinese system prompt for a dehydrate rewrite agent from the wizard
- * options. Sections are injected in a fixed editorial order and joined into one
- * organic brief: role → core invariants → 基础清洗 → 脱水块（情境，multi 下含
- * 跨章）→ 打磨文笔 → 语言与翻译 → 自定义指令 → output contract. Optional
- * sections appear only when they have something to say.
- *
- * `variant` selects three variant-specific pieces (role line, core invariants,
- * output contract):
- *   - `"single"` — one already-chaptered chapter → outputProcessedContent.
- *   - `"multi"`  — raw chunk → merge/re-chapter → outputChapters.
- * The shared body between them is otherwise identical.
- *
- * Core invariants differ on the chapter-boundary rule: single stays strictly
- * within this one chapter; multi may weld chapters together but not invent
- * beyond the source.
- *
- * 脱水块: `situation.strength` is the single on/off + intensity dial for the
- * whole block in both variants. Tactic sources are variant-specific — single
- * uses only `situation.tactics`; multi merges `situation.tactics` +
- * `crossChapter.tactics` into one array (cross-chapter 套路 need multi-chapter
- * context, which only the multi variant provides). `crossChapter.strength` is
- * not used by the prompt.
+ * 脱水块: each sub-block has its OWN on/off + intensity dial. `situation.strength`
+ * drives single-chapter 情境脱水 in both variants. `crossChapter.strength`
+ * drives CROSS-chapter 章节并写 tightening in the multi variant only (one
+ * chapter carries no cross-chapter context). Tactic sources follow the dials:
+ * `situation.tactics` feed the situational block; `crossChapter.tactics` feed
+ * the cross-chapter block (multi only).
  *
  * Per-tactic checkboxes are OPTIONAL ENFORCEMENT (recommended OFF). When none
  * are checked, the block still appears if `strength > 0` (driven purely by the
@@ -861,37 +858,19 @@ export function buildDehydrateSystemPrompt(
     sections.push(["基础清洗：", ...basicRules].join("\n"));
   }
 
-  // 脱水块 — situational filler-stripping. `situation.strength` is the
-  // on/off + intensity control. 0 (off) → the WHOLE feature is skipped: no
-  // block (not even the framing) appears, regardless of which tactics are
-  // checked. 1/2/3 → handled at that intensity. This strength is the SINGLE
-  // dial for the whole block in both variants.
-  //
-  // Tactic sources are variant-specific:
-  //   - single: only `situation.tactics` (single-chapter context).
-  //   - multi:  `situation.tactics` + `crossChapter.tactics` merged into ONE
-  //     array — cross-chapter tactics can only be judged when multiple chapters
-  //     are visible, which only the multi variant (raw-chunk merge) provides.
-  // Both sources share the category labels (`SITUATION_CATEGORY_LABELS`) and
-  // the strength dial above.
+  // 脱水块 — TWO sub-blocks, each gated by its own dial (0 = off → the whole
+  // sub-block is skipped, not even the framing appears, regardless of which
+  // tactics are checked):
+  //   - 情境脱水 (`situation.strength`): single-chapter filler stripping,
+  //     emitted in both variants.
+  //   - 章节并写 (`crossChapter.strength`): cross-chapter redundancy
+  //     collapsing, multi variant only (one chapter carries no cross-chapter
+  //     context).
+  // Both share the category labels (`SITUATION_CATEGORY_LABELS`).
   //
   // Prompt design — four cleanly separated concerns, so they never conflict:
   //   1. General direction: the脱水 philosophy (what counts as effective info
   //      to keep vs. what counts as filler), plus the explicit hand-off that
-  //      the tightening STRENGTH is governed solely by the dial below.
-  //   2. Protective invariant (hard, unconditional): the output is always full
-  //      novel prose, never an outline/synopsis; output length tracks the
-  //      effective-information volume, not "shorter is better". This is what
-  //      stops the model from collapsing large chunks into a few sentences.
-  //   3. Strength dial (SITUATION_STRENGTH_LEVELS): the SINGLE source of truth
-  //      for how much intra-beat filler texture survives. All three levels are
-  //      listed so the model has a calibrated sense of the dial, then the
-  //      chosen level is named and its description reprinted so the active
-  //      strength is unambiguous.
-  //   4. Tactics (SITUATION_TACTICS / CROSS_CHAPTER_TACTICS): OPTIONAL
-  //      identification hints, only emitted when the user checks some. Each
-  //      identifies a 套路 + what's filler vs. valuable core; tightening depth
-  //      is always the dial's job, never the tactic's.
   const situationBlocks: string[] = [];
   for (const cat of SITUATION_CATEGORIES) {
     const on = cat.tactics.filter((k) => situation.tactics[k]);
@@ -902,20 +881,6 @@ export function buildDehydrateSystemPrompt(
     situationBlocks.push(
       `- ${SITUATION_CATEGORY_LABELS[cat.key]}：\n${items.join("\n")}`,
     );
-  }
-  // Cross-chapter tactics only contribute in the multi variant.
-  if (variant === "multi") {
-    for (const cat of CROSS_CHAPTER_CATEGORIES) {
-      const on = cat.tactics.filter((k) => crossChapter.tactics[k]);
-      if (!on.length) continue;
-      const items = on.map(
-        (k) =>
-          `  · ${CROSS_CHAPTER_TACTICS[k].label}：${CROSS_CHAPTER_TACTICS[k].rule}`,
-      );
-      situationBlocks.push(
-        `- ${SITUATION_CATEGORY_LABELS[cat.key]}：\n${items.join("\n")}`,
-      );
-    }
   }
   if (situation.strength > 0) {
     const lvl = situation.strength as 1 | 2 | 3;
@@ -942,9 +907,7 @@ export function buildDehydrateSystemPrompt(
     // Only inject the per-tactic hints when the user actually checked some —
     if (situationBlocks.length) {
       strengthLines.push(
-        (variant === "multi" ?
-          "下面是你勾选、需要识别并处理的具体情境套路（含需跨章判断的套路）。"
-        : "下面是你勾选、需要识别并处理的具体情境套路。") +
+        "下面是你勾选、需要识别并处理的具体情境套路。" +
           "每条只说明「这是什么套路、其中哪些是水、哪些才是有效信息」，作为你识别与判断的依据；" +
           "遇到后按上方所选强度收紧其中的注水部分，但其中的有效信息必须以完整 prose 保留，不得改成概括。",
         ...situationBlocks,
@@ -952,6 +915,52 @@ export function buildDehydrateSystemPrompt(
       );
     }
     sections.push(strengthLines.join("\n\n"));
+  }
+
+  // 章节并写 — CROSS-chapter tightening (multi variant only). Its own dial
+  // (`crossChapter.strength`, 0 = off) drives how aggressively material
+  // redundant ACROSS the merged chapters is collapsed; its own tactics are
+  // optional identification hints for specific cross-chapter 套路. The single
+  // variant never sees this block — one chapter carries no cross-chapter
+  // context.
+  if (variant === "multi" && crossChapter.strength > 0) {
+    const crossBlocks: string[] = [];
+    for (const cat of CROSS_CHAPTER_CATEGORIES) {
+      const on = cat.tactics.filter((k) => crossChapter.tactics[k]);
+      if (!on.length) continue;
+      const items = on.map(
+        (k) =>
+          `  · ${CROSS_CHAPTER_TACTICS[k].label}：${CROSS_CHAPTER_TACTICS[k].rule}`,
+      );
+      crossBlocks.push(
+        `- ${SITUATION_CATEGORY_LABELS[cat.key]}：\n${items.join("\n")}`,
+      );
+    }
+    const lvl = crossChapter.strength as 1 | 2 | 3;
+    const crossLines = [
+      "章节并写——你在把多个原章合并重写，跨章冗余是这类原文最大的水分来源：" +
+        "同一设定被反复解释、同一桥段被反复重演、剧情在原地循环。凡前文已交代过、后文只是重复的信息，属跨章水分，应合并精简；" +
+        "凡首次出现、或在前文基础上新增的信息与推进，一律保留。本章合并后的读者是「从头连读」的，不要为复读留戏。",
+      "⚠ 同样把握「度」——跨章收紧针对的是重复，不是首次承载该信息的场景。" +
+        "被合并精简的部分保留最完整的一次呈现即可；首次出现的设定、桥段、情绪场景必须以完整 prose 保留，" +
+        "严禁因为「前面提过」就把任何首次呈现改写成概括。",
+      "跨章收紧力度（本次跨章收紧的唯一标尺，严格按所选力度执行，既不要加码也不要打折）：\n" +
+        `· 轻：${CROSS_CHAPTER_STRENGTH_LEVELS[1]}\n` +
+        `· 中：${CROSS_CHAPTER_STRENGTH_LEVELS[2]}\n` +
+        `· 重：${CROSS_CHAPTER_STRENGTH_LEVELS[3]}\n` +
+        `➤ 本次选用「${LEVEL_LABEL[lvl]}」度跨章收紧。\n` +
+        `➤ 本次所选力度的执行口径（请严格照此执行）：${CROSS_CHAPTER_STRENGTH_LEVELS[lvl]}`,
+    ];
+    if (crossBlocks.length) {
+      crossLines.push(
+        "下面是你勾选、需要识别并处理的跨章套路。" +
+          "每条只说明「这是什么套路、其中哪些是跨章水分、哪些才是有效信息」，作为你识别与判断的依据；" +
+          "遇到后按上方所选力度合并其中的跨章重复，但首次承载信息的部分必须以完整 prose 保留，不得改成概括。",
+        ...crossBlocks,
+        "以上跨章套路，只在原文确实出现、且属于上述套路的段落上按本次所选力度收紧；不涉及的段落不要强行改写。",
+      );
+    }
+    sections.push(crossLines.join("\n\n"));
   }
 
   // 打磨文笔 — literary polish (prosePolish) and/or expansion (proseExpand).

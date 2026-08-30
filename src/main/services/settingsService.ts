@@ -103,6 +103,7 @@ class SettingsService {
       ...(row.apiUrlOverride && { apiUrlOverride: row.apiUrlOverride }),
       npm: row.npm,
       ...(row.defaultApiUrl && { defaultApiUrl: row.defaultApiUrl }),
+      ...(row.displayName && { displayName: row.displayName }),
     }));
 
     // Load model assignments
@@ -266,6 +267,7 @@ class SettingsService {
             apiUrlOverride: provider.apiUrlOverride ?? null,
             npm: provider.npm,
             defaultApiUrl: provider.defaultApiUrl ?? null,
+            displayName: provider.displayName ?? null,
           })
           .run();
       }

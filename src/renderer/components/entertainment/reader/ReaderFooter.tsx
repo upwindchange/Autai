@@ -223,16 +223,9 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   };
 
   // --- Process (next N / all / redo failed) --------------------------------
-  const handleProcessNext = () => {
-    // "Process next N" and "Process all" both resume: the scheduler runs from
-    // the current read position to the end of the book. N is UI state only.
-    if (!currentThreadId) return;
-    void useChaptersStore
-      .getState()
-      .resumeThread(currentThreadId)
-      .then(() => setProcessOpen(false));
-  };
-  const handleProcessAll = () => {
+  // "Process next N" and "Process all" are one action: the scheduler resumes
+  // from the current read position to the end of the book. N is UI state only.
+  const handleProcessResume = () => {
     if (!currentThreadId) return;
     void useChaptersStore
       .getState()
@@ -434,7 +427,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
                   <Button
                     type="button"
                     size="sm"
-                    onClick={handleProcessNext}
+                    onClick={handleProcessResume}
                     disabled={currentChapterNumber == null}
                   >
                     {t("reader.process.next")}
@@ -445,7 +438,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={handleProcessAll}
+                onClick={handleProcessResume}
                 disabled={currentChapterNumber == null}
               >
                 {finalChapterNumber != null ?
@@ -483,7 +476,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
                 aria-label={t("reader.chapter.previous")}
                 className="size-9 rounded-full"
               >
-                <NavChevronLeft className="size-4" />
+                <NavChevron direction="left" className="size-4" />
               </Button>
             )}
             <Button
@@ -497,7 +490,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
             >
               {nextPhase ?
                 <DotMatrix state={nextPhase} className="size-5" />
-              : <NavChevronRight className="size-4" />}
+              : <NavChevron direction="right" className="size-4" />}
             </Button>
           </div>
 
@@ -574,11 +567,14 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
 };
 
 /**
- * Animated chevrons for chapter navigation. The strokes draw themselves over
+ * Animated chevron for chapter navigation. The stroke draws itself over
  * ~0.4s via SMIL (stroke-dashoffset 12 → 0, frozen), so the arrow "writes"
  * itself whenever the icon (re)mounts.
  */
-const NavChevronLeft: FC<{ className?: string }> = ({ className }) => (
+const NavChevron: FC<{ className?: string; direction: "left" | "right" }> = ({
+  className,
+  direction,
+}) => (
   <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
     <path d="M0 0h24v24H0z" fill="none" />
     <path
@@ -587,28 +583,7 @@ const NavChevronLeft: FC<{ className?: string }> = ({ className }) => (
       strokeLinecap="round"
       strokeLinejoin="round"
       strokeWidth="2"
-      d="M8 12l7 -7M8 12l7 7"
-    >
-      <animate
-        fill="freeze"
-        attributeName="stroke-dashoffset"
-        dur="0.4s"
-        values="12;0"
-      />
-    </path>
-  </svg>
-);
-
-const NavChevronRight: FC<{ className?: string }> = ({ className }) => (
-  <svg viewBox="0 0 24 24" fill="none" className={className} aria-hidden="true">
-    <path d="M0 0h24v24H0z" fill="none" />
-    <path
-      stroke="currentColor"
-      strokeDasharray="12"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      strokeWidth="2"
-      d="M16 12l-7 -7M16 12l-7 7"
+      d={direction === "left" ? "M8 12l7 -7M8 12l7 7" : "M16 12l-7 -7M16 12l-7 7"}
     >
       <animate
         fill="freeze"

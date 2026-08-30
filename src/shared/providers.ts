@@ -112,6 +112,10 @@ export const UserProviderConfigSchema = z.object({
   apiUrlOverride: z.string().optional(), // user override of TOML default
   npm: z.string(), // SDK package: "@ai-sdk/anthropic" — persisted from TOML at save time
   defaultApiUrl: z.string().optional(), // default base URL from TOML — persisted at save time
+  // User-chosen label shown wherever this configured provider is listed.
+  // Multiple configured instances of the same catalog provider (e.g. two
+  // openai-compatible endpoints) would otherwise be indistinguishable.
+  displayName: z.string().trim().min(1).max(64).optional(),
 });
 export type UserProviderConfig = z.infer<typeof UserProviderConfigSchema>;
 

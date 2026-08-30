@@ -60,7 +60,7 @@
   "options.situation.strength.label": "Dehydrate & accelerate",
   "options.situation.strength.tooltip": "Sets how hard the situational tactics are stripped. Off = no situational dehydration at all; Light/Medium/Heavy drives intelligent dehydration even with nothing checked below.",
   "options.section.crossChapter.title": "Cross-chapter",
-  "options.section.crossChapter.hint": "These patterns can only be judged across chapters (e.g. whether a setting was already explained earlier, or whether a beat is repeating). Toggle the ones you want stripped — this is a placeholder for now; the backend doesn't run cross-chapter processing yet, so it won't take effect.",
+  "options.section.crossChapter.hint": "These patterns can only be judged across chapters (e.g. whether a setting was already explained earlier, or whether a beat is repeating). Toggle the ones you want stripped — optional enforcement; the strength dial alone drives cross-chapter tightening.",
   "options.crossChapter.strength.label": "Dehydrate & accelerate",
   "options.crossChapter.strength.tooltip": "Sets how hard the cross-chapter tactics are stripped. Off = no cross-chapter processing at all; Light/Medium/Heavy drives intelligent dehydration even with nothing checked below.",
   "options.crossChapter.disabled.hint": "Cross-chapter processing needs access to multiple chapters at once to judge them together. It's only available when you upload a file — not for internet fetch.",

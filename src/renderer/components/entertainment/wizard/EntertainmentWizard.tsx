@@ -45,11 +45,7 @@ export const EntertainmentWizard: FC = () => {
   // Bound thread: a real thread switch wipes local state; the null→non-null
   // transition (our own commit) is excluded to preserve the chosen config.
   const boundThreadId = useRef<string | null>(activeThreadId);
-  useEffect(() => {
-    const prev = boundThreadId.current;
-    if (prev === activeThreadId) return;
-    boundThreadId.current = activeThreadId;
-    if (prev === null) return; // our own ensureThread commit — preserve state
+  const resetWizardState = () => {
     setConfig(INITIAL_DEHYDRATE);
     setPendingFile(undefined);
     setStep(0);
@@ -58,6 +54,13 @@ export const EntertainmentWizard: FC = () => {
     setSubmitError(null);
     setIngesting(false);
     setPrepareError(null);
+  };
+  useEffect(() => {
+    const prev = boundThreadId.current;
+    if (prev === activeThreadId) return;
+    boundThreadId.current = activeThreadId;
+    if (prev === null) return; // our own ensureThread commit — preserve state
+    resetWizardState();
   }, [activeThreadId]);
 
   const isLast = step === STEPS - 1;
@@ -182,14 +185,7 @@ export const EntertainmentWizard: FC = () => {
   const startOver = async () => {
     const id = activeThreadId;
     if (id) setActiveThreadId(null);
-    setConfig(INITIAL_DEHYDRATE);
-    setPendingFile(undefined);
-    setStep(0);
-    setSubmitted(false);
-    setAgreed(false);
-    setSubmitError(null);
-    setIngesting(false);
-    setPrepareError(null);
+    resetWizardState();
     if (id) {
       try {
         await httpClient.delete(`/threads/${id}`);

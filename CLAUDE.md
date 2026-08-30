@@ -77,7 +77,7 @@ The main process initializes in `src/main/index.ts` with this startup sequence: 
   - `browserWorker/browser-use/` — **bonus alpha** browser automation: planner → HITL approval → action-executor → replanner → summary (planned mode), or simple direct execution
   - `browserWorker/browser-research/` — normal + quick research: setup → researchPlanner (queries) → executeSearchQueries (per-query tabs) → extractResultsFromUrls (skipped in quick mode) → summarizeFindings / summarizeFindingsFromSnippets → references
   - `browserWorker/deep-research/` — deep research: pre-research → optional HITL clarification (`askUser`) → deepResearchPlanner (subtopics) → per-subtopic loop (plan → search → extract → summarize) → citation remap → composition → references
-  - `entertainmentWorker/scheduler.ts` — entertainment background-worker trigger layer (REST-event driven, no queue): `pipeline1ChapteredFile/dehydrateRunner` (file dehydrate loop — serves chaptered and non-chaptered uploads alike), `pipeline2ChapteredInternet/` (per-chapter internet fetch + rewrite), `pipeline3NonChapteredInternet/` (single-page fetch + one-shot rewrite for non-chaptered internet sources).
+  - `entertainmentWorker/scheduler.ts` — entertainment background-worker trigger layer (REST-event driven, no queue): `pipeline1ChapteredFile/rewriter` (file dehydrate loop — serves chaptered and non-chaptered uploads alike), `pipeline2ChapteredInternet/` (per-chapter internet fetch + rewrite), `pipeline3NonChapteredInternet/` (single-page fetch + one-shot rewrite for non-chaptered internet sources).
 
 **Services** (`src/main/services/`):
 
@@ -123,7 +123,7 @@ Built on @assistant-ui/react with custom components. The renderer is a pure HTTP
 - `ai-chat/` — main chat UI: thread, markdown streaming, attachments, running indicator
 - `assistant-ui/` — vendored from @assistant-ui/react (do not modify directly; copy out if changes needed)
 - `auth/` — `LoginScreen` for remote-access mode
-- `entertainment/` — entertainment-mode UI: `EntertainmentWizard` (with `steps/`), `entertainment-thread`, `NovelText`, `ProgressBar`
+- `entertainment/` — entertainment-mode UI: `EntertainmentWizard` (with `steps/`), `entertainment-thread` (reader; `reader/` holds footer, TOC, bookmarks, reader-settings), `ProgressBar`
 - `tool-ui/` — tool-specific UI cards: approval-card, citation, input-card, option-list, parameter-slider, plan, question-flow
 - `tools/` — frontend toolkits (generic, hitl)
 - `settings/` — provider/model configuration, MCP servers, connection, AI agents, and other sections under `settings-sections/`

@@ -10,6 +10,9 @@ import type { RewrittenChapterStatus, SourceChapterStatus } from "@shared";
 import { and, eq, sql } from "drizzle-orm";
 import { eventBus } from "@/utils/eventBus";
 
+/** SQLite "now" expression for every `updatedAt` write in this service. */
+const NOW = sql`(datetime('now'))`;
+
 const logger = log.scope("EntertainmentBackend");
 /**
  * Entertainment backend persistence — the DB CRUD layer the entertainment
@@ -47,6 +50,35 @@ class EntertainmentBackendService {
       threadId: input.threadId,
     });
   }
+  /**
+   * Own a source row's transition into `"fetching"`: insert a fresh row, or
+   * reset a stale one (crash mid-fetch / previous error / re-run). The single
+   * upsert every fetcher goes through.
+   */
+  markSourceChapterFetching(input: {
+    threadId: string;
+    chapterNumber: number;
+  }): void {
+    const db = getDb();
+    db.insert(sourceChapters)
+      .values({
+        id: crypto.randomUUID(),
+        threadId: input.threadId,
+        chapterNumber: input.chapterNumber,
+        status: "fetching",
+      })
+      .onConflictDoUpdate({
+        target: [sourceChapters.threadId, sourceChapters.chapterNumber],
+        set: {
+          status: "fetching",
+          updatedAt: NOW,
+        },
+      })
+      .run();
+    eventBus.emitEvent("entertainment:chaptersChanged", {
+      threadId: input.threadId,
+    });
+  }
 
   /** Patch a source row's mutable columns. */
   updateSourceChapter(
@@ -61,7 +93,7 @@ class EntertainmentBackendService {
   ): void {
     const db = getDb();
     db.update(sourceChapters)
-      .set({ ...patch, updatedAt: sql`(datetime('now'))` })
+      .set({ ...patch, updatedAt: NOW })
       .where(
         and(
           eq(sourceChapters.threadId, threadId),
@@ -71,7 +103,6 @@ class EntertainmentBackendService {
       .run();
     eventBus.emitEvent("entertainment:chaptersChanged", { threadId });
   }
-
   /**
    * Delete a source row by (threadId, chapterNumber). Idempotent. NOTE:
    * rewritten_chapters has no source-chapter FK, so this does NOT cascade —
@@ -118,6 +149,36 @@ class EntertainmentBackendService {
     });
   }
 
+  /**
+   * Own a rewrite row's transition into `"rewriting"`: insert a fresh row, or
+   * reset a stale one (previous error / re-run). The single upsert the
+   * rewriter goes through.
+   */
+  markRewrittenChapterRewriting(input: {
+    threadId: string;
+    chapterNumber: number;
+  }): void {
+    const db = getDb();
+    db.insert(rewrittenChapters)
+      .values({
+        id: crypto.randomUUID(),
+        threadId: input.threadId,
+        chapterNumber: input.chapterNumber,
+        status: "rewriting",
+      })
+      .onConflictDoUpdate({
+        target: [rewrittenChapters.threadId, rewrittenChapters.chapterNumber],
+        set: {
+          status: "rewriting",
+          updatedAt: NOW,
+        },
+      })
+      .run();
+    eventBus.emitEvent("entertainment:chaptersChanged", {
+      threadId: input.threadId,
+    });
+  }
+
   /** Patch a rewrite row's mutable columns. */
   updateRewrittenChapter(
     threadId: string,
@@ -129,7 +190,7 @@ class EntertainmentBackendService {
   ): void {
     const db = getDb();
     db.update(rewrittenChapters)
-      .set({ ...patch, updatedAt: sql`(datetime('now'))` })
+      .set({ ...patch, updatedAt: NOW })
       .where(
         and(
           eq(rewrittenChapters.threadId, threadId),
@@ -179,7 +240,7 @@ class EntertainmentBackendService {
             .set({
               content: ch.content,
               status: ch.rewriteStatus,
-              updatedAt: sql`(datetime('now'))`,
+              updatedAt: NOW,
             })
             .where(
               and(
@@ -191,7 +252,7 @@ class EntertainmentBackendService {
           tx.update(sourceChapters)
             .set({
               title: ch.title,
-              updatedAt: sql`(datetime('now'))`,
+              updatedAt: NOW,
             })
             .where(
               and(
@@ -224,21 +285,15 @@ class EntertainmentBackendService {
       tx.update(entertainmentConfigs)
         .set({
           rawConsumedOffset: input.newOffset,
-          updatedAt: sql`(datetime('now'))`,
+          ...(input.finalChapterNumber != null && {
+            finalChapterNumber: input.finalChapterNumber,
+          }),
+          updatedAt: NOW,
         })
         .where(eq(entertainmentConfigs.threadId, input.threadId))
         .run();
-      if (input.finalChapterNumber != null) {
-        tx.update(entertainmentConfigs)
-          .set({
-            finalChapterNumber: input.finalChapterNumber,
-            updatedAt: sql`(datetime('now'))`,
-          })
-          .where(eq(entertainmentConfigs.threadId, input.threadId))
-          .run();
-      }
       tx.update(threads)
-        .set({ updatedAt: sql`(datetime('now'))` })
+        .set({ updatedAt: NOW })
         .where(eq(threads.id, input.threadId))
         .run();
     });
@@ -266,55 +321,37 @@ class EntertainmentBackendService {
    */
   sweepStaleInProgress(): void {
     const db = getDb();
-    const staleSources = db
-      .select({
-        threadId: sourceChapters.threadId,
-        chapterNumber: sourceChapters.chapterNumber,
-      })
-      .from(sourceChapters)
-      .where(eq(sourceChapters.status, "fetching"))
-      .all();
-    for (const row of staleSources) {
-      db.update(sourceChapters)
-        .set({ status: "error", updatedAt: sql`(datetime('now'))` })
-        .where(
-          and(
-            eq(sourceChapters.threadId, row.threadId),
-            eq(sourceChapters.chapterNumber, row.chapterNumber),
-          ),
-        )
-        .run();
-      eventBus.emitEvent("entertainment:chaptersChanged", {
-        threadId: row.threadId,
-      });
+    let swept = 0;
+    for (const [table, staleStatus] of [
+      [sourceChapters, "fetching"],
+      [rewrittenChapters, "rewriting"],
+    ] as const) {
+      const stale = db
+        .select({
+          threadId: table.threadId,
+          chapterNumber: table.chapterNumber,
+        })
+        .from(table)
+        .where(eq(table.status, staleStatus))
+        .all();
+      for (const row of stale) {
+        db.update(table)
+          .set({ status: "error", updatedAt: NOW })
+          .where(
+            and(
+              eq(table.threadId, row.threadId),
+              eq(table.chapterNumber, row.chapterNumber),
+            ),
+          )
+          .run();
+        eventBus.emitEvent("entertainment:chaptersChanged", {
+          threadId: row.threadId,
+        });
+      }
+      swept += stale.length;
     }
-    const staleRewrites = db
-      .select({
-        threadId: rewrittenChapters.threadId,
-        chapterNumber: rewrittenChapters.chapterNumber,
-      })
-      .from(rewrittenChapters)
-      .where(eq(rewrittenChapters.status, "rewriting"))
-      .all();
-    for (const row of staleRewrites) {
-      db.update(rewrittenChapters)
-        .set({ status: "error", updatedAt: sql`(datetime('now'))` })
-        .where(
-          and(
-            eq(rewrittenChapters.threadId, row.threadId),
-            eq(rewrittenChapters.chapterNumber, row.chapterNumber),
-          ),
-        )
-        .run();
-      eventBus.emitEvent("entertainment:chaptersChanged", {
-        threadId: row.threadId,
-      });
-    }
-    if (staleSources.length > 0 || staleRewrites.length > 0) {
-      logger.info("swept stale in-progress rows", {
-        sources: staleSources.length,
-        rewrites: staleRewrites.length,
-      });
+    if (swept > 0) {
+      logger.info("swept stale in-progress rows", { swept });
     }
   }
 
@@ -353,7 +390,7 @@ class EntertainmentBackendService {
       .set({
         rawText,
         rawConsumedOffset: 0,
-        updatedAt: sql`(datetime('now'))`,
+        updatedAt: NOW,
       })
       .where(eq(entertainmentConfigs.threadId, threadId))
       .run();
@@ -364,7 +401,7 @@ class EntertainmentBackendService {
     db.update(entertainmentConfigs)
       .set({
         rawText: null,
-        updatedAt: sql`(datetime('now'))`,
+        updatedAt: NOW,
       })
       .where(eq(entertainmentConfigs.threadId, threadId))
       .run();
@@ -382,17 +419,6 @@ class EntertainmentBackendService {
     return row?.rawConsumedOffset ?? 0;
   }
 
-  /** Persist the consumed offset. */
-  setConsumedOffset(threadId: string, offset: number): void {
-    const db = getDb();
-    db.update(entertainmentConfigs)
-      .set({
-        rawConsumedOffset: offset,
-        updatedAt: sql`(datetime('now'))`,
-      })
-      .where(eq(entertainmentConfigs.threadId, threadId))
-      .run();
-  }
 
   // --- final chapter ------------------------------------------------------
 
@@ -402,7 +428,7 @@ class EntertainmentBackendService {
     db.update(entertainmentConfigs)
       .set({
         finalChapterNumber: chapterNumber,
-        updatedAt: sql`(datetime('now'))`,
+        updatedAt: NOW,
       })
       .where(eq(entertainmentConfigs.threadId, threadId))
       .run();
@@ -415,7 +441,7 @@ class EntertainmentBackendService {
   touchThread(threadId: string): void {
     const db = getDb();
     db.update(threads)
-      .set({ updatedAt: sql`(datetime('now'))` })
+      .set({ updatedAt: NOW })
       .where(eq(threads.id, threadId))
       .run();
   }

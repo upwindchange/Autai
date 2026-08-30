@@ -175,9 +175,8 @@ const ModelColumn: FC<{
   label: string;
   sublabel?: string;
   model: ResolvedModelInfo;
-  hint?: string;
   t: TFunc;
-}> = ({ icon, label, sublabel, model, hint, t }) => {
+}> = ({ icon, label, sublabel, model, t }) => {
   return (
     <div className="flex flex-col gap-1.5 rounded-md border bg-background/40 p-3">
       <div>
@@ -220,7 +219,6 @@ const ModelColumn: FC<{
               {t("capability.defaultBadge")}
             </div>
           )}
-          {hint && <p className="text-[11px] text-muted-foreground">{hint}</p>}
         </>
       : <div className="flex items-center gap-2 py-1">
           <DotMatrix state="warning" className="size-4 shrink-0" />

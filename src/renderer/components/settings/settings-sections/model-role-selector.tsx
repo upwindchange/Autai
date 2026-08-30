@@ -77,7 +77,7 @@ export function ModelRoleSelector({
                       dangerouslySetInnerHTML={{ __html: def.logo }}
                     />
                   )}
-                  {def?.name || provider.providerDir}
+                  {provider.displayName || def?.name || provider.providerDir}
                 </div>
               </SelectItem>
             );

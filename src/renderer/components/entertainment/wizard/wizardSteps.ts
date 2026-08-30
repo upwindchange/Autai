@@ -33,8 +33,7 @@ export const DEFAULT_SITUATION: SituationDehydrate = {
 };
 
 // 章节并写 mirrors 情境脱水: medium strength, all tactics OFF (opt-IN per tactic).
-// The backend accepts this but does not yet act on it — see
-// `CrossChapterTacticsSchema` in the shared schema.
+// Honored by the multi rewriter (file-pipeline merges) only.
 export const DEFAULT_CROSS_CHAPTER: CrossChapterDehydrate = {
   strength: 2,
   tactics: fillCrossChapterTactics(false),
@@ -233,45 +232,9 @@ export function patchSharedOptions(
     return out;
   };
 
-  if (prev.mode === "dehydrate") {
-    return {
-      ...prev,
-      options: {
-        ...prev.options,
-        ...(patch.basic ?
-          { basic: { ...prev.options.basic, ...patch.basic } }
-        : {}),
-        ...(patch.situation ?
-          {
-            situation: mergeDehydrateBlock(
-              prev.options.situation,
-              patch.situation,
-            ),
-          }
-        : {}),
-        ...(patch.crossChapter ?
-          {
-            crossChapter: mergeDehydrateBlock(
-              prev.options.crossChapter,
-              patch.crossChapter,
-            ),
-          }
-        : {}),
-        ...(patch.depth ?
-          { depth: mergeDepth(prev.options.depth, patch.depth) }
-        : {}),
-        ...(patch.language ?
-          { language: mergeLanguage(prev.options.language, patch.language) }
-        : {}),
-        ...(patch.nonNovelSource !== undefined ?
-          { nonNovelSource: patch.nonNovelSource }
-        : {}),
-        ...(patch.customInstruction !== undefined ?
-          { customInstruction: patch.customInstruction }
-        : {}),
-      },
-    };
-  }
+  // Both modes carry structurally identical options (see
+  // DehydrateConfigSchema / AudiobookConfigSchema), so one merge serves both —
+  // the spread keeps the `mode` discriminant literal intact.
   return {
     ...prev,
     options: {
@@ -300,6 +263,9 @@ export function patchSharedOptions(
       : {}),
       ...(patch.language ?
         { language: mergeLanguage(prev.options.language, patch.language) }
+      : {}),
+      ...(patch.nonNovelSource !== undefined ?
+        { nonNovelSource: patch.nonNovelSource }
       : {}),
       ...(patch.customInstruction !== undefined ?
         { customInstruction: patch.customInstruction }

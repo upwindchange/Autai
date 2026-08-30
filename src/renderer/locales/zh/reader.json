@@ -80,7 +80,6 @@
   "reader.download.current": "本章",
   "reader.download.fromCurrent": "本章至已处理末尾",
   "reader.download.all": "全部已处理章节",
-  "reader.download.empty": "暂无可下载章节",
   "reader.process.title": "处理章节",
   "reader.process.countLabel": "处理章数",
   "reader.process.next": "处理后续",

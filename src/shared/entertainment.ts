@@ -17,8 +17,9 @@ import { z } from "zod";
  *     `situation` (情境脱水 — a `strength` dial that gates the whole feature,
  *     plus 51 per-tactic toggles, all default OFF, selecting which
  *     single-chapter padding patterns to force) + `crossChapter` (章节并写 —
- *     same shape over 34 cross-chapter-only tactics, all default OFF; accepted
- *     by the backend but not yet acted on) + `depth` (5 rewrite-intensity
+ *     same shape over 34 cross-chapter-only tactics, all default OFF; its
+ *     strength dial + tactics are honored only by the multi rewriter, i.e.
+ *     file-pipeline merges) + `depth` (5 rewrite-intensity
  *     aspects, each `{ enabled, level }`, defaulting off) + `language`
  *     (adaptation) + a `nonNovelSource` flag (single-source storyline vs.
  *     chaptered novel) + a free-form `customInstruction` (user guidance applied

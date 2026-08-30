@@ -15,7 +15,7 @@ import {
 import type { DehydrateConfig } from "@shared";
 import { buildDehydrateSystemPrompt } from "../shared/dehydratePrompt";
 
-const logger = log.scope("Dehydrate:Rewriter");
+const logger = log.scope("Dehydrate:Rewriter:Internet");
 
 /** Terminal status the rewrite agent reports back to its caller. */
 export type RewriteOutcome = "rewritten" | "error";
@@ -157,25 +157,10 @@ export async function rewriteChapter(
   signal?: AbortSignal,
 ): Promise<RewriteOutcome> {
   // Own the rewrite-row lifecycle: mark in-progress (insert fresh or reset stale).
-  const existing = entertainmentFrontendService.getRewrittenChapter(
+  entertainmentBackendService.markRewrittenChapterRewriting({
     threadId,
     chapterNumber,
-  );
-  if (!existing) {
-    entertainmentBackendService.insertRewrittenChapter({
-      threadId,
-      chapterNumber,
-      status: "rewriting",
-    });
-  } else {
-    entertainmentBackendService.updateRewrittenChapter(
-      threadId,
-      chapterNumber,
-      {
-        status: "rewriting",
-      },
-    );
-  }
+  });
 
   const sourceText =
     entertainmentFrontendService.getSourceChapter(threadId, chapterNumber)

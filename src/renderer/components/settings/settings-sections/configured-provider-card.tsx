@@ -120,7 +120,9 @@ export function ConfiguredProviderCard({
                 />
               )}
               <div>
-                <span className="font-medium">{definition.name}</span>
+                <span className="font-medium">
+                  {provider.displayName || definition.name}
+                </span>
                 <Badge variant="secondary" className="ml-2 text-xs">
                   {definition.npm === "@ai-sdk/openai-compatible" ?
                     "OpenAI Compatible"
@@ -128,7 +130,23 @@ export function ConfiguredProviderCard({
                 </Badge>
               </div>
             </div>
-
+            <div className="space-y-2">
+              <Label htmlFor="display-name">
+                {t("form.displayName.label")}
+              </Label>
+              <Input
+                id="display-name"
+                value={editState.displayName || ""}
+                onChange={(e) =>
+                  setEditState({
+                    ...editState,
+                    displayName: e.target.value.trim() ? e.target.value : undefined,
+                  })
+                }
+                placeholder={t("form.displayName.placeholder")}
+                maxLength={64}
+              />
+            </div>
             {definition.api && (
               <div className="space-y-2">
                 <Label htmlFor="api-url-override">
@@ -245,7 +263,9 @@ export function ConfiguredProviderCard({
             )}
             <div className="min-w-0">
               <div className="flex items-center gap-2">
-                <span className="font-medium truncate">{definition.name}</span>
+                <span className="font-medium truncate">
+                  {provider.displayName || definition.name}
+                </span>
                 <Badge variant="secondary" className="shrink-0 text-xs">
                   {definition.npm === "@ai-sdk/openai-compatible" ?
                     "OpenAI Compatible"

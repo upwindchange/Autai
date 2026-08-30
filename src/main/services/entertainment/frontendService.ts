@@ -48,23 +48,19 @@ class EntertainmentFrontendService {
     config: EntertainmentConfig,
   ): void {
     const db = getDb();
+    // novelSource = the wizard's origin pointer (file path / URL / guidance),
+    // NOT the content. Nullable/mutable because input is dynamic.
+    const values = {
+      threadId,
+      mode: config.mode,
+      options: JSON.stringify(config.options),
+      novelSource: JSON.stringify(config.novel),
+    };
     db.insert(entertainmentConfigs)
-      .values({
-        threadId,
-        mode: config.mode,
-        options: JSON.stringify(config.options),
-        // novelSource = the wizard's origin pointer (file path / URL / guidance),
-        // NOT the content. Nullable/mutable because input is dynamic.
-        novelSource: JSON.stringify(config.novel),
-      })
+      .values(values)
       .onConflictDoUpdate({
         target: entertainmentConfigs.threadId,
-        set: {
-          mode: config.mode,
-          options: JSON.stringify(config.options),
-          novelSource: JSON.stringify(config.novel),
-          updatedAt: sql`(datetime('now'))`,
-        },
+        set: { ...values, updatedAt: sql`(datetime('now'))` },
       })
       .run();
   }
@@ -97,19 +93,10 @@ class EntertainmentFrontendService {
 
   /** Novel source type from the stored config — drives file-vs-internet behavior. */
   getNovelType(threadId: string): "file" | "internet" | null {
-    const row = this.getEntertainmentConfig(threadId);
-    if (!row?.novelSource) return null;
-    try {
-      const novel = JSON.parse(row.novelSource) as { type?: string };
-      return novel.type === "file" || novel.type === "internet" ?
-          novel.type
-        : null;
-    } catch {
-      return null;
-    }
+    return this.getParsedConfig(threadId)?.novel.type ?? null;
   }
 
-  // --- chapter reads (原文 / 重写 rows) -----------------------------------
+  // --- chapter reads (原文 / 重写 rows) ---
 
   /** All source rows for the thread, ordered by chapterNumber. */
   listSourceChapters(threadId: string) {

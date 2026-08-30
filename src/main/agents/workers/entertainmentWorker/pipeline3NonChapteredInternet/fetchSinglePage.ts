@@ -29,7 +29,6 @@ import { complexModel } from "@agents/providers";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
 import {
   settingsService,
-  entertainmentFrontendService,
   entertainmentBackendService,
   SessionTabService,
   TabControlService,
@@ -40,7 +39,7 @@ import { executeSearchQueries } from "@agents/workers/browserWorker/browser-rese
 import type { ResearchPlan } from "@agents/workers/browserWorker/browser-research/planner";
 import type { InternetNovel } from "@shared";
 
-const logger = log.scope("Dehydrate:Pipeline3:FetchSinglePage");
+const logger = log.scope("Dehydrate:SinglePage:FetchSinglePage");
 
 /**
  * Context injected into the extract agent's tool via `toolsContext` —
@@ -127,7 +126,6 @@ Rules:
 - Output prose only — no commentary, no markdown headings, no "end of post" markers.
 - Call saveContent exactly once, with everything.`;
 }
-
 /**
  * Find-or-create the thread's crawl tab. `activateSession` creates the session
  * + an initial tab on first use; the tab is then reused for the read (there is
@@ -139,6 +137,9 @@ async function ensureCrawlTab(sessionId: string): Promise<string> {
   const sts = SessionTabService.getInstance();
   await sts.activateSession(sessionId);
   const tabId = sts.getTabsForSession(sessionId)[0];
+  if (!tabId) {
+    throw new Error(`crawl session ${sessionId} has no tab`);
+  }
   // Point the session's active-tab pointer at our crawl tab so split-view
   // visibility (if enabled) tracks it. Tools target the tab via the
   // `activeTabId` passed in toolsContext, not this pointer.
@@ -146,6 +147,7 @@ async function ensureCrawlTab(sessionId: string): Promise<string> {
   if (state) state.activeTabId = tabId;
   return tabId;
 }
+
 
 /** Release the crawl tab once the single page is acquired (book end). */
 async function destroyCrawlTab(sessionId: string): Promise<void> {
@@ -179,11 +181,7 @@ async function landOnPage(
     }
   }
 
-  // Search path — one query, take the first result URL. executeSearchQueries
-  // creates/destroys its own tabs in its own session, but SessionTabService only
-  // tracks tabs for a session that has been activated (mirrors phase1Land's
-  // landViaSearch). After it runs, re-activate the crawl session so the crawl
-  // tab is current again.
+  // Search path — one query, take the first result URL.
   const base = novel.title.trim() || source;
   const query = [base, novel.author?.trim()].filter(Boolean).join(" ");
   const plan: ResearchPlan = {
@@ -198,6 +196,10 @@ async function landOnPage(
       },
     ],
   };
+  // executeSearchQueries creates/destroys its own tabs in its own session, but
+  // SessionTabService only tracks tabs for a session that has been activated
+  // (mirrors phase1Land's pattern). After it runs, re-activate the crawl
+  // session so the crawl tab is current again.
   const searchSessionId = `ent-search3-${ctx.threadId}`;
   const sts = SessionTabService.getInstance();
   await sts.activateSession(searchSessionId);
@@ -302,21 +304,10 @@ export async function fetchSinglePage(
   const chapterNumber = 1;
 
   // Own the source-row lifecycle up front (insert fresh or reset stale).
-  const prior = entertainmentFrontendService.getSourceChapter(
+  entertainmentBackendService.markSourceChapterFetching({
     threadId,
     chapterNumber,
-  );
-  if (!prior) {
-    entertainmentBackendService.insertSourceChapter({
-      threadId,
-      chapterNumber,
-      status: "fetching",
-    });
-  } else {
-    entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
-      status: "fetching",
-    });
-  }
+  });
 
   const sessionId = `ent-fetch-${threadId}`;
   const tabId = await ensureCrawlTab(sessionId);
@@ -331,21 +322,11 @@ export async function fetchSinglePage(
   logger.info("fetch single page", { threadId });
 
   try {
-    const landed = await landOnPage(novel, ctx);
-    if (!landed) {
-      logger.warn("could not land on single page", { threadId });
-      entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
-        status: "error",
-      });
-      return "error";
+    if (!(await landOnPage(novel, ctx))) {
+      throw new Error("could not land on single page");
     }
-    const saved = await extractPage(novel, ctx);
-    if (!saved) {
-      logger.error("single-page extract did not save content", { threadId });
-      entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
-        status: "error",
-      });
-      return "error";
+    if (!(await extractPage(novel, ctx))) {
+      throw new Error("single-page extract did not save content");
     }
     entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
       status: "fetched",

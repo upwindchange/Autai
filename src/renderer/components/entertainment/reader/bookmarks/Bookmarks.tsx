@@ -1,7 +1,8 @@
-import { type FC, useEffect, useRef } from "react";
+import { type FC, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { Bookmark, BookmarkPlus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useScrollActiveIntoView } from "@/hooks/useScrollActiveIntoView";
 import type { Bookmark as BookmarkType } from "@shared";
 
 interface BookmarksProps {
@@ -10,28 +11,6 @@ interface BookmarksProps {
   onAdd: () => void;
   onJump: (bookmark: BookmarkType) => void;
   onDelete: (id: string) => void;
-}
-
-/**
- * Walk up from `el` to its nearest scrollable ancestor (the panel's list
- * viewport). Returns null when nothing overflows — a short list needs no scroll.
- * (Same helper as the TOC: the active row is scrolled into view on open.)
- */
-function findScrollParent(el: HTMLElement): HTMLElement | null {
-  let node = el.parentElement;
-  while (node && node !== document.body) {
-    const { overflowY } = getComputedStyle(node);
-    if (
-      (overflowY === "auto" ||
-        overflowY === "scroll" ||
-        overflowY === "overlay") &&
-      node.scrollHeight > node.clientHeight
-    ) {
-      return node;
-    }
-    node = node.parentElement;
-  }
-  return null;
 }
 
 /**
@@ -66,23 +45,8 @@ export const Bookmarks: FC<BookmarksProps> = ({
     timeStyle: "short",
   });
 
-  // Scroll the current chapter's bookmark row into view on open / chapter change
-  // — same transform-independent offsetTop walk as the TOC.
-  useEffect(() => {
-    const el = activeRef.current;
-    if (!el) return;
-    const container = findScrollParent(el);
-    if (!container) return;
-    let top = 0;
-    let node: HTMLElement | null = el;
-    while (node && node !== container) {
-      top += node.offsetTop;
-      node = node.offsetParent as HTMLElement | null;
-    }
-    if (node !== container) return;
-    const target = top - (container.clientHeight - el.offsetHeight) / 2;
-    container.scrollTop = Math.max(0, Math.round(target));
-  }, [currentChapterNumber, bookmarks.length]);
+  // Scroll the current chapter's bookmark row into view on open / chapter change.
+  useScrollActiveIntoView(activeRef, [currentChapterNumber, bookmarks.length]);
 
   const labelFor = (b: BookmarkType) =>
     b.label ??

@@ -48,7 +48,7 @@ import {
 import { buildDehydrateSystemPrompt } from "../shared/dehydratePrompt";
 import type { RewrittenChapterStatus } from "@shared";
 
-const logger = log.scope("Dehydrate:Pipeline1:Runner");
+const logger = log.scope("Dehydrate:Rewriter:File");
 
 /**
  * Hard flat cap (in CHARS) on how much original text one pass ingests. Bounds
@@ -217,10 +217,8 @@ const CONTENT_DESC =
   "(no title, no Markdown, no explanations).";
 
 /**
- * `outputChapter` — stage ONE completed chapter from the input chunk. Call this
- * once per chapter you produce. The chapter is staged internally; you will NOT
- * see it again. After your final chapter of this chunk, call the `terminate`
- * tool instead of this one. Never emit prose as plain text.
+ * `outputChapter` — stage ONE completed chapter (see description). Chapters
+ * land in `PassStage`; nothing is written to the DB until `terminate` flushes.
  */
 const outputChapterTool = tool({
   description:
@@ -240,16 +238,10 @@ const outputChapterTool = tool({
 });
 
 /**
- * `terminate` — emit the FINAL chapter of this input chunk AND signal
- * completion. This is the chapter that covers the point where the raw input
- * text cuts off — shape its ending as a clean continuation point. After this
- * call the pass ends; do not call outputChapter again. Use terminate instead of
- * outputChapter ONLY for the last chapter of the chunk. Never emit prose as
- * plain text.
- *
- * Execute: gross-coverage tripwire (refuses to flush if output is absurdly
- * small vs input), then atomically flushes all staged chapters + offset advance
- * + optional final-chapter number + thread touch in ONE transaction.
+ * `terminate` — emit the FINAL chapter of the chunk and end the pass. Execute:
+ * gross-coverage tripwire (refuses to flush if output is absurdly small vs
+ * input), then atomically flushes all staged chapters + offset advance +
+ * optional final-chapter number + thread touch in ONE transaction.
  */
 const terminateTool = tool({
   description:
@@ -326,10 +318,24 @@ const terminateTool = tool({
 });
 
 /**
+ * One `terminate` tool result that flushed successfully — a `tool-result` for
+ * `terminate` that does NOT carry an `error` field (the coverage tripwire
+ * returns an error object, which is still `type: "tool-result"` but must NOT
+ * count as success).
+ */
+function isSuccessfulTerminate(r: {
+  toolName: string;
+  type: string;
+  output: unknown;
+}): boolean {
+  if (r.toolName !== "terminate" || r.type !== "tool-result") return false;
+  const output = r.output as Record<string, unknown> | undefined;
+  return !output?.error;
+}
+
+/**
  * Stop condition: the last step produced a successful (non-error) `terminate`
- * tool result. Mirrors `hasSuccessfulToolResult` but additionally requires the
- * result NOT to carry an `error` field (the tripwire returns an error object,
- * which is still `type: "tool-result"` but must NOT satisfy the stop condition).
+ * tool result.
  */
 function terminatedSuccessfully({
   steps,
@@ -339,11 +345,7 @@ function terminatedSuccessfully({
   }[];
 }): boolean {
   return (
-    steps[steps.length - 1]?.toolResults?.some((r) => {
-      if (r.toolName !== "terminate" || r.type !== "tool-result") return false;
-      const output = r.output as Record<string, unknown> | undefined;
-      return !output?.error;
-    }) ?? false
+    steps[steps.length - 1]?.toolResults?.some(isSuccessfulTerminate) ?? false
   );
 }
 
@@ -373,7 +375,8 @@ async function runDehydrateAgent(params: {
   maxSteps: number;
   signal: AbortSignal;
 }): Promise<boolean> {
-  const { resolved, userContent, stage, maxSteps, signal } = params;
+  const { resolved, systemPrompt, userContent, stage, maxSteps, signal } =
+    params;
   const sampling = forwardSamplingParams(resolved.params);
   const reasoning = reasoningProviderOptions(
     resolved.params,
@@ -382,6 +385,7 @@ async function runDehydrateAgent(params: {
   );
   const result = streamText({
     model: resolved.model,
+    instructions: systemPrompt,
     messages: [{ role: "user", content: userContent }],
     tools: { outputChapter: outputChapterTool, terminate: terminateTool },
     // Free choice across the loop — the model picks outputChapter or terminate.
@@ -403,57 +407,24 @@ async function runDehydrateAgent(params: {
     },
   });
   const steps = await result.steps;
-  // Diagnostic: dump the full reasoning, plain text, and tool-call arguments
-  // for each step so we can see exactly what the model thought and emitted.
+  // One compact per-step trace at silly level — enough to see which tool calls
+  // fired and how tokens were spent; full prompts/results live in telemetry.
   for (const step of steps) {
-    const u = step.usage;
-    logger.silly("agent step result", {
+    logger.silly("agent step", {
       threadId: stage.threadId,
       stepNumber: step.stepNumber,
-      provider: step.model.provider,
-      modelId: step.model.modelId,
       finishReason: step.finishReason,
-      rawFinishReason: step.rawFinishReason,
-      inputTokens: u.inputTokens,
-      outputTokens: u.outputTokens,
-      totalTokens: u.totalTokens,
-      reasoningTokens: u.outputTokenDetails?.reasoningTokens,
+      usage: step.usage,
       textLen: step.text.length,
-      toolCallNames: step.toolCalls.map((tc) => tc.toolName),
-      hasToolResults: (step.toolResults ?? []).length > 0,
-    });
-    if (step.reasoningText) {
-      logger.silly("agent step reasoning", {
-        threadId: stage.threadId,
-        stepNumber: step.stepNumber,
-        reasoningText: step.reasoningText,
-      });
-    }
-    if (step.text) {
-      logger.silly("agent step text", {
-        threadId: stage.threadId,
-        stepNumber: step.stepNumber,
-        text: step.text,
-      });
-    }
-    for (const tc of step.toolCalls) {
-      logger.silly("agent step tool call", {
-        threadId: stage.threadId,
-        stepNumber: step.stepNumber,
-        toolCallId: tc.toolCallId,
+      reasoningLen: step.reasoningText?.length ?? 0,
+      toolCalls: step.toolCalls.map((tc) => ({
         toolName: tc.toolName,
-        input: JSON.stringify(tc.input),
-      });
-    }
+        input: tc.input,
+      })),
+    });
   }
-  // `saved` = terminate flushed successfully (a non-error terminate result).
-  return steps.some((s) =>
-    (s.toolResults ?? []).some((r) => {
-      if (r.toolName !== "terminate" || r.type !== "tool-result") return false;
-      const output = r.output as Record<string, unknown> | undefined;
-      return !output?.error;
-    }),
-  );
+  // `saved` = a successful terminate flushed somewhere in this pass.
+  return steps.some((s) => (s.toolResults ?? []).some(isSuccessfulTerminate));
 }
 
 // ---------------------------------------------------------------------------

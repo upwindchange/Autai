@@ -20,13 +20,13 @@
  * running) because the reader pushes the cursor every poll tick.
  */
 import log from "electron-log/main";
-import type { InternetNovel } from "@shared";
+import type { DehydrateConfig, InternetNovel } from "@shared";
 import {
   entertainmentBackendService,
   entertainmentFrontendService,
   threadIntelligenceService,
 } from "@/services";
-import { runDehydrateLoop } from "./pipeline1ChapteredFile/dehydrateRunner";
+import { runDehydrateLoop } from "./pipeline1ChapteredFile/rewriter";
 import { fetchInternetChapter } from "./pipeline2ChapteredInternet/internetFetch";
 import { rewriteChapter } from "./pipeline2ChapteredInternet/rewriter";
 import {
@@ -76,43 +76,34 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
     this.run(threadId, (signal) => runDehydrateLoop(threadId, signal));
   }
 
-  // --- internet prefetch (fetch only) --------------------------------------
+  // --- internet pipeline (fetch, optionally + rewrite) ----------------------
 
   startInternetPrefetch(threadId: string): void {
-    this.stopThread(threadId);
-    const config = entertainmentFrontendService.getParsedConfig(threadId);
-    if (!config || config.novel.type !== "internet") {
-      logger.warn("startInternetPrefetch skipped — no internet config", {
-        threadId,
-        hasConfig: !!config,
-      });
-      return;
-    }
-    const novel = config.novel;
-    logger.info("startInternetPrefetch (fetch only)", { threadId });
-    this.run(threadId, (signal) =>
-      config.options.nonNovelSource ?
-        runSinglePagePipeline(threadId, novel, signal, { rewrite: false })
-      : this.fetchLoop(threadId, novel, signal, { rewrite: false }),
-    );
+    this.startInternet(threadId, false);
   }
 
   startInternetPipeline(threadId: string): void {
+    this.startInternet(threadId, true);
+  }
+
+  private startInternet(threadId: string, rewrite: boolean): void {
     this.stopThread(threadId);
     const config = entertainmentFrontendService.getParsedConfig(threadId);
     if (!config || config.novel.type !== "internet") {
-      logger.warn("startInternetPipeline skipped — no internet config", {
+      logger.warn("startInternet skipped — no internet config", {
         threadId,
         hasConfig: !!config,
       });
       return;
     }
     const novel = config.novel;
-    logger.info("startInternetPipeline (fetch + rewrite)", { threadId });
+    logger.info(`startInternet (${rewrite ? "fetch + rewrite" : "fetch only"})`, {
+      threadId,
+    });
     this.run(threadId, (signal) =>
       config.options.nonNovelSource ?
-        runSinglePagePipeline(threadId, novel, signal, { rewrite: true })
-      : this.fetchLoop(threadId, novel, signal, { rewrite: true }),
+        runSinglePagePipeline(threadId, novel, signal, { rewrite })
+      : this.fetchLoop(threadId, novel, config.options, signal, { rewrite }),
     );
   }
 
@@ -201,73 +192,6 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
       return 0;
     }
 
-    // Non-chaptered internet: the book is ONE row (chapter 1). Same shape as
-    // the chaptered branch below, but the re-fetch is the single-page fetcher
-    // and a successful re-fetch re-pins finalChapterNumber = 1.
-    if (config.options.nonNovelSource) {
-      const progress =
-        entertainmentFrontendService.listChapterProgress(threadId);
-      const failed = progress.filter(
-        (c) => c.sourceStatus === "error" || c.rewriteStatus === "error",
-      );
-      if (failed.length === 0) {
-        logger.info("retryFailed — no errored chapters", { threadId });
-        return 0;
-      }
-
-      logger.info("retryFailed (internet, non-chaptered) — re-enqueuing", {
-        threadId,
-        failedChapters: failed.map((c) => c.chapterNumber),
-        count: failed.length,
-      });
-
-      this.stopThread(threadId);
-      const controller = new AbortController();
-      this.active.set(threadId, controller);
-      const signal = controller.signal;
-      const novel = config.novel;
-      const options = config.options;
-
-      void (async () => {
-        try {
-          for (const c of failed) {
-            if (signal.aborted) {
-              logger.info("retry loop aborted", {
-                threadId,
-                chapterNumber: c.chapterNumber,
-              });
-              break;
-            }
-            // Source errored (or never fetched) ⇒ re-fetch, then rewrite.
-            if (c.sourceStatus === "error") {
-              const outcome = await fetchSinglePage(novel, threadId, signal);
-              if (outcome === "error") {
-                logger.warn("retry re-fetch failed", {
-                  threadId,
-                  chapterNumber: c.chapterNumber,
-                });
-                continue;
-              }
-              // A fresh successful fetch means the book is exactly one chapter.
-              entertainmentBackendService.setFinalChapterNumber(threadId, 1);
-            }
-            // Rewrite errored (or source is fresh) ⇒ re-rewrite.
-            await rewriteChapter(threadId, c.chapterNumber, options, signal);
-          }
-        } catch (err) {
-          if (!signal.aborted)
-            logger.error("retry loop failed", { threadId, err });
-        } finally {
-          if (this.active.get(threadId) === controller) {
-            this.active.delete(threadId);
-            logger.info("retryFailed complete", { threadId });
-          }
-        }
-      })();
-
-      return failed.length;
-    }
-
     const progress = entertainmentFrontendService.listChapterProgress(threadId);
     const failed = progress.filter(
       (c) => c.sourceStatus === "error" || c.rewriteStatus === "error",
@@ -277,37 +201,26 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
       return 0;
     }
 
-    logger.info("retryFailed (internet) — re-enqueuing", {
+    logger.info(`retryFailed (${config.options.nonNovelSource ? "internet, non-chaptered" : "internet"}) — re-enqueuing`, {
       threadId,
       failedChapters: failed.map((c) => c.chapterNumber),
       count: failed.length,
     });
 
-    // Re-enqueue: the pipeline aborts the in-flight runner and starts a fresh
-    // one that walks errored chapters one at a time.
-    this.stopThread(threadId);
-    const controller = new AbortController();
-    this.active.set(threadId, controller);
-    const signal = controller.signal;
+    // Re-enqueue: abort the in-flight runner and start a fresh one that walks
+    // errored chapters one at a time — re-fetch the source when it errored,
+    // then rewrite.
     const novel = config.novel;
     const options = config.options;
-
-    void (async () => {
-      try {
-        for (const c of failed) {
-          if (signal.aborted) {
-            logger.info("retry loop aborted", {
-              threadId,
-              chapterNumber: c.chapterNumber,
-            });
-            break;
-          }
-          // Source errored (or never fetched) ⇒ re-fetch, then rewrite.
-          if (c.sourceStatus === "error") {
-            const outcome = await fetchInternetChapter(novel, c.chapterNumber, {
-              threadId,
-              abortSignal: signal,
-            });
+    this.run(threadId, async (signal) => {
+      for (const c of failed) {
+        if (signal.aborted) break;
+        if (c.sourceStatus === "error") {
+          // Non-chaptered: the book is ONE row (chapter 1) fetched by the
+          // single-page fetcher; a fresh successful fetch re-pins
+          // finalChapterNumber = 1.
+          if (config.options.nonNovelSource) {
+            const outcome = await fetchSinglePage(novel, threadId, signal);
             if (outcome === "error") {
               logger.warn("retry re-fetch failed", {
                 threadId,
@@ -315,27 +228,27 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
               });
               continue;
             }
-            if (outcome === "finalChapter") {
-              logger.info("retry re-fetch hit final chapter", {
+            entertainmentBackendService.setFinalChapterNumber(threadId, 1);
+          } else {
+            const outcome = await fetchInternetChapter(
+              novel,
+              c.chapterNumber,
+              { threadId, abortSignal: signal },
+            );
+            if (outcome === "error" || outcome === "finalChapter") {
+              logger.info("retry re-fetch not recovered", {
                 threadId,
                 chapterNumber: c.chapterNumber,
+                outcome,
               });
               continue;
             }
           }
-          // Rewrite errored (or source is fresh) ⇒ re-rewrite.
-          await rewriteChapter(threadId, c.chapterNumber, options, signal);
         }
-      } catch (err) {
-        if (!signal.aborted)
-          logger.error("retry loop failed", { threadId, err });
-      } finally {
-        if (this.active.get(threadId) === controller) {
-          this.active.delete(threadId);
-          logger.info("retryFailed complete", { threadId });
-        }
+        // Rewrite errored (or source is fresh) ⇒ re-rewrite.
+        await rewriteChapter(threadId, c.chapterNumber, options, signal);
       }
-    })();
+    });
 
     return failed.length;
   }
@@ -380,20 +293,17 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
   private async fetchLoop(
     threadId: string,
     novel: InternetNovel,
+    options: DehydrateConfig["options"],
     signal: AbortSignal,
     opts: { rewrite: boolean },
   ): Promise<void> {
-    const config = entertainmentFrontendService.getParsedConfig(threadId);
-    if (!config) {
-      logger.warn("fetchLoop — config vanished", { threadId });
-      return;
-    }
+    const startNum = novel.startChapterNumber ?? 1;
     logger.info("fetchLoop start", {
       threadId,
       rewrite: opts.rewrite,
-      startChapter: novel.startChapterNumber ?? 1,
+      startChapter: startNum,
     });
-    let n = novel.startChapterNumber ?? 1;
+    let n = startNum;
     // One-shot entertainment enrichment (title + tags) once the FIRST fetched
     // chapter's source text is available. Fire-and-forget — runs alongside the
     // rest of the fetch/rewrite loop; the deterministic title from applyConfig
@@ -433,7 +343,7 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
       // Trigger enrichment once the first fetched chapter has source content
       // (chapter 1 normally; the configured start chapter when the crawl
       // begins mid-book — enrichment reads the first available source row).
-      if (!enriched && n === (novel.startChapterNumber ?? 1)) {
+      if (!enriched && n === startNum) {
         enriched = true;
         threadIntelligenceService
           .enrichEntertainmentThreadFromDb(threadId)
@@ -448,7 +358,7 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
           n,
         );
         if (!existing || existing.status === "error") {
-          await rewriteChapter(threadId, n, config.options, signal);
+          await rewriteChapter(threadId, n, options, signal);
         }
       }
       n++;
