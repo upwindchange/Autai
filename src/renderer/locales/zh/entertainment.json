@@ -40,7 +40,7 @@
   "novel.internet.author.label": "作者（可选）",
   "novel.internet.author.placeholder": "作者名",
   "novel.internet.startChapter.label": "从第几章开始",
-  "novel.internet.startChapter.tooltip": "默认从第 1 章开始抓取。填一个更大的章节号即可从书中段开始：阅读器会通过网络搜索直接定位到该章，而不会一章章翻过去——适合开头已经熟读的情况。之前的章节会被直接跳过（不抓取）。",
+  "novel.internet.startChapter.tooltip": "默认从第 1 章开始抓取。填一个更大的章节号即可从书中段开始：抓取会先通过网络搜索找到这本书的页面，再打开目录点击进入对应章节，而不会逐章翻页、也不会按章节号单独搜索——适合开头已经熟读的情况。之前的章节会被直接跳过（不抓取）。",
   "novel.internet.source.label": "来源",
   "novel.internet.source.placeholder": "贴个直链、说一下在哪个网站、或丢几个搜索关键词都行，我会自己上网搜索来定位。不确定从哪读？直接填「用搜索引擎找」。",
   "novel.internet.source.tooltip": "告诉我从哪能读到这个故事：贴个链接、给点搜索线索都行。注意必须是网页上能直接阅读的纯文本内容；图片里的文字、或 PDF、TXT 等需要下载的文件都不行。",

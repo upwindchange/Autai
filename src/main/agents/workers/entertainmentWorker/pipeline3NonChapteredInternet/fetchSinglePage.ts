@@ -38,6 +38,7 @@ import { clickElementTool } from "@agents/tools/InteractiveTools";
 import { executeSearchQueries } from "@agents/workers/browserWorker/browser-research/search-agent";
 import type { ResearchPlan } from "@agents/workers/browserWorker/browser-research/planner";
 import type { InternetNovel } from "@shared";
+import { buildUserInteractionWallBlock } from "../shared/crawlWallPrompt";
 
 const logger = log.scope("Dehydrate:SinglePage:FetchSinglePage");
 
@@ -121,6 +122,10 @@ Steps:
 3. Some sites split ONE post across multiple pages with a "next page" / "下一页" control. If the SAME post continues on a next PAGE, call clickElement on the next-page control, then call getFlattenDOM again and continue collecting.
 4. Stop paginating when you reach the END of this single post. Do NOT follow links to OTHER posts / articles / threads — those are separate pieces, not a continuation.
 5. Once you have the COMPLETE prose of this single post, call saveContent with the full text joined in reading order and a short title (or null).
+
+${buildUserInteractionWallBlock(
+  "do NOT call saveContent and do NOT treat the wall as the post's end: saving would commit a truncated page. Simply stop — the fetch is marked failed and retried on a different site",
+)}
 
 Rules:
 - Output prose only — no commentary, no markdown headings, no "end of post" markers.

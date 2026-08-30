@@ -8,6 +8,7 @@ import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { clickElementTool } from "@agents/tools/InteractiveTools";
 import type { InternetNovel } from "@shared";
 import type { InternetFetchContext } from "./index";
+import { buildUserInteractionWallBlock } from "../../shared/crawlWallPrompt";
 
 const logger = log.scope("Dehydrate:InternetFetch:Phase2");
 
@@ -72,6 +73,10 @@ Steps:
 3. Some sites split ONE chapter across multiple pages with a "next page" / "下一页" control. If the SAME ${label} continues on a next PAGE, call clickElement on the next-page control, then call getFlattenDOM again and continue collecting.
 4. Stop paginating when you reach the end of ${label} (a "next CHAPTER" link, or the end of the post). Do NOT follow a next-CHAPTER link — that belongs to the next chapter.
 5. Once you have the COMPLETE ${label} prose, call saveChapterContent with the full text joined in reading order and the chapter title (or null).
+
+${buildUserInteractionWallBlock(
+  "do NOT call saveChapterContent and do NOT treat the wall as the chapter's end: saving would commit a truncated chapter. Simply stop — the chapter is marked failed and retried on a different site",
+)}
 
 Rules:
 - Output prose only — no commentary, no markdown headings, no "end of chapter" markers.

@@ -21,6 +21,11 @@ import {
   blockDomainForThread,
   getBlockedDomains,
 } from "./index";
+import {
+  REJECT_WALL_DESCRIPTION,
+  SITE_BLOCKED_TOOL_DESCRIPTION,
+  buildUserInteractionWallBlock,
+} from "../../shared/crawlWallPrompt";
 
 const logger = log.scope("Dehydrate:InternetFetch:Phase1");
 
@@ -73,10 +78,19 @@ const landHereTool = tool({
  * agent never learns the candidate URL; it only sees the loaded page.
  */
 const rejectCandidateTool = tool({
-  description:
-    "Call this if the current page is NOT the beginning of the target chapter (wrong page, login wall, paywall, recaptcha, age gate, 404/error, homepage, table of contents/index, or a DIFFERENT piece of content).",
+  description: `Call this if the current page is NOT the beginning of the target chapter (wrong page, ${REJECT_WALL_DESCRIPTION}, 404/error, homepage, table of contents/index, or a DIFFERENT piece of content).`,
   inputSchema: z.object({ reason: z.string() }),
   execute: async ({ reason }) => ({ rejected: true, reason }),
+});
+
+/**
+ * `siteBlocked` — shared-wall terminal for advance + TOC. Description from
+ * the canonical wall module; behavior identical to the former local tool.
+ */
+const siteBlockedTool = tool({
+  description: SITE_BLOCKED_TOOL_DESCRIPTION,
+  inputSchema: z.object({ reason: z.string() }),
+  execute: async ({ reason }) => ({ blocked: true, reason }),
 });
 
 /**
@@ -139,30 +153,29 @@ type TocOutcome =
 /**
  * Build a one-query `ResearchPlan` for `executeSearchQueries` from the wizard's
  * novel origin. `novel.source` is guidance (not a URL here); title/author add
- * precision. The query targets this specific chapter so a retry of an errored
- * N>1 can re-anchor via search.
+ * precision. The query is deliberately BOOK-level: chapter-number queries
+ * ("title author 第N章") index poorly and pull in wiki/aggregator noise, while
+ * a book's page on a reading site is its strongest-indexed entry point. The
+ * target chapter is then reached by CLICKING through that site's TOC (the
+ * judge rejects book-home/TOC pages, which become `landViaToc` anchors) —
+ * never by searching for the chapter page itself. This also holds for retries
+ * of an errored N>1, which re-anchor the same way.
  */
 function buildSearchPlan(
   novel: InternetNovel,
   chapterNumber: number,
 ): ResearchPlan {
   const base = novel.title.trim() || novel.source.trim();
-  const chapterHint = chapterNumber === 1 ? "小说" : `第${chapterNumber}章`;
-  const query = [base, novel.author?.trim(), chapterHint]
-    .filter(Boolean)
-    .join(" ");
+  const query = [base, novel.author?.trim(), "小说"].filter(Boolean).join(" ");
   return {
     id: `ent-fetch-plan-${chapterNumber}`,
     title: base,
-    description:
-      chapterNumber === 1 ?
-        `Find the first chapter / reading page of the novel.`
-      : `Find chapter ${chapterNumber} of the novel.`,
+    description: `Find the novel's page on an online reading site (book homepage / table of contents). Chapter ${chapterNumber} is reached afterwards via the site's own TOC, not via search.`,
     queries: [
       {
         id: `ent-fetch-plan-${chapterNumber}-q0`,
         query,
-        focus: `chapter ${chapterNumber} of ${base} — the page where the chapter content begins; NOT wiki/encyclopedia/pedia pages (Wikipedia, 百度百科, 搜狗百科, 360百科, etc.), which only have introductions`,
+        focus: `${base} on an online-reading site — the book homepage, its table-of-contents page, or any reading page of THIS novel on that site (the book homepage / TOC is ideal; do not look for any specific chapter number). NOT wiki/encyclopedia/pedia pages (Wikipedia, 百度百科, 搜狗百科, 360百科, etc.), which only have introductions`,
       },
     ],
   };
@@ -181,8 +194,12 @@ Target: ${label} of "${titlePart}"${authorPart}.
 
 The page is ALREADY open — do NOT navigate anywhere. Read it with getFlattenDOM, then decide:
 - If the page IS the beginning of ${label}'s actual prose content, call landHere.
-- If it is NOT (a search engine, login wall, paywall, recaptcha, age gate, 404/error page, site homepage, table of contents / index, or a DIFFERENT piece of content), call rejectCandidate with a short reason.
+- If it is NOT the beginning of ${label}'s prose — a search engine, 404/error page, site homepage, table of contents / index, a DIFFERENT piece of content, or a USER-INTERACTION WALL (see below) — call rejectCandidate with a short reason.
 - Encyclopedia/wiki/pedia pages (Wikipedia, 百度百科, 搜狗百科, 360百科, 互动百科, etc.) are NEVER the target — they only contain an introduction ABOUT the novel, never its chapter prose. Call rejectCandidate immediately, without spending further steps examining them.
+
+${buildUserInteractionWallBlock(
+  "call rejectCandidate with the wall type as the reason (the orchestrator moves to the next candidate URL)",
+)}
 
 Call landHere ONLY when the page is truly showing the start of ${label}'s prose.`;
 }
@@ -202,7 +219,11 @@ Steps:
 
 When you are on the beginning of chapter ${chapterNumber}, call landHere.
 
-ONLY call abortChapter when you are CONFIDENT there is NO next-chapter link AND NO table-of-contents entry for chapter ${chapterNumber}. Before aborting, retry: re-read the page, look for a TOC toggle/menu, and try alternative controls several times. Calling abortChapter means chapter ${chapterNumber - 1} was the LAST chapter of the book.
+${buildUserInteractionWallBlock(
+  "call siteBlocked with the wall type as the reason (the site will be marked unusable and the crawl will switch to a different one)",
+)}
+
+ONLY call abortChapter when you are CONFIDENT there is NO next-chapter link AND NO table-of-contents entry for chapter ${chapterNumber}, and you are not blocked by any wall (see above). Before aborting, retry: re-read the page, look for a TOC toggle/menu, and try alternative controls several times. Calling abortChapter means chapter ${chapterNumber - 1} was the LAST chapter of the book.
 
 Rules:
 - Use only the tools provided.
@@ -212,11 +233,19 @@ Rules:
 
 /**
  * TOC-fallback prompt. Given an anchor page ON THE CURRENT SITE (a rejected
- * candidate, the previous chapter's page, or the source URL), find and click
- * the table of contents (目录 / 章节列表), then the entry for chapter N. This
- * recovers two cases the main paths can't:
- *   - search/judge landed on the right site but the wrong page (TOC/chapter 1)
- *   - the site hides per-chapter links but exposes a TOC
+ * candidate — typically the book homepage or TOC page the search path found —
+ * the previous chapter's page, or the source URL), find and click the table
+ * of contents (目录 / 章节列表), then the entry for chapter N. This is the
+ * PRIMARY route to any mid-book chapter: search deliberately finds only
+ * book-level pages, and the TOC is how the chapter is actually reached.
+ *
+ * TOC-FIRST MANDATE: after landing from the search engine, the agent's first
+ * action (after reading the page) is ALWAYS to get the TOC open — never a
+ * "start reading" button (those jump to chapter 1 / a resume point), never a
+ * loose chapter link. Every subsequent move happens inside the TOC. Enforced
+ * as a strict step order plus explicit prohibitions in the prompt; click
+ * targets can't be semantically vetted deterministically.
+ *
  * A readable TOC with NO entry for N → chapterMissing (finality signal). A
  * paywalled/captcha'd TOC is NOT finality — the agent must report blocked.
  */
@@ -225,42 +254,45 @@ function buildTocSystemPrompt(
   chapterNumber: number,
 ): string {
   const titlePart = novel.title.trim() || "the novel";
-  return `You are a web-navigation agent controlling a browser via tools. A page of "${titlePart}" is open on a reading site. Your goal is to reach the BEGINNING of chapter ${chapterNumber} using the site's table of contents.
+  return `You are a web-navigation agent controlling a browser via tools. A page of "${titlePart}" is open on a reading site — typically the book's homepage or a reading page that a search engine led to. Your goal is the BEGINNING of chapter ${chapterNumber}, and the table of contents (目录 / 章节列表 / chapter list / contents / 全部章节) is the ONLY road there. Your very first action after reading the page must be to get the TOC open; everything else happens inside it.
 
-Steps:
+Steps — strictly in this order:
 1. Call getFlattenDOM to read the current page.
-2. Find the site's table of contents (目录 / 章节列表 / chapter list / contents). It may be a link or button on this page; click it with clickElement. If the current page already contains the TOC, use it directly.
-3. In the TOC, find the entry for chapter ${chapterNumber} (match the number, e.g. "第${chapterNumber}章", "${chapterNumber}", or the chapter title). Long TOCs are often paginated — use the TOC's own pagination controls until the entry is visible.
+2. Get the table of contents OPEN before clicking anything else:
+   - If the page already shows the chapter list (even partially), use it directly.
+   - Otherwise click the TOC control/link (目录 / 章节列表 / 全部章节 / chapter list / contents) with clickElement.
+3. Inside the TOC, find the entry for chapter ${chapterNumber} (match the number, e.g. "第${chapterNumber}章", "${chapterNumber}", or the chapter title). Long TOCs are often collapsed or paginated:
+   - Look for a "展开 / 全部章节 / 显示全部 / expand" toggle that reveals the full list — click it first.
+   - Use the TOC's own pagination controls (下一页 / page numbers / jump-to-page input) until the entry is visible. For very long books, prefer a page-jump input over clicking "next" repeatedly.
+   - Some sites load more entries as you scroll — if the list looks truncated, scroll and re-read the DOM.
 4. clickElement on that entry, then getFlattenDOM to confirm the new page shows the BEGINNING of chapter ${chapterNumber}.
 5. On success call landHere.
 
-If the TOC is readable and loaded but there is genuinely NO entry for chapter ${chapterNumber} anywhere in it (you paginated through the end), call chapterMissing.
+NEVER click a "start reading" style button (开始阅读 / 立即阅读 / 免费阅读 / 继续阅读 / start reading / read now): it jumps to chapter 1 or the site's resume point — even when chapter 1 IS the target, use the TOC's own entry. Before the TOC is open, the only control you may click is the TOC control itself; once it is open, the only chapter link you may click is the TOC entry for chapter ${chapterNumber}.
 
-If you cannot proceed because of a paywall (付费 / VIP / 登录后阅读 / subscription), a human-verification challenge (captcha / 人机验证 / 滑动验证), a login wall, or the TOC simply never loads, call siteBlocked with a short reason.
+If the TOC is readable and loaded but there is genuinely NO entry for chapter ${chapterNumber} anywhere in it (you expanded/paginated through the end), call chapterMissing.
+
+${buildUserInteractionWallBlock(
+  "call siteBlocked with the wall type as the reason (the site will be marked unusable and the crawl will switch to a different one)",
+)}
 
 Rules:
 - Use only the tools provided.
 - Do not guess or fabricate: chapterMissing only after actually reading the TOC list.
+- Never navigate to a search engine or perform any web search; only click controls on the current site.
 - Do not call landHere until you are certain you are on chapter ${chapterNumber}'s beginning.`;
 }
 
 /**
- * `chapterMissing` / `siteBlocked` — the TOC agent's failure terminals.
- * `chapterMissing` (readable TOC, provably no N) is the ONLY signal that
- * confirms `FinalChapterError`; `siteBlocked` marks the site dead instead.
+ * `chapterMissing` — the TOC agent's failure terminal. (readable TOC,
+ * provably no N) is the ONLY signal that confirms `FinalChapterError`;
+ * `siteBlocked` (shared, from crawlWallPrompt) marks the site dead instead.
  */
 const chapterMissingTool = tool({
   description:
     "Call this when the table of contents is readable and fully examined (paginated to the end) and there is genuinely no entry for the target chapter.",
   inputSchema: z.object({ reason: z.string() }),
   execute: async ({ reason }) => ({ missing: true, reason }),
-});
-
-const siteBlockedTool = tool({
-  description:
-    "Call this when you cannot proceed on this site: paywall, captcha/human verification, login wall, or the TOC never loads.",
-  inputSchema: z.object({ reason: z.string() }),
-  execute: async ({ reason }) => ({ blocked: true, reason }),
 });
 
 // --- Search-path judge (one candidate) --------------------------------------
@@ -413,8 +445,10 @@ async function landViaSearch(
  * reach chapter N. Recovery: if the tab isn't on a real page (e.g. after
  * restart), re-navigate to `source_chapters(N-1).url` first — the sole DB-URL
  * read. Outcomes: `landed` (landHere fired) / `aborted` (agent's confident
- * no-chapter-N claim — pending TOC confirmation) / `blocked` (step exhaustion
- * or no recovery anchor — paywall/captcha typically exhaust here).
+ * no-chapter-N claim — pending TOC confirmation) / `blocked` (siteBlocked
+ * fired on a login/paywall/captcha/age-gate, step exhaustion, or no recovery
+ * anchor — the chain then tries the TOC fallback, and a wall there marks the
+ * site dead for a re-search elsewhere).
  */
 async function landViaAdvance(
   novel: InternetNovel,
@@ -460,10 +494,12 @@ async function landViaAdvance(
       clickElement: clickElementTool,
       landHere: landHereTool,
       abortChapter: abortChapterTool,
+      siteBlocked: siteBlockedTool,
     },
     stopWhen: [
       hasSuccessfulToolResult("landHere"),
       hasSuccessfulToolResult("abortChapter"),
+      hasSuccessfulToolResult("siteBlocked"),
       isStepCount(12),
     ],
     maxRetries: settingsService.settings.maxRetries,
@@ -493,6 +529,16 @@ async function landViaAdvance(
         String((abort.output as { reason?: unknown }).reason ?? "")
       : "";
     return { kind: "aborted", reason };
+  }
+  const blocked = toolResults.find(
+    (tr) => tr.toolName === "siteBlocked" && tr.type === "tool-result",
+  );
+  if (blocked) {
+    const reason =
+      typeof blocked.output === "object" && blocked.output !== null ?
+        String((blocked.output as { reason?: unknown }).reason ?? "")
+      : "";
+    return { kind: "blocked", reason };
   }
   return {
     kind: "blocked",
@@ -545,7 +591,7 @@ async function landViaToc(
         hasSuccessfulToolResult("landHere"),
         hasSuccessfulToolResult("chapterMissing"),
         hasSuccessfulToolResult("siteBlocked"),
-        isStepCount(16),
+        isStepCount(24), // deep TOC pagination: expand + jump pages + click entry
       ],
       maxRetries: settingsService.settings.maxRetries,
       timeout: TIMEOUTS.actionExecution,
