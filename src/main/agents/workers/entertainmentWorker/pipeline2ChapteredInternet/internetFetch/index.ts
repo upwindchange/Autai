@@ -199,6 +199,17 @@ export async function fetchInternetChapter(
       });
       return "finalChapter";
     }
+    // An aborted runner (thread switch / Stop / wizard restart, or a new
+    // runner replacing this one) is NOT a source failure. Skip the "error"
+    // write so the row stays "fetching" and the next runner re-fetches it
+    // instead of it scarring "error" and requiring a manual Redo-failed.
+    if (options.abortSignal?.aborted) {
+      logger.info("fetch aborted (runner stopped)", {
+        threadId,
+        chapterNumber,
+      });
+      return "error";
+    }
     logger.error("source acquire failed", { threadId, chapterNumber, err });
     entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
       status: "error",

@@ -31,6 +31,12 @@ import { ReaderFooter } from "./reader/ReaderFooter";
 // footer pill on both tall phones and short desktop windows.
 const HOVER_BAND_PX = 120;
 
+// Module-level mount generation + pending unmount-clear timer for the
+// reader-cursor effect below. Module scope (not state): it must survive across
+// StrictMode's mount→cleanup→mount cycle and be shared by both instances.
+let readerCursorMountGeneration = 0;
+let readerCursorClearTimer: number | null = null; // window.setTimeout id
+
 /**
  * Entertainment thread — a guided novel-reading surface.
  *
@@ -108,10 +114,24 @@ export const EntertainmentThread: FC = () => {
   }, [activeThreadId, currentChapterNumber, setReaderCursor]);
 
   // Null the cursor on unmount only — a separate effect so its cleanup doesn't
-  // fire on every chapter nav.
+  // fire on every chapter nav. StrictMode double-mount (and any boot-time
+  // remount) runs mount→cleanup→mount back-to-back; a naive clear there PUTs a
+  // null cursor right after the set-effect PUT the thread id, and the backend
+  // reader-cursor route then stopThread()s the runner that PUT just started.
+  // Defer the clear by a macrotask; a successor mount cancels it (a real
+  // unmount has no successor).
   useEffect(() => {
+    const myGeneration = ++readerCursorMountGeneration;
     return () => {
-      void setReaderCursor(null, null);
+      if (readerCursorClearTimer !== null) {
+        window.clearTimeout(readerCursorClearTimer);
+        readerCursorClearTimer = null;
+      }
+      readerCursorClearTimer = window.setTimeout(() => {
+        readerCursorClearTimer = null;
+        if (readerCursorMountGeneration !== myGeneration) return; // remounted
+        void setReaderCursor(null, null);
+      }, 0);
     };
   }, [setReaderCursor]);
 

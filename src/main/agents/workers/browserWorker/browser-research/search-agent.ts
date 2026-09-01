@@ -7,6 +7,7 @@ import {
   writeSimulatedToolCallToStream,
   concurrentBatch,
   TIMEOUTS,
+  isAbortError,
   isTimeoutError,
   type BatchStatusUpdate,
   type TaskStatus,
@@ -433,6 +434,12 @@ async function executeSingleSearchQuery(
     logger.warn("LLM failed to extract search results", { query });
     return [];
   } catch (error) {
+    if (isAbortError(error)) {
+      // Runner was aborted (thread switch / stop / wizard restart) — not a
+      // user-facing failure; no warning toast for it.
+      logger.info("Search query aborted", { query });
+      return [];
+    }
     const errorMessage = error instanceof Error ? error.message : String(error);
     logger.error("Search query failed", {
       query,
@@ -467,6 +474,9 @@ export async function executeSearchQueries(
   const sessionTabService = SessionTabService.getInstance();
   const searchPlanId = planId ?? `research-search-${sessionId}`;
 
+  // Already aborted (thread switched/stopped mid-flight): creating search
+  // tabs for a dead signal only churns the UI (tab flash) and races teardown.
+  if (signal?.aborted) return [];
   // Close ALL existing tabs in the session
   await sessionTabService.destroyAllTabs(sessionId);
 
@@ -560,7 +570,10 @@ export async function executeSearchQueries(
 
     return deduplicateResults(allResults);
   } finally {
-    // Destroy ALL tabs
-    await sessionTabService.destroyAllTabs(sessionId);
+    // Destroy ALL tabs. Teardown must never mask the function's own result
+    // with an ERR_FAILED from a dying webContents — log and move on.
+    await sessionTabService.destroyAllTabs(sessionId).catch((err) => {
+      logger.error("Search tab teardown failed", { sessionId, err });
+    });
   }
 }

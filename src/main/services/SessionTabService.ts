@@ -253,7 +253,15 @@ export class SessionTabService extends EventEmitter {
       );
       const dataUrl = `data:text/html,${encodeURIComponent(html)}`;
       this.logger.debug("Loading welcome page to initialize DOM");
-      await tab.webContents.loadURL(dataUrl);
+      // The welcome page is a placeholder whose only job is to give the
+      // webContents a DOM to introspect. If its load is interrupted (most
+      // commonly destroyTab's stop() rejecting a still-pending loadURL when
+      // the tab is torn down mid-load), that rejection MUST NOT propagate to
+      // the caller — it would surface as ERR_FAILED and poison whichever
+      // fetch chain owns this tab.
+      await tab.webContents.loadURL(dataUrl).catch((error) => {
+        this.logger.debug("Welcome page load did not complete:", error);
+      });
       setupDOMBuilding();
     }
 
@@ -266,21 +274,33 @@ export class SessionTabService extends EventEmitter {
 
     const tab = this.tabs.get(tabId);
     const metadata = this.tabMetadata.get(tabId);
+    const domService = this.domServices.get(tabId);
+    const interactionService = this.interactionServices.get(tabId);
     if (!tab || !metadata) {
       // Even if we don't have the tab, still try to clean up from storage
       this.tabs.delete(tabId);
       this.tabMetadata.delete(tabId);
+      this.domServices.delete(tabId);
+      this.interactionServices.delete(tabId);
       return;
     }
 
-    // Cleanup DOM service (detaches its debugger) — previously only deleted
-    // from the map, leaving the CDP debugger attached during webContents
-    // teardown below.
+    // Remove from storage synchronously BEFORE any await. destroyTab runs
+    // concurrently with the tab's own in-flight loads/navigations; if a
+    // pending loadURL rejects (stop()/close() below abort it with
+    // ERR_FAILED/ERR_ABORTED), that rejection must land on an unhandled
+    // catch inside teardown — never propagate up destroyTab's callers
+    // (executeSearchQueries' finally → the whole fetch chain). Tab teardown
+    // must be fire-and-forget with respect to the dying webContents.
+    this.tabs.delete(tabId);
+    this.tabMetadata.delete(tabId);
+    this.domServices.delete(tabId);
+    this.interactionServices.delete(tabId);
+
+    // Cleanup DOM service (detaches its debugger).
     try {
-      const domService = this.domServices.get(tabId);
       if (domService) {
         await domService.destroy();
-        this.domServices.delete(tabId);
         this.logger.debug(`DOMService destroyed for tab ${tabId}`);
       }
     } catch (error) {
@@ -292,20 +312,19 @@ export class SessionTabService extends EventEmitter {
 
     // Cleanup interaction service
     try {
-      const interactionService = this.interactionServices.get(tabId);
       if (interactionService) {
         await interactionService.destroy();
-        this.interactionServices.delete(tabId);
         this.logger.debug(
           `ElementInteractionService destroyed for tab ${tabId}`,
         );
       }
     } catch (error) {
       this.logger.error(
-        `Error cleaning up interaction service for tab ${tabId}:`,
+        `Error cleaning up interaction service for ${tabId}:`,
         error,
       );
     }
+
 
     try {
       // Stop and cleanup WebContents
@@ -369,11 +388,7 @@ export class SessionTabService extends EventEmitter {
       }
     }
 
-    // Clean up storage
-    this.tabs.delete(tabId);
-    this.tabMetadata.delete(tabId);
-    this.domServices.delete(tabId);
-
+    // (storage maps were already cleared synchronously at entry)
     this.emit("threadview:destroyed", tabId);
     this.logger.info(`Tab ${tabId} destroyed successfully`);
   }
