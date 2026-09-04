@@ -154,7 +154,14 @@ export const entertainmentConfigs = sqliteTable("entertainment_configs", {
   // Final chapter number of the book. null = unknown → assume the next chapter
   // exists.
   // Distinct from lastReadChapterNumber (resume position).
+  // Final chapter number of the book. null = unknown → assume the next chapter
+  // exists.
+  // Distinct from lastReadChapterNumber (resume position).
   finalChapterNumber: integer("final_chapter_number"),
+  // Dead-site blocklist for internet fetches, JSON `Record<hostname, reason>`
+  // (e.g. { "www.shuqi.com": "paywall" }). Persistent so a restart (or a
+  // Redo-failed retry) does not re-crawl the same dead sites; null/{} = none.
+  blockedSites: text("blocked_sites"),
   rawText: text("raw_text"),
   rawConsumedOffset: integer("raw_consumed_offset").notNull().default(0),
   createdAt: text("created_at")

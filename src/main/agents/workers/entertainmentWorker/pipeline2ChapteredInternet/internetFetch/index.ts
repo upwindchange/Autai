@@ -5,8 +5,8 @@ import {
   entertainmentBackendService,
 } from "@/services";
 import type { InternetNovel } from "@shared";
-import { landOnChapter } from "./phase1Land";
-import { extractChapter } from "./phase2Extract";
+import { landOnChapter, clearSearchCandidatePools } from "./phase1Land";
+import { extractChapter, SiteDeadendError } from "./phase2Extract";
 
 const logger = log.scope("Dehydrate:InternetFetch");
 
@@ -17,11 +17,11 @@ const logger = log.scope("Dehydrate:InternetFetch");
  * expect — all zero-token (never appears in a prompt). This is the "context
  * API" pattern: data reaches tool business logic without consuming tokens.
  *
- * `blockedDomains` — hostnames the fetch chain has judged DEAD for this thread
- * (paywall/captcha/永久性无法导航 on that site). Held in memory, keyed by
- * threadId, shared across chapters: a site that blocked chapter N is not
- * retried for N+1; the chain moves to a different site instead. Lost on main
- * restart — acceptable: a fresh process re-probes and re-blocks if needed.
+ * `blockedSites` — hostnames the fetch chain has judged DEAD for this thread,
+ * persisted in `entertainment_configs.blocked_sites` as hostname → reason
+ * (paywall / captcha / wrong-content / …) via `entertainmentBackendService`.
+ * Shared across chapters AND across restarts: a site that dead-ended chapter
+ * N is not re-crawled for N+1 or after a Redo-failed re-run.
  */
 export interface InternetFetchContext {
   sessionId: string;
@@ -31,28 +31,25 @@ export interface InternetFetchContext {
   abortSignal?: AbortSignal;
 }
 
-// threadId → set of blocked hostnames (see InternetFetchContext above).
-const blockedDomains = new Map<string, Set<string>>();
-
-/** Mark a hostname dead for a thread (phase 1's fallback chain). */
-export function blockDomainForThread(threadId: string, hostname: string): void {
-  let set = blockedDomains.get(threadId);
-  if (!set) {
-    set = new Set();
-    blockedDomains.set(threadId, set);
-  }
-  set.add(hostname);
-  logger.info("domain blocked for thread", { threadId, hostname });
+/** Hostnames known dead for a thread (empty record when none). */
+export function getBlockedDomains(threadId: string): ReadonlySet<string> {
+  return new Set(
+    Object.keys(entertainmentBackendService.getBlockedSites(threadId)),
+  );
 }
 
-/** Hostnames known dead for a thread (empty set when none). */
-export function getBlockedDomains(threadId: string): Set<string> {
-  return blockedDomains.get(threadId) ?? new Set<string>();
+/** Mark a hostname dead for a thread with a reason (idempotent). */
+export function blockDomainForThread(
+  threadId: string,
+  hostname: string,
+  reason = "unusable",
+): void {
+  entertainmentBackendService.blockSite(threadId, hostname, reason);
 }
 
 /** Drop a thread's blocklist (called when the thread's crawl tab is released). */
 export function clearBlockedDomains(threadId: string): void {
-  blockedDomains.delete(threadId);
+  entertainmentBackendService.clearBlockedSites(threadId);
 }
 
 export interface FetchChapterOptions {
@@ -65,6 +62,13 @@ export interface FetchChapterOptions {
    * reads it here.
    */
   useSearch?: boolean;
+  /**
+   * URLs already probed (judged / navigated) during the CURRENT fetch —
+   * hoisted here by the site-rotation loop so a rotation's re-landing pass
+   * never re-judges a candidate it already rejected. Accumulated across
+   * rotation attempts within one `fetchInternetChapter` call.
+   */
+  probedUrls?: Set<string>;
   abortSignal?: AbortSignal;
 }
 
@@ -116,10 +120,21 @@ async function destroyCrawlTab(
   const sts = SessionTabService.getInstance();
   await sts.destroyAllTabs(sessionId);
   clearBlockedDomains(threadId);
+  clearSearchCandidatePools(threadId);
 }
 
 /** Terminal status the fetch reports back to its caller. */
 export type FetchOutcome = "fetched" | "finalChapter" | "error";
+
+/**
+ * Max distinct sites one chapter fetch will fully land + extract on before
+ * declaring the chapter unreadable. A search returns 5-8 candidates but only
+ * 3-5 distinct organic reading sites; three phase-2 dead ends is a strong
+ * signal the book isn't freely readable anywhere mainstream. Blocked sites
+ * persist, so later chapters (or a Redo-failed retry) start where this fetch
+ * left off instead of re-paying for the same dead sites.
+ */
+const MAX_LANDED_SITES_PER_FETCH = 3;
 
 /**
  * Acquire one chapter of an internet novel and own its `source_chapters` row
@@ -179,12 +194,60 @@ export async function fetchInternetChapter(
   });
 
   try {
-    await landOnChapter(novel, ctx, { ...options, useSearch });
-    await extractChapter(novel, ctx);
-    entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
-      status: "fetched",
-    });
-    return "fetched";
+    // Site rotation: land + extract on one distinct site at a time. A phase-2
+    // dead end (paywall discovered mid-extraction, etc.) marks that site dead
+    // and re-runs landing with the expanded blocklist, so the next attempt
+    // lands on a DIFFERENT site. `probedUrls` survives across attempts so no
+    // candidate is judged twice in one fetch.
+    const probedUrls = new Set<string>();
+    const landedHosts = new Set<string>();
+    let forceSearch = useSearch;
+    for (;;) {
+      if (options.abortSignal?.aborted) throw new Error("aborted");
+      await landOnChapter(novel, ctx, {
+        ...options,
+        useSearch: forceSearch,
+        probedUrls,
+      });
+      // A rotation must land on a DIFFERENT site: the advance path would
+      // re-advance from the same (now blocklisted) site's tab, so every
+      // attempt after the first anchors via search with the grown blocklist.
+      forceSearch = true;
+      const landedUrl =
+        entertainmentFrontendService.getSourceChapter(threadId, chapterNumber)
+          ?.url ?? "";
+      const landedHost = hostnameOf(landedUrl);
+      if (landedHost) landedHosts.add(landedHost);
+
+      try {
+        await extractChapter(novel, ctx);
+        entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
+          status: "fetched",
+        });
+        return "fetched";
+      } catch (err) {
+        // A typed site dead end (wall / unreadable content on the landed
+        // site) rotates to the next site; any other phase-2 failure is a
+        // genuine error.
+        if (!(err instanceof SiteDeadendError)) throw err;
+        if (!landedHost) throw err; // no URL captured — cannot blocklist
+        blockDomainForThread(threadId, landedHost, err.reason);
+        logger.info("site dead-ended during extraction; rotating", {
+          threadId,
+          chapterNumber,
+          host: landedHost,
+          reason: err.reason,
+          landedSites: landedHosts.size,
+        });
+        if (landedHosts.size >= MAX_LANDED_SITES_PER_FETCH) {
+          throw new Error(
+            `chapter ${chapterNumber} unreadable: ${landedHosts.size} sites dead-ended (${[...landedHosts].map((h) => `${h}: ${entertainmentBackendService.getBlockedSites(threadId)[h] ?? "?"}`).join("; ")})`,
+          );
+        }
+        // Rotation: the next landOnChapter pass re-searches with the expanded
+        // blocklist and cannot land on any host in `landedHosts`.
+      }
+    }
   } catch (err) {
     if (err instanceof FinalChapterError) {
       await destroyCrawlTab(sessionId, threadId); // book done — release tab + blocklist
@@ -215,5 +278,14 @@ export async function fetchInternetChapter(
       status: "error",
     });
     return "error";
+  }
+}
+
+/** Hostname of a URL, or null when unparseable. */
+function hostnameOf(url: string): string | null {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return null;
   }
 }

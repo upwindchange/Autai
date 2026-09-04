@@ -29,6 +29,19 @@ import {
 
 const logger = log.scope("Dehydrate:InternetFetch:Phase1");
 
+/**
+ * RAM cache of resolved search-result URLs per thread (see landViaSearch).
+ * Keyed by threadId; a rotation reuses the pool instead of re-paying the
+ * LLM search analysis, and `clearSearchCandidatePools` empties it at
+ * crawl-tab release so a NEW book crawl starts fresh.
+ */
+const searchCandidatePools = new Map<string, string[]>();
+
+/** Drop the thread's cached candidate pool (crawl tab released / book done). */
+export function clearSearchCandidatePools(threadId: string): void {
+  searchCandidatePools.delete(threadId);
+}
+
 // --- Terminal tools ---------------------------------------------------------
 
 /**
@@ -368,33 +381,55 @@ async function landViaSearch(
   excludeUrls: ReadonlySet<string>,
   excludeDomains: ReadonlySet<string>,
 ): Promise<{ landed: boolean; tocAnchors: string[] }> {
-  // 1) Gather candidates (RAM-only). [novel.source] if it's already a URL;
-  //    otherwise one query via executeSearchQueries in a transient search session.
+  // 1) Gather candidates. [novel.source] if it's already a URL; otherwise one
+  //    query via executeSearchQueries, CACHED per thread: the LLM search
+  //    analysis is the expensive part (page load + model call), and site
+  //    rotation re-enters here per dead site. A cached pool is re-filtered
+  //    against the GROWN blocklist each time; only a pool whose hosts are all
+  //    blocked/dead triggers a fresh search. Cleared when the crawl tab is
+  //    released (book end) via clearSearchCandidatePool below.
   let candidates: string[];
   if (isAbsoluteUrl(novel.source.trim())) {
     candidates = [novel.source.trim()];
   } else {
-    const plan = buildSearchPlan(novel, ctx.chapterNumber);
-    // executeSearchQueries creates/destroys its own tabs in this session, but
-    // SessionTabService only tracks tabs for a session that has been activated
-    // (createTab registers into `sessionStates[sessionId]` only if it exists).
-    // Without activateSession, getTabsForSession returns [] → 0 candidates.
-    const searchSessionId = `ent-search-${ctx.threadId}`;
-    const sts = SessionTabService.getInstance();
-    await sts.activateSession(searchSessionId);
-    try {
-      const results = await executeSearchQueries(
-        plan,
-        searchSessionId,
-        "",
-        { write() {} },
-        undefined,
-        ctx.abortSignal,
-      );
-      candidates = results.map((r) => r.url).filter((u) => !!u);
-    } finally {
-      // Restore the crawl session as active so the crawl tab is visible again.
-      await sts.activateSession(ctx.sessionId);
+    const cached = searchCandidatePools.get(ctx.threadId);
+    const blocked = new Set(excludeDomains);
+    const usable = cached?.filter((url) => {
+      const host = hostnameOf(url);
+      return !host || !blocked.has(host);
+    });
+    if (usable && usable.length > 0) {
+      candidates = usable;
+      logger.info("using cached search candidates", {
+        threadId: ctx.threadId,
+        pool: cached!.length,
+        usable: usable.length,
+      });
+    } else {
+      const plan = buildSearchPlan(novel, ctx.chapterNumber);
+      // executeSearchQueries creates/destroys its own tabs in this session,
+      // but SessionTabService only tracks tabs for a session that has been
+      // activated (createTab registers into `sessionStates[sessionId]` only
+      // if it exists). Without activateSession, getTabsForSession returns
+      // [] → 0 candidates.
+      const searchSessionId = `ent-search-${ctx.threadId}`;
+      const sts = SessionTabService.getInstance();
+      await sts.activateSession(searchSessionId);
+      try {
+        const results = await executeSearchQueries(
+          plan,
+          searchSessionId,
+          "",
+          { write() {} },
+          undefined,
+          ctx.abortSignal,
+        );
+        candidates = results.map((r) => r.url).filter((u) => !!u);
+        searchCandidatePools.set(ctx.threadId, candidates);
+      } finally {
+        // Restore the crawl session as active so the crawl tab is visible again.
+        await sts.activateSession(ctx.sessionId);
+      }
     }
   }
   // Filter dead domains + already-probed URLs. Keep first occurrence only.
@@ -648,7 +683,10 @@ export async function landOnChapter(
   options: FetchChapterOptions,
 ): Promise<void> {
   const n = ctx.chapterNumber;
-  const probedUrls = new Set<string>();
+  // Reuse the fetch-level probed set when the rotation loop passed one, so a
+  // rotation's re-landing never re-judges a candidate already rejected in an
+  // earlier attempt of the SAME fetch.
+  const probedUrls = options.probedUrls ?? new Set<string>();
   const tocAnchors: string[] = [];
 
   // --- Step 1: primary path -------------------------------------------------
@@ -702,7 +740,7 @@ export async function landOnChapter(
     tab?.webContents && !tab.webContents.isDestroyed() ?
       hostnameOf(tab.webContents.getURL())
     : null;
-  if (deadHost) blockDomainForThread(ctx.threadId, deadHost);
+  if (deadHost) blockDomainForThread(ctx.threadId, deadHost, "landing failed");
 
   const reSearch = await landViaSearch(
     novel,

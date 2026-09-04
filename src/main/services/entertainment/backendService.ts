@@ -302,7 +302,66 @@ class EntertainmentBackendService {
     });
   }
 
-  // --- crash recovery ------------------------------------------------------
+  // --- internet dead-site blocklist ----------------------------------------
+
+  /**
+   * Read the thread's persistent dead-site blocklist: hostname → reason the
+   * site was judged dead (paywall / captcha / wrong-content / …). Stored as
+   * JSON in `entertainment_configs.blocked_sites`; never throws — malformed
+   * stored JSON yields an empty record.
+   */
+  getBlockedSites(threadId: string): Record<string, string> {
+    const db = getDb();
+    const row = db
+      .select({ blockedSites: entertainmentConfigs.blockedSites })
+      .from(entertainmentConfigs)
+      .where(eq(entertainmentConfigs.threadId, threadId))
+      .get();
+    if (!row?.blockedSites) return {};
+    try {
+      const parsed: unknown = JSON.parse(row.blockedSites);
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        Object.values(parsed).every((v) => typeof v === "string")
+      ) {
+        return parsed as Record<string, string>;
+      }
+      return {};
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * Mark a hostname dead for the thread with a reason. Idempotent merge into
+   * the stored JSON (the FIRST reason a site earns is kept — it is the most
+   * specific diagnosis).
+   */
+  blockSite(threadId: string, hostname: string, reason: string): void {
+    const blocked = this.getBlockedSites(threadId);
+    if (hostname in blocked) return;
+    blocked[hostname] = reason;
+    const db = getDb();
+    db.update(entertainmentConfigs)
+      .set({ blockedSites: JSON.stringify(blocked), updatedAt: NOW })
+      .where(eq(entertainmentConfigs.threadId, threadId))
+      .run();
+    logger.info("site blocked for thread", { threadId, hostname, reason });
+  }
+
+  /**
+   * Reset the blocklist (called when the crawl tab is released at book end,
+   * or on an explicit user reset so a site can be re-probed).
+   */
+  clearBlockedSites(threadId: string): void {
+    const db = getDb();
+    db.update(entertainmentConfigs)
+      .set({ blockedSites: null, updatedAt: NOW })
+      .where(eq(entertainmentConfigs.threadId, threadId))
+      .run();
+  }
+
 
   /**
    * Demote every in-progress status left over from a previous process that
