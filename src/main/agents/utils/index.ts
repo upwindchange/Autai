@@ -1,6 +1,7 @@
 export { getAppMode, isDevMode } from "./environment";
 export { TIMEOUTS, isAbortError, isTimeoutError } from "./timeouts";
 export { PQueueManager } from "./pQueueManager";
+export { withDomHistoryPruning } from "./domHistoryPruning";
 export { normalizeText } from "./textNormalize";
 export {
   concurrentBatch,

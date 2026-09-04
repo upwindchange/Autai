@@ -1,8 +1,13 @@
-import { streamText, isStepCount, tool } from "ai";
+import { streamText, generateText, isStepCount, tool } from "ai";
 import { z } from "zod";
 import log from "electron-log/main";
-import { complexModel } from "@agents/providers";
-import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
+import { createIdGenerator } from "@ai-sdk/provider-utils";
+import { simpleModel } from "@agents/providers";
+import {
+  hasSuccessfulToolResult,
+  TIMEOUTS,
+  withDomHistoryPruning,
+} from "@agents/utils";
 import {
   settingsService,
   entertainmentFrontendService,
@@ -16,6 +21,7 @@ import { executeSearchQueries } from "@agents/workers/browserWorker/browser-rese
 import type { ResearchPlan } from "@agents/workers/browserWorker/browser-research/planner";
 import type { InternetNovel } from "@shared";
 import type { FetchChapterOptions, InternetFetchContext } from "./index";
+import { getPageDigest, type PageDigest } from "./pageDigest";
 import {
   FinalChapterError,
   blockDomainForThread,
@@ -26,6 +32,8 @@ import {
   SITE_BLOCKED_TOOL_DESCRIPTION,
   buildUserInteractionWallBlock,
 } from "../../shared/crawlWallPrompt";
+
+const generateId = createIdGenerator({ prefix: "call", size: 24 });
 
 const logger = log.scope("Dehydrate:InternetFetch:Phase1");
 
@@ -217,6 +225,33 @@ ${buildUserInteractionWallBlock(
 Call landHere ONLY when the page is truly showing the start of ${label}'s prose.`;
 }
 
+/**
+ * Digest variant of the judge prompt: same target/wall/pedia guidance as
+ * `buildJudgeSystemPrompt`, but the input is a ~1.2k-char page digest instead
+ * of a DOM tree — no tools, one verdict call.
+ */
+function buildJudgeDigestPrompt(
+  novel: InternetNovel,
+  chapterNumber: number,
+): string {
+  const label = `chapter ${chapterNumber}`;
+  const titlePart = novel.title.trim() || "the requested novel";
+  const authorPart = novel.author?.trim() ? ` by ${novel.author.trim()}` : "";
+  return `You are judging whether a page is the beginning of a specific piece of content. You are given a JSON digest of the page: title, first heading, url, text (first ~1200 chars of visible body text), and wallMarkers (wall-vocabulary substrings found in the text — hints that may also appear as page chrome on readable pages; decide from the text).
+
+Target: ${label} of "${titlePart}"${authorPart}.
+
+- If the page IS the beginning of ${label}'s actual prose content, call judgeVerdict with verdict "landHere".
+- If it is NOT the beginning of ${label}'s prose — a search engine, 404/error page, site homepage, table of contents / index, a DIFFERENT piece of content, or a USER-INTERACTION WALL (see below) — call judgeVerdict with verdict "rejectCandidate" and a short reason.
+- Encyclopedia/wiki/pedia pages (Wikipedia, 百度百科, 搜狗百科, 360百科, 互动百科, etc.) are NEVER the target — they only contain an introduction ABOUT the novel, never its chapter prose.
+
+${buildUserInteractionWallBlock(
+  'call judgeVerdict with verdict "rejectCandidate" and the wall type as the reason (the orchestrator moves to the next candidate URL)',
+)}
+
+Call judgeVerdict exactly once. Call it with "landHere" ONLY when the digest truly shows the start of ${label}'s prose.`;
+}
+
 function buildAdvanceSystemPrompt(
   novel: InternetNovel,
   chapterNumber: number,
@@ -311,19 +346,105 @@ const chapterMissingTool = tool({
 // --- Search-path judge (one candidate) --------------------------------------
 
 /**
- * Run the minimal judge agent against the page already loaded in the crawl tab.
- * The agent never sees the candidate URL — it only reads the DOM and decides
- * landHere vs rejectCandidate. Bounded by `isStepCount(4)` and the agent-level
- * step timeout; on reject / timeout / exhaustion the caller moves to the next
- * candidate. Returns true iff `landHere` fired (URL already written by it).
+ * Run the judge against the page already loaded in the crawl tab.
+ * Digest path: one `generateText` call over a ~1.2k-char page digest (title,
+ * heading, url, first text) — no DOM tree build, no change detection. Falls
+ * back to the DOM-tree agent when the digest is thin (<200 chars of text) or
+ * collection fails (detached debugger): a shadow-DOM/JS-render page yields a
+ * near-empty digest, and the DOM judge still reads it. Returns true iff the
+ * verdict was landHere (URL already written by `landHereTool`).
  */
 async function judgeCandidate(
   novel: InternetNovel,
   ctx: InternetFetchContext,
 ): Promise<boolean> {
+  let digest: PageDigest | null = null;
+  try {
+    digest = await getPageDigest(ctx.activeTabId);
+  } catch (err) {
+    logger.warn("digest collection failed; falling back to DOM judge", {
+      threadId: ctx.threadId,
+      chapterNumber: ctx.chapterNumber,
+      err,
+    });
+  }
+  if (digest && digest.text.trim().length >= 200) {
+    const verdict = await judgeCandidateViaDigest(novel, ctx, digest);
+    if (verdict === "landHere") {
+      await landHereTool.execute!(
+        {},
+        {
+          toolCallId: generateId(),
+          messages: [],
+          context: ctx,
+        },
+      );
+      return true;
+    }
+    return false;
+  }
+  logger.info("judge digest too thin; falling back to DOM", {
+    threadId: ctx.threadId,
+    chapterNumber: ctx.chapterNumber,
+    textLength: digest?.text.length ?? 0,
+  });
+  return judgeCandidateViaDom(novel, ctx);
+}
+
+/** Verdict tool for the digest-path judge. */
+const judgeVerdictTool = tool({
+  description: "Return the verdict for the candidate page",
+  inputSchema: z.object({
+    verdict: z.enum(["landHere", "rejectCandidate"]),
+    reason: z.string().optional(),
+  }),
+  execute: async (i) => i,
+});
+
+/** One-shot digest judge: returns the verdict, or null on model failure. */
+async function judgeCandidateViaDigest(
+  novel: InternetNovel,
+  ctx: InternetFetchContext,
+  digest: PageDigest,
+): Promise<"landHere" | "rejectCandidate" | null> {
+  const result = await generateText({
+    model: simpleModel().model,
+    instructions: buildJudgeDigestPrompt(novel, ctx.chapterNumber),
+    prompt: JSON.stringify(digest),
+    tools: { judgeVerdict: judgeVerdictTool },
+    toolChoice: "required",
+    maxRetries: 0,
+    abortSignal: ctx.abortSignal,
+    telemetry: {
+      isEnabled: settingsService.settings.langfuse.enabled,
+      functionId: "entertainment-internet-judge-digest",
+    },
+  });
+  const call = result.toolCalls.find((c) => c.toolName === "judgeVerdict");
+  const verdict = call?.input as
+    | { verdict: "landHere" | "rejectCandidate"; reason?: string }
+    | undefined;
+  logger.debug("judge verdict from digest", {
+    threadId: ctx.threadId,
+    chapterNumber: ctx.chapterNumber,
+    verdict: verdict?.verdict ?? "none",
+    reason: verdict?.reason,
+  });
+  return verdict?.verdict ?? null;
+}
+
+/**
+ * The ORIGINAL DOM-tree judge, kept as the thin-digest fallback. Reads the
+ * page with getFlattenDOM and calls landHere / rejectCandidate (URL captured
+ * by landHereTool itself).
+ */
+async function judgeCandidateViaDom(
+  novel: InternetNovel,
+  ctx: InternetFetchContext,
+): Promise<boolean> {
   const label = `chapter ${ctx.chapterNumber}`;
   const result = streamText({
-    model: complexModel().model,
+    model: simpleModel().model,
     instructions: buildJudgeSystemPrompt(novel, ctx.chapterNumber),
     messages: [
       {
@@ -341,7 +462,7 @@ async function judgeCandidate(
       hasSuccessfulToolResult("rejectCandidate"),
       isStepCount(4),
     ],
-    maxRetries: settingsService.settings.maxRetries,
+    maxRetries: 0,
     timeout: TIMEOUTS.actionExecution,
     abortSignal: ctx.abortSignal,
     toolsContext: { getFlattenDOM: ctx, landHere: ctx },
@@ -365,7 +486,9 @@ async function judgeCandidate(
  * of one giant multi-candidate agent. On `landHere` the loop exits early; on
  * reject / navigate-failure / timeout it continues to the next candidate.
  *
- * `excludeUrls` — URLs already probed (or known bad) this chapter; skipped.
+ * `probedUrls` — URLs already probed (or known bad) this chapter; skipped,
+ *   and WRITTEN as candidates are consumed (pre-filter + probe) so the
+ *   fetch-level set dedups on final destinations across rotations.
  * `excludeDomains` — hostnames judged dead for this thread; their candidates
  *   are filtered out entirely (a re-search after blocking a site must land on
  *   a DIFFERENT site).
@@ -378,7 +501,7 @@ async function judgeCandidate(
 async function landViaSearch(
   novel: InternetNovel,
   ctx: InternetFetchContext,
-  excludeUrls: ReadonlySet<string>,
+  probedUrls: Set<string>,
   excludeDomains: ReadonlySet<string>,
 ): Promise<{ landed: boolean; tocAnchors: string[] }> {
   // 1) Gather candidates. [novel.source] if it's already a URL; otherwise one
@@ -394,11 +517,11 @@ async function landViaSearch(
   if (isAbsoluteUrl(novel.source.trim())) {
     candidates = [novel.source.trim()];
   } else {
-    const blocked = new Set(excludeDomains);
+    const blocked = excludeDomains;
     const usable = searchCandidatePools.get(ctx.threadId)?.filter((url) => {
       const host = hostnameOf(url);
       if (host && blocked.has(host)) return false;
-      return !excludeUrls.has(url);
+      return !probedUrls.has(url);
     });
     if (usable && usable.length > 0) {
       candidates = usable;
@@ -424,6 +547,7 @@ async function landViaSearch(
           { write() {} },
           undefined,
           ctx.abortSignal,
+          getBlockedDomains(ctx.threadId),
         );
         candidates = results.map((r) => r.url).filter((u) => !!u);
         searchCandidatePools.set(ctx.threadId, candidates);
@@ -434,13 +558,12 @@ async function landViaSearch(
     }
   }
   // Filter dead domains + already-probed URLs. Keep first occurrence only.
-  const seen = new Set<string>(excludeUrls);
   const tocAnchors: string[] = [];
   const filtered = candidates.filter((url) => {
     const host = hostnameOf(url);
     if (host && excludeDomains.has(host)) return false;
-    if (seen.has(url)) return false;
-    seen.add(url);
+    if (probedUrls.has(url)) return false;
+    probedUrls.add(url);
     return true;
   });
   logger.info("search candidates", {
@@ -468,10 +591,37 @@ async function landViaSearch(
       });
       continue;
     }
+    // Chromium has followed every redirect (engine wrapper, shortener, JS/meta):
+    // read the REAL destination from the live tab.
+    const sts = SessionTabService.getInstance();
+    const tab = sts.getTab(ctx.activeTabId);
+    const finalUrl =
+      tab?.webContents && !tab.webContents.isDestroyed()
+        ? tab.webContents.getURL()
+        : candidateUrl;
+    // Two different wrappers leading to the same destination: second is a no-op.
+    if (finalUrl !== candidateUrl && probedUrls.has(finalUrl)) {
+      continue;
+    }
+    const finalHost = hostnameOf(finalUrl);
+    // The agent-side skip is best-effort; THIS is the authoritative check. The
+    // DESTINATION (not the wrapper host) may be a blocklisted dead site — skip
+    // the judge entirely, record both URLs as probed.
+    if (finalHost && excludeDomains.has(finalHost)) {
+      logger.info("candidate redirected to blocked site; skipping", {
+        candidateUrl,
+        finalUrl,
+      });
+      probedUrls.add(finalUrl);
+      continue;
+    }
     if (await judgeCandidate(novel, ctx)) {
       return { landed: true, tocAnchors };
     }
-    tocAnchors.push(candidateUrl); // rejected — but useful as a nav anchor
+    // Record the REAL url: TOC anchors must open the real page and the hoisted
+    // probed set must dedup on final destinations, not engine wrappers.
+    probedUrls.add(finalUrl);
+    tocAnchors.push(finalUrl);
   }
   return { landed: false, tocAnchors };
 }
@@ -517,7 +667,7 @@ async function landViaAdvance(
   }
 
   const result = streamText({
-    model: complexModel().model,
+    model: withDomHistoryPruning(simpleModel().model),
     instructions: buildAdvanceSystemPrompt(novel, ctx.chapterNumber),
     messages: [
       {
@@ -538,7 +688,7 @@ async function landViaAdvance(
       hasSuccessfulToolResult("siteBlocked"),
       isStepCount(12),
     ],
-    maxRetries: settingsService.settings.maxRetries,
+    maxRetries: 1,
     timeout: TIMEOUTS.actionExecution,
     abortSignal: ctx.abortSignal,
     toolsContext: { getFlattenDOM: ctx, clickElement: ctx, landHere: ctx },
@@ -608,7 +758,7 @@ async function landViaToc(
       continue;
     }
     const result = streamText({
-      model: complexModel().model,
+      model: withDomHistoryPruning(simpleModel().model),
       instructions: buildTocSystemPrompt(novel, ctx.chapterNumber),
       messages: [
         {
@@ -629,7 +779,7 @@ async function landViaToc(
         hasSuccessfulToolResult("siteBlocked"),
         isStepCount(24), // deep TOC pagination: expand + jump pages + click entry
       ],
-      maxRetries: settingsService.settings.maxRetries,
+      maxRetries: 1,
       timeout: TIMEOUTS.actionExecution,
       abortSignal: ctx.abortSignal,
       toolsContext: { getFlattenDOM: ctx, clickElement: ctx, landHere: ctx },
@@ -700,7 +850,6 @@ export async function landOnChapter(
       getBlockedDomains(ctx.threadId),
     );
     for (const u of search.tocAnchors) {
-      probedUrls.add(u);
       tocAnchors.push(u);
     }
     if (search.landed) return;

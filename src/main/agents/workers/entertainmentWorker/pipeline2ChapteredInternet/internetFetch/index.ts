@@ -222,41 +222,52 @@ export async function fetchInternetChapter(
       // could judge-and-land on a different hostname that serves the SAME
       // dead site. Treat it as another dead end of the same site rather than
       // counting it as a new site and paying for a doomed extraction.
+      let deadend: SiteDeadendError | null = null;
       if (landedHost && getBlockedDomains(threadId).has(landedHost)) {
-        throw new SiteDeadendError(
+        logger.info("landed on blocklisted host; rotating", {
+          threadId,
+          chapterNumber,
+          host: landedHost,
+        });
+        deadend = new SiteDeadendError(
           "redirected to a blocked site",
           `Landed on blocklisted host ${landedHost} (likely a redirect from a fresh search candidate)`,
         );
       }
-      if (landedHost) landedHosts.add(landedHost);
-      try {
-        await extractChapter(novel, ctx);
-        entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
-          status: "fetched",
-        });
-        return "fetched";
-      } catch (err) {
-        // A typed site dead end (wall / unreadable content on the landed
-        // site) rotates to the next site; any other phase-2 failure is a
-        // genuine error.
-        if (!(err instanceof SiteDeadendError)) throw err;
-        if (!landedHost) throw err; // no URL captured — cannot blocklist
-        blockDomainForThread(threadId, landedHost, err.reason);
-        logger.info("site dead-ended during extraction; rotating", {
-          threadId,
-          chapterNumber,
-          host: landedHost,
-          reason: err.reason,
-          landedSites: landedHosts.size,
-        });
-        if (landedHosts.size >= MAX_LANDED_SITES_PER_FETCH) {
-          throw new Error(
-            `chapter ${chapterNumber} unreadable: ${landedHosts.size} sites dead-ended (${[...landedHosts].map((h) => `${h}: ${entertainmentBackendService.getBlockedSites(threadId)[h] ?? "?"}`).join("; ")})`,
-          );
+      if (!deadend) {
+        try {
+          await extractChapter(novel, ctx);
+          entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
+            status: "fetched",
+          });
+          return "fetched";
+        } catch (err) {
+          // A typed site dead end (wall / unreadable content on the landed
+          // site) rotates to the next site; any other phase-2 failure is a
+          // genuine error.
+          if (err instanceof SiteDeadendError) deadend = err;
+          else throw err;
         }
-        // Rotation: the next landOnChapter pass re-searches with the expanded
-        // blocklist and cannot land on any host in `landedHosts`.
       }
+      // deadend is non-null here (either the blocklisted-host landing above
+      // or the extraction failure caught into it). Rotation bookkeeping:
+      if (!landedHost) throw deadend; // no URL captured — cannot blocklist
+      blockDomainForThread(threadId, landedHost, deadend.reason);
+      landedHosts.add(landedHost);
+      logger.info("site dead-ended during extraction; rotating", {
+        threadId,
+        chapterNumber,
+        host: landedHost,
+        reason: deadend.reason,
+        landedSites: landedHosts.size,
+      });
+      if (landedHosts.size >= MAX_LANDED_SITES_PER_FETCH) {
+        throw new Error(
+          `chapter ${chapterNumber} unreadable: ${landedHosts.size} sites dead-ended (${[...landedHosts].map((h) => `${h}: ${entertainmentBackendService.getBlockedSites(threadId)[h] ?? "?"}`).join("; ")})`,
+        );
+      }
+      // Rotation: the next landOnChapter pass re-searches with the expanded
+      // blocklist and cannot land on any host in `landedHosts`.
     }
   } catch (err) {
     if (err instanceof FinalChapterError) {

@@ -47,3 +47,23 @@ A wall is NEVER "content missing" — do not interpret it as end-of-book, a miss
 
 When you hit a wall: stop immediately, do not click anything to dismiss or bypass it, and ${action}.`;
 }
+
+/**
+ * Marker substrings for the digest-based wall heuristic (judge only).
+ * Hints, not proof — several also appear as page chrome on readable pages;
+ * the digest prompt presents them exactly that way.
+ */
+export const WALL_MARKER_PATTERNS: readonly string[] = [
+  "登录后阅读",
+  "付费",
+  "VIP",
+  "订阅",
+  "开通会员",
+  "人机验证",
+  "滑动验证",
+  "年龄确认",
+  "captcha",
+  "verify you are human",
+  "sign in to continue",
+  "subscribe to read",
+];

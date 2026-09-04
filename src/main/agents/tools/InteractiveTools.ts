@@ -121,27 +121,37 @@ export const clickElementTool = tool({
           options,
         );
 
-        // Add automatic DOM refresh
+        // Add automatic DOM refresh (success) / cache invalidation (failure)
         if (clickResult.success) {
           try {
             // Wait for DOM changes to settle
-            await new Promise((resolve) => setTimeout(resolve, 1000));
+            const { promise: settle, resolve } = Promise.withResolvers<void>();
+            setTimeout(resolve, 1000);
+            await settle;
 
-            // Get DOM service and refresh
-            const domService = sessionTabService.getDomService(
-              context.activeTabId!,
-            );
-            if (domService) {
-              const { newNodesCount, totalNodesCountChange } =
-                await domService.buildSimplifiedDOMTree();
+            // A navigation in flight owns the rebuild — the did-finish-load
+            // handler in SessionTabService builds the tree. Building here
+            // would race it (and can fail on a navigating document).
+            const tab = sessionTabService.getTab(context.activeTabId!);
+            const wc = tab?.webContents;
+            const navigating = !wc || wc.isDestroyed() || wc.isLoading();
+            if (!navigating) {
+              // Get DOM service and refresh
+              const domService = sessionTabService.getDomService(
+                context.activeTabId!,
+              );
+              if (domService) {
+                const { newNodesCount, totalNodesCountChange } =
+                  await domService.buildSimplifiedDOMTree();
 
-              // Return combined result
-              return {
-                ...clickResult,
-                tabId: context.activeTabId!,
-                newNodesCount,
-                totalNodesCountChange,
-              };
+                // Return combined result
+                return {
+                  ...clickResult,
+                  tabId: context.activeTabId!,
+                  newNodesCount,
+                  totalNodesCountChange,
+                };
+              }
             }
           } catch (refreshError) {
             console.warn(
@@ -149,6 +159,14 @@ export const clickElementTool = tool({
               refreshError,
             );
           }
+        } else {
+          // A failed click invalidates the cached DOM so the next
+          // getFlattenDOM rebuilds instead of the model re-clicking dead
+          // ids from a stale snapshot.
+          const domService = sessionTabService.getDomService(
+            context.activeTabId!,
+          );
+          if (domService) domService.simplifiedDOMState = undefined;
         }
 
         // Return result without refresh data

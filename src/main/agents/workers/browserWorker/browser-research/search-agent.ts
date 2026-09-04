@@ -1,7 +1,7 @@
 import { streamText, isStepCount, tool } from "ai";
 import { z } from "zod";
 import { createIdGenerator } from "@ai-sdk/provider-utils";
-import { complexModel } from "@agents/providers";
+import { simpleModel } from "@agents/providers";
 import {
   hasSuccessfulToolResult,
   writeSimulatedToolCallToStream,
@@ -156,7 +156,14 @@ const showSearchResultsTool = tool({
 
 // ===== System Prompt =====
 
-function buildSearchAnalysisPrompt(engineConfig: SearchEngineConfig): string {
+function buildSearchAnalysisPrompt(
+  engineConfig: SearchEngineConfig,
+  excludeHosts: ReadonlySet<string> | undefined,
+): string {
+  const excluded =
+    excludeHosts && excludeHosts.size > 0 ?
+      `\n- EXCLUDED SITES: results whose visible URL/breadcrumb text belongs to any of these hosts MUST be skipped entirely — do not include them in showSearchResults: ${[...excludeHosts].join(", ")}`
+    : "";
   return `You are a web search analyst. You are viewing the flattened DOM of a ${engineConfig.displayName} search results page.
 
 ## Your Task
@@ -183,7 +190,7 @@ Analyze the search results displayed in the DOM and identify the most relevant l
 - Each element in the DOM has a backendNodeId — use that to reference the link
 - ${engineConfig.domHint}
 - Skip ${engineConfig.navElements}
-- Exclude PDF links unless specifically relevant
+- Exclude PDF links unless specifically relevant${excluded}
 - Call showSearchResults with your analysis`;
 }
 
@@ -345,6 +352,7 @@ async function executeSingleSearchQuery(
   tabId: string,
   sessionTabService: SessionTabService,
   signal?: AbortSignal,
+  excludeHosts?: ReadonlySet<string>,
 ): Promise<SearchResultItem[]> {
   const engine = settingsService.settings.searchEngine ?? "google";
   const engineConfig = getEngineConfig(
@@ -377,14 +385,14 @@ async function executeSingleSearchQuery(
     });
 
     const analysisResult = streamText({
-      model: complexModel().model,
+      model: simpleModel().model,
       messages: [
         {
           role: "user",
           content: `Search query: "${query}"\nFocus: "${focus}"\n\n${engineConfig.displayName} search results DOM:\n${truncatedDom}`,
         },
       ],
-      instructions: buildSearchAnalysisPrompt(engineConfig),
+      instructions: buildSearchAnalysisPrompt(engineConfig, excludeHosts),
       tools: {
         showSearchResults: showSearchResultsTool,
       },
@@ -393,7 +401,7 @@ async function executeSingleSearchQuery(
         toolName: "showSearchResults",
       },
       stopWhen: [hasSuccessfulToolResult("showSearchResults"), isStepCount(10)],
-      maxRetries: settingsService.settings.maxRetries,
+      maxRetries: 0,
       timeout: TIMEOUTS.actionExecution,
       abortSignal: signal,
       telemetry: {
@@ -470,6 +478,7 @@ export async function executeSearchQueries(
   writer: { write: (chunk: any) => void },
   planId?: string,
   signal?: AbortSignal,
+  excludeHosts?: ReadonlySet<string>,
 ): Promise<SearchResultItem[]> {
   const sessionTabService = SessionTabService.getInstance();
   const searchPlanId = planId ?? `research-search-${sessionId}`;
@@ -533,6 +542,7 @@ export async function executeSearchQueries(
             tabId,
             sessionTabService,
             signal,
+            excludeHosts,
           ),
       })),
       concurrency,

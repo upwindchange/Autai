@@ -2,7 +2,11 @@ import { streamText, isStepCount, tool } from "ai";
 import { z } from "zod";
 import log from "electron-log/main";
 import { complexModel } from "@agents/providers";
-import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
+import {
+  hasSuccessfulToolResult,
+  TIMEOUTS,
+  withDomHistoryPruning,
+} from "@agents/utils";
 import { settingsService, entertainmentBackendService } from "@/services";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { clickElementTool } from "@agents/tools/InteractiveTools";
@@ -140,7 +144,7 @@ export async function extractChapter(
 ): Promise<void> {
   const label = `chapter ${ctx.chapterNumber}`;
   const result = streamText({
-    model: complexModel().model,
+    model: withDomHistoryPruning(complexModel().model),
     instructions: buildExtractSystemPrompt(novel, ctx.chapterNumber),
     messages: [
       { role: "user", content: `Read ${label} and save its full prose.` },
