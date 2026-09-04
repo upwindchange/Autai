@@ -215,23 +215,37 @@ export const EntertainmentThread: FC = () => {
   }, [currentChapterNumber, current?.rewriteStatus, current?.content]);
 
   // Desktop hover: reveal the footer when the pointer enters the bottom band,
-  // hide when it leaves. The listener is on the thread root (not the viewport)
-  // because the footer overlay is a sibling of the viewport — attaching to the
-  // viewport would fire mouseleave over the pill and oscillate. Touch uses tap-to-pin.
+  // hide when it leaves. Tracked geometrically from window-level mousemove:
+  // footer tooltips portal their content to <body>, so while the pointer is
+  // over a tooltip it is NOT over any root descendant — root-scoped listeners
+  // would fire `mouseleave` (and no `mousemove`), hiding the footer out from
+  // under the open tooltip, which then closed and let the footer re-reveal —
+  // an open/close oscillation on every tooltip hover. The rect test works no
+  // matter what element sits under the pointer; the horizontal clamp keeps
+  // the old "pointer moved onto chrome outside this reader" hiding.
   useEffect(() => {
     if (isMobile) return;
     const el = rootRef.current;
     if (!el) return;
     const onMove = (e: MouseEvent) => {
-      const fromBottom = el.getBoundingClientRect().bottom - e.clientY;
-      setFooterHovered(fromBottom >= 0 && fromBottom < HOVER_BAND_PX);
+      const rect = el.getBoundingClientRect();
+      const fromBottom = rect.bottom - e.clientY;
+      setFooterHovered(
+        e.clientX >= rect.left &&
+          e.clientX <= rect.right &&
+          fromBottom >= 0 &&
+          fromBottom < HOVER_BAND_PX,
+      );
     };
-    const onLeave = () => setFooterHovered(false);
-    el.addEventListener("mousemove", onMove);
-    el.addEventListener("mouseleave", onLeave);
+    // Leaving the window entirely: mouseout with no relatedTarget.
+    const onOut = (e: MouseEvent) => {
+      if (!e.relatedTarget) setFooterHovered(false);
+    };
+    window.addEventListener("mousemove", onMove, { passive: true });
+    window.addEventListener("mouseout", onOut);
     return () => {
-      el.removeEventListener("mousemove", onMove);
-      el.removeEventListener("mouseleave", onLeave);
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseout", onOut);
     };
   }, [isMobile]);
 
