@@ -384,25 +384,26 @@ async function landViaSearch(
   // 1) Gather candidates. [novel.source] if it's already a URL; otherwise one
   //    query via executeSearchQueries, CACHED per thread: the LLM search
   //    analysis is the expensive part (page load + model call), and site
-  //    rotation re-enters here per dead site. A cached pool is re-filtered
-  //    against the GROWN blocklist each time; only a pool whose hosts are all
-  //    blocked/dead triggers a fresh search. Cleared when the crawl tab is
-  //    released (book end) via clearSearchCandidatePool below.
+  //    rotation re-enters here per dead site. A cached pool is re-used only
+  //    when at least one candidate survives BOTH filters — blocked domains AND
+  //    already-probed URLs (a pool whose every URL was probed-but-unblocked is
+  //    NOT usable: the candidate loop below would drop it all and starve the
+  //    rotation instead of triggering a fresh search). Only a fully-consumed
+  //    pool re-searches. Cleared when the crawl tab is released (book end).
   let candidates: string[];
   if (isAbsoluteUrl(novel.source.trim())) {
     candidates = [novel.source.trim()];
   } else {
-    const cached = searchCandidatePools.get(ctx.threadId);
     const blocked = new Set(excludeDomains);
-    const usable = cached?.filter((url) => {
+    const usable = searchCandidatePools.get(ctx.threadId)?.filter((url) => {
       const host = hostnameOf(url);
-      return !host || !blocked.has(host);
+      if (host && blocked.has(host)) return false;
+      return !excludeUrls.has(url);
     });
     if (usable && usable.length > 0) {
       candidates = usable;
       logger.info("using cached search candidates", {
         threadId: ctx.threadId,
-        pool: cached!.length,
         usable: usable.length,
       });
     } else {

@@ -217,8 +217,18 @@ export async function fetchInternetChapter(
         entertainmentFrontendService.getSourceChapter(threadId, chapterNumber)
           ?.url ?? "";
       const landedHost = hostnameOf(landedUrl);
+      // Redirect/m-domain variant of an already-dead host (m.shuqi.com →
+      // www.shuqi.com): the blocklist is exact-hostname, so a fresh search
+      // could judge-and-land on a different hostname that serves the SAME
+      // dead site. Treat it as another dead end of the same site rather than
+      // counting it as a new site and paying for a doomed extraction.
+      if (landedHost && getBlockedDomains(threadId).has(landedHost)) {
+        throw new SiteDeadendError(
+          "redirected to a blocked site",
+          `Landed on blocklisted host ${landedHost} (likely a redirect from a fresh search candidate)`,
+        );
+      }
       if (landedHost) landedHosts.add(landedHost);
-
       try {
         await extractChapter(novel, ctx);
         entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
