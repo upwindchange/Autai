@@ -1,8 +1,10 @@
+import log from "electron-log/main";
 import { tool } from "ai";
 import { z } from "zod";
 import { toolContextSchema } from "./types/context";
 import { SessionTabService } from "@/services";
 import { PQueueManager } from "@agents/utils";
+
 import type {
   ClickOptions,
   FillOptions,
@@ -24,6 +26,8 @@ import type {
   GetBasicInfoResult,
 } from "@shared/dom/interaction";
 export type GetAllAttributesToolResult = GetAllAttributesResult;
+
+const clickLogger = log.scope("ClickElementTool");
 
 // ===== Result Types =====
 
@@ -135,6 +139,11 @@ export const clickElementTool = tool({
             const tab = sessionTabService.getTab(context.activeTabId!);
             const wc = tab?.webContents;
             const navigating = !wc || wc.isDestroyed() || wc.isLoading();
+            if (navigating) {
+              clickLogger.silly(
+                `[crawl-metrics] click id=${backendNodeId} rebuild skipped (navigation in flight)`,
+              );
+            }
             if (!navigating) {
               // Get DOM service and refresh
               const domService = sessionTabService.getDomService(
@@ -163,6 +172,9 @@ export const clickElementTool = tool({
           // A failed click invalidates the cached DOM so the next
           // getFlattenDOM rebuilds instead of the model re-clicking dead
           // ids from a stale snapshot.
+          clickLogger.silly(
+            `[crawl-metrics] click id=${backendNodeId} FAILED error=${clickResult.error ?? "?"} → DOM cache invalidated`,
+          );
           const domService = sessionTabService.getDomService(
             context.activeTabId!,
           );

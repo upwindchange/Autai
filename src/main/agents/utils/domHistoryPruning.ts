@@ -20,9 +20,14 @@ import {
   type LanguageModel as AiLanguageModel,
   type LanguageModelMiddleware,
 } from "ai";
+import log from "electron-log/main";
 
+const logger = log.scope("DomHistoryPruning");
 /** DOM-snapshot tool names whose older results are pruned. */
-const PRUNED_TOOL_NAMES = new Set(["getFlattenDOM", "getDOMTree"]);
+const PRUNED_TOOL_NAMES: Record<string, true> = {
+  getFlattenDOM: true,
+  getDOMTree: true,
+};
 const PLACEHOLDER = "[older DOM snapshot omitted]";
 
 /** The provider-level call params this middleware transforms. */
@@ -35,9 +40,20 @@ type ToolContentPart = ToolMessage["content"][number];
 /** The pruned replacement for a snapshot part's output. */
 type ToolResultOutput = { type: "text"; value: string };
 
-function isSnapshotPart(part: ToolContentPart): boolean {
-  return part.type === "tool-result" && PRUNED_TOOL_NAMES.has(part.toolName);
+type ToolResultPart = Extract<ToolContentPart, { type: "tool-result" }>;
+
+function isSnapshotPart(part: ToolContentPart): part is ToolResultPart {
+  return part.type === "tool-result" && part.toolName in PRUNED_TOOL_NAMES;
 }
+
+/** Char length of a text output part (0 for other shapes). */
+function textLength(output: ToolResultPart["output"]): number {
+  return output.type === "text" ? output.value.length : 0;
+}
+
+// Process-lifetime totals so a pasted log shows cumulative savings.
+let prunedPartsTotal = 0;
+let prunedCharsTotal = 0;
 
 /**
  * Single pass over the prompt: find the LAST message containing a prunable
@@ -57,15 +73,27 @@ function prunePrompt(prompt: Prompt): Prompt {
   }
   if (lastSnapshotMessage === -1) return prompt; // nothing to prune
 
-  return prompt.map((message, i) => {
+  let prunedParts = 0;
+  let prunedChars = 0;
+  const result = prompt.map((message, i) => {
     if (i >= lastSnapshotMessage || message.role !== "tool") return message;
     const content = message.content.map((part) => {
       if (!isSnapshotPart(part)) return part;
+      prunedParts += 1;
+      prunedChars += textLength(part.output);
       const output: ToolResultOutput = { type: "text", value: PLACEHOLDER };
       return { ...part, output };
     });
     return { ...message, content };
   });
+  if (prunedParts > 0) {
+    prunedPartsTotal += prunedParts;
+    prunedCharsTotal += prunedChars;
+    logger.silly(
+      `[crawl-metrics] dom-prune prunedParts=${prunedParts} prunedChars=${prunedChars} promptMsgs=${prompt.length} keptIdx=${lastSnapshotMessage} totals: parts=${prunedPartsTotal} chars=${prunedCharsTotal}`,
+    );
+  }
+  return result;
 }
 
 /**

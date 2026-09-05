@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import { streamText, isStepCount, tool } from "ai";
 import { z } from "zod";
 import { createIdGenerator } from "@ai-sdk/provider-utils";
@@ -384,6 +385,7 @@ async function executeSingleSearchQuery(
       truncatedLength: truncatedDom.length,
     });
 
+    const analysisStarted = performance.now();
     const analysisResult = streamText({
       model: simpleModel().model,
       messages: [
@@ -411,6 +413,10 @@ async function executeSingleSearchQuery(
     });
 
     const steps = await analysisResult.steps;
+    const searchModel = simpleModel().model;
+    logger.silly(
+      `[crawl-metrics] search-analysis query="${query}" tookMs=${Math.round(performance.now() - analysisStarted)} domChars=${truncatedDom.length} inTok=${steps.reduce((a, s) => a + (s.usage.inputTokens ?? 0), 0)} outTok=${steps.reduce((a, s) => a + (s.usage.outputTokens ?? 0), 0)} model=${typeof searchModel === "string" ? searchModel : `${searchModel.provider}/${searchModel.modelId}`}${excludeHosts && excludeHosts.size > 0 ? ` excluding=${[...excludeHosts].join(",")}` : ""}`,
+    );
     const toolResult = steps
       .flatMap((s) => s.toolResults ?? [])
       .find(

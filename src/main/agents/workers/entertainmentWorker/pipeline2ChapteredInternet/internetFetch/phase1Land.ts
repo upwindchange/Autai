@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import { streamText, generateText, isStepCount, tool } from "ai";
 import { z } from "zod";
 import log from "electron-log/main";
@@ -34,6 +35,7 @@ import {
 } from "../../shared/crawlWallPrompt";
 
 const generateId = createIdGenerator({ prefix: "call", size: 24 });
+
 
 const logger = log.scope("Dehydrate:InternetFetch:Phase1");
 
@@ -407,6 +409,7 @@ async function judgeCandidateViaDigest(
   ctx: InternetFetchContext,
   digest: PageDigest,
 ): Promise<"landHere" | "rejectCandidate" | null> {
+  const started = performance.now();
   const result = await generateText({
     model: simpleModel().model,
     instructions: buildJudgeDigestPrompt(novel, ctx.chapterNumber),
@@ -424,12 +427,19 @@ async function judgeCandidateViaDigest(
   const verdict = call?.input as
     | { verdict: "landHere" | "rejectCandidate"; reason?: string }
     | undefined;
-  logger.debug("judge verdict from digest", {
-    threadId: ctx.threadId,
-    chapterNumber: ctx.chapterNumber,
-    verdict: verdict?.verdict ?? "none",
-    reason: verdict?.reason,
-  });
+  const model = simpleModel().model;
+  logger.silly(
+    `[crawl-metrics] judge digest verdict=${verdict?.verdict ?? "none"} textChars=${digest.text.length} wallMarkers=${JSON.stringify(digest.wallMarkers)} tookMs=${Math.round(performance.now() - started)} inTok=${result.usage.inputTokens ?? "?"} outTok=${result.usage.outputTokens ?? "?"} model=${typeof model === "string" ? model : `${model.provider}/${model.modelId}`}`,
+    {
+      threadId: ctx.threadId,
+      chapterNumber: ctx.chapterNumber,
+      reason: verdict?.reason,
+      url: digest.url,
+      title: digest.title,
+      heading: digest.heading,
+      textHead: digest.text.slice(0, 180),
+    },
+  );
   return verdict?.verdict ?? null;
 }
 
@@ -443,6 +453,7 @@ async function judgeCandidateViaDom(
   ctx: InternetFetchContext,
 ): Promise<boolean> {
   const label = `chapter ${ctx.chapterNumber}`;
+  const started = performance.now();
   const result = streamText({
     model: simpleModel().model,
     instructions: buildJudgeSystemPrompt(novel, ctx.chapterNumber),
@@ -472,9 +483,15 @@ async function judgeCandidateViaDom(
     },
   });
   const steps = await result.steps;
-  return steps
+  const landedOut = steps
     .flatMap((s) => s.toolResults ?? [])
     .some((tr) => tr.toolName === "landHere" && tr.type === "tool-result");
+  const model = simpleModel().model;
+  logger.silly(
+    `[crawl-metrics] judge-dom verdict=${landedOut ? "landHere" : "reject"} tookMs=${Math.round(performance.now() - started)} steps=${steps.length} inTok=${steps.reduce((a, s) => a + (s.usage.inputTokens ?? 0), 0)} outTok=${steps.reduce((a, s) => a + (s.usage.outputTokens ?? 0), 0)} model=${typeof model === "string" ? model : `${model.provider}/${model.modelId}`}`,
+    { threadId: ctx.threadId, chapterNumber: ctx.chapterNumber },
+  );
+  return landedOut;
 }
 
 /**
@@ -577,10 +594,9 @@ async function landViaSearch(
   //    Rejects are collected as TOC anchors for the fallback.
   const tcs = TabControlService.getInstance();
   for (const candidateUrl of filtered) {
-    logger.debug("probing candidate", {
+    logger.silly(`[crawl-metrics] probing candidate ${candidateUrl}`, {
       threadId: ctx.threadId,
       chapterNumber: ctx.chapterNumber,
-      url: candidateUrl,
     });
     try {
       await tcs.navigateTo(ctx.activeTabId, candidateUrl);
@@ -601,6 +617,10 @@ async function landViaSearch(
         : candidateUrl;
     // Two different wrappers leading to the same destination: second is a no-op.
     if (finalUrl !== candidateUrl && probedUrls.has(finalUrl)) {
+      logger.silly(
+        `[crawl-metrics] wrapper dup skip ${candidateUrl} → ${finalUrl}`,
+        { threadId: ctx.threadId, chapterNumber: ctx.chapterNumber },
+      );
       continue;
     }
     const finalHost = hostnameOf(finalUrl);
@@ -608,10 +628,10 @@ async function landViaSearch(
     // DESTINATION (not the wrapper host) may be a blocklisted dead site — skip
     // the judge entirely, record both URLs as probed.
     if (finalHost && excludeDomains.has(finalHost)) {
-      logger.info("candidate redirected to blocked site; skipping", {
-        candidateUrl,
-        finalUrl,
-      });
+      logger.silly(
+        `[crawl-metrics] blocked-destination skip wrapper=${candidateUrl} real=${finalUrl} host=${finalHost}`,
+        { threadId: ctx.threadId, chapterNumber: ctx.chapterNumber },
+      );
       probedUrls.add(finalUrl);
       continue;
     }
@@ -666,6 +686,7 @@ async function landViaAdvance(
     await TabControlService.getInstance().navigateTo(ctx.activeTabId, prevUrl);
   }
 
+  const advanceStarted = performance.now();
   const result = streamText({
     model: withDomHistoryPruning(simpleModel().model),
     instructions: buildAdvanceSystemPrompt(novel, ctx.chapterNumber),
@@ -697,8 +718,25 @@ async function landViaAdvance(
       functionId: "entertainment-internet-land",
     },
   });
-
-  const toolResults = (await result.steps).flatMap((s) => s.toolResults ?? []);
+  const advanceSteps = await result.steps;
+  for (const step of advanceSteps) {
+    logger.silly("[crawl-metrics] advance step", {
+      threadId: ctx.threadId,
+      chapterNumber: ctx.chapterNumber,
+      stepNumber: step.stepNumber,
+      finishReason: step.finishReason,
+      inTok: step.usage.inputTokens ?? 0,
+      outTok: step.usage.outputTokens ?? 0,
+      stepMs: Math.round(step.performance.stepTimeMs),
+      toolCalls: step.toolCalls.map((tc) => tc.toolName),
+    });
+  }
+  const advanceModel = simpleModel().model;
+  logger.silly(
+    `[crawl-metrics] advance-agent tookMs=${Math.round(performance.now() - advanceStarted)} steps=${advanceSteps.length} inTok=${advanceSteps.reduce((a, s) => a + (s.usage.inputTokens ?? 0), 0)} outTok=${advanceSteps.reduce((a, s) => a + (s.usage.outputTokens ?? 0), 0)} model=${typeof advanceModel === "string" ? advanceModel : `${advanceModel.provider}/${advanceModel.modelId}`}`,
+    { threadId: ctx.threadId, chapterNumber: ctx.chapterNumber },
+  );
+  const toolResults = advanceSteps.flatMap((s) => s.toolResults ?? []);
   if (
     toolResults.some(
       (tr) => tr.toolName === "landHere" && tr.type === "tool-result",
@@ -757,6 +795,7 @@ async function landViaToc(
       logger.warn("toc anchor navigate failed", { anchor, err });
       continue;
     }
+    const tocStarted = performance.now();
     const result = streamText({
       model: withDomHistoryPruning(simpleModel().model),
       instructions: buildTocSystemPrompt(novel, ctx.chapterNumber),
@@ -788,9 +827,26 @@ async function landViaToc(
         functionId: "entertainment-internet-toc",
       },
     });
-    const toolResults = (await result.steps).flatMap(
-      (s) => s.toolResults ?? [],
+    const tocSteps = await result.steps;
+    for (const step of tocSteps) {
+      logger.silly("[crawl-metrics] toc step", {
+        threadId: ctx.threadId,
+        chapterNumber: ctx.chapterNumber,
+        anchor,
+        stepNumber: step.stepNumber,
+        finishReason: step.finishReason,
+        inTok: step.usage.inputTokens ?? 0,
+        outTok: step.usage.outputTokens ?? 0,
+        stepMs: Math.round(step.performance.stepTimeMs),
+        toolCalls: step.toolCalls.map((tc) => tc.toolName),
+      });
+    }
+    const tocModel = simpleModel().model;
+    logger.silly(
+      `[crawl-metrics] toc-agent anchor=${anchor} tookMs=${Math.round(performance.now() - tocStarted)} steps=${tocSteps.length} inTok=${tocSteps.reduce((a, s) => a + (s.usage.inputTokens ?? 0), 0)} outTok=${tocSteps.reduce((a, s) => a + (s.usage.outputTokens ?? 0), 0)} model=${typeof tocModel === "string" ? tocModel : `${tocModel.provider}/${tocModel.modelId}`}`,
+      { threadId: ctx.threadId, chapterNumber: ctx.chapterNumber },
     );
+    const toolResults = tocSteps.flatMap((s) => s.toolResults ?? []);
     const fired = (name: string) =>
       toolResults.some(
         (tr) => tr.toolName === name && tr.type === "tool-result",

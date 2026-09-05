@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import log from "electron-log/main";
 import {
   SessionTabService,
@@ -201,6 +202,8 @@ export async function fetchInternetChapter(
     // candidate is judged twice in one fetch.
     const probedUrls = new Set<string>();
     const landedHosts = new Set<string>();
+    const fetchStarted = performance.now();
+    let rotations = 0;
     let forceSearch = useSearch;
     for (;;) {
       if (options.abortSignal?.aborted) throw new Error("aborted");
@@ -224,11 +227,10 @@ export async function fetchInternetChapter(
       // counting it as a new site and paying for a doomed extraction.
       let deadend: SiteDeadendError | null = null;
       if (landedHost && getBlockedDomains(threadId).has(landedHost)) {
-        logger.info("landed on blocklisted host; rotating", {
-          threadId,
-          chapterNumber,
-          host: landedHost,
-        });
+        logger.silly(
+          `[crawl-metrics] landed-on-blocked-host rotating host=${landedHost} rotation=${rotations + 1}`,
+          { threadId, chapterNumber },
+        );
         deadend = new SiteDeadendError(
           "redirected to a blocked site",
           `Landed on blocklisted host ${landedHost} (likely a redirect from a fresh search candidate)`,
@@ -240,6 +242,10 @@ export async function fetchInternetChapter(
           entertainmentBackendService.updateSourceChapter(threadId, chapterNumber, {
             status: "fetched",
           });
+          logger.silly(
+            `[crawl-metrics] chapter-fetched tookMs=${Math.round(performance.now() - fetchStarted)} rotations=${rotations} probedUrls=${probedUrls.size} hosts=${landedHosts.size}`,
+            { threadId, chapterNumber },
+          );
           return "fetched";
         } catch (err) {
           // A typed site dead end (wall / unreadable content on the landed
@@ -254,11 +260,11 @@ export async function fetchInternetChapter(
       if (!landedHost) throw deadend; // no URL captured — cannot blocklist
       blockDomainForThread(threadId, landedHost, deadend.reason);
       landedHosts.add(landedHost);
+      rotations += 1;
       logger.info("site dead-ended during extraction; rotating", {
         threadId,
         chapterNumber,
         host: landedHost,
-        reason: deadend.reason,
         landedSites: landedHosts.size,
       });
       if (landedHosts.size >= MAX_LANDED_SITES_PER_FETCH) {

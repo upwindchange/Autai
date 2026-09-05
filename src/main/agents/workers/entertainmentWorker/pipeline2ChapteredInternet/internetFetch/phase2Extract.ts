@@ -1,3 +1,4 @@
+import { performance } from "node:perf_hooks";
 import { streamText, isStepCount, tool } from "ai";
 import { z } from "zod";
 import log from "electron-log/main";
@@ -142,6 +143,7 @@ export async function extractChapter(
   novel: InternetNovel,
   ctx: InternetFetchContext,
 ): Promise<void> {
+  const started = performance.now();
   const label = `chapter ${ctx.chapterNumber}`;
   const result = streamText({
     model: withDomHistoryPruning(complexModel().model),
@@ -176,6 +178,23 @@ export async function extractChapter(
   });
 
   const steps = await result.steps;
+  for (const step of steps) {
+    logger.silly("[crawl-metrics] extract step", {
+      threadId: ctx.threadId,
+      chapterNumber: ctx.chapterNumber,
+      stepNumber: step.stepNumber,
+      finishReason: step.finishReason,
+      inTok: step.usage.inputTokens ?? 0,
+      outTok: step.usage.outputTokens ?? 0,
+      stepMs: Math.round(step.performance.stepTimeMs),
+      toolCalls: step.toolCalls.map((tc) => tc.toolName),
+    });
+  }
+  const extractModel = complexModel().model;
+  logger.silly(
+    `[crawl-metrics] extract-agent tookMs=${Math.round(performance.now() - started)} steps=${steps.length} inTok=${steps.reduce((a, s) => a + (s.usage.inputTokens ?? 0), 0)} outTok=${steps.reduce((a, s) => a + (s.usage.outputTokens ?? 0), 0)} model=${typeof extractModel === "string" ? extractModel : `${extractModel.provider}/${extractModel.modelId}`}`,
+    { threadId: ctx.threadId, chapterNumber: ctx.chapterNumber },
+  );
   const terminal = steps
     .flatMap((s) => s.toolResults ?? [])
     .find(
