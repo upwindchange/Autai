@@ -53,7 +53,6 @@ export const DEFAULT_DEPTH: DehydrateDepth = {
 export const DEFAULT_LANGUAGE: LanguageAdaptation = {
   targetLanguage: "",
   translate: { enabled: false },
-  nameLocalization: { enabled: false },
   dialogueSubject: { enabled: false },
 };
 
@@ -139,7 +138,6 @@ type DepthPatch = Partial<
 type LanguagePatch = {
   targetLanguage?: string;
   translate?: Partial<{ enabled: boolean }>;
-  nameLocalization?: Partial<{ enabled: boolean }>;
   dialogueSubject?: Partial<{ enabled: boolean }>;
 };
 
@@ -219,7 +217,6 @@ export function patchSharedOptions(
 
   const LANGUAGE_TOGGLE_KEYS = [
     "translate",
-    "nameLocalization",
     "dialogueSubject",
   ] as const;
 

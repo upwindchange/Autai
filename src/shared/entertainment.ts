@@ -755,7 +755,6 @@ const LanguageToggleSchema = z
 const LanguageAdaptationSchema = z.object({
   targetLanguage: z.string().trim().default(""),
   translate: LanguageToggleSchema,
-  nameLocalization: LanguageToggleSchema,
   dialogueSubject: LanguageToggleSchema,
 });
 

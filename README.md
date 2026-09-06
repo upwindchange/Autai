@@ -25,7 +25,7 @@ Not everything you want to read was edited by someone who cared. Web serials shi
 
 - **Cut the word count, keep the story.** Last chapter recapped again, the magic system re-explained, another tournament round, one more collective gasp from the crowd — compressed on contact. A single dial sets how hard, from *light touch* to *get on with it*. The plot, characters, payoffs, and foreshadowing stay exactly where the author left them.
 - **Fix the prose.** Grammar, punctuation, and the clichés every serial leans on — rewritten until they stop being clichés. Or run it the other direction: an expansion pass turns flat fight scenes into set pieces, without padding a single paragraph.
-- **Read fiction from any language.** Translate the whole book, untangle transliterated names until you can actually tell the cast apart, restore the *"…," she said* that Japanese light novels drop, or type one custom instruction — *"keep the poems in verse"* — and it complies.
+- **Read fiction from any language.** Translate the whole book, restore the *"…," she said* that Japanese light novels drop, or type one custom instruction — *"keep the poems in verse"* — and it complies.
 
 Where the book comes from is your call: drop in a local TXT, or just say the title — paste a link, name a site, or throw a few keywords at it and Autai goes and finds it online. Continuous reads with no chapters to parse — forum epics, email threads — get a "not chaptered fiction" toggle and go down just as smooth.
 

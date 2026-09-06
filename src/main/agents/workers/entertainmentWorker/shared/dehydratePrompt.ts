@@ -989,7 +989,7 @@ export function buildDehydrateSystemPrompt(
     );
   }
 
-  // 语言与翻译 — independent toggles; targetLanguage feeds translate & names.
+  // 语言与翻译 — independent toggles; targetLanguage feeds translate.
   const tgt = language.targetLanguage.trim();
   const langItems: string[] = [];
   if (language.translate.enabled) {
@@ -997,13 +997,6 @@ export function buildDehydrateSystemPrompt(
     // is guaranteed non-empty here — no empty-target fallback is needed.
     langItems.push(
       `- 翻译：按「${tgt}」把整本小说翻译过来，保留故事本身的风味。`,
-    );
-  }
-  if (language.nameLocalization.enabled) {
-    langItems.push(
-      tgt ?
-        `- 本地化姓名：把人名、地名改成符合「${tgt}」阅读习惯的写法，治好拗口的音译名。`
-      : "- 本地化姓名：把拗口的人名、地名改成更易读好记、符合输出语言阅读习惯的写法。",
     );
   }
   if (language.dialogueSubject.enabled) {

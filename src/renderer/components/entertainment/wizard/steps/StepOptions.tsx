@@ -100,12 +100,6 @@ const LANG_TOGGLE_ITEMS: {
   exampleKey: string;
 }[] = [
   {
-    key: "nameLocalization",
-    labelKey: "options.language.nameLocalization.label",
-    tooltipKey: "options.language.nameLocalization.tooltip",
-    exampleKey: "options.language.nameLocalization.example",
-  },
-  {
     key: "dialogueSubject",
     labelKey: "options.language.dialogueSubject.label",
     tooltipKey: "options.language.dialogueSubject.tooltip",
