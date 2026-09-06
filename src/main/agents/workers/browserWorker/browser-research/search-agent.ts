@@ -1,8 +1,7 @@
-import { performance } from "node:perf_hooks";
 import { streamText, isStepCount, tool } from "ai";
 import { z } from "zod";
 import { createIdGenerator } from "@ai-sdk/provider-utils";
-import { simpleModel } from "@agents/providers";
+import { complexModel } from "@agents/providers";
 import {
   hasSuccessfulToolResult,
   writeSimulatedToolCallToStream,
@@ -157,14 +156,7 @@ const showSearchResultsTool = tool({
 
 // ===== System Prompt =====
 
-function buildSearchAnalysisPrompt(
-  engineConfig: SearchEngineConfig,
-  excludeHosts: ReadonlySet<string> | undefined,
-): string {
-  const excluded =
-    excludeHosts && excludeHosts.size > 0 ?
-      `\n- EXCLUDED SITES: results whose visible URL/breadcrumb text belongs to any of these hosts MUST be skipped entirely — do not include them in showSearchResults: ${[...excludeHosts].join(", ")}`
-    : "";
+function buildSearchAnalysisPrompt(engineConfig: SearchEngineConfig): string {
   return `You are a web search analyst. You are viewing the flattened DOM of a ${engineConfig.displayName} search results page.
 
 ## Your Task
@@ -191,7 +183,7 @@ Analyze the search results displayed in the DOM and identify the most relevant l
 - Each element in the DOM has a backendNodeId — use that to reference the link
 - ${engineConfig.domHint}
 - Skip ${engineConfig.navElements}
-- Exclude PDF links unless specifically relevant${excluded}
+- Exclude PDF links unless specifically relevant
 - Call showSearchResults with your analysis`;
 }
 
@@ -297,7 +289,10 @@ function deduplicateResults(
   for (const result of results) {
     try {
       const urlObj = new URL(result.url);
-      const key = urlObj.origin + urlObj.pathname;
+      // Wrapper URLs (engine /goto?url=…, /url?q=…) share the engine's
+      // origin+pathname; the DISTINCT destination lives in the query string.
+      // Key on origin+pathname+search so distinct destinations survive.
+      const key = urlObj.origin + urlObj.pathname + urlObj.search;
       const existing = seen.get(key);
       if (!existing || existing.relevanceScore < result.relevanceScore) {
         seen.set(key, result);
@@ -353,7 +348,6 @@ async function executeSingleSearchQuery(
   tabId: string,
   sessionTabService: SessionTabService,
   signal?: AbortSignal,
-  excludeHosts?: ReadonlySet<string>,
 ): Promise<SearchResultItem[]> {
   const engine = settingsService.settings.searchEngine ?? "google";
   const engineConfig = getEngineConfig(
@@ -385,16 +379,15 @@ async function executeSingleSearchQuery(
       truncatedLength: truncatedDom.length,
     });
 
-    const analysisStarted = performance.now();
     const analysisResult = streamText({
-      model: simpleModel().model,
+      model: complexModel().model,
       messages: [
         {
           role: "user",
           content: `Search query: "${query}"\nFocus: "${focus}"\n\n${engineConfig.displayName} search results DOM:\n${truncatedDom}`,
         },
       ],
-      instructions: buildSearchAnalysisPrompt(engineConfig, excludeHosts),
+      instructions: buildSearchAnalysisPrompt(engineConfig),
       tools: {
         showSearchResults: showSearchResultsTool,
       },
@@ -403,7 +396,7 @@ async function executeSingleSearchQuery(
         toolName: "showSearchResults",
       },
       stopWhen: [hasSuccessfulToolResult("showSearchResults"), isStepCount(10)],
-      maxRetries: 0,
+      maxRetries: settingsService.settings.maxRetries,
       timeout: TIMEOUTS.actionExecution,
       abortSignal: signal,
       telemetry: {
@@ -413,10 +406,6 @@ async function executeSingleSearchQuery(
     });
 
     const steps = await analysisResult.steps;
-    const searchModel = simpleModel().model;
-    logger.silly(
-      `[crawl-metrics] search-analysis query="${query}" tookMs=${Math.round(performance.now() - analysisStarted)} domChars=${truncatedDom.length} inTok=${steps.reduce((a, s) => a + (s.usage.inputTokens ?? 0), 0)} outTok=${steps.reduce((a, s) => a + (s.usage.outputTokens ?? 0), 0)} model=${typeof searchModel === "string" ? searchModel : `${searchModel.provider}/${searchModel.modelId}`}${excludeHosts && excludeHosts.size > 0 ? ` excluding=${[...excludeHosts].join(",")}` : ""}`,
-    );
     const toolResult = steps
       .flatMap((s) => s.toolResults ?? [])
       .find(
@@ -484,7 +473,6 @@ export async function executeSearchQueries(
   writer: { write: (chunk: any) => void },
   planId?: string,
   signal?: AbortSignal,
-  excludeHosts?: ReadonlySet<string>,
 ): Promise<SearchResultItem[]> {
   const sessionTabService = SessionTabService.getInstance();
   const searchPlanId = planId ?? `research-search-${sessionId}`;
@@ -548,7 +536,6 @@ export async function executeSearchQueries(
             tabId,
             sessionTabService,
             signal,
-            excludeHosts,
           ),
       })),
       concurrency,
