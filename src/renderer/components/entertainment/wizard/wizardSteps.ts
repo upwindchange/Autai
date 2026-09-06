@@ -10,7 +10,11 @@ import type {
   SituationDehydrate,
   SituationTactics,
 } from "@shared";
-import { fillCrossChapterTactics, fillSituationTactics } from "@shared";
+import {
+  fillCrossChapterTactics,
+  fillSituationTactics,
+  isValidHttpUrl,
+} from "@shared";
 
 /**
  * Pure helpers for the entertainment wizard: initial configs, mode/novel
@@ -55,7 +59,10 @@ export const DEFAULT_LANGUAGE: LanguageAdaptation = {
 
 export const INITIAL_DEHYDRATE: DehydrateConfig = {
   mode: "dehydrate",
-  novel: { type: "internet", title: "", source: "" },
+  // File-first: uploading a text file is the fastest acquisition by far, so a
+  // fresh wizard opens on the FILE branch. The internet branch's defaults live
+  // in `switchNovelType` (StepNovel), not here.
+  novel: { type: "file", filename: "" },
   options: {
     basic: { ...DEFAULT_BASIC },
     situation: structuredClone(DEFAULT_SITUATION),
@@ -71,7 +78,7 @@ export const INITIAL_DEHYDRATE: DehydrateConfig = {
  * Switch the top-level mode. Carries the shared `basic` + `situation` +
  * `crossChapter` + `depth` + `language` + `customInstruction` options over (all
  * modes have them) and resets `novel` to a valid shape for the new mode:
- * audiobook ⇒ file; dehydrate ⇒ internet form.
+ * audiobook ⇒ file; dehydrate ⇒ file too (upload is the fastest acquisition).
  */
 export function swapMode(
   config: EntertainmentConfig,
@@ -105,7 +112,7 @@ export function swapMode(
     case "dehydrate":
       return {
         mode: "dehydrate",
-        novel: { type: "internet", title: "", source: "" },
+        novel: { type: "file", filename: "" },
         options: {
           basic,
           situation,
@@ -287,18 +294,30 @@ export function isStepValid(
     case 1: {
       // novel
       if (config.novel.type === "file") return config.novel.filename.length > 0;
-      // internet: source is always required; the title is required only when
+      // internet: rules depend on sourceKind (legacy configs without the
+      // field backfill to "search"). Link kinds need a valid http(s) URL;
+      // "search" ignores `source` entirely. The title is required only when
       // the source IS a chaptered novel (when nonNovelSource is on, the title
       // field is disabled in the UI and the schema allows it empty).
-      const titleOk =
-        config.options.nonNovelSource || config.novel.title.trim().length > 0;
-      // Start chapter (chaptered internet only): unset = 1; set = a positive
-      // integer. A NaN (non-numeric input sneaking past the number field)
-      // blocks advance here and fails the backend schema as a second line.
-      const start = config.novel.startChapterNumber;
+      const novel = config.novel;
+      const kind = novel.sourceKind ?? "search"; // tests cast configs without it
+      if (config.options.nonNovelSource) {
+        return isValidHttpUrl(novel.source); // 'content': link is the only input
+      }
+      const titleOk = novel.title.trim().length > 0;
+      // Start chapter: unset = 1; set = a positive integer. A NaN (non-numeric
+      // input sneaking past the number field) blocks advance here and fails
+      // the backend schema as a second line. With a CHAPTER link it becomes
+      // required — the link defines which chapter N the row starts at.
+      const start = novel.startChapterNumber;
       const startOk =
         start === undefined || (Number.isInteger(start) && start >= 1);
-      return titleOk && startOk && config.novel.source.trim().length > 0;
+      if (kind === "search") return titleOk && startOk; // source unused
+      const urlOk = isValidHttpUrl(novel.source);
+      const chapterStartOk =
+        kind !== "chapter" ||
+        (start !== undefined && Number.isInteger(start) && start >= 1);
+      return titleOk && startOk && urlOk && chapterStartOk;
     }
     case 2: {
       // Translation target language is required when translate is on.

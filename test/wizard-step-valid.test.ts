@@ -35,6 +35,10 @@ describe("isStepValid step 0 (mode) — models-configured gate", () => {
   });
 });
 
+test("INITIAL_DEHYDRATE defaults to the file branch", () => {
+  expect(INITIAL_DEHYDRATE.novel).toEqual({ type: "file", filename: "" });
+});
+
 describe("isStepValid step 1 (novel) — start chapter gate", () => {
   const base = {
     ...INITIAL_DEHYDRATE,
@@ -70,5 +74,101 @@ describe("isStepValid step 1 (novel) — start chapter gate", () => {
       } as EntertainmentConfig;
       expect(isStepValid(1, config, true)).toBe(false);
     }
+  });
+});
+
+describe("isStepValid step 1 — sourceKind gating", () => {
+  const make = (
+    novel: Record<string, unknown>,
+    options: Record<string, unknown> = {},
+  ) =>
+    ({
+      ...INITIAL_DEHYDRATE,
+      novel: { type: "internet", title: "T", source: "", ...novel },
+      options: { ...INITIAL_DEHYDRATE.options, ...options },
+    }) as EntertainmentConfig;
+
+  test("chapter kind: URL + startChapterNumber → valid", () => {
+    expect(
+      isStepValid(
+        1,
+        make({
+          sourceKind: "chapter",
+          source: "https://a.com/c5",
+          startChapterNumber: 5,
+        }),
+        true,
+      ),
+    ).toBe(true);
+  });
+
+  test("chapter kind without startChapterNumber → invalid (required)", () => {
+    expect(
+      isStepValid(
+        1,
+        make({ sourceKind: "chapter", source: "https://a.com/c5" }),
+        true,
+      ),
+    ).toBe(false);
+  });
+
+  test("toc/page kinds: valid URL, no start chapter → valid", () => {
+    for (const sourceKind of ["toc", "page"] as const) {
+      expect(
+        isStepValid(
+          1,
+          make({ sourceKind, source: "https://a.com/book" }),
+          true,
+        ),
+      ).toBe(true);
+    }
+  });
+
+  test("toc/page kinds: non-URL source → invalid", () => {
+    for (const sourceKind of ["toc", "page"] as const) {
+      expect(
+        isStepValid(1, make({ sourceKind, source: "not a url" }), true),
+      ).toBe(false);
+    }
+  });
+
+  test("toc/page kinds: empty source → invalid", () => {
+    for (const sourceKind of ["toc", "page"] as const) {
+      expect(isStepValid(1, make({ sourceKind, source: "" }), true)).toBe(
+        false,
+      );
+    }
+  });
+
+  test("search kind: empty source + title set → valid (source optional)", () => {
+    expect(
+      isStepValid(1, make({ sourceKind: "search", source: "" }), true),
+    ).toBe(true);
+  });
+
+  test("nonNovel + content kind: URL → valid (link is the only input)", () => {
+    expect(
+      isStepValid(
+        1,
+        make({ sourceKind: "content", source: "https://a.com/post" }, { nonNovelSource: true }),
+        true,
+      ),
+    ).toBe(true);
+  });
+
+  test("nonNovel + content kind: keywords → invalid", () => {
+    expect(
+      isStepValid(
+        1,
+        make({ sourceKind: "content", source: "keywords" }, { nonNovelSource: true }),
+        true,
+      ),
+    ).toBe(false);
+  });
+
+  test("legacy config without sourceKind → backfills to search, valid", () => {
+    expect(
+      isStepValid(1, make({ sourceKind: undefined, source: "s" }), true),
+    ).toBe(true);
   });
 });

@@ -40,6 +40,33 @@ export const FileNovelSchema = z.object({
   fsPath: z.string().optional(),
 });
 
+/**
+ * How the fetcher should treat an internet `source`:
+ *  - `chapter` — a direct link to chapter `startChapterNumber`.
+ *  - `toc`     — the book's chapter-list (table-of-contents) page.
+ *  - `page`    — any reading page of the book on its site.
+ *  - `search`  — title+author web search; `source` is unused (stays `""`).
+ *  - `content` — non-chaptered single piece; requires `options.nonNovelSource`.
+ */
+export const SOURCE_KINDS = [
+  "chapter",
+  "toc",
+  "page",
+  "search",
+  "content",
+] as const;
+export type SourceKind = (typeof SOURCE_KINDS)[number];
+
+/** True when the string parses as an absolute http(s) URL. */
+export function isValidHttpUrl(value: string): boolean {
+  try {
+    const u = new URL(value.trim());
+    return u.protocol === "http:" || u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 export const InternetNovelSchema = z.object({
   type: z.literal("internet"),
   // Title is optional end-to-end: the backend accepts an empty title. The "book
@@ -47,12 +74,20 @@ export const InternetNovelSchema = z.object({
   // source IS a chaptered novel — see `isStepValid`).
   title: z.string().trim(),
   author: z.string().trim().optional(),
-  // A URL, a search instruction, or other guidance on where to read the novel.
-  source: z.string().trim().min(1),
-  // Chaptered internet mode only: which chapter the crawl STARTS at. Absent/1
-  // = begin at chapter 1 as before. >1 lands the crawl directly on chapter N
-  // via search (phase 1's search path) instead of advancing through 1..N-1.
-  // Chapters before N are simply never fetched — the reader's spine starts at N.
+  // How the fetcher should treat `source` — see SOURCE_KINDS above. Defaults
+  // to "search" so legacy configs (no field) keep their keyword behavior.
+  sourceKind: z.enum(SOURCE_KINDS).default("search"),
+  // The link to read from. Must be a valid http(s) URL for every link kind
+  // (chapter/toc/page/content — enforced cross-field in the per-mode configs
+  // below); unused (stored `""`) for the "search" kind.
+  source: z.string().trim(),
+  // Chaptered internet mode only: which chapter the crawl STARTS at. Required
+  // and meaningful for sourceKind "chapter" (the link points AT chapter N —
+  // an empty value would mislabel the row as chapter 1); for the other kinds
+  // it's just the start point. Absent/1 = begin at chapter 1 as before. >1
+  // lands the crawl directly on chapter N instead of advancing through
+  // 1..N-1. Chapters before N are simply never fetched — the reader's spine
+  // starts at N.
   startChapterNumber: z.number().int().min(1).optional(),
 });
 
@@ -735,6 +770,70 @@ const CustomInstructionSchema = z.string().trim().default("");
 
 // --- Per-mode configs ------------------------------------------------------
 
+/**
+ * Cross-field rules tying `novel.sourceKind` to the rest of the config:
+ *  - `options.nonNovelSource` ⇒ kind MUST be `content` and `source` MUST be
+    a valid http(s) URL (search can't be used for a single continuous piece).
+ *  - kind `content` ⇒ requires `nonNovelSource`.
+ *  - every other link kind (chapter/toc/page) ⇒ `source` must be a valid
+ *    http(s) URL. `search` is exempt (`source` unused).
+ *
+ * Shared by BOTH per-mode schemas: applied via `.check()` AFTER the object
+ * literal and BEFORE they enter `EntertainmentConfigSchema`'s
+ * discriminatedUnion — `.check()` returns the same ZodObject, so the union
+ * stays legal (unlike `.superRefine()`, which returns ZodEffects).
+ */
+function internetSourceIssues(
+  v: EntertainmentConfig,
+): Array<{
+  code: "custom";
+  input: EntertainmentConfig;
+  path: ["novel", "sourceKind" | "source"];
+  message: string;
+}> {
+  const issues: Array<{
+    code: "custom";
+    input: EntertainmentConfig;
+    path: ["novel", "sourceKind" | "source"];
+    message: string;
+  }> = [];
+  if (v.novel.type !== "internet") return issues;
+  const kind = v.novel.sourceKind;
+  const urlOk = isValidHttpUrl(v.novel.source);
+  if (v.options.nonNovelSource) {
+    if (kind !== "content")
+      issues.push({
+        code: "custom",
+        input: v,
+        path: ["novel", "sourceKind"],
+        message: "nonNovelSource requires sourceKind 'content'",
+      });
+    if (!urlOk)
+      issues.push({
+        code: "custom",
+        input: v,
+        path: ["novel", "source"],
+        message: "non-chaptered source must be a valid http(s) URL",
+      });
+  } else {
+    if (kind === "content")
+      issues.push({
+        code: "custom",
+        input: v,
+        path: ["novel", "sourceKind"],
+        message: "sourceKind 'content' requires nonNovelSource",
+      });
+    if (kind !== "search" && !urlOk)
+      issues.push({
+        code: "custom",
+        input: v,
+        path: ["novel", "source"],
+        message: `sourceKind '${kind}' requires a valid http(s) URL`,
+      });
+  }
+  return issues;
+}
+
 export const DehydrateConfigSchema = z.object({
   mode: z.literal("dehydrate"),
   novel: NovelInputSchema, // file | internet
@@ -750,6 +849,8 @@ export const DehydrateConfigSchema = z.object({
     nonNovelSource: z.boolean().default(false),
     customInstruction: CustomInstructionSchema,
   }),
+}).check((ctx) => {
+  for (const issue of internetSourceIssues(ctx.value)) ctx.issues.push(issue);
 });
 
 /**
@@ -771,6 +872,8 @@ export const AudiobookConfigSchema = z.object({
     nonNovelSource: z.boolean().default(false),
     customInstruction: CustomInstructionSchema,
   }),
+}).check((ctx) => {
+  for (const issue of internetSourceIssues(ctx.value)) ctx.issues.push(issue);
 });
 
 export const EntertainmentConfigSchema = z.discriminatedUnion("mode", [

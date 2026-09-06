@@ -2,24 +2,18 @@
  * Pipeline 3's fetcher — NON-CHAPTERED internet sources (a long post, an
  * email thread, an article — one continuous piece, not a chaptered novel).
  *
- * Unlike the chaptered fetcher (`pipeline2ChapteredInternet/internetFetch`),
- * this does NOT loop chapters, advance, or detect a final chapter. It lands
- * ONCE — either by navigating directly to `novel.source` when it's an absolute
- * URL, or by running a single search query to discover the page URL — then
- * extracts the WHOLE page's prose into ONE `source_chapters` row (always
+ * This module does NOT loop chapters, advance, or detect a final chapter. It
+ * lands ONCE by navigating directly to `novel.source` — the source MUST be a
+ * direct content link (validated http(s) URL; the wizard enforces this) —
+ * then extracts the WHOLE page's prose into ONE `source_chapters` row (always
  * `chapterNumber = 1`, the single output it produces). The book this row
  * belongs to has exactly one chapter: never split, never re-chaptered —
  * 「开启后，阅读器不会对当前内容进行分章处理」.
  *
- * Reuses only the LEAF tools of the chaptered fetcher:
+ * Reuses only the LEAF tools:
  *  - `getFlattenDOMTool` + `clickElementTool` (DOM read / pagination click)
- *  - `executeSearchQueries` (URL discovery when `novel.source` isn't a URL)
  *  - `SessionTabService` / `TabControlService` / entertainment services
  *    (`entertainmentFrontendService` reads, `entertainmentBackendService` writes)
- *
- * It deliberately does NOT import `fetchInternetChapter` / `landOnChapter` /
- * `extractChapter` — those encode chapter-LOOP logic (finality detection,
- * candidate judging, advance) that is irrelevant to a single continuous piece.
  */
 
 import { streamText, isStepCount, tool } from "ai";
@@ -35,9 +29,7 @@ import {
 } from "@/services";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { clickElementTool } from "@agents/tools/InteractiveTools";
-import { executeSearchQueries } from "@agents/workers/browserWorker/browser-research/search-agent";
-import type { ResearchPlan } from "@agents/workers/browserWorker/browser-research/planner";
-import type { InternetNovel } from "@shared";
+import { isValidHttpUrl, type InternetNovel } from "@shared";
 import { buildUserInteractionWallBlock } from "../shared/crawlWallPrompt";
 
 const logger = log.scope("Dehydrate:SinglePage:FetchSinglePage");
@@ -60,11 +52,11 @@ interface SinglePageFetchContext {
 
 /**
  * `saveContent` — the extract agent's terminal tool and the ONLY way it
- * delivers the page's full prose. Modeled on phase2Extract's
- * `saveChapterContentTool`, but pinned to `chapterNumber = 1` (this pipeline
- * has one source row). `title` is optional/null: a post/article may not carry a
- * usable title. `hasSuccessfulToolResult("saveContent")` then stops the stream,
- * so this single call both persists the result and terminates the agent.
+ * delivers the page's full prose. Pinned to `chapterNumber = 1` (this
+ * pipeline has one source row). `title` is optional/null: a post/article may
+ * not carry a usable title. `hasSuccessfulToolResult("saveContent")` then
+ * stops the stream, so this single call both persists the result and
+ * terminates the agent.
  */
 const saveContentTool = tool({
   description:
@@ -161,12 +153,11 @@ async function destroyCrawlTab(sessionId: string): Promise<void> {
 }
 
 /**
- * Land the crawl tab on the page to extract. Two paths:
- *  - `novel.source` is an absolute URL → navigate the tab to it directly.
- *  - otherwise → run ONE search query via `executeSearchQueries` to discover the
- *    page URL, take the first result, navigate to it.
- * Returns true if the tab is now on a landable page; false if no URL could be
- * found/navigated-to.
+ * Land the crawl tab on the page to extract by navigating directly to
+ * `novel.source` (a validated http(s) URL — the wizard blocks anything else).
+ * Returns true if the tab is now on the page; false when the source isn't a
+ * URL (re-configure the thread with a content link) or navigation fails —
+ * the caller's error path marks the row `error`.
  */
 async function landOnPage(
   novel: InternetNovel,
@@ -175,71 +166,19 @@ async function landOnPage(
   const tcs = TabControlService.getInstance();
   const source = novel.source.trim();
 
-  if (/^https?:\/\//i.test(source)) {
-    // Direct URL — navigate the crawl tab straight to it.
-    try {
-      await tcs.navigateTo(ctx.activeTabId, source);
-      return true;
-    } catch (err) {
-      logger.warn("navigate to source URL failed", { url: source, err });
-      return false;
-    }
-  }
-
-  // Search path — one query, take the first result URL.
-  const base = novel.title.trim() || source;
-  const query = [base, novel.author?.trim()].filter(Boolean).join(" ");
-  const plan: ResearchPlan = {
-    id: `ent-fetch3-plan-${ctx.threadId}`,
-    title: base,
-    description: `Find the page for: ${base}`,
-    queries: [
-      {
-        id: `ent-fetch3-plan-${ctx.threadId}-q0`,
-        query,
-        focus: `${base} — the page where this post/article begins`,
-      },
-    ],
-  };
-  // executeSearchQueries creates/destroys its own tabs in its own session, but
-  // SessionTabService only tracks tabs for a session that has been activated
-  // (mirrors phase1Land's pattern). After it runs, re-activate the crawl
-  // session so the crawl tab is current again.
-  const searchSessionId = `ent-search3-${ctx.threadId}`;
-  const sts = SessionTabService.getInstance();
-  await sts.activateSession(searchSessionId);
-  let candidates: string[];
-  try {
-    const results = await executeSearchQueries(
-      plan,
-      searchSessionId,
-      "",
-      { write() {} },
-      undefined,
-      ctx.abortSignal,
+  if (!isValidHttpUrl(source)) {
+    logger.warn(
+      "non-chaptered source is not a URL — re-configure the thread with a content link",
+      { threadId: ctx.threadId },
     );
-    candidates = results.map((r) => r.url).filter((u) => !!u);
-  } finally {
-    // Restore the crawl session as active so the crawl tab is current again.
-    await sts.activateSession(ctx.sessionId);
-  }
-
-  if (candidates.length === 0) {
-    logger.warn("no candidate URL found for single page", {
-      threadId: ctx.threadId,
-    });
     return false;
   }
-  logger.info("search candidate", {
-    threadId: ctx.threadId,
-    count: candidates.length,
-    url: candidates[0],
-  });
+
   try {
-    await tcs.navigateTo(ctx.activeTabId, candidates[0]);
+    await tcs.navigateTo(ctx.activeTabId, source);
     return true;
   } catch (err) {
-    logger.warn("navigate to candidate failed", { url: candidates[0], err });
+    logger.warn("navigate to source URL failed", { url: source, err });
     return false;
   }
 }
