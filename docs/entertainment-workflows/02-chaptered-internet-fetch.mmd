@@ -1,0 +1,69 @@
+flowchart TD
+    Start(["User picks a chaptered<br/>internet book in the wizard"]) --> Kind{"How did you<br/>point at the book?"}
+
+    Kind -->|"a link directly to<br/>the chapter you start at"| Fastest
+    Kind -->|"a link to the book's<br/>chapter list page<br/>or any page of the book"| Medium
+    Kind -->|"no link at all -<br/>just title and author"| Slowest
+
+    subgraph Fastest[" "]
+        F1["The saved link opens directly"]
+    end
+
+    subgraph Medium[" "]
+        M1["The site is searched for first,<br/>then the chapter is reached<br/>by walking the site"]
+    end
+
+    subgraph Slowest[" "]
+        S1["A web search runs first<br/>to find candidate sites"]
+    end
+
+    %% ---- override path first ----
+    Override(["User pasted the page they<br/>are reading (footer menu<br/>chapter-link button)"]) --> O1["Skip all searching and checking:<br/>open the pasted link and copy it,<br/>no questions asked"]
+    O1 --> WallOrContent
+
+    %% ---- normal path: the 3-rung ladder ----
+    Fastest --> Rung1
+    Medium --> Rung2
+    Slowest --> Rung3
+
+    Rung1{"Rung 1<br/>Is the previous chapter's<br/>page already saved?<br/>(chapter 2 onwards)"}
+    Rung1 -->|"yes"| A1["Open the previous<br/>chapter's saved page"]
+    A1 --> A2{"Quick text scan:<br/>does the page shout<br/>'paywall / login / captcha'?<br/>runDomWallProbe()"}
+    A2 -->|"no"| A3["Advance agent:<br/>clicks the next-chapter<br/>button (advanceAgent)"]
+    A3 -->|"landed on chapter N"| Extract
+    A3 -->|"there is no next button"| Fin{"Finality proof agent:<br/>is the previous chapter<br/>the last one?<br/>(finalityProofAgent)"}
+    Fin -->|"proven last"| BookEnd(["Book finished:<br/>remember final = N-1,<br/>clean up, release the browser tab"])
+    Fin -->|"not proven<br/>or wall found"| Rung2
+    Rung1 -->|"no saved page yet<br/>(e.g. first chapter)"| Rung2
+
+    Rung2{"Rung 2<br/>Do we already know<br/>which site hosts this book?<br/>(site anchors)"}
+    Rung2 -->|"yes"| B1["Open the saved<br/>book's chapter-list page"]
+    B1 --> B2{"Quick text scan<br/>for walls?"}
+    B2 -->|"no"| B3["Target agent: finds and opens<br/>chapter N from the list<br/>(targetChapterAgent)<br/>up to 2 tries, learns from<br/>a wrong landing"]
+    B3 --> Extract
+    B3 -->|"2 tries used up"| Block2["Mark this site<br/>'dead end - could not land'"]
+    Rung2 -->|"no"| Rung3
+
+    Rung3{"Rung 3<br/>Search the web<br/>for the book"}
+    Rung3 --> C1["runBookSearch()<br/>deterministic query: title + author<br/>executeSearchQueries()<br/>on a search tab"]
+    C1 --> C2["Try candidate sites<br/>one at a time<br/>(blocked and already-tried<br/>sites skipped)"]
+    C2 --> C3{"Find-the-book agent:<br/>is this candidate our book?<br/>(findTocAgent)"}
+    C3 -->|"yes - it found<br/>the chapter list"| C4["Remember this site<br/>(site anchors)"]
+    C4 --> Rung2
+    C3 -->|"wrong book"| C2
+
+    Block2 --> Rung3
+    A2 -->|"wall found"| Block1["Put the site on<br/>this book's blocked list"]
+    B2 -->|"wall found"| Block1
+    C2 -->|"all candidates used up"| Err(["Chapter marked failed<br/>fetchLoop stops,<br/>user can press Redo failed"])
+    Block1 --> Rung3
+
+    subgraph Extract["Copy the chapter (2 agent calls max)"]
+        E1["Extract agent:<br/>scrolls and copies the<br/>whole chapter text<br/>(extractChapterAgent)"]
+        E2["Text too short<br/>(under 500 characters)?"]
+        E1 --> E2
+        E2 -->|"no"| E3(["Chapter saved<br/>as 'fetched'"])
+        E2 -->|"yes"| E4["Treat the site as<br/>'dead end - no content'<br/>and rotate"]
+    end
+
+    E4 --> Rung3

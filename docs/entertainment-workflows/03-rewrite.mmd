@@ -1,0 +1,43 @@
+flowchart TD
+    Start(["A chapter's original text<br/>has just been saved"]) --> Fetch["Fetch original<br/>(pipeline 2 or 3)<br/>source_chapters row"]
+    File(["Book came from a text file<br/>(pipeline 1)"]) --> Loop
+
+    subgraph Loop["Pipeline 1 - runDehydrateLoop()<br/>chews through the uploaded file"]
+        L1["Measure the model's<br/>real text-to-token ratio<br/>with a tiny throwaway sample<br/>(probeCharsPerToken)"]
+        L2["Slice off the next bite<br/>of the file:<br/>- small bites at first (fast start-up)<br/>- full computed bites after that"]
+        L3["If the previous bite ended<br/>mid-scene ('to be continued'),<br/>glue its text to the front<br/>of this bite"]
+        L4["One agent pass reads the bite<br/>and calls outputChapter() over and over:<br/>each call = one cleaned chapter,<br/>staged in memory"]
+        L5["Last call is terminate():<br/>flush all staged chapters<br/>to the database in one go,<br/>and move the 'eaten' offset"]
+        L6{"More file<br/>left to eat?"}
+        L7["Mark the true final chapter,<br/>delete the stored raw file"]
+        L1 --> L2 --> L3 --> L4 --> L5 --> L6
+        L6 -->|"yes"| L2
+        L6 -->|"no"| L7
+    end
+
+    Loop --> Pre
+    Fetch --> Pre
+
+    subgraph Pre["Before the agent runs<br/>(both pipelines)"]
+        P1["Build the instruction sheet<br/>buildDehydrateSystemPrompt()<br/>from your wizard / options choices:<br/>fix grammar, filter slang, filler-stripping<br/>dials, polish/expand, translation,<br/>your free-form note"]
+        P2["Mark the chapter's row<br/>'rewriting'"]
+    end
+
+    Pre --> Agent
+
+    subgraph Agent["The rewriting agent pass"]
+        R1["The agent MUST hand over the new text<br/>by calling its outputChapter /<br/>outputProcessedContent tool -<br/>typing plain text does not count"]
+        R2{"Did it call<br/>the tool?"}
+        R3["Saved - row becomes<br/>'rewritten'<br/>(or 'to be continued'<br/>when a bite ended mid-scene)"]
+        R4["One retry with a firmer<br/>reminder (RETRY_SUFFIX)"]
+        R5["Row marked 'error'<br/>user can press Redo failed"]
+        R1 --> R2
+        R2 -->|"yes"| R3
+        R2 -->|"no"| R4
+        R4 --> R2
+        R4 -->|"still no"| R5
+    end
+
+    R3 --> Next{"More chapters<br/>coming?"}
+    Next -->|"yes (internet)"| Fetch
+    Next -->|"no"| Done(["Book finished"])

@@ -1,0 +1,44 @@
+flowchart TD
+    subgraph Join["The three ways a book job starts"]
+        J1["Wizard 'Fetch &amp; Continue'<br/>(internet books)<br/>POST /entertainment/threads/:id/prefetch"]
+        J2["Wizard 'Upload &amp; Continue'<br/>(file books)<br/>POST /entertainment/threads/:id/ingest"]
+        J3["Opening the reading screen<br/>(every open, switch, chapter jump)<br/>PUT /entertainment/reader-cursor"]
+        J4["Footer menu 'Process'<br/>POST /entertainment/threads/:id/resume"]
+    end
+
+    J1 --> Pick{"Which route owns<br/>this book?"}
+    J2 --> Pick
+    J3 --> Pick
+    J4 --> Pick
+
+    Pick -->|"file"| P1["Pipeline 1<br/>(chaptered file)"]
+    Pick -->|"internet + chapters"| P2["Pipeline 2<br/>(chaptered internet)"]
+    Pick -->|"internet + one single piece<br/>(non-chaptered choice)"| P3["Pipeline 3<br/>(non-chaptered internet)"]
+
+    subgraph Rules["The scheduler's house rules"]
+        R1["Only ONE job per book at a time.<br/>Starting a new job first aborts<br/>the old one"]
+        R2["Only the book you are looking at runs.<br/>Switching books or leaving<br/>aborts the previous job"]
+        R3["Fetching is skipped for chapters<br/>already saved; rewriting is skipped<br/>for chapters already rewritten<br/>(safe to re-run)"]
+        R4["The 'Stop' path waits for the job<br/>to fully wind down (whenSettled)<br/>before cleaning up its browser tabs"]
+    end
+
+    P1 -.-> Rules
+    P2 -.-> Rules
+    P3 -.-> Rules
+
+    subgraph Decision["The one tricky resume decision"]
+        D1{"On open of an internet book:<br/>has any chapter ever<br/>been rewritten?"}
+        D1 -->|"yes - user pressed Start before"| D2["Fetch + rewrite together<br/>startInternetPipeline()"]
+        D1 -->|"no - only background fetching<br/>has happened so far"| D3["Fetch only, keep waiting<br/>startInternetPrefetch()"]
+        D3 --> D4["The moment the reader shows<br/>a chapter, rewrite begins via<br/>the reader-cursor resume rule"]
+    end
+
+    subgraph Ends["How jobs end"]
+        E1["Book finished - proven<br/>(final chapter number stored)"]
+        E2["Chapter failed -<br/>loop stops, chapter shows an error,<br/>'Redo failed' re-enqueues it"]
+        E3["Aborted - user switched books,<br/>left the reader, or pressed Stop<br/>(in-flight rows stay 'fetching'<br/>so the next run redoes them)"]
+    end
+
+    P1 --> Ends
+    P2 --> Ends
+    P3 --> Ends

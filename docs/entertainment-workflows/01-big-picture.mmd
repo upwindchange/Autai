@@ -1,0 +1,56 @@
+flowchart TD
+    subgraph UI["What you see"]
+        Sidebar["Sidebar switch:<br/>Chat mode or Entertainment mode"]
+        Wizard["Setup wizard<br/>(3 screens: style, story, options)"]
+        Reader["Reading screen<br/>(book text, chapter list, footer menu)"]
+    end
+
+    subgraph Gate["The single gatekeeper - entertainmentScheduler"]
+        Sched["Decides which book job runs,<br/>and makes sure only one runs per book"]
+    end
+
+    subgraph Pipes["The three book-making routes"]
+        P1["Route 1 - book from a text file<br/>runDehydrateLoop()"]
+        P2["Route 2 - book from the internet,<br/>chapter by chapter<br/>fetchLoop() + fetchInternetChapter()<br/>+ rewriteChapter()"]
+        P3["Route 3 - one long web page,<br/>never split into chapters<br/>runSinglePagePipeline()<br/>+ fetchSinglePage()"]
+    end
+
+    subgraph Workers["AI helpers doing the work"]
+        FetchAgents["Five page-reading agents:<br/>find the book, open chapter N,<br/>click next, copy the text,<br/>prove the book ended"]
+        SearchMachinery["Web search machinery<br/>executeSearchQueries()<br/>(shared with chat research mode)"]
+        RewriteAgents["Rewriting agent<br/>(cleans and rewrites the text)"]
+        SmallAgent["Small helper agent<br/>(guesses a nicer book title + tags)"]
+    end
+
+    Sidebar -->|"entertainment mode has no chat box;<br/>everything happens through<br/>/entertainment web addresses"| Wizard
+    Wizard -->|"file chosen:<br/>POST /entertainment/threads/:id/ingest"| Sched
+    Wizard -->|"internet chosen:<br/>POST /entertainment/threads/:id/prefetch"| Sched
+    Reader -->|"every time you open or switch a book:<br/>PUT /entertainment/reader-cursor"| Sched
+    Reader -->|"footer menu buttons:<br/>/resume, /reprocess-failed,<br/>/current-url, /reset-sources"| Sched
+
+    Sched -->|"book came from a file"| P1
+    Sched -->|"book from the internet,<br/>AND it has chapters"| P2
+    Sched -->|"book from the internet,<br/>AND it is one single piece<br/>(the non-chaptered choice)"| P3
+
+    P2 -->|"needs to find the book online"| SearchMachinery
+    P2 -->|"needs to read pages"| FetchAgents
+    P3 -->|"reads its one page directly,<br/>no searching"| FetchAgents
+    P2 -->|"after each chapter is copied"| RewriteAgents
+    P3 -->|"after the page is copied"| RewriteAgents
+    P1 -->|"rewrites text it reads from the file"| RewriteAgents
+    P2 -->|"once, in the background"| SmallAgent
+    P3 -->|"once, in the background"| SmallAgent
+    P1 -->|"once, in the background"| SmallAgent
+
+    subgraph Store["The app's memory (small database)"]
+        SourceRows["source_chapters table:<br/>the copied original text,<br/>one row per chapter"]
+        RewriteRows["rewritten_chapters table:<br/>the cleaned new text,<br/>one row per chapter"]
+        BookMemory["entertainment_configs table:<br/>your choices, which sites are blocked,<br/>which site the book lives on,<br/>the final chapter number"]
+    end
+
+    FetchAgents --> SourceRows
+    SearchMachinery --> BookMemory
+    RewriteAgents --> RewriteRows
+    P1 --> SourceRows
+    P1 --> RewriteRows
+    Reader -->|"polls every 1.5 seconds:<br/>GET /entertainment/threads/:id/chapters/:n<br/>until the chapter is ready"| RewriteRows

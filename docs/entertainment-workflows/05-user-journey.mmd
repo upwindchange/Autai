@@ -1,0 +1,37 @@
+flowchart TD
+    subgraph Screens["Your screens"]
+        W["Setup wizard<br/>(style, story, options)"]
+        R["Reading screen"]
+    end
+
+    W -->|"- Screen 'Story' Next button:<br/>file book: POST /threads/:id/ingest<br/>internet book: POST /threads/:id/prefetch<br/>(also creates the thread: POST /threads)"| R
+
+    R -->|"Screen 'Story' Start button:<br/>GET /chapters, set current chapter,<br/>POST /threads/:id/position<br/>NOTE: the classic fetch+rewrite kick<br/>POST /threads/:id/start still exists on<br/>the backend but the wizard no longer<br/>calls it - see the note in the guide"| NextScreens
+
+    subgraph NextScreens[" "]
+        Reading["Read the book"]
+        Footer["Footer 'more' menu"]
+        Options["Live options editor"]
+    end
+
+    Reading -->|"on every open, book switch,<br/>or chapter jump:<br/>PUT /entertainment/reader-cursor"| Sched["Scheduler resumes work"]
+
+    Reading -->|"every 1.5 seconds until the open<br/>chapter is ready or fails:<br/>GET /threads/:id/chapters/:n<br/>(chapter detail)"| Ready{"Chapter ready?"}
+    Ready -->|"not yet"| Reading
+    Ready -->|"yes"| ShowText["The cleaned text is shown<br/>(only rewritten / to-be-continued<br/>chapters show text; everything else<br/>shows a status placeholder)"]
+    Ready -->|"failed"| ErrUi["Error shown - polling stops;<br/>only 'Redo failed' revives it"]
+
+    Footer -->|"'Process' item:<br/>POST /threads/:id/resume"| Sched
+    Footer -->|"'Redo failed' (count shown):<br/>POST /threads/:id/reprocess-failed"| Sched
+    Footer -->|"'Chapter link' (internet, chaptered):<br/>POST /threads/:id/current-url { url }"| Sched
+    Footer -->|"'Reset' (forget site knowledge):<br/>POST /threads/:id/reset-sources"| Sched
+    Footer -->|"Export as .txt:<br/>GET /threads/:id/export?range=current|fromCurrent|all"| Download["Browser downloads the file"]
+
+    Options -->|"open the editor:<br/>GET /threads/:id/config"| Options
+    Options -->|"change cleaning choices mid-book:<br/>PUT /threads/:id/config<br/>(file pipeline re-reads choices<br/>every bite; internet chapters pick<br/>up changes from the next chapter on)"| Sched
+
+    subgraph Push["Server push (SSE)"]
+        P1["entertainment:chaptersChanged<br/>fires on every database write<br/>the pipelines make"]
+    end
+
+    P1 -->|"arrives at the footer /<br/>chapter list: refresh from<br/>GET /threads/:id/chapters"| R
