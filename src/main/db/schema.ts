@@ -162,6 +162,10 @@ export const entertainmentConfigs = sqliteTable("entertainment_configs", {
   // (e.g. { "www.shuqi.com": "paywall" }). Persistent so a restart (or a
   // Redo-failed retry) does not re-crawl the same dead sites; null/{} = none.
   blockedSites: text("blocked_sites"),
+  // Site anchors for the chaptered-internet fetch: nullable JSON
+  // `{ host, bookUrl, tocUrl }` for the active crawl site; null when
+  // undiscovered or cleared (site blocked / book end).
+  siteAnchors: text("site_anchors"),
   rawText: text("raw_text"),
   rawConsumedOffset: integer("raw_consumed_offset").notNull().default(0),
   createdAt: text("created_at")

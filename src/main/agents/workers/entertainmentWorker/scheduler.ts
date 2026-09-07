@@ -51,6 +51,10 @@ export interface EntertainmentScheduler {
   stopThread(threadId: string): void;
   /** Resume unfinished work on open; picks the pipeline from stored config. */
   resumeOnOpen(threadId: string): void;
+  /** Reader "chapter link" override: restart the fetch at chapterNumber
+   * using the user's URL (extract-only, no verification). False when the
+   * thread is not a chaptered internet novel. */
+  submitCurrentUrl(threadId: string, chapterNumber: number, url: string): boolean;
   /** Re-enqueue errored chapters. Returns how many were reprocessed. */
   retryFailed(threadId: string): number;
 }
@@ -253,6 +257,54 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
     return failed.length;
   }
 
+  /**
+   * Reader "chapter link" override: the user pasted the URL of the chapter
+   * they are reading. Kills any running pipeline, unblocks that URL's host
+   * (the user vouches for it), drops stale anchors pointing elsewhere, and
+   * restarts the chapter loop AT that chapter with the URL as the
+   * extract-only override. Rewrite mode mirrors what Start has done
+   * (rewritten rows exist ⇒ rewrite alongside fetch).
+   */
+  submitCurrentUrl(threadId: string, chapterNumber: number, url: string): boolean {
+    this.stopThread(threadId);
+    const config = entertainmentFrontendService.getParsedConfig(threadId);
+    if (!config || config.novel.type !== "internet" || config.options.nonNovelSource) {
+      logger.warn("submitCurrentUrl skipped — not a chaptered internet thread", {
+        threadId,
+      });
+      return false;
+    }
+    let host: string;
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      logger.warn("submitCurrentUrl skipped — invalid url", { threadId, url });
+      return false;
+    }
+    entertainmentBackendService.unblockSite(threadId, host);
+    const anchors = entertainmentBackendService.getSiteAnchors(threadId);
+    if (anchors && anchors.host !== host) {
+      entertainmentBackendService.clearSiteAnchors(threadId);
+    }
+    const rewrite = entertainmentBackendService.countRewrittenChapters(threadId) > 0;
+    const novel = config.novel;
+    const options = config.options;
+    logger.info("submitCurrentUrl — restarting fetch at chapter", {
+      threadId,
+      chapterNumber,
+      host,
+      rewrite,
+    });
+    this.run(threadId, (signal) =>
+      this.fetchLoop(threadId, novel, options, signal, {
+        rewrite,
+        startAt: chapterNumber,
+        overrideUrl: url,
+      }),
+    );
+    return true;
+  }
+
   // --- internals -----------------------------------------------------------
 
   /**
@@ -289,19 +341,23 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
    * Fetch chapters strictly serially (one crawl tab is reused across chapters;
    * two concurrent fetchers corrupt it). With `rewrite: true`, rewrite each
    * chapter right after it fetches. Stops on final chapter, error, or abort.
+   * `opts.startAt` re-anchors the loop at a chapter; `opts.overrideUrl`
+   * forces the start chapter's fetch through the user's URL (the reader's
+   * chapter-link override — authoritative, always re-fetches chapter `startAt`).
    */
   private async fetchLoop(
     threadId: string,
     novel: InternetNovel,
     options: DehydrateConfig["options"],
     signal: AbortSignal,
-    opts: { rewrite: boolean },
+    opts: { rewrite: boolean; startAt?: number; overrideUrl?: string },
   ): Promise<void> {
-    const startNum = novel.startChapterNumber ?? 1;
+    const startNum = opts.startAt ?? novel.startChapterNumber ?? 1;
     logger.info("fetchLoop start", {
       threadId,
       rewrite: opts.rewrite,
       startChapter: startNum,
+      overrideUrl: opts.overrideUrl ?? null,
     });
     let n = startNum;
     // One-shot entertainment enrichment (title + tags) once the FIRST fetched
@@ -320,10 +376,14 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
         break;
       }
       const prior = entertainmentFrontendService.getSourceChapter(threadId, n);
-      if (!prior || prior.status !== "fetched") {
+      // The override chapter is authoritative — the user's URL IS chapter
+      // startNum now: always re-fetch (overwrite), never skip.
+      const isOverrideChapter = opts.overrideUrl != null && n === startNum;
+      if (isOverrideChapter || !prior || prior.status !== "fetched") {
         const outcome = await fetchInternetChapter(novel, n, {
           threadId,
           abortSignal: signal,
+          overrideUrl: isOverrideChapter ? opts.overrideUrl : undefined,
         });
         if (outcome === "finalChapter") {
           logger.info("fetchLoop — fetch reported final chapter", {

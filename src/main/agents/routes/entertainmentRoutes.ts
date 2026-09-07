@@ -21,7 +21,9 @@ import {
   deriveChapterStatus,
   resolvePipelineType,
   EntertainmentConfigSchema,
+  isValidHttpUrl,
 } from "@shared";
+import { clearSearchCache } from "@/agents/workers/entertainmentWorker/pipeline2ChapteredInternet/internetFetch/searchEntry";
 import { entertainmentScheduler } from "@/agents/workers/entertainmentWorker/scheduler";
 import log from "electron-log/main";
 
@@ -395,12 +397,55 @@ entertainmentRoutes.post("/threads/:threadId/resume", async (c) => {
   return c.json({ ok: true });
 });
 
+// POST /entertainment/threads/:threadId/current-url — reader "chapter link"
+// override: the user pasted the page they are reading; the fetch restarts
+// from the reader cursor's chapter using that URL (extract-only, no
+// verification). Requires a live reader cursor on this thread.
+entertainmentRoutes.post("/threads/:threadId/current-url", async (c) => {
+  const threadId = c.req.param("threadId");
+  const body = await c.req.json().catch(() => ({}));
+  const url = typeof (body as Record<string, unknown>)?.url === "string" ? ((body as Record<string, unknown>).url as string).trim() : "";
+  if (!isValidHttpUrl(url)) return c.json({ error: "invalid url" }, 400);
+  const cursor = entertainmentFrontendService.getReaderCursor();
+  if (!cursor || cursor.threadId !== threadId || cursor.chapterNumber == null)
+    return c.json({ error: "no reader cursor" }, 400);
+  const applied = entertainmentScheduler.submitCurrentUrl(
+    threadId,
+    cursor.chapterNumber,
+    url,
+  );
+  return applied ?
+      c.json({ ok: true })
+    : c.json({ error: "not a chaptered internet thread" }, 400);
+});
+
 // POST /entertainment/threads/:threadId/reprocess-failed — re-enqueue
 // errored chapters (source or rewrite "error"). Footer "Redo failed".
 entertainmentRoutes.post("/threads/:threadId/reprocess-failed", async (c) => {
   const threadId = c.req.param("threadId");
   const enqueued = entertainmentScheduler.retryFailed(threadId);
   return c.json({ ok: true, enqueued });
+});
+
+// POST /entertainment/threads/:threadId/reset-sources — reader "Reset" in the
+// footer's more menu: forget the book's site knowledge so the next fetch
+// re-anchors from scratch. Stops any in-flight runner, clears the crawl-site
+// blocklist + site anchors, nulls every stored chapter URL, and drops the
+// book-scoped search cache. Chapter content/statuses are untouched.
+entertainmentRoutes.post("/threads/:threadId/reset-sources", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    entertainmentScheduler.stopThread(threadId);
+    entertainmentBackendService.clearBlockedSites(threadId);
+    entertainmentBackendService.clearSiteAnchors(threadId);
+    entertainmentBackendService.clearSourceChapterUrls(threadId);
+    clearSearchCache(threadId);
+    logger.info("sources reset", { threadId });
+    return c.json({ ok: true });
+  } catch (error) {
+    logger.error("Error resetting sources:", error);
+    return c.json({ error: "Failed to reset sources" }, 500);
+  }
 });
 
 // GET /entertainment/threads/:threadId/config — read the thread's persisted

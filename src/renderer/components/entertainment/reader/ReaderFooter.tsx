@@ -3,14 +3,28 @@ import { useTranslation } from "react-i18next";
 import {
   Bookmark,
   Download,
+  Link2,
   List,
   Maximize2,
   Minimize2,
+  MoreHorizontal,
+  RefreshCw,
+  RotateCcw,
   SlidersHorizontal,
   Sparkles,
   Square,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+} from "@/components/ui/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
@@ -23,8 +37,8 @@ import { useChaptersStore } from "@/stores/chaptersStore";
 import { useBookmarksStore } from "@/stores/bookmarksStore";
 import { useUiStore } from "@/stores/uiStore";
 import { cn } from "@/lib/utils";
+import { isValidHttpUrl } from "@shared";
 import { getApiBase } from "@/lib/api";
-import { Label } from "@/components/ui/label";
 import { ReaderSettingsPanel } from "./reader-settings/ReaderSettingsPanel";
 import { TableOfContents } from "./table-of-contents/TableOfContents";
 import { Bookmarks } from "./bookmarks/Bookmarks";
@@ -75,15 +89,14 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   const { t } = useTranslation("reader");
   const zenMode = useUiStore((s) => s.zenMode);
   const toggleZenMode = useUiStore((s) => s.toggleZenMode);
-
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [tocOpen, setTocOpen] = useState(false);
   const [bookmarksOpen, setBookmarksOpen] = useState(false);
   const [downloadOpen, setDownloadOpen] = useState(false);
-  const [processOpen, setProcessOpen] = useState(false);
-  const [processCount, setProcessCount] = useState(5);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [urlInput, setUrlInput] = useState("");
+  const [urlError, setUrlError] = useState(false);
 
-  // TOC data comes from the chapters store (this footer lives inside the
   // entertainment tree, so the active thread is already loaded). Chapter jumps
   // (TOC + bookmarks) go through `onJumpTo`, owned by the reader host.
   const chapters = useChaptersStore((s) => s.chapters);
@@ -91,6 +104,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
   const currentThreadId = useChaptersStore((s) => s.currentThreadId);
   const loadChapters = useChaptersStore((s) => s.loadChapters);
   const finalChapterNumber = useChaptersStore((s) => s.finalChapterNumber);
+  const novelType = useChaptersStore((s) => s.novelType);
 
   // Bookmarks for the active thread. Loaded once per thread switch (no poll —
   // bookmarks only change via this client); add/remove mutate the store directly.
@@ -106,7 +120,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     tocOpen ||
     bookmarksOpen ||
     downloadOpen ||
-    processOpen;
+    moreOpen;
 
   // Event-driven chapter refresh: refetch the chapter list only when the
   // backend reports a change (SSE push), not on a blind timer. The store's
@@ -222,17 +236,18 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     setDownloadOpen(false);
   };
 
-  // --- Process (next N / all / redo failed) --------------------------------
-  // "Process next N" and "Process all" are one action: the scheduler resumes
-  // from the current read position to the end of the book. N is UI state only.
+  // --- More menu: process / chapter link / reset / stop --------------------
+  // "Process next N" and "Process all" were one action all along (the
+  // scheduler resumes from the current read position to the end of the
+  // book; the old count spinner was never read) — one honest menu item.
   const handleProcessResume = () => {
     if (!currentThreadId) return;
     void useChaptersStore
       .getState()
       .resumeThread(currentThreadId)
-      .then(() => setProcessOpen(false));
+      .then(() => setMoreOpen(false));
   };
-  // Errored chapters (source or rewrite "error") — drives the Redo button's
+  // Errored chapters (source or rewrite "error") — drives the Redo item's
   // enable state + label count.
   const failedCount = chapters.filter(
     (c) => c.sourceStatus === "error" || c.rewriteStatus === "error",
@@ -242,7 +257,37 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     void useChaptersStore
       .getState()
       .reprocessFailed(currentThreadId)
-      .then(() => setProcessOpen(false));
+      .then(() => setMoreOpen(false));
+  };
+
+  // Reset: forget the book's site knowledge (blocklist, anchors, stored
+  // chapter urls, search cache) so the next fetch re-anchors from scratch.
+  const handleResetSources = () => {
+    if (!currentThreadId) return;
+    void useChaptersStore
+      .getState()
+      .resetSources(currentThreadId)
+      .then(() => setMoreOpen(false));
+  };
+
+  // --- Chapter-link override (internet novels) ----------------------------
+  // The user pastes the page they are reading; the fetch restarts from the
+  // reader cursor's chapter using their URL — no search, no verification.
+  const handleSubmitCurrentUrl = async () => {
+    if (!currentThreadId) return;
+    const url = urlInput.trim();
+    if (!isValidHttpUrl(url)) {
+      setUrlError(true);
+      return;
+    }
+    try {
+      await useChaptersStore.getState().submitCurrentUrl(currentThreadId, url);
+      setUrlInput("");
+      setUrlError(false);
+      setMoreOpen(false);
+    } catch {
+      setUrlError(true);
+    }
   };
 
   const settingsTrigger = (
@@ -268,6 +313,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
       <List className="size-5" />
     </Button>
   );
+
 
   // Subtle hint (not a toggle): the icon tints primary when the current chapter
   // already has ≥1 bookmark. Tapping still opens the panel either way.
@@ -301,17 +347,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     </Button>
   );
 
-  const processTrigger = (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      aria-label={t("reader.process.title")}
-      className="size-9 rounded-full"
-    >
-      <Sparkles className="size-5" />
-    </Button>
-  );
 
   // Options button — opens the full-page rewrite-options editor (replaces the
   // reader, like the wizard). Not a popover: the dense tactics grid is
@@ -329,20 +364,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     </Button>
   );
 
-  // Drop the current thread and open a fresh wizard. Tooltip-wrapped like the
-  // zen toggle (no panel). The switch is synchronous (abandon), so no spinner.
-  const stopTrigger = (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      onClick={onStop}
-      aria-label={t("reader.stop.label")}
-      className="size-9 rounded-full"
-    >
-      <Square className="size-5 fill-current" />
-    </Button>
-  );
 
   return (
     // Container is pointer-events-none so only the pill (when visible) captures
@@ -398,65 +419,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
             </div>
           </ResponsivePanel>
 
-          {/* Process next N / all (left) */}
-          <ResponsivePanel
-            title={t("reader.process.title")}
-            tooltip={t("reader.process.title")}
-            open={processOpen}
-            onOpenChange={setProcessOpen}
-            trigger={processTrigger}
-          >
-            <div className="flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label className="text-xs text-muted-foreground">
-                  {t("reader.process.countLabel")}
-                </Label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={1}
-                    value={processCount}
-                    onChange={(e) =>
-                      setProcessCount(
-                        Math.max(1, Math.floor(Number(e.target.value) || 1)),
-                      )
-                    }
-                    aria-label={t("reader.process.countLabel")}
-                    className="h-8 w-20 rounded-md border border-input bg-transparent px-2 text-sm tabular-nums outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={handleProcessResume}
-                    disabled={currentChapterNumber == null}
-                  >
-                    {t("reader.process.next")}
-                  </Button>
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleProcessResume}
-                disabled={currentChapterNumber == null}
-              >
-                {finalChapterNumber != null ?
-                  t("reader.process.toEnd", { n: finalChapterNumber })
-                : t("reader.process.all")}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleReprocessFailed}
-                disabled={failedCount === 0}
-              >
-                {t("reader.process.retryFailed", { count: failedCount })}
-              </Button>
-            </div>
-          </ResponsivePanel>
-
           {/* Options (left) — full-page rewrite-options editor (not a popover). */}
           <Tooltip>
             <TooltipTrigger asChild>{optionsTrigger}</TooltipTrigger>
@@ -509,6 +471,100 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
             />
           </ResponsivePanel>
 
+          {/* More actions (right) — the pipeline controls that used to be
+              standalone footer buttons, grouped into one menu so the pill
+              stays lean: process, chapter link (submenu, internet only),
+              reset site knowledge, stop. */}
+          <DropdownMenu open={moreOpen} onOpenChange={setMoreOpen}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    aria-label={t("reader.more.label")}
+                    className="size-9 rounded-full"
+                  >
+                    <MoreHorizontal className="size-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {t("reader.more.label")}
+              </TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent side="top" align="end" className="w-64">
+              <DropdownMenuItem
+                onClick={handleProcessResume}
+                disabled={currentChapterNumber == null}
+              >
+                <Sparkles />
+                {finalChapterNumber != null ?
+                  t("reader.process.toEnd", { n: finalChapterNumber })
+                : t("reader.process.all")}
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={handleReprocessFailed}
+                disabled={failedCount === 0}
+              >
+                <RefreshCw />
+                {t("reader.process.retryFailed", { count: failedCount })}
+              </DropdownMenuItem>
+              {novelType === "internet" && (
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <Link2 />
+                    {t("reader.currentUrl.title")}
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent className="w-72">
+                    <p className="px-2 py-1.5 text-xs text-muted-foreground">
+                      {t("reader.currentUrl.desc")}
+                    </p>
+                    <div className="flex flex-col gap-2 p-2">
+                      <input
+                        type="url"
+                        value={urlInput}
+                        onChange={(e) => setUrlInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" && urlInput.trim()) {
+                            void handleSubmitCurrentUrl();
+                          }
+                        }}
+                        placeholder={t("reader.currentUrl.placeholder")}
+                        aria-label={t("reader.currentUrl.placeholder")}
+                        className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-sm outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                      />
+                      {urlError && (
+                        <p className="text-xs text-destructive">
+                          {t("reader.currentUrl.invalid")}
+                        </p>
+                      )}
+                      <Button
+                        type="button"
+                        size="sm"
+                        disabled={!urlInput.trim()}
+                        onClick={() => void handleSubmitCurrentUrl()}
+                      >
+                        {t("reader.currentUrl.submit")}
+                      </Button>
+                    </div>
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+              )}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleResetSources}>
+                <RotateCcw />
+                {t("reader.reset.label")}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onClick={onStop}>
+                <Square />
+                {t("reader.stop.label")}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           {/* Bookmarks (right) */}
           <ResponsivePanel
             title={t("reader.bookmarks.title")}
@@ -553,12 +609,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
             <TooltipContent side="top">
               {zenMode ? t("reader.zen.exit") : t("reader.zen.enter")}
             </TooltipContent>
-          </Tooltip>
-
-          {/* Stop (right edge) */}
-          <Tooltip>
-            <TooltipTrigger asChild>{stopTrigger}</TooltipTrigger>
-            <TooltipContent side="top">{t("reader.stop.hint")}</TooltipContent>
           </Tooltip>
         </div>
       </TooltipProvider>

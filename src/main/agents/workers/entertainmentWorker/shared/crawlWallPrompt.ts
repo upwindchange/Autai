@@ -24,6 +24,8 @@ A "wall" is any page state that demands interaction you cannot legitimately perf
 - Paywalls: 付费 / VIP / 订阅 / subscribe to read / "members only" content.
 - Captchas & human verification: 人机验证 / 滑动验证 / recaptcha / "verify you are human".
 - Age gates: 年龄确认 / age verification / "are you over 18".
+- Paid-content markers ANYWHERE on this site: VIP / 会员 / 付费 / 订阅 / lock icons on ANY chapter or table-of-contents entry — including chapters you were NOT asked to fetch, or entries outside the range you care about. A site that locks any chapter will eventually lock ours. Treat any such trace as a wall.
+- Judge the SITE, not the page: a paywall marker seen once anywhere (badge, icon, "VIP章节", "开通会员", lock glyph, subscription teaser) means stop immediately.
 Also treat a page or TOC that never loads (endless spinner, blank render, connection reset) as a wall.
 A wall is NEVER "content missing" — do not interpret it as end-of-book, a missing chapter, or the end of a post when it is the ONLY thing preventing you from reading content you already located.
 

@@ -125,8 +125,15 @@ interface ChaptersState {
     config: EntertainmentConfig,
   ) => Promise<void>;
   /** Re-evaluate the thread's DB state and continue unfinished work. Footer
-   *  "Process next N" / "Process all" buttons. */
+   * "Process next N" / "Process all" buttons. */
   resumeThread: (threadId: string) => Promise<void>;
+  /** Reader "chapter link" override: restart the fetch at the reader
+   * cursor's chapter using the user-supplied URL (extract-only). */
+  submitCurrentUrl: (threadId: string, url: string) => Promise<void>;
+  /** Footer "Reset": forget the book's site knowledge (blocklist, site
+   * anchors, stored chapter URLs, search cache) so the next fetch
+   * re-anchors from scratch. */
+  resetSources: (threadId: string) => Promise<void>;
   /** Re-enqueue errored chapters. Footer "Redo failed". Returns how many were
    *  reprocessed. */
   reprocessFailed: (threadId: string) => Promise<{ enqueued: number }>;
@@ -271,6 +278,19 @@ export const useChaptersStore = create<ChaptersState>()(
 
     resumeThread: async (threadId) => {
       await httpClient.postJSON(`/entertainment/threads/${threadId}/resume`);
+    },
+
+    submitCurrentUrl: async (threadId, url) => {
+      await httpClient.postJSON(
+        `/entertainment/threads/${threadId}/current-url`,
+        { url },
+      );
+    },
+
+    resetSources: async (threadId) => {
+      await httpClient.postJSON(
+        `/entertainment/threads/${threadId}/reset-sources`,
+      );
     },
 
     reprocessFailed: async (threadId) => {

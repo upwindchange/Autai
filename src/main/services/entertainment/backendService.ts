@@ -14,6 +14,18 @@ import { eventBus } from "@/utils/eventBus";
 const NOW = sql`(datetime('now'))`;
 
 const logger = log.scope("EntertainmentBackend");
+
+/**
+ * Active crawl-site anchors for the chaptered internet fetch — the site the
+ * fetcher has confirmed is our book (host) plus its book page and
+ * table-of-contents URLs. JSON-persisted in `entertainment_configs.site_anchors`.
+ */
+export interface SiteAnchors {
+  host: string;
+  bookUrl: string;
+  tocUrl: string;
+}
+
 /**
  * Entertainment backend persistence — the DB CRUD layer the entertainment
  * chapter tables write through. Pure writes + the write-side readers
@@ -360,6 +372,91 @@ class EntertainmentBackendService {
       .set({ blockedSites: null, updatedAt: NOW })
       .where(eq(entertainmentConfigs.threadId, threadId))
       .run();
+  }
+
+  /**
+   * Remove one hostname from the blocklist (the reader's chapter-link
+   * override unblocks the site the user just vouched for). Rewrites the
+   * stored JSON without the key, or nulls it when nothing remains.
+   */
+  unblockSite(threadId: string, hostname: string): void {
+    const blocked = this.getBlockedSites(threadId);
+    if (!(hostname in blocked)) return;
+    delete blocked[hostname];
+    const db = getDb();
+    db.update(entertainmentConfigs)
+      .set({
+        blockedSites:
+          Object.keys(blocked).length > 0 ? JSON.stringify(blocked) : null,
+        updatedAt: NOW,
+      })
+      .where(eq(entertainmentConfigs.threadId, threadId))
+      .run();
+    logger.info("site unblocked for thread", { threadId, hostname });
+  }
+
+  /**
+   * Read the thread's site anchors (the active crawl site's host + book/toc
+   * URLs, JSON in `entertainment_configs.site_anchors`). Never throws —
+   * malformed stored JSON yields null.
+   */
+  getSiteAnchors(threadId: string): SiteAnchors | null {
+    const db = getDb();
+    const row = db
+      .select({ siteAnchors: entertainmentConfigs.siteAnchors })
+      .from(entertainmentConfigs)
+      .where(eq(entertainmentConfigs.threadId, threadId))
+      .get();
+    if (!row?.siteAnchors) return null;
+    try {
+      const parsed: unknown = JSON.parse(row.siteAnchors);
+      if (
+        parsed != null &&
+        typeof parsed === "object" &&
+        typeof (parsed as Record<string, unknown>).host === "string" &&
+        typeof (parsed as Record<string, unknown>).bookUrl === "string" &&
+        typeof (parsed as Record<string, unknown>).tocUrl === "string"
+      ) {
+        return parsed as SiteAnchors;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Persist the active crawl site's anchors (internal state; logged only). */
+  setSiteAnchors(threadId: string, anchors: SiteAnchors): void {
+    const db = getDb();
+    db.update(entertainmentConfigs)
+      .set({ siteAnchors: JSON.stringify(anchors), updatedAt: NOW })
+      .where(eq(entertainmentConfigs.threadId, threadId))
+      .run();
+    logger.info("site anchors saved", { threadId, host: anchors.host });
+  }
+
+  /** Clear the anchors (site judged dead, override to a different host, or book end). */
+  clearSiteAnchors(threadId: string): void {
+    const db = getDb();
+    db.update(entertainmentConfigs)
+      .set({ siteAnchors: null, updatedAt: NOW })
+      .where(eq(entertainmentConfigs.threadId, threadId))
+      .run();
+    logger.info("site anchors cleared", { threadId });
+  }
+
+  /**
+   * Null out every stored chapter URL for the thread (the reader's Reset:
+   * forget where chapters were fetched from so the next fetch re-anchors via
+   * search instead of advancing from a possibly-stale saved page).
+   */
+  clearSourceChapterUrls(threadId: string): void {
+    const db = getDb();
+    db.update(sourceChapters)
+      .set({ url: null, updatedAt: NOW })
+      .where(eq(sourceChapters.threadId, threadId))
+      .run();
+    logger.info("source chapter urls cleared", { threadId });
   }
 
 
