@@ -25,7 +25,35 @@ import {
 } from "@shared";
 import { clearSearchCache } from "@/agents/workers/entertainmentWorker/pipeline2ChapteredInternet/internetFetch/searchEntry";
 import { entertainmentScheduler } from "@/agents/workers/entertainmentWorker/scheduler";
+import { SessionTabService } from "@/services";
 import log from "electron-log/main";
+
+/**
+ * Full backend teardown when the reader moves OFF a thread (Stop → fresh
+ * wizard, or switching to another thread): abort the in-flight runner AND
+ * destroy the thread's crawl/search sessions. Without the session teardown
+ * the crawl WebContentsView survives with its last page open, so a restart
+ * (or the split view) resumes from that stale page instead of a clean tab.
+ * The next fetch for this thread calls activateSession again, which
+ * recreates the session + a fresh welcome-page tab.
+ */
+async function teardownThreadSessions(threadId: string): Promise<void> {
+  entertainmentScheduler.stopThread(threadId);
+  // Wait out the dying runner's final iteration: it may hold an in-flight
+  // search/agent step that could otherwise recreate a session mid-teardown.
+  await entertainmentScheduler.whenSettled(threadId);
+  const sts = SessionTabService.getInstance();
+  await sts
+    .deleteSession(`ent-fetch-${threadId}`)
+    .catch((err) =>
+      logger.warn("crawl session teardown failed", { threadId, err }),
+    );
+  await sts
+    .deleteSession(`ent-search-${threadId}`)
+    .catch((err) =>
+      logger.warn("search session teardown failed", { threadId, err }),
+    );
+}
 
 const logger = log.scope("ApiServer:Entertainment");
 
@@ -335,7 +363,7 @@ entertainmentRoutes.put("/reader-cursor", async (c) => {
     // that thread's in-flight runner before adopting the new cursor.
     const prev = entertainmentFrontendService.getReaderCursor();
     if (prev && prev.threadId !== threadId) {
-      entertainmentScheduler.stopThread(prev.threadId);
+      await teardownThreadSessions(prev.threadId);
     }
     if (threadId == null || chapterNumber == null) {
       entertainmentFrontendService.setReaderCursor(null);

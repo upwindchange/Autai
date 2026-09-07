@@ -49,6 +49,9 @@ export interface EntertainmentScheduler {
   startInternetPipeline(threadId: string): void;
   /** Abort a thread's in-flight runner (thread switch / abandon / Stop). */
   stopThread(threadId: string): void;
+  /** Resolves once the thread's runner has fully settled after a stop —
+   * safe to tear down its crawl sessions then. */
+  whenSettled(threadId: string): Promise<void>;
   /** Resume unfinished work on open; picks the pipeline from stored config. */
   resumeOnOpen(threadId: string): void;
   /** Reader "chapter link" override: restart the fetch at chapterNumber
@@ -60,6 +63,9 @@ export interface EntertainmentScheduler {
 }
 
 class EntertainmentSchedulerImpl implements EntertainmentScheduler {
+
+  /** In-flight runner promises by thread — powers whenSettled. */
+  private readonly runners = new Map<string, Promise<void>>();
   /** One live AbortController per thread; presence ⇒ a runner is in flight. */
   private active = new Map<string, AbortController>();
 
@@ -119,6 +125,17 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
     controller.abort();
     this.active.delete(threadId);
     logger.info("thread stopped", { threadId });
+  }
+
+  /**
+   * Resolves once the thread's current runner (if any) has fully settled.
+   * The runner observes abort only at its next checkpoint — it may be mid-
+   * iteration (a search, an agent step) for seconds after stopThread. The
+   * reader-cursor teardown awaits this before deleting crawl sessions, so a
+   * dying runner can't recreate a session the teardown just destroyed.
+   */
+  whenSettled(threadId: string): Promise<void> {
+    return this.runners.get(threadId) ?? Promise.resolve();
   }
 
   resumeOnOpen(threadId: string): void {
@@ -318,7 +335,8 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
   ): void {
     const controller = new AbortController();
     this.active.set(threadId, controller);
-    void (async () => {
+    let done: Promise<void> = Promise.resolve();
+    done = (async () => {
       try {
         await runner(controller.signal);
         logger.info("runner settled", { threadId });
@@ -333,8 +351,12 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
         if (this.active.get(threadId) === controller) {
           this.active.delete(threadId);
         }
+        if (this.runners.get(threadId) === done) {
+          this.runners.delete(threadId);
+        }
       }
     })();
+    this.runners.set(threadId, done);
   }
 
   /**

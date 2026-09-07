@@ -87,8 +87,13 @@ export async function runBookSearch(
     );
   }
 
-  // Hand the crawl tab back its session before returning.
-  await sts.activateSession(crawlSessionId);
+  // Hand the crawl tab back its session before returning — EXCEPT when the
+  // runner was aborted: the reader-cursor teardown (Stop / thread switch)
+  // destroys both sessions after aborting, and re-activating here would
+  // recreate the crawl session with an orphan tab outliving the teardown.
+  if (!signal?.aborted) {
+    await sts.activateSession(crawlSessionId);
+  }
 
   const urls = filterBlockedHosts(
     results.map((r) => r.url),
