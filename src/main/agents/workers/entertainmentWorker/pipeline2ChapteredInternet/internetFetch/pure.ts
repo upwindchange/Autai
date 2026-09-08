@@ -13,9 +13,11 @@
  * hard wall. Bare "VIP"/"订阅" alone is NOT a marker (prose false positives:
  * a novel can legitimately contain "VIP lounge" in its sentences); the LLM
  * agents catch bare-badge cases via reportWall with full visual judgment.
+ * `VIP限免|VIP章节`-style chapter-title badges (qimao et al.) ARE markers:
+ * a real chapter never titles itself "VIP".
  */
 export const WALL_MARKER_RE =
-  /(VIP章节|VIP作品|VIP免费|开通会员|会员专享|会员订阅|付费阅读|付费章节|购买本章|订阅本书|订阅后阅读|登录后阅读|登录后继续|请登录|人机验证|滑动验证|verify you are human|recaptcha|captcha|subscribe to read|members only|age verification|年龄确认)/i;
+  /(VIP章节|VIP作品|VIP免费|VIP限免|VIP未订阅|VIP限时免费|开通会员|会员专享|会员订阅|付费阅读|付费章节|购买本章|订阅本书|订阅后阅读|登录后阅读|登录后继续|请登录|人机验证|滑动验证|verify you are human|recaptcha|captcha|subscribe to read|members only|age verification|年龄确认)/i;
 
 /**
  * Returns the matched marker phrase, or null when the text carries no wall
@@ -71,7 +73,7 @@ export function filterBlockedHosts(
   return out;
 }
 
-/** What the targetChapterAgent needs to retry a wrong landing by ORDER. */
+/** What the targetChapterAgent needs to retry a wrong landing (target + the wrong page it landed on). */
 export interface LandingRecoveryInput {
   target: number;
   lastTitle: string | null;
@@ -81,9 +83,9 @@ export interface LandingRecoveryInput {
 
 /**
  * The retry user-message for a target-chapter landing that opened the WRONG
- * chapter: re-open the toc, find the landed page's entry, open the entry
- * IMMEDIATELY FOLLOWING it (list order over site numerals), never re-accept
- * a page already visited.
+ * chapter: re-open the toc, locate chapter `target` by the site's printed
+ * chapter numbers — adjacency (the entry after the wrong landing) only as a
+ * fallback — never re-accept a page already visited.
  */
 export function buildLandingRecoveryPrompt(
   input: LandingRecoveryInput,
@@ -92,8 +94,9 @@ export function buildLandingRecoveryPrompt(
   return `Your previous attempt FAILED. Attempt ${input.attempt}: you landed on "${lastTitle}" (${input.lastUrl}), which is NOT our target — chapter ${input.target} of this book.
 
 Rules for this retry:
-- Do NOT accept "${lastTitle}" or any page you already visited. You must land on the chapter that comes AFTER it in the book's reading order.
-- Re-open the book's table of contents. Find "${lastTitle}" in the chapter list, then open the entry IMMEDIATELY FOLLOWING it. Prefer list ORDER over the site's printed chapter numbers — site numbering may skip prologues/author notes and disagree with our ${input.target}.
-- If the following entry is locked (VIP/付费/lock badge) or anything demands login/payment, call reportWall.
-- Call reportLandedChapter ONLY when the open page is the successor of "${lastTitle}".`;
+- Do NOT accept "${lastTitle}" or any page you already visited. Your target: chapter ${input.target}.
+- Re-open the book's table of contents. Locate the entry for chapter ${input.target} by the site's printed chapter numbers — do NOT count entries in reading order to find the ${input.target}-th entry.
+- Fallback ONLY when the printed numbers cannot settle it (entries carry no numerals, or the numbering skips/mismatches): find "${lastTitle}" in the chapter list and open the entry IMMEDIATELY FOLLOWING it — the successor of your wrong landing.
+- If the entry you open is locked (VIP/付费/lock badge) or anything demands login/payment, call reportWall.
+- Call reportLandedChapter ONLY when the open page's printed chapter label marks it as chapter ${input.target} — or, in the fallback case, when it is the successor of "${lastTitle}".`;
 }

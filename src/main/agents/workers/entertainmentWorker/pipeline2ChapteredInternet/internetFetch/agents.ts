@@ -83,11 +83,57 @@ async function runAgent(params: {
       functionId: params.telemetryId,
     },
   });
-  const steps = await result.steps;
-  return steps
-    .flatMap((s) => s.toolResults ?? [])
-    .filter((tr) => tr.type === "tool-result")
-    .map((tr) => ({ toolName: tr.toolName, output: tr.output }));
+  const startedAt = Date.now();
+  try {
+    const steps = await result.steps;
+    const toolResults = steps
+      .flatMap((s) => s.toolResults ?? [])
+      .filter((tr) => tr.type === "tool-result")
+      .map((tr) => ({ toolName: tr.toolName, output: tr.output }));
+    // Diagnostics: the silent failure modes (no terminal call, step
+    // exhaustion, an ERRORED reportWall, wrong-book on a walled page) are
+    // only distinguishable from here.
+    const toolErrors = steps.flatMap((s) =>
+      s.content
+        .filter(
+          (p): p is Extract<(typeof s.content)[number], { type: "tool-error" }> =>
+            p.type === "tool-error",
+        )
+        .map((p) => ({
+          toolName: p.toolName,
+          error: p.error instanceof Error ? p.error.message : String(p.error),
+        })),
+    );
+    const terminal = toolResults.find(
+      (tr) => tr.toolName === params.terminal,
+    );
+    const last = steps[steps.length - 1];
+    logger.info("agent run finished", {
+      telemetryId: params.telemetryId,
+      threadId: params.ctx.threadId,
+      chapterNumber: params.ctx.chapterNumber,
+      steps: steps.length,
+      maxSteps: params.maxSteps,
+      lastFinishReason: last?.finishReason,
+      toolCalls: toolResults.map((tr) => tr.toolName),
+      toolErrors,
+      terminalOutput: terminal?.output ?? null,
+      elapsedMs: Date.now() - startedAt,
+    });
+    return toolResults;
+  } catch (err) {
+    // A stream-level failure (provider/timeout/abort) surfaces here BEFORE
+    // any verdict mapping — without this line it was invisible.
+    logger.error("agent run errored", {
+      telemetryId: params.telemetryId,
+      threadId: params.ctx.threadId,
+      chapterNumber: params.ctx.chapterNumber,
+      aborted: params.ctx.abortSignal?.aborted ?? false,
+      err,
+      elapsedMs: Date.now() - startedAt,
+    });
+    throw err;
+  }
 }
 
 /** Terminal tool results are the agent's verdict; find one by name. */
@@ -210,9 +256,10 @@ type TargetChapterOutcome =
 
 /**
  * The browser is ALREADY on the toc (the orchestrator navigated + probed).
- * The agent opens the toc entry for chapter `n` — located by LIST ORDER,
- * site numerals advisory (prologues/author notes shift them) — paginating
- * the list as needed, then confirms the reading page really is chapter n.
+ * The agent opens the toc entry for chapter `n` — located by the site's
+ * printed chapter numbers, never by counting entries in reading order —
+ * paginating the list as needed, then confirms the reading page really is
+ * chapter n.
  * A wrong landing reports the landed page's title; the orchestrator retries
  * with `buildLandingRecoveryPrompt`.
  */
@@ -252,10 +299,10 @@ export async function targetChapterAgent(
 The book: "${titlePart}"${novel.author ? ` by ${novel.author}` : ""}. Your target: chapter ${n} of this book.
 
 Steps:
-1. Read the toc (getFlattenDOM). Locate the entry for chapter ${n} BY LIST ORDER — the site's printed chapter numbers are ADVISORY: prologues, 楔子, author notes, or extra chapters may shift the numbering. Count entries in reading order to find the ${n}-th chapter entry.
+1. Read the toc (getFlattenDOM). Locate the entry for chapter ${n} by the site's printed chapter numbers. Do not count entries in reading order to find the ${n}-th chapter entry.
 2. If the toc is paginated and the entry is beyond the current page, click through the list's pagination until you reach it.
 3. Click the entry. The browser lands on a reading page.
-4. Confirm what you landed on: it must be chapter ${n} of "${titlePart}" — check its position in the book's sequence and its title pattern. If it IS chapter ${n}, call reportLandedChapter with verdict "target".
+4. Confirm what you landed on: it must be chapter ${n} of "${titlePart}" — check the page's printed chapter label (e.g. "第${n}章" / "Chapter ${n}") and its title pattern. If it IS chapter ${n}, call reportLandedChapter with verdict "target".
 5. If the page is a DIFFERENT chapter, call reportLandedChapter with verdict "other" plus the page's own title/label — do NOT try more clicking after that.
 
 ${buildUserInteractionWallBlock(

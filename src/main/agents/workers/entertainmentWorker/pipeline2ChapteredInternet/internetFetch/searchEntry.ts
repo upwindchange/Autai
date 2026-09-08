@@ -47,7 +47,14 @@ export async function runBookSearch(
   if (!query) return [];
 
   const cached = searchCache.get(threadId);
-  if (cached && cached.query === query) return cached.urls;
+  if (cached && cached.query === query) {
+    logger.debug("book search — cache hit", {
+      threadId,
+      query,
+      urls: cached.urls,
+    });
+    return cached.urls;
+  }
 
   const searchSessionId = `ent-search-${threadId}`;
   const sts = SessionTabService.getInstance();
@@ -65,6 +72,11 @@ export async function runBookSearch(
 
   // The writer arg streams plan-card UI in browser-research; entertainment
   // has no plan-card surface, so it is a no-op.
+  const blockedHosts =
+    entertainmentBackendService.getBlockedSites(threadId);
+  // The search-analysis agent itself skips results whose DISPLAYED
+  // destination is blocked (breadcrumb/cite domain — never the href, which
+  // engines wrap in redirect wrappers). No URL decoding anywhere.
   let results = await executeSearchQueries(
     plan,
     searchSessionId,
@@ -72,6 +84,7 @@ export async function runBookSearch(
     { write() {} } as never,
     `ent-search-plan-${threadId}`,
     signal,
+    blockedHosts,
   );
   if (results.length === 0 && !signal?.aborted) {
     // Empty results may be a walled engine results page — retry the whole
@@ -84,6 +97,7 @@ export async function runBookSearch(
       { write() {} } as never,
       `ent-search-plan-${threadId}`,
       signal,
+      blockedHosts,
     );
   }
 
@@ -94,7 +108,6 @@ export async function runBookSearch(
   if (!signal?.aborted) {
     await sts.activateSession(crawlSessionId);
   }
-
   const urls = filterBlockedHosts(
     results.map((r) => r.url),
     entertainmentBackendService.getBlockedSites(threadId),
@@ -102,5 +115,12 @@ export async function runBookSearch(
   if (urls.length > 0) {
     searchCache.set(threadId, { query, urls });
   }
+  logger.info("book search resolved", {
+    threadId,
+    query,
+    rawCount: results.length,
+    urls,
+    blockedSites: entertainmentBackendService.getBlockedSites(threadId),
+  });
   return urls;
 }

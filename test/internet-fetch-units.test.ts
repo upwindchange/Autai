@@ -42,6 +42,20 @@ describe("probeWallMarkers", () => {
     expect(probeWallMarkers("第123章 此章为VIP章节，请订阅")).toBe("VIP章节");
   });
 
+  test("positive: VIP限免 chapter-title badge (qimao-style)", () => {
+    expect(probeWallMarkers("第300章 出关 VIP限免")).toBe("VIP限免");
+  });
+
+  test("positive: VIP未订阅 badge", () => {
+    expect(probeWallMarkers("VIP未订阅")).toBe("VIP未订阅");
+  });
+
+  test("positive: VIP限时免费 badge", () => {
+    expect(
+      probeWallMarkers("书架 设置 VIP限时免费 立即解锁"),
+    ).toBe("VIP限时免费");
+  });
+
   test("positive: 登录后阅读", () => {
     const marker = probeWallMarkers("请登录后阅读完整内容");
     expect(marker).not.toBeNull();
@@ -130,9 +144,13 @@ describe("buildLandingRecoveryPrompt", () => {
     expect(prompt).toContain("https://example.com/book/41");
   });
 
-  test("contains the IMMEDIATELY FOLLOWING and ORDER rules", () => {
+  test("locates the target by printed chapter numbers, not counting", () => {
+    expect(prompt).toContain("printed chapter numbers");
+    expect(prompt).toContain("do NOT count entries in reading order");
+  });
+
+  test("keeps the adjacency fallback for unreadable numbering", () => {
     expect(prompt).toContain("IMMEDIATELY FOLLOWING");
-    expect(prompt).toContain("ORDER");
   });
 
   test("null lastTitle falls back to the unnamed-page wording", () => {

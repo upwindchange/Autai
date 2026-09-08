@@ -156,7 +156,19 @@ const showSearchResultsTool = tool({
 
 // ===== System Prompt =====
 
-function buildSearchAnalysisPrompt(engineConfig: SearchEngineConfig): string {
+function buildSearchAnalysisPrompt(
+  engineConfig: SearchEngineConfig,
+  blockedHosts?: Record<string, string>,
+): string {
+  const blockedSection =
+    blockedHosts && Object.keys(blockedHosts).length > 0 ?
+      `
+## Blocked Sites — skip these results
+The caller already tried and rejected the following destination sites. Judge each result by its DISPLAYED destination — the site/domain shown in the result's cite, breadcrumb, or URL text (e.g. "www.example.com"), NEVER by the link's href, which may be an engine redirect wrapper hiding the real destination:
+${Object.entries(blockedHosts).map(([host, reason]) => `- ${host} (${reason})`).join("\n")}
+Do not report results that belong to any blocked site; spend the slots on other candidates instead.`
+    : "";
+
   return `You are a web search analyst. You are viewing the flattened DOM of a ${engineConfig.displayName} search results page.
 
 ## Your Task
@@ -178,6 +190,7 @@ Analyze the search results displayed in the DOM and identify the most relevant l
 6. Focus on organic search results only
 7. Only include results from the first page of results
 8. Do NOT try to extract or construct URLs — just provide the backendNodeId
+${blockedSection}
 
 ## Important
 - Each element in the DOM has a backendNodeId — use that to reference the link
@@ -347,6 +360,7 @@ async function executeSingleSearchQuery(
   sessionId: string,
   tabId: string,
   sessionTabService: SessionTabService,
+  blockedHosts?: Record<string, string>,
   signal?: AbortSignal,
 ): Promise<SearchResultItem[]> {
   const engine = settingsService.settings.searchEngine ?? "google";
@@ -387,7 +401,7 @@ async function executeSingleSearchQuery(
           content: `Search query: "${query}"\nFocus: "${focus}"\n\n${engineConfig.displayName} search results DOM:\n${truncatedDom}`,
         },
       ],
-      instructions: buildSearchAnalysisPrompt(engineConfig),
+      instructions: buildSearchAnalysisPrompt(engineConfig, blockedHosts),
       tools: {
         showSearchResults: showSearchResultsTool,
       },
@@ -429,6 +443,11 @@ async function executeSingleSearchQuery(
         query,
         rawCount: output.results.length,
         resolvedCount: resolved.length,
+        resolvedUrls: resolved.map((r) => ({
+          url: r.url,
+          title: r.title,
+          score: r.relevanceScore,
+        })),
       });
 
       return resolved;
@@ -473,6 +492,11 @@ export async function executeSearchQueries(
   writer: { write: (chunk: any) => void },
   planId?: string,
   signal?: AbortSignal,
+  /** Destination sites the caller already tried/rejected — the analysis
+   * agent skips results whose DISPLAYED destination is on this list (the
+   * href may be an engine redirect wrapper, so the agent judges by the
+   * visible cite/breadcrumb domain, never the href). */
+  blockedHosts?: Record<string, string>,
 ): Promise<SearchResultItem[]> {
   const sessionTabService = SessionTabService.getInstance();
   const searchPlanId = planId ?? `research-search-${sessionId}`;
@@ -535,6 +559,7 @@ export async function executeSearchQueries(
             sessionId,
             tabId,
             sessionTabService,
+            blockedHosts,
             signal,
           ),
       })),

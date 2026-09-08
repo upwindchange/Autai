@@ -9,7 +9,10 @@ import { tool } from "ai";
 import { z } from "zod";
 import { createIdGenerator } from "@ai-sdk/provider-utils";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
+import log from "electron-log/main";
 import { probeWallMarkers } from "./pure";
+
+const logger = log.scope("Dehydrate:InternetFetch");
 
 const generateId = createIdGenerator({ prefix: "call", size: 24 });
 
@@ -69,10 +72,24 @@ export async function runDomWallProbe(ctx: {
     ) {
       representation = result.representation;
     }
-  } catch {
+  } catch (err) {
     // Probe is a cost-saving pre-filter — a failing probe must never kill
-    // the fetch; the agent's own wall judgment still runs.
+    // the fetch; the agent's own wall judgment still runs. But log it: a
+    // silently failing probe passes every walled page as "clean".
+    logger.warn("wall probe — DOM fetch failed (probe degraded)", {
+      sessionId: ctx.sessionId,
+      activeTabId: ctx.activeTabId,
+      err,
+    });
     return null;
   }
+  // Diagnostics: what text the marker regex actually ran over. A marker
+  // miss with a suspiciously short representation points at DOM extraction
+  // issues (lazy-render) rather than a clean page.
+  logger.debug("wall probe — representation", {
+    sessionId: ctx.sessionId,
+    activeTabId: ctx.activeTabId,
+    length: representation.length,
+  });
   return probeWallMarkers(representation);
 }

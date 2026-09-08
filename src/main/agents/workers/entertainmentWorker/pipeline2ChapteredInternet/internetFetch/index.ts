@@ -152,9 +152,19 @@ export async function fetchInternetChapter(
       entertainmentBackendService.clearSiteAnchors(threadId);
     }
   };
-
   /** Deterministic wall probe on the current landing (marker or null). */
-  const probe = (): Promise<string | null> => runDomWallProbe(ctx);
+  const probe = (): Promise<string | null> =>
+    runDomWallProbe(ctx).then((marker) => {
+      // Diagnostics: the probe's verdict was silent — a hit explains every
+      // rotation that never reached an agent.
+      logger.debug("wall probe", {
+        threadId,
+        n,
+        url: liveUrl(activeTabId),
+        marker,
+      });
+      return marker;
+    });
 
   // --- override path: user-supplied chapter URL, no verification ---------
 
@@ -265,6 +275,26 @@ export async function fetchInternetChapter(
     const prev = entertainmentFrontendService.getSourceChapter(threadId, n - 1);
     const prevUrl = prev?.url ?? null;
     const savedHost = prevUrl ? hostnameOf(prevUrl) : null;
+    if (prevUrl) {
+      const blockedReason =
+        savedHost ?
+          entertainmentBackendService.getBlockedSites(threadId)[savedHost]
+        : undefined;
+      if (!savedHost || blockedReason != null) {
+        logger.debug("rung1 skipped — previous host unusable", {
+          threadId,
+          n,
+          prevUrl,
+          host: savedHost,
+          blockedReason: blockedReason ?? null,
+        });
+      }
+    } else {
+      logger.debug("rung1 skipped — no previous chapter url", {
+        threadId,
+        n,
+      });
+    }
     if (prevUrl && savedHost && !hostBlocked(savedHost)) {
       attemptedHosts.add(savedHost);
       if (await navigate(prevUrl)) {
@@ -393,7 +423,16 @@ export async function fetchInternetChapter(
       sessionId,
       abortSignal,
     );
-    if (candidates.length === 0) break ladder; // nothing searchable left
+    if (candidates.length === 0) {
+      // Diagnostics: silent terminal break — say WHY search was empty.
+      const blocked = entertainmentBackendService.getBlockedSites(threadId);
+      logger.warn("ladder exit — book search returned no candidates", {
+        threadId,
+        n,
+        blockedSites: blocked,
+      });
+      break ladder; // nothing searchable left
+    }
     let anchored = false;
     for (const candidate of candidates) {
       if (abortSignal?.aborted) break ladder;
@@ -407,18 +446,35 @@ export async function fetchInternetChapter(
       if (probedUrls.has(candidate)) continue;
       const candidateHost = hostnameOf(candidate);
       if (!candidateHost || hostBlocked(candidateHost)) continue;
-      if (attemptedHosts.has(candidateHost)) continue; // never re-pay a host
+      // Budget full ⇒ nothing can proceed: a new opened host would exceed
+      // the budget, a known one is already paid/blocked. Skip before paying
+      // for a navigation we cannot use.
       if (attemptedHosts.size >= MAX_HOSTS_PER_CHAPTER) continue; // budget
-      attemptedHosts.add(candidateHost);
       if (!(await navigate(candidate))) {
         probedUrls.add(candidate);
         continue;
       }
-      // Host truth = the OPENED page (webContents.getURL()), re-read at
-      // verdict time — never the candidate string. A candidate href can be
-      // an engine wrapper (google /goto?url=…) whose hostname is the
-      // ENGINE's; blocking that would blacklist the search engine itself.
+      // Host truth = the OPENED page (webContents.getURL()) — never the
+      // candidate string. A candidate href can be an engine wrapper
+      // (google /goto?url=…) whose hostname is the ENGINE's, and every
+      // wrapper candidate shares it: pre-navigation dedupe/budget on the
+      // candidate host would skip ALL remaining destinations once the
+      // first wrapper was attempted (observed: 3 usable sites skipped
+      // because www.google.com was "already attempted"). All host
+      // accounting — blocked, never-re-pay, budget — therefore happens
+      // POST-navigation against the opened host.
       const host = hostnameOf(liveUrl(activeTabId)) ?? candidateHost;
+      if (hostBlocked(host) || attemptedHosts.has(host)) {
+        logger.debug("candidate skipped — opened host already paid/blocked", {
+          threadId,
+          n,
+          candidate,
+          host,
+        });
+        probedUrls.add(candidate);
+        continue;
+      }
+      attemptedHosts.add(host);
       const marker = await probe();
       if (marker != null) {
         blockSite(host, "wall:" + marker);
@@ -454,7 +510,20 @@ export async function fetchInternetChapter(
       // wrong-book or failed (step exhaustion) — skip, keep searching
       probedUrls.add(candidate);
     }
-    if (!anchored) break ladder; // candidates exhausted without an anchor
+    if (!anchored) {
+      // Diagnostics: silent terminal break — dump why every candidate was
+      // skipped (blocked / already-attempted / budget / navigation failed /
+      // wrong-book / failed).
+      logger.warn("ladder exit — candidates exhausted without an anchor", {
+        threadId,
+        n,
+        candidates,
+        attemptedHosts: [...attemptedHosts],
+        probedUrls: [...probedUrls],
+        blockedSites: entertainmentBackendService.getBlockedSites(threadId),
+      });
+      break ladder; // candidates exhausted without an anchor
+    }
     // Anchored: next ladder iteration takes the target rung.
   }
 
