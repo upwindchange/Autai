@@ -60,7 +60,7 @@ export function GeneralSection() {
           >
             <Label
               htmlFor="theme-light"
-              className="flex flex-col items-center gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent has-[data-state=checked]:border-primary has-[data-state=checked]:bg-accent"
+              className="flex flex-col items-center gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5 dark:has-data-[state=checked]:bg-primary/10"
             >
               <RadioGroupItem
                 value="light"
@@ -74,7 +74,7 @@ export function GeneralSection() {
             </Label>
             <Label
               htmlFor="theme-dark"
-              className="flex flex-col items-center gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent has-[data-state=checked]:border-primary has-[data-state=checked]:bg-accent"
+              className="flex flex-col items-center gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5 dark:has-data-[state=checked]:bg-primary/10"
             >
               <RadioGroupItem
                 value="dark"
@@ -88,7 +88,7 @@ export function GeneralSection() {
             </Label>
             <Label
               htmlFor="theme-system"
-              className="flex flex-col items-center gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent has-[data-state=checked]:border-primary has-[data-state=checked]:bg-accent"
+              className="flex flex-col items-center gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5 dark:has-data-[state=checked]:bg-primary/10"
             >
               <RadioGroupItem
                 value="system"
