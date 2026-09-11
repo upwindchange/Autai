@@ -68,6 +68,7 @@
   "novel.internet.source.urlRequired": "必须提供链接。",
   "novel.internet.startChapter.requiredForChapterLink": "给了章节链接时必填——这条链接指向第几章？",
   "novel.internet.slowerThanFile": "在线获取比上传文件慢得多——每一章都要从网上定位并抓取。如果有文本文件，上传永远更快。",
+  "novel.internet.alphaNote": "在线获取功能处于实验阶段，可能不够稳定。",
   "novel.source.recommendFile.note": "上传文本文件遥遥领先——几乎立刻就能开始阅读，还能解锁文件专属功能：目录导航、章节并写（跨章判断哪些套路在重复、哪些设定前文已交代过）等。所有在线获取方式都慢得多——需要逐章定位并抓取页面。",
   "novel.source.structureLabel": "内容结构",
   "novel.source.acquisitionLabel": "获取方式",

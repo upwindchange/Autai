@@ -41,6 +41,7 @@ import { ComposerToolsMobile } from "@/components/ai-chat/composer-tools-mobile"
 import { TooltipIconButton } from "@/components/assistant-ui/tooltip-icon-button";
 import { ContextDisplayRing } from "@/components/ai-chat/context-display";
 import { useThreadModelContextWindow } from "@/hooks/useThreadModelContextWindow";
+import { AlphaGlyph } from "@/components/ui/alpha-glyph";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 export const ComposerAction: FC = () => {
@@ -173,7 +174,26 @@ export const ComposerAction: FC = () => {
                         <Field>
                           <FieldLabel>
                             <Globe className="size-4" />
-                            {t("composer.tools.browserUse")}
+                            <span
+                              className={cn(
+                                "relative",
+                                useBrowser ?
+                                  usePlannedBrowser ? "text-purple-500"
+                                  : "text-blue-500"
+                                : undefined,
+                              )}
+                            >
+                              {t("composer.tools.browserUse")}
+                              <AlphaGlyph
+                                className={cn(
+                                  "absolute -top-2 -right-3.5",
+                                  useBrowser ?
+                                    usePlannedBrowser ? "text-purple-500"
+                                    : "text-blue-500"
+                                  : "text-muted-foreground",
+                                )}
+                              />
+                            </span>
                           </FieldLabel>
                           <FieldDescription>
                             {useBrowser ?

@@ -68,6 +68,7 @@
   "novel.internet.source.urlRequired": "A link is required.",
   "novel.internet.startChapter.requiredForChapterLink": "Required with a chapter link — which chapter does the link point to?",
   "novel.internet.slowerThanFile": "Online fetch is much slower than uploading the file — each chapter has to be found and read from the web. If you have the text file, uploading it is always faster.",
+  "novel.internet.alphaNote": "Online fetch is in alpha — things may not always work as expected.",
   "novel.source.recommendFile.note": "Uploading the text file is the fastest way by far — reading starts almost immediately. It also unlocks file-only features: table-of-contents navigation, cross-chapter processing (which patterns repeat, which lore was already explained), and more. Every online option is much slower — the crawl has to find and read each chapter page.",
   "novel.source.structureLabel": "Structure",
   "novel.source.acquisitionLabel": "Acquisition",

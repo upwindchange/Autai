@@ -12,6 +12,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { AlphaGlyph } from "@/components/ui/alpha-glyph";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
@@ -223,16 +224,25 @@ export const StepNovel: FC<StepNovelProps> = ({
             <div className="flex items-center gap-2">
               <RadioGroupItem value="internet" id="ent-novel-internet" />
               <Label htmlFor="ent-novel-internet">
-                {t("novel.internet.label")}
+                <span className="relative">
+                  {t("novel.internet.label")}
+                  <AlphaGlyph className="absolute -top-1.5 -right-3.5 text-muted-foreground" />
+                </span>
               </Label>
             </div>
           </RadioGroup>
           {/* Every online path is slower than uploading the file — say so
               inline (not a tooltip) while the internet branch is open. */}
           {config.novel.type === "internet" && (
-            <p className="text-xs text-amber-600 dark:text-amber-400">
-              {t("novel.internet.slowerThanFile")}
-            </p>
+            <div className="flex flex-col gap-1">
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                {t("novel.internet.slowerThanFile")}
+              </p>
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                <AlphaGlyph className="size-3 shrink-0" />
+                {t("novel.internet.alphaNote")}
+              </p>
+            </div>
           )}
         </div>
       </div>
@@ -337,11 +347,9 @@ export const StepNovel: FC<StepNovelProps> = ({
           <Field>
             <FieldLabel>
               <span>{t("novel.internet.sourceKind.label")}</span>
-              <HelpTooltip
-                content={t("novel.internet.sourceKind.tooltip")}
-              />
+              <HelpTooltip content={t("novel.internet.sourceKind.tooltip")} />
             </FieldLabel>
-            {nonNovel ? (
+            {nonNovel ?
               <RadioGroup
                 value="content"
                 disabled
@@ -359,8 +367,7 @@ export const StepNovel: FC<StepNovelProps> = ({
                   </p>
                 </div>
               </RadioGroup>
-            ) : (
-              <RadioGroup
+            : <RadioGroup
                 value={kind}
                 onValueChange={(v) => setSourceKind(v as SourceKind)}
                 className="flex flex-col gap-2"
@@ -413,7 +420,7 @@ export const StepNovel: FC<StepNovelProps> = ({
                   </p>
                 </div>
               </RadioGroup>
-            )}
+            }
             {nonNovel && (
               <p className="text-xs text-muted-foreground">
                 {t("novel.internet.sourceKind.nonNovelLocked.hint")}
@@ -424,7 +431,7 @@ export const StepNovel: FC<StepNovelProps> = ({
           {/* Source — the link itself. Link kinds get a validated single-line
               URL input (red border + FieldError once a non-URL is typed);
               the search kind disables the input (no link needed). */}
-          {kind === "search" ? (
+          {kind === "search" ?
             <Field>
               <FieldLabel htmlFor="ent-novel-source">
                 <span>{t("novel.internet.sourceKind.search.label")}</span>
@@ -436,8 +443,7 @@ export const StepNovel: FC<StepNovelProps> = ({
                 placeholder={t("novel.internet.source.searchDisabled")}
               />
             </Field>
-          ) : (
-            <Field data-invalid={sourceTouchedInvalid || undefined}>
+          : <Field data-invalid={sourceTouchedInvalid || undefined}>
               <FieldLabel htmlFor="ent-novel-source">
                 <span>{t(`novel.internet.source.label.${kind}`)}</span>
                 <span className="text-destructive">*</span>
@@ -451,17 +457,15 @@ export const StepNovel: FC<StepNovelProps> = ({
                 placeholder={t(`novel.internet.source.placeholder.${kind}`)}
                 aria-invalid={sourceTouchedInvalid}
               />
-              {sourceTouchedInvalid ? (
-                <FieldError>
-                  {t("novel.internet.source.urlInvalid")}
-                </FieldError>
-              ) : config.novel.source.trim() === "" ? (
+              {sourceTouchedInvalid ?
+                <FieldError>{t("novel.internet.source.urlInvalid")}</FieldError>
+              : config.novel.source.trim() === "" ?
                 <p className="text-xs text-muted-foreground">
                   {t("novel.internet.source.urlRequired")}
                 </p>
-              ) : null}
+              : null}
             </Field>
-          )}
+          }
         </>
       }
       {/* Legal acknowledgment — required to commit (the Upload/Fetch &
