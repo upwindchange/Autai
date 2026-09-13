@@ -315,7 +315,7 @@ function AppContent() {
                 </ResizablePanel>
                 <ResizableHandle withHandle />
                 <ResizablePanel defaultSize={50} minSize={30}>
-                  <div ref={workspaceRef} className="h-full" />
+                  <div ref={workspaceRef} data-split-workspace="" className="h-full" />
                 </ResizablePanel>
               </ResizablePanelGroup>
             : <>

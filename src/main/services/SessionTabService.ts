@@ -5,6 +5,7 @@ import fs from "node:fs";
 import type { SessionId, TabId, sessionTabState } from "@shared";
 import { DOMService } from "./dom";
 import { ElementInteractionService } from "./interaction/ElementInteractionService";
+import { cssRectToDip } from "./sessionTabGeometry";
 import { applyFingerprintObfuscation } from "@/utils/fingerprintObfuscation";
 import { i18n } from "@/i18n";
 import log from "electron-log/main";
@@ -28,6 +29,9 @@ export class SessionTabService extends EventEmitter {
   private tabMetadata = new Map<TabId, TabMetadata>();
   private domServices = new Map<TabId, DOMService>();
   private interactionServices = new Map<TabId, ElementInteractionService>();
+  // Split-view container bounds in CSS pixels as reported by the renderer.
+  // WebContentsView.setBounds() wants DIPs; convert with the live zoom factor
+  // at each apply site (cssRectToDip) since zoom can change between posts.
   private tabBounds: Rectangle = { x: 0, y: 0, width: 1920, height: 1080 };
   private sessionStates = new Map<SessionId, sessionTabState>();
   private activeTab: WebContentsView | null = null;
@@ -443,7 +447,7 @@ export class SessionTabService extends EventEmitter {
       await this.hideAllTabsExcept(tabId);
 
       // Show this tab with current bounds
-      tab.setBounds(this.tabBounds);
+      tab.setBounds(cssRectToDip(this.tabBounds, this.getZoomFactor()));
       tab.setVisible(true);
       this.logger.debug(`tab ${tabId} is set to be visible`);
     } else {
@@ -466,7 +470,7 @@ export class SessionTabService extends EventEmitter {
 
       // Update bounds on active tab immediately
       if (this.activeTab) {
-        this.activeTab.setBounds(rect);
+        this.activeTab.setBounds(cssRectToDip(rect, this.getZoomFactor()));
       }
 
       // Show the active tab now that we have real bounds
@@ -600,6 +604,16 @@ export class SessionTabService extends EventEmitter {
 
   getTabMetadata(tabId: TabId): TabMetadata | null {
     return this.tabMetadata.get(tabId) || null;
+  }
+
+  /**
+   * Live zoom factor of the main window's page. The renderer reports the
+   * split-view container rect in CSS pixels, which scale with this factor —
+   * WebContentsView bounds are DIPs, so apply-time conversion is required.
+   */
+  private getZoomFactor(): number {
+    if (this.win.isDestroyed()) return 1;
+    return this.win.webContents.getZoomFactor();
   }
 
   updateTabTimestamp(tabId: TabId): void {

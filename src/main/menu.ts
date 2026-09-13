@@ -51,8 +51,11 @@ function buildOptionMenu(): MenuItemConstructorOptions {
  * window's webContents directly, so they work immediately at startup
  * regardless of focus state.
  *
- * Note: zoom *keyboard* shortcuts (Ctrl + /- /0) remain blocked by the
- * before-input-event handler in index.ts; only the menu clicks zoom here.
+ * Note: these zoom items act on the main window's webContents, and the
+ * accelerators deliver Ctrl+=/-/0 from the keyboard as well as menu clicks.
+ * Zoom rescales the renderer's CSS-pixel space; SessionTabService converts
+ * the split-view container rect (CSS px) to DIPs at apply time, keeping the
+ * WebContentsView aligned across zoom levels.
  */
 function buildViewMenu(win: BrowserWindow): MenuItemConstructorOptions {
   const wc = win.webContents;
