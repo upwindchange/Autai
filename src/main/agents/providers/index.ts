@@ -18,7 +18,6 @@
 
 import { eq } from "drizzle-orm";
 import type { LanguageModel } from "ai";
-import type { ProviderOptions } from "@ai-sdk/provider-utils";
 import type {
   ModelParameters,
   ModelRole,
@@ -56,14 +55,6 @@ export const FALLBACK_CONTEXT_TOKENS = 128_000;
  * goes false and nothing fires.)
  */
 const warnedUnknownContext = new Set<string>();
-
-/**
- * SDK packages whose reasoning wire format we know how to translate. Other
- * `@ai-sdk/*` packages get a one-time "reasoning not supported" log and no
- * providerOptions is emitted — the user's reasoning selection is silently
- * ignored for them. Add an entry here to teach the translator a new SDK.
- */
-const warnedUnsupportedReasoningSdk = new Set<string>();
 
 /**
  * A fully resolved model: the runnable SDK object plus its catalog/override
@@ -291,112 +282,8 @@ export const complexModel = (): ResolvedModel => createModel("complex");
 // Reasoning / sampling param translation
 // ──────────────────────────────────────────────
 
-/**
- * Derive the providerOptions namespace key for a resolved model. Each SDK
- * exposes its namespace on the model instance as `model.provider`
- * (`LanguageModelV4.provider`, see @ai-sdk/provider). Dedicated SDKs bake a
- * constant (`"groq"`, `"mistral"`); `@ai-sdk/openai-compatible` uses the
- * provider dir name (`"deepseek"`). All follow the `<name>.<modelType>`
- * convention, so splitting on `.` recovers the namespace programmatically — no
- * hardcoded mapping.
- *
- * For openai-compatible there is also a canonical folder-independent key
- * `"openaiCompatible"` the adapter reads, but using the derived provider name
- * matches DeepSeek's expected namespace and works for every dedicated SDK.
- */
-export function providerOptionsNamespace(model: LanguageModel): string {
-  // `LanguageModel` is a union of `GlobalProviderModelId | LanguageModelV3 | V2`;
-  // only the object variants carry `provider`. Guard at runtime.
-  const provider =
-    typeof model === "object" && model !== null && "provider" in model ?
-      (model as { provider: string }).provider
-    : "";
-  return provider.split(".")[0].trim();
-}
 
-/**
- * Mutable builder shape for the providerOptions inner object. `ProviderOptions`
- * (from @ai-sdk/provider-utils) is `Record<string, JSONObject>`, where JSONObject
- * is a recursive `{ [k: string]: JSONValue }`. The recursive alias below matches
- * that structure and lets per-SDK branches accumulate keys (e.g. add
- * `reasoning_effort` only when set) while still satisfying the return type.
- */
-type ReasoningPayload = { [key: string]: ReasoningPayloadValue };
-type ReasoningPayloadValue =
-  string | number | boolean | null | ReasoningPayload | ReasoningPayloadValue[];
 
-/**
- * Map the user's catalog-vocabulary reasoning selection to the SDK-specific
- * `providerOptions` shape. This is the ONE place where SDK semantics must be
- * hardcoded: the catalog records *what the user may choose* (toggle / effort
- * value / token budget), but the wire format is genuinely SDK-specific and the
- * catalog cannot encode it. Each branch below is keyed by SDK npm package, not
- * by provider dir — multiple providers can share one SDK package.
- *
- * Returns `undefined` when there is nothing to send (no selection, or an SDK
- * the translator doesn't yet know). Untranslated SDKs log once and no-op — the
- * user's reasoning selection is silently ignored rather than emitting a
- * malformed request.
- *
- * Verified wire formats:
- *  - @ai-sdk/openai-compatible (DeepSeek): thinking.type = enabled|disabled,
- *    reasoning_effort = high|max; the adapter reads providerOptions[<providerDir>].
- *  - @ai-sdk/anthropic: thinking = { type: "enabled"|"disabled", budgetTokens };
- *    the adapter reads providerOptions.anthropic and camelCases budget_tokens.
- *  - @ai-sdk/openai: reasoningEffort (a model setting overridable via
- *    providerOptions.openai.reasoningEffort); emits reasoning_effort on the wire.
- *
- * Extend by adding a branch. The signature is stable (params + model + npm).
- */
-export function reasoningProviderOptions(
-  params: ModelParameters | undefined,
-  model: LanguageModel,
-  npm: string,
-): ProviderOptions | undefined {
-  if (!params) return undefined;
-  const enabled = params.reasoningEnabled;
-  const effort = params.reasoningEffort;
-  const budget = params.reasoningBudgetTokens;
-  // No selection → nothing to send. Distinguish undefined (unset) from explicit
-  // false (disabled) — false is the DeepSeek fix and must produce a payload.
-  if (enabled === undefined && effort === undefined && budget === undefined) {
-    return undefined;
-  }
-
-  switch (npm) {
-    case "@ai-sdk/openai-compatible": {
-      const ns = providerOptionsNamespace(model);
-      const thinkingType = enabled === false ? "disabled" : "enabled";
-      const body: ReasoningPayload = { thinking: { type: thinkingType } };
-      if (effort) body.reasoning_effort = effort;
-      return { [ns]: body };
-    }
-    case "@ai-sdk/anthropic": {
-      const thinkingType = enabled === false ? "disabled" : "enabled";
-      const thinking: ReasoningPayload = { type: thinkingType };
-      // The anthropic adapter camelCases budget_tokens → budgetTokens.
-      if (thinkingType === "enabled" && budget != null) {
-        thinking.budgetTokens = budget;
-      }
-      return { anthropic: { thinking } };
-    }
-    case "@ai-sdk/openai": {
-      if (enabled === false) return undefined; // OpenAI has no "disabled" knob
-      if (!effort) return undefined;
-      return { openai: { reasoningEffort: effort } };
-    }
-    default: {
-      if (!warnedUnsupportedReasoningSdk.has(npm)) {
-        warnedUnsupportedReasoningSdk.add(npm);
-        logger.warn(
-          "reasoning selection ignored: SDK package not yet supported by the translator",
-          { npm },
-        );
-      }
-      return undefined;
-    }
-  }
-}
 
 /**
  * Map a ModelParameters object to the sampling-param subset that streamText
@@ -423,4 +310,9 @@ export function forwardSamplingParams(
   return out;
 }
 
+export {
+  providerOptionsNamespace,
+  type ProviderOptionControls,
+  customProviderOptions,
+} from "./options";
 export { Provider } from "./provider";

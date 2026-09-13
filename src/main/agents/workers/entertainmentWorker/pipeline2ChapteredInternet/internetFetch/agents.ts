@@ -14,7 +14,8 @@
 import { streamText, isStepCount, tool, type Tool } from "ai";
 import { z } from "zod";
 import log from "electron-log/main";
-import { complexModel } from "@agents/providers";
+import { complexModel, customProviderOptions } from "@agents/providers";
+import { ENTERTAINMENT_AGENT_CONTROLS } from "../../shared/modelControls";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
 import {
   settingsService,
@@ -68,14 +69,20 @@ async function runAgent(params: {
   for (const name of Object.keys(params.tools)) {
     toolsContext[name] = params.ctx;
   }
+  const resolved = complexModel();
+  const providerOptions = customProviderOptions(
+    resolved,
+    ENTERTAINMENT_AGENT_CONTROLS,
+  );
   const result = streamText({
-    model: complexModel().model,
+    model: resolved.model,
     instructions: params.instructions,
     messages: [{ role: "user", content: params.user }],
     tools: params.tools as never,
     stopWhen: [hasSuccessfulToolResult(params.terminal), isStepCount(params.maxSteps)],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.actionExecution,
+    ...(providerOptions && { providerOptions }),
     abortSignal: params.ctx.abortSignal,
     toolsContext: toolsContext as never,
     telemetry: {

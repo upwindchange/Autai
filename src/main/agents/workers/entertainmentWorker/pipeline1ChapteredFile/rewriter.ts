@@ -2,23 +2,28 @@
  * Chaptered-file ONE-PASS dehydrate runner.
  *
  * A single autonomous loop. Each pass reads a bounded chunk of the decoded
- * novel (`entertainment_configs.rawText`) and runs ONE agent call whose
- * terminal `outputChapters` tool emits an array of `{ title, content }`
- * pairs — the agent re-chapters, merges, and dehydrates as it sees fit
- * (typically producing FEWER chapters than the source). Title + rewrite are
- * produced together in that one tool call. The title lands in `source_chapters`
- * so the reader's TOC + app header can show it.
+ * novel (`entertainment_configs.rawText`) and runs ONE agent call with two
+ * tools: every `outputChapter` call writes ONE completed chapter to the DB
+ * immediately (drip — readers see each chapter the moment the model produces
+ * it), and the single `terminate` call writes the FINAL chapter + advances
+ * `rawConsumedOffset` atomically. The agent re-chapters, merges, and
+ * dehydrates as it sees fit (typically producing FEWER chapters than the
+ * source); the title lands in `source_chapters` so the reader's TOC + app
+ * header can show it.
  *
- * Resumable + recoverable: every pass advances `rawConsumedOffset` (inside the
- * tool, deterministically), so a crashed/killed run picks up from the last
- * committed chunk on the next thread-open. `rawText` is held in the DB until
- * EOF so crash-resume can re-read it without touching the source file.
+ * Resumable + recoverable: chapters persist per drip while the offset
+ * advances only at `terminate`, so a crashed/killed run keeps every dripped
+ * chapter; reopening the thread replays the un-consumed chunk with a
+ * storyline-continuation anchor (the last already-published chapter) so the
+ * model continues after it instead of re-covering written plot. `rawText` is
+ * held in the DB until EOF so crash-resume can re-read it.
  *
  * Honors Abort: the caller passes an AbortSignal; the loop checks it between
  * passes and the in-flight `streamText` aborts mid-pass. An abort exits quietly
  * (no failure alert); a genuine failure (no tool call after retry, or a thrown
- * error) alerts + leaves `rawConsumedOffset` and `rawText` untouched so the
- * next open retries the same chunk.
+ * error) alerts + leaves `rawConsumedOffset` and `rawText` untouched (dripped
+ * chapters stay) so the next open retries the same chunk via the resume
+ * anchor.
  *
  * Per-pass settings: the model is re-resolved (`complexModel()`) and the
  * dehydrate options re-read (`getParsedConfig`) on EVERY pass, so a mid-run
@@ -30,22 +35,25 @@
  */
 
 import { streamText, isStepCount, tool, generateText } from "ai";
-import type { LanguageModel } from "ai";
 import { z } from "zod";
 import log from "electron-log/main";
 import {
   complexModel,
   forwardSamplingParams,
-  reasoningProviderOptions,
+  customProviderOptions,
   type ResolvedModel,
 } from "@agents/providers";
+import { ENTERTAINMENT_AGENT_CONTROLS } from "../shared/modelControls";
 import { TIMEOUTS } from "@agents/utils";
 import {
   settingsService,
   entertainmentFrontendService,
   entertainmentBackendService,
 } from "@/services";
-import { buildDehydrateSystemPrompt } from "../shared/dehydratePrompt";
+import {
+  buildDehydrateSystemPrompt,
+  buildDehydrateLeadInUserContent,
+} from "../shared/dehydratePrompt";
 import type { RewrittenChapterStatus } from "@shared";
 
 const logger = log.scope("Dehydrate:Rewriter:File");
@@ -76,18 +84,6 @@ const PROBE_FALLBACK_CHARS_PER_TOKEN = 0.5;
 /** Safety cap on passes so a state bug can't loop forever. */
 const MAX_PASSES = 10_000;
 
-/**
- * Fast start-up: the first few batches ingest only this many chars each — a
- * touch over one ~3000-char source chapter (≈1:1 chars-per-token for Chinese) —
- * so the reader gets opening chapters to read almost immediately instead of
- * waiting for a full-size batch to finish. After `FAST_STARTUP_PASSES` batches
- * the loop switches to the model's full computed budget for the rest of the
- * book. Gated on consumed offset (not the pass index), so it is resume-safe: a
- * reopened run never re-triggers fast start-up once the opening batches are done.
- */
-const FAST_STARTUP_CHARS = 4000;
-const FAST_STARTUP_PASSES = 3;
-
 // ---------------------------------------------------------------------------
 // chars-per-token probe (one-shot, preserved from the former textChunker)
 // ---------------------------------------------------------------------------
@@ -101,7 +97,7 @@ const FAST_STARTUP_PASSES = 3;
  * no per-pass re-calibration.
  */
 async function probeCharsPerToken(
-  model: LanguageModel,
+  resolved: ResolvedModel,
   rawText: string,
   threadId: string,
 ): Promise<number | null> {
@@ -109,10 +105,15 @@ async function probeCharsPerToken(
   const sample = rawText.slice(0, PROBE_SAMPLE_CHARS);
   if (!sample) return null;
   try {
+    const providerOptions = customProviderOptions(
+      resolved,
+      ENTERTAINMENT_AGENT_CONTROLS,
+    );
     const result = await generateText({
-      model,
+      model: resolved.model,
       prompt: sample,
       maxOutputTokens: 1,
+      ...(providerOptions && { providerOptions }),
       maxRetries: settingsService.settings.maxRetries,
       timeout: TIMEOUTS.chat,
       telemetry: {
@@ -169,14 +170,14 @@ function computeBudget(resolved: ResolvedModel, charsPerToken: number): number {
 }
 
 // ---------------------------------------------------------------------------
-// Per-pass staging + two tools: outputChapter (stage) + terminate (flush)
+// Per-pass counters + two tools: outputChapter (drip) + terminate (final)
 // ---------------------------------------------------------------------------
 
 /**
- * Per-pass RAM staging buffer. Created fresh at the start of each pass (local
- * to the pass), passed into both tools via `toolsContext`. An interrupted pass
- * simply never calls `terminate`, so the staging is discarded with the pass —
- * crash-safe by construction (no partial DB state).
+ * Per-pass bookkeeping. Created fresh at the start of each pass (local to the
+ * pass), passed into both tools via `toolsContext`. Chapters are written to
+ * the DB inside each tool's `execute` (drip); the stage only tracks counters —
+ * no chapter text is held here.
  */
 interface PassStage {
   threadId: string;
@@ -188,15 +189,18 @@ interface PassStage {
    *  (not `to_be_continued`) AND `finalChapterNumber` is set. */
   isLastBatch: boolean;
   /** Sequential chapter numbers this pass will write, continuing from the DB.
-   *  When lead-in is present, this is the PRIOR `to_be_continued` chapter's
-   *  number (the first outputChapter REPLACES that row in place). */
+   *  When a `continue` lead-in is present, this is the PRIOR
+   *  `to_be_continued` chapter's number (the first outputChapter REPLACES
+   *  that row in place). */
   startNum: number;
-  /** When non-null, the first staged chapter lands on an EXISTING row (the
+  /** When non-null, the first dripped chapter lands on an EXISTING row (the
    *  prior pass's `to_be_continued` chapter whose content was prepended as
-   *  lead-in). `flushDehydratePass` UPDATEs instead of INSERTing it. */
+   *  lead-in). The DB write UPDATEs instead of INSERTing it. */
   replaceAtChapterNumber: number | null;
-  /** Staged chapters in emit order. */
-  chapters: { title: string; content: string }[];
+  /** Chapters written to the DB this pass so far (drip counter). */
+  savedCount: number;
+  /** Cumulative content chars emitted this pass (tripwire input). */
+  emittedChars: number;
 }
 
 /** Shared field schemas (identical for outputChapter + terminate). */
@@ -217,31 +221,55 @@ const CONTENT_DESC =
   "(no title, no Markdown, no explanations).";
 
 /**
- * `outputChapter` — stage ONE completed chapter (see description). Chapters
- * land in `PassStage`; nothing is written to the DB until `terminate` flushes.
+ * `outputChapter` — drip ONE completed chapter (see description): the write
+ * happens inside this execute, so the chapter is reader-visible immediately.
  */
 const outputChapterTool = tool({
   description:
     "Output ONE completed dehydrated chapter from the input chunk. Call this " +
-    "once per chapter you produce. The chapter is staged internally; you will " +
-    "NOT see it again. After your final chapter of this chunk, call the " +
-    "`terminate` tool instead of this one. Never emit prose as plain text.",
+    "once per chapter you produce, at most ONE call per message — never " +
+    "batch multiple outputChapter calls; wait for each tool result before " +
+    "emitting the next chapter. The chapter is saved to the reader's " +
+    "library immediately; you will NOT see it again. After your final " +
+    "chapter of this chunk, call the `terminate` tool instead of this one. " +
+    "Never emit prose as plain text.",
   inputSchema: z.object({
     title: z.string().min(1).describe(TITLE_DESC),
     content: z.string().min(1).describe(CONTENT_DESC),
   }),
   contextSchema: z.object({ stage: z.custom<PassStage>() }),
   execute: async (input, { context: ctx }) => {
-    ctx.stage.chapters.push({ title: input.title, content: input.content });
-    return { staged: ctx.stage.chapters.length };
+    const s = ctx.stage;
+    const chapterNumber = s.startNum + s.savedCount;
+    entertainmentBackendService.flushDehydrateChapter({
+      threadId: s.threadId,
+      chapterNumber,
+      title: input.title,
+      content: input.content,
+      rewriteStatus: "rewritten",
+      ...(s.savedCount === 0 && s.replaceAtChapterNumber != null && {
+        replaceAtChapterNumber: s.replaceAtChapterNumber,
+      }),
+    });
+    s.savedCount += 1;
+    s.emittedChars += input.content.length;
+    logger.info("dehydrate chapter dripped", {
+      threadId: s.threadId,
+      n: chapterNumber,
+      titleLen: input.title.length,
+      contentLen: input.content.length,
+      replaced: s.replaceAtChapterNumber === chapterNumber,
+    });
+    return { saved: chapterNumber };
   },
 });
 
 /**
- * `terminate` — emit the FINAL chapter of the chunk and end the pass. Execute:
- * gross-coverage tripwire (refuses to flush if output is absurdly small vs
- * input), then atomically flushes all staged chapters + offset advance +
- * optional final-chapter number + thread touch in ONE transaction.
+ * `terminate` — emit the FINAL chapter of the chunk and end the pass.
+ * Execute: gross-coverage tripwire (refuses to terminate if the pass's
+ * cumulative output is absurdly small vs input), then ONE atomic DB write:
+ * final chapter + offset advance + optional final-chapter number + thread
+ * touch in a single transaction.
  */
 const terminateTool = tool({
   description:
@@ -258,12 +286,11 @@ const terminateTool = tool({
   contextSchema: z.object({ stage: z.custom<PassStage>() }),
   execute: async (input, { context: ctx }) => {
     const s = ctx.stage;
-    s.chapters.push({ title: input.title, content: input.content });
-    // Gross-coverage tripwire: refuse to flush if output is absurdly small vs
-    // input. Return an error result so the model sees it and keeps going (the
-    // SDK feeds tool errors back into the next step). Do NOT flush, do NOT
-    // advance.
-    const emittedChars = s.chapters.reduce((a, c) => a + c.content.length, 0);
+    // Gross-coverage tripwire: refuse to terminate if the pass's cumulative
+    // output is absurdly small vs input. Return an error result so the model
+    // sees it and keeps going (the SDK feeds tool errors back into the next
+    // step). Do NOT write the final chapter, do NOT advance.
+    const emittedChars = s.emittedChars + input.content.length;
     if (emittedChars < s.chunkLength * 0.02) {
       return {
         error: "insufficient_coverage",
@@ -276,44 +303,36 @@ const terminateTool = tool({
           `terminate again only when the entire input has been covered.`,
       };
     }
-    // Assign sequential numbers continuing from the DB.
-    const rows = s.chapters.map((c, i) => ({
-      chapterNumber: s.startNum + i,
-      title: c.title,
-      content: c.content,
-      rewriteStatus: (i === s.chapters.length - 1 ?
-        s.isLastBatch ?
-          "rewritten"
-        : "to_be_continued"
-      : "rewritten") as RewrittenChapterStatus,
-    }));
-    entertainmentBackendService.flushDehydratePass({
+    const chapterNumber = s.startNum + s.savedCount;
+    const lastStatus: RewrittenChapterStatus = s.isLastBatch ?
+      "rewritten"
+    : "to_be_continued";
+    entertainmentBackendService.flushDehydrateTermination({
       threadId: s.threadId,
-      chapters: rows,
-      newOffset: s.chunkStart + s.chunkLength,
-      ...(s.replaceAtChapterNumber != null && {
+      chapterNumber,
+      title: input.title,
+      content: input.content,
+      rewriteStatus: lastStatus,
+      ...(s.savedCount === 0 && s.replaceAtChapterNumber != null && {
         replaceAtChapterNumber: s.replaceAtChapterNumber,
       }),
-      ...(s.isLastBatch && {
-        finalChapterNumber: rows[rows.length - 1].chapterNumber,
-      }),
+      newOffset: s.chunkStart + s.chunkLength,
+      ...(s.isLastBatch && { finalChapterNumber: chapterNumber }),
     });
+    s.savedCount += 1;
+    s.emittedChars += input.content.length;
     logger.info("dehydrate pass flushed", {
       threadId: s.threadId,
-      saved: rows.length,
+      saved: s.savedCount,
       newOffset: s.chunkStart + s.chunkLength,
       isLastBatch: s.isLastBatch,
       chunkStart: s.chunkStart,
       chunkLength: s.chunkLength,
-      lastStatus: rows[rows.length - 1].rewriteStatus,
+      lastStatus,
       replaceAt: s.replaceAtChapterNumber,
-      chapterLengths: rows.map((r) => ({
-        n: r.chapterNumber,
-        titleLen: r.title.length,
-        contentLen: r.content.length,
-      })),
+      emittedChars: s.emittedChars,
     });
-    return { saved: rows.length, terminated: true };
+    return { saved: chapterNumber, terminated: true };
   },
 });
 
@@ -378,11 +397,10 @@ async function runDehydrateAgent(params: {
   const { resolved, systemPrompt, userContent, stage, maxSteps, signal } =
     params;
   const sampling = forwardSamplingParams(resolved.params);
-  const reasoning = reasoningProviderOptions(
-    resolved.params,
-    resolved.model,
-    resolved.npm,
-  );
+  const providerOptions = customProviderOptions(resolved, {
+    ...ENTERTAINMENT_AGENT_CONTROLS,
+    disallowParallelToolCalls: true,
+  });
   const result = streamText({
     model: resolved.model,
     instructions: systemPrompt,
@@ -399,7 +417,7 @@ async function runDehydrateAgent(params: {
     ...(resolved.maxOutputTokens != null && {
       maxOutputTokens: resolved.maxOutputTokens,
     }),
-    ...(reasoning && { providerOptions: reasoning }),
+    ...(providerOptions && { providerOptions }),
     toolsContext: { outputChapter: { stage }, terminate: { stage } },
     telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,
@@ -423,8 +441,116 @@ async function runDehydrateAgent(params: {
       })),
     });
   }
-  // `saved` = a successful terminate flushed somewhere in this pass.
+  // True = a successful terminate fired somewhere in this pass (the offset
+  // advanced; any dripped chapters are already persisted regardless).
   return steps.some((s) => (s.toolResults ?? []).some(isSuccessfulTerminate));
+}
+
+// ---------------------------------------------------------------------------
+// Pass planning (chunk + anchor derivation, rebuilt from live DB state)
+// ---------------------------------------------------------------------------
+
+/** Everything one pass needs, derived from CURRENT DB state. */
+interface PassPlan {
+  chunk: string;
+  chunkStart: number;
+  chunkEnd: number;
+  chunkLength: number;
+  isLastBatch: boolean;
+  budget: number;
+  systemPrompt: string;
+  userContent: string;
+  startNum: number;
+  replaceAtChapterNumber: number | null;
+  leadIn: { chapterNumber: number; kind: "continue" | "resume" } | null;
+  maxSteps: number;
+}
+
+/**
+ * Plan the next pass from live DB state. Rebuilt from scratch for the
+ * one-shot retry — a partial first attempt may have dripped chapters
+ * (advancing the DB's max chapter number), which changes the anchor,
+ * startNum, and userContent. Returns `null` when the thread has no parsed
+ * config.
+ */
+function preparePass(
+  threadId: string,
+  rawText: string,
+  resolved: ResolvedModel,
+  charsPerToken: number,
+): PassPlan | null {
+  const config = entertainmentFrontendService.getParsedConfig(threadId);
+  if (!config) return null;
+
+  const budget = computeBudget(resolved, charsPerToken);
+  const chunkStart = entertainmentBackendService.getConsumedOffset(threadId);
+  const chunkEnd = Math.min(rawText.length, chunkStart + budget);
+  const chunk = rawText.slice(chunkStart, chunkEnd);
+  const isLastBatch = chunkEnd >= rawText.length;
+  const systemPrompt = buildDehydrateSystemPrompt(config.options, "multi");
+
+  // Anchor derivation from the last written chapter:
+  // - `to_be_continued` → `continue`: normal inter-pass flow. The pass's
+  //   first outputChapter REPLACES that row in place (same number), merging
+  //   the prior ending with the continuation.
+  // - `rewritten` → `resume`: crash-resume mid-pass. The offset was never
+  //   advanced, so this chunk re-covers raw text the anchor chapter (and
+  //   earlier ones) already absorbed; the model locates the seam and
+  //   continues AFTER the anchor, numbering its first chapter priorMax + 1.
+  // - no prior chapter → plain chunk, no anchor. A `rewritten` max with
+  //   `finalChapterNumber` set never reaches here — the loop exits at EOF
+  //   before planning.
+  const priorMax =
+    entertainmentBackendService.maxRewrittenChapterNumber(threadId);
+  let leadIn: PassPlan["leadIn"] = null;
+  let startNum = priorMax + 1;
+  let replaceAtChapterNumber: number | null = null;
+  let userContent = chunk;
+  if (priorMax > 0) {
+    const priorRow = entertainmentFrontendService.getRewrittenChapter(
+      threadId,
+      priorMax,
+    );
+    if (priorRow?.status === "to_be_continued") {
+      leadIn = { chapterNumber: priorMax, kind: "continue" };
+      startNum = priorMax;
+      replaceAtChapterNumber = priorMax;
+      userContent = buildDehydrateLeadInUserContent({
+        kind: "continue",
+        chapterNumber: priorMax,
+        content: priorRow.content ?? "",
+        chunk,
+      });
+    } else if (priorRow?.status === "rewritten") {
+      leadIn = { chapterNumber: priorMax, kind: "resume" };
+      userContent = buildDehydrateLeadInUserContent({
+        kind: "resume",
+        chapterNumber: priorMax,
+        content: priorRow.content ?? "",
+        chunk,
+      });
+    }
+  }
+
+  // Scaled step count: ~one step per expected chapter (~2500 chars/chapter)
+  // + retry headroom. Generous so it never cuts off a well-behaved pass; the
+  // coverage tripwire is the real safety net.
+  const targetChapters = Math.max(2, Math.ceil(chunk.length / 2500));
+
+  return {
+    chunk,
+    chunkStart,
+    chunkEnd,
+    chunkLength: chunk.length,
+    isLastBatch,
+    budget,
+    systemPrompt,
+    userContent,
+    startNum,
+    replaceAtChapterNumber,
+    leadIn,
+    maxSteps: targetChapters * 3 + 4,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -450,7 +576,7 @@ export async function runDehydrateLoop(
   // caller, which surfaces a warning toast).
   const probeResolved = complexModel();
   const probeCpt = await probeCharsPerToken(
-    probeResolved.model,
+    probeResolved,
     rawText,
     threadId,
   );
@@ -495,108 +621,87 @@ export async function runDehydrateLoop(
 
     // Re-resolve per pass: picks up model + dehydrate-option changes mid-run.
     const resolved = complexModel();
-    const config = entertainmentFrontendService.getParsedConfig(threadId);
-    if (!config) {
+    const plan = preparePass(threadId, rawText, resolved, charsPerToken);
+    if (!plan) {
       logger.warn("no parsed config; stopping loop", { threadId, pass });
       return;
     }
+    const { chunkStart, chunkEnd } = plan;
 
-    // Fast start-up: while the opening batches are still within the first
-    // FAST_STARTUP_PASSES × FAST_STARTUP_CHARS chars, cap each batch to
-    // FAST_STARTUP_CHARS so the reader gets chapters quickly. After that the
-    // model's full computed budget takes over. Gated on offset (not pass) so a
-    // resumed run never re-triggers fast start-up past the opening batches.
-    const fullBudget = computeBudget(resolved, charsPerToken);
-    const fastStartup =
-      consumedOffset < FAST_STARTUP_CHARS * FAST_STARTUP_PASSES;
-    const budget =
-      fastStartup ? Math.min(fullBudget, FAST_STARTUP_CHARS) : fullBudget;
-    const chunkStart = consumedOffset;
-    const chunkEnd = Math.min(rawText.length, chunkStart + budget);
-    const chunk = rawText.slice(chunkStart, chunkEnd);
-    const isLastBatch = chunkEnd >= rawText.length;
-    const systemPrompt = buildDehydrateSystemPrompt(config.options, "multi");
-
-    // Lead-in: if the previous pass ended with a `to_be_continued` chapter,
-    // prepend its content so the model continues the scene coherently. The
-    // model's first outputChapter of THIS pass replaces that row in place
-    // (same chapter number) with lead-in + continued text merged.
-    const priorMax =
-      entertainmentBackendService.maxRewrittenChapterNumber(threadId);
-    let leadIn: { chapterNumber: number; content: string } | null = null;
-    if (priorMax > 0) {
-      const priorRow = entertainmentFrontendService.getRewrittenChapter(
-        threadId,
-        priorMax,
-      );
-      if (priorRow && priorRow.status === "to_be_continued") {
-        leadIn = {
-          chapterNumber: priorMax,
-          content: priorRow.content ?? "",
-        };
-      }
-    }
-
-    const userContent =
-      leadIn ?
-        `【上一章续写】以下是你上一段处理的结尾（章节 ${leadIn.chapterNumber}），请基于它续写，保持连贯；本段你产出的第一章将替换该章，合并上一章结尾与本段续写内容，使用相同的章节号 ${leadIn.chapterNumber}：\n\n${leadIn.content}\n\n【本段原文】\n${chunk}`
-      : chunk;
-
-    const startNum = leadIn ? leadIn.chapterNumber : priorMax + 1;
     const stage: PassStage = {
       threadId,
-      chunkStart,
-      chunkLength: chunk.length,
-      isLastBatch,
-      startNum,
-      replaceAtChapterNumber: leadIn?.chapterNumber ?? null,
-      chapters: [],
+      chunkStart: plan.chunkStart,
+      chunkLength: plan.chunkLength,
+      isLastBatch: plan.isLastBatch,
+      startNum: plan.startNum,
+      replaceAtChapterNumber: plan.replaceAtChapterNumber,
+      savedCount: 0,
+      emittedChars: 0,
     };
-
-    // Scaled step count: ~one step per expected chapter (~2500 chars/chapter)
-    // + retry headroom. Generous so it never cuts off a well-behaved pass; the
-    // coverage tripwire is the real safety net.
-    const targetChapters = Math.max(2, Math.ceil(chunk.length / 2500));
-    const maxSteps = targetChapters * 3 + 4;
 
     logger.debug("dehydrate pass planned", {
       threadId,
       pass,
-      chunkStart,
-      chunkEnd,
-      chunkLen: chunk.length,
-      budget,
-      fastStartup,
-      isLastBatch,
+      chunkStart: plan.chunkStart,
+      chunkEnd: plan.chunkEnd,
+      chunkLen: plan.chunkLength,
+      budget: plan.budget,
+      isLastBatch: plan.isLastBatch,
       charsPerToken,
-      leadIn: leadIn ? leadIn.chapterNumber : null,
-      startNum,
-      maxSteps,
+      leadIn: plan.leadIn ? plan.leadIn.chapterNumber : null,
+      leadInKind: plan.leadIn?.kind ?? null,
+      startNum: plan.startNum,
+      maxSteps: plan.maxSteps,
     });
 
-    let saved = false;
+    let completed = false;
     try {
-      saved = await runDehydrateAgent({
+      completed = await runDehydrateAgent({
         resolved,
-        systemPrompt,
-        userContent,
+        systemPrompt: plan.systemPrompt,
+        userContent: plan.userContent,
         stage,
-        maxSteps,
+        maxSteps: plan.maxSteps,
         signal,
       });
-      if (!saved && !signal.aborted) {
+      if (!completed && !signal.aborted) {
         logger.warn("pass stopped without terminate; retrying once", {
           threadId,
           pass,
         });
-        // Fresh stage for the retry — the prior attempt's staging is discarded.
-        const retryStage: PassStage = { ...stage, chapters: [] };
-        saved = await runDehydrateAgent({
+        // Rebuild EVERYTHING from live DB state — partial drips from the
+        // first attempt advanced the DB's max chapter number, so the anchor
+        // (resume), startNum, and userContent must be re-derived. The fresh
+        // stage restarts the counters at zero; dripped chapters stay.
+        const retryPlan = preparePass(
+          threadId,
+          rawText,
           resolved,
-          systemPrompt: systemPrompt + RETRY_SUFFIX,
-          userContent,
+          charsPerToken,
+        );
+        if (!retryPlan) {
+          logger.error("no parsed config on retry; stopping", {
+            threadId,
+            pass,
+          });
+          return;
+        }
+        const retryStage: PassStage = {
+          threadId,
+          chunkStart: retryPlan.chunkStart,
+          chunkLength: retryPlan.chunkLength,
+          isLastBatch: retryPlan.isLastBatch,
+          startNum: retryPlan.startNum,
+          replaceAtChapterNumber: retryPlan.replaceAtChapterNumber,
+          savedCount: 0,
+          emittedChars: 0,
+        };
+        completed = await runDehydrateAgent({
+          resolved,
+          systemPrompt: retryPlan.systemPrompt + RETRY_SUFFIX,
+          userContent: retryPlan.userContent,
           stage: retryStage,
-          maxSteps,
+          maxSteps: retryPlan.maxSteps,
           signal,
         });
       }
@@ -609,10 +714,11 @@ export async function runDehydrateLoop(
       return;
     }
 
-    if (!saved) {
-      // Transient failure (no tool call after retry, or a thrown error). Do NOT
-      // advance rawConsumedOffset and do NOT clear rawText — leave everything
-      // untouched so reopening the thread retries the same chunk.
+    if (!completed) {
+      // Transient failure (no tool call after retry, or a thrown error). The
+      // offset was never advanced and rawText stays — chapters already
+      // dripped remain reader-visible, and reopening the thread continues
+      // after them via the resume anchor. Stopping for user retry.
       logger.error("dehydrate pass failed; stopping for user retry", {
         threadId,
         pass,

@@ -19,7 +19,8 @@
 import { streamText, isStepCount, tool } from "ai";
 import { z } from "zod";
 import log from "electron-log/main";
-import { complexModel } from "@agents/providers";
+import { complexModel, customProviderOptions } from "@agents/providers";
+import { ENTERTAINMENT_AGENT_CONTROLS } from "../shared/modelControls";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
 import {
   settingsService,
@@ -194,8 +195,13 @@ async function extractPage(
   novel: InternetNovel,
   ctx: SinglePageFetchContext,
 ): Promise<boolean> {
+  const resolved = complexModel();
+  const providerOptions = customProviderOptions(
+    resolved,
+    ENTERTAINMENT_AGENT_CONTROLS,
+  );
   const result = streamText({
-    model: complexModel().model,
+    model: resolved.model,
     instructions: buildExtractSystemPrompt(novel),
     messages: [
       {
@@ -210,6 +216,7 @@ async function extractPage(
       saveContent: saveContentTool,
     },
     stopWhen: [hasSuccessfulToolResult("saveContent"), isStepCount(20)],
+    ...(providerOptions && { providerOptions }),
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.actionExecution,
     abortSignal: ctx.abortSignal,

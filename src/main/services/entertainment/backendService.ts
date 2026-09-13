@@ -10,6 +10,14 @@ import type { RewrittenChapterStatus, SourceChapterStatus } from "@shared";
 import { and, eq, sql } from "drizzle-orm";
 import { eventBus } from "@/utils/eventBus";
 
+import type { AnyRelations } from "drizzle-orm";
+import type { BetterSQLiteTransaction } from "drizzle-orm/better-sqlite3";
+
+/** Transaction handle for the sync drizzle better-sqlite3 driver (default
+ *  `EmptyRelations` — this project uses the query-builder API, not
+ *  `db.query`). */
+type DbTx = BetterSQLiteTransaction<AnyRelations>;
+
 /** SQLite "now" expression for every `updatedAt` write in this service. */
 const NOW = sql`(datetime('now'))`;
 
@@ -213,87 +221,137 @@ class EntertainmentBackendService {
     eventBus.emitEvent("entertainment:chaptersChanged", { threadId });
   }
 
-  // --- dehydrate pass atomic flush ----------------------------------------
+  // --- dehydrate drip writes ----------------------------------------------
 
   /**
-   * Atomic flush of a dehydrate pass's output: inserts the staged chapters
-   * (rewrite + source rows for each), advances rawConsumedOffset, optionally
-   * sets finalChapterNumber, and touches the thread — all in one transaction.
-   * Emits exactly one `entertainment:chaptersChanged` event after commit.
-   * Caller supplies already-numbered rows; this does NOT renumber.
-   *
-   * `replaceAtChapterNumber` (when set) means the FIRST row in `chapters[]`
-   * lands on an EXISTING row (the prior pass's `to_be_continued` chapter, whose
-   * content was prepended as a lead-in to this pass's chunk). That first row is
-   * applied via UPDATE instead of INSERT; subsequent rows insert as normal.
+   * Write ONE dehydrate chapter's rows inside a transaction: INSERT the
+   * rewrite row + the source-title row, or — when this chapter lands on the
+   * prior pass's `to_be_continued` row (lead-in continuation) — UPDATE both
+   * rows in place instead.
    */
-  flushDehydratePass(input: {
-    threadId: string;
-    chapters: {
+  private upsertChapterRows(
+    tx: DbTx,
+    threadId: string,
+    chapter: {
       chapterNumber: number;
       title: string;
       content: string;
       rewriteStatus: RewrittenChapterStatus;
-    }[];
-    newOffset: number;
-    finalChapterNumber?: number;
+    },
+    replaceAtChapterNumber?: number,
+  ): void {
+    const isReplaceRow =
+      replaceAtChapterNumber != null &&
+      chapter.chapterNumber === replaceAtChapterNumber;
+    if (isReplaceRow) {
+      // Lead-in continuation: UPDATE the existing to_be_continued row.
+      tx.update(rewrittenChapters)
+        .set({
+          content: chapter.content,
+          status: chapter.rewriteStatus,
+          updatedAt: NOW,
+        })
+        .where(
+          and(
+            eq(rewrittenChapters.threadId, threadId),
+            eq(rewrittenChapters.chapterNumber, chapter.chapterNumber),
+          ),
+        )
+        .run();
+      tx.update(sourceChapters)
+        .set({
+          title: chapter.title,
+          updatedAt: NOW,
+        })
+        .where(
+          and(
+            eq(sourceChapters.threadId, threadId),
+            eq(sourceChapters.chapterNumber, chapter.chapterNumber),
+          ),
+        )
+        .run();
+    } else {
+      tx.insert(rewrittenChapters)
+        .values({
+          id: crypto.randomUUID(),
+          threadId,
+          chapterNumber: chapter.chapterNumber,
+          content: chapter.content,
+          status: chapter.rewriteStatus,
+        })
+        .run();
+      tx.insert(sourceChapters)
+        .values({
+          id: crypto.randomUUID(),
+          threadId,
+          chapterNumber: chapter.chapterNumber,
+          title: chapter.title,
+          status: "fetched",
+        })
+        .run();
+    }
+  }
+
+  /** Atomic write of ONE dripped dehydrate chapter (INSERT, or UPDATE-in-place
+   *  when chapterNumber === replaceAtChapterNumber). Emits chaptersChanged. */
+  flushDehydrateChapter(input: {
+    threadId: string;
+    chapterNumber: number;
+    title: string;
+    content: string;
+    rewriteStatus: RewrittenChapterStatus;
     replaceAtChapterNumber?: number;
   }): void {
     const db = getDb();
     db.transaction((tx) => {
-      for (let i = 0; i < input.chapters.length; i++) {
-        const ch = input.chapters[i];
-        const isReplaceRow =
-          input.replaceAtChapterNumber != null &&
-          ch.chapterNumber === input.replaceAtChapterNumber;
-        if (isReplaceRow) {
-          // Lead-in continuation: UPDATE the existing to_be_continued row.
-          tx.update(rewrittenChapters)
-            .set({
-              content: ch.content,
-              status: ch.rewriteStatus,
-              updatedAt: NOW,
-            })
-            .where(
-              and(
-                eq(rewrittenChapters.threadId, input.threadId),
-                eq(rewrittenChapters.chapterNumber, ch.chapterNumber),
-              ),
-            )
-            .run();
-          tx.update(sourceChapters)
-            .set({
-              title: ch.title,
-              updatedAt: NOW,
-            })
-            .where(
-              and(
-                eq(sourceChapters.threadId, input.threadId),
-                eq(sourceChapters.chapterNumber, ch.chapterNumber),
-              ),
-            )
-            .run();
-        } else {
-          tx.insert(rewrittenChapters)
-            .values({
-              id: crypto.randomUUID(),
-              threadId: input.threadId,
-              chapterNumber: ch.chapterNumber,
-              content: ch.content,
-              status: ch.rewriteStatus,
-            })
-            .run();
-          tx.insert(sourceChapters)
-            .values({
-              id: crypto.randomUUID(),
-              threadId: input.threadId,
-              chapterNumber: ch.chapterNumber,
-              title: ch.title,
-              status: "fetched",
-            })
-            .run();
-        }
-      }
+      this.upsertChapterRows(
+        tx,
+        input.threadId,
+        {
+          chapterNumber: input.chapterNumber,
+          title: input.title,
+          content: input.content,
+          rewriteStatus: input.rewriteStatus,
+        },
+        input.replaceAtChapterNumber,
+      );
+      tx.update(threads)
+        .set({ updatedAt: NOW })
+        .where(eq(threads.id, input.threadId))
+        .run();
+    });
+    eventBus.emitEvent("entertainment:chaptersChanged", {
+      threadId: input.threadId,
+    });
+  }
+
+  /** Atomic end-of-pass: writes the FINAL chapter AND advances rawConsumedOffset
+   *  (+ sets finalChapterNumber on EOF) in ONE transaction — no crash window
+   *  between a visible final chapter and the offset advance. Emits
+   *  chaptersChanged. */
+  flushDehydrateTermination(input: {
+    threadId: string;
+    chapterNumber: number;
+    title: string;
+    content: string;
+    rewriteStatus: RewrittenChapterStatus;
+    replaceAtChapterNumber?: number;
+    newOffset: number;
+    finalChapterNumber?: number;
+  }): void {
+    const db = getDb();
+    db.transaction((tx) => {
+      this.upsertChapterRows(
+        tx,
+        input.threadId,
+        {
+          chapterNumber: input.chapterNumber,
+          title: input.title,
+          content: input.content,
+          rewriteStatus: input.rewriteStatus,
+        },
+        input.replaceAtChapterNumber,
+      );
       tx.update(entertainmentConfigs)
         .set({
           rawConsumedOffset: input.newOffset,

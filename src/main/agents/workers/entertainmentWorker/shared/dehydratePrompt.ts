@@ -781,7 +781,13 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
     "it must be submitted through the outputProcessedContent tool; " +
     "this is the only way to deliver the result.\n" +
     "- Emitting plain text without calling outputProcessedContent tool " +
-    "will result in fatal failure.",
+    "will result in fatal failure.\n" +
+    "- Thinking budget: do not think at all if you can avoid it — no " +
+    "planning, no drafting, no analysis. If your output format forces a " +
+    "thinking/reasoning section, keep it as short as possible: empty is " +
+    "ideal, a single trivial line is acceptable. Its content does not matter " +
+    "and is never read — only its brevity does. Spend nothing on thinking; " +
+    "spend everything on the tool-call content.\n",
   // multi — two tools: outputChapter (stage one) + terminate (final + flush).
   // Pure mechanics; editorial guidance (re-chapter intent, anti-summary) lives
   // in the Chinese ROLE_LINE + philosophy block — not duplicated here.
@@ -789,10 +795,15 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
     "You deliver your result through TWO tools — never as plain text:\n" +
     "- `outputChapter` — call once per completed chapter you produce from the " +
     "input. Each call carries `title` + `content` for that one chapter. The " +
-    "chapter is staged internally; you will NOT see it again.\n" +
+    "chapter is saved to the reader's library IMMEDIATELY — readers see it " +
+    "the moment you produce it, and you will NOT see it again.\n" +
     "- `terminate` — call ONCE, for the FINAL chapter that covers where the " +
     "input text cuts off. It both emits that chapter and ends the pass. Shape " +
     "its ending as a clean continuation point.\n" +
+    "- One tool call per message: NEVER batch multiple outputChapter calls " +
+    "into a single message. Emit one call, wait for its tool result, then " +
+    "produce the next chapter in your next message — each chapter must reach " +
+    "the reader as soon as it is ready.\n" +
     "- `title` = the SOURCE chapter range + the evocative name, in the SAME " +
     "numbering format and language the source's own chapter headings use " +
     "(copy the convention exactly — see the `title` field description). " +
@@ -808,7 +819,18 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
     "is the one that covers that cut point.\n" +
     "- You are NOT allowed to output prose as plain text; it must go through " +
     "outputChapter or terminate tool calls. Emitting plain text without the " +
-    "tools is fatal.",
+    "tools is fatal.\n" +
+    "- Continuation anchor: when the input begins with a 【上一章续写】 or 【续写锚点】 " +
+    "block, that block is already-published chapter text. Follow its storyline " +
+    "precisely: continue writing from exactly where its story leaves off. Never " +
+    "re-tell events it has already covered in new words, and never skip over " +
+    "source material it has not yet reached.\n" +
+    "- Thinking budget: do not think at all if you can avoid it — no " +
+    "planning, no drafting, no analysis. If your output format forces a " +
+    "thinking/reasoning section, keep it as short as possible: empty is " +
+    "ideal, a single trivial line is acceptable. Its content does not matter " +
+    "and is never read — only its brevity does. Spend nothing on thinking; " +
+    "spend everything on the tool-call content.\n"
 };
 
 // ---------------------------------------------------------------------------
@@ -1025,4 +1047,42 @@ export function buildDehydrateSystemPrompt(
   sections.push(OUTPUT_CONTRACT[variant]);
 
   return sections.join("\n\n");
+}
+
+/**
+ * Build the pass user-message content for a dehydrate pass that starts from
+ * a lead-in anchor: the already-published chapter text the model must write
+ * onward from, followed by this pass's raw chunk.
+ *
+ * - `kind: "continue"` — the prior pass ended `to_be_continued`; this pass's
+ *   first `outputChapter` REPLACES that chapter row in place (same number),
+ *   merging the prior ending with the continuation.
+ * - `kind: "resume"` — crash-resume after already-dripped `rewritten`
+ *   chapters; the chunk re-covers raw text those chapters already absorbed,
+ *   so the model must locate the seam and continue AFTER the anchor,
+ *   numbering its first chapter `chapterNumber + 1`.
+ */
+export function buildDehydrateLeadInUserContent(input: {
+  kind: "continue" | "resume";
+  chapterNumber: number;
+  content: string;
+  chunk: string;
+}): string {
+  if (input.kind === "continue") {
+    return (
+      `【上一章续写】以下是你上一段处理的结尾（章节 ${input.chapterNumber}），请基于它续写，保持连贯；` +
+      `本段你产出的第一章将替换该章，合并上一章结尾与本段续写内容，使用相同的章节号 ${input.chapterNumber}：\n\n` +
+      `${input.content}\n\n` +
+      `【本段原文】\n${input.chunk}`
+    );
+  }
+  return (
+    `【续写锚点】下面是本书目前已写完的最后一章（章节 ${input.chapterNumber}），读者已经能看到。` +
+    `接下来给你的原文段落，开头有一部分剧情其实已经被这一章和更前面的章节写过了。` +
+    `请先在原文里找到这一章剧情结束的地方，然后从那里接着往下写：` +
+    `写过的剧情不要再换个说法重写一遍，也绝不能跳过任何还没写到的内容。` +
+    `你这一段产出的第一章使用章节号 ${input.chapterNumber + 1}。\n\n` +
+    `${input.content}\n\n` +
+    `【本段原文】\n${input.chunk}`
+  );
 }

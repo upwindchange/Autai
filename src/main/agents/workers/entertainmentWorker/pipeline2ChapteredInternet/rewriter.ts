@@ -4,8 +4,9 @@ import log from "electron-log/main";
 import {
   complexModel,
   forwardSamplingParams,
-  reasoningProviderOptions,
+  customProviderOptions,
 } from "@agents/providers";
+import { ENTERTAINMENT_AGENT_CONTROLS } from "../shared/modelControls";
 import { hasSuccessfulToolResult, TIMEOUTS } from "@agents/utils";
 import {
   settingsService,
@@ -99,10 +100,9 @@ async function runRewriteAgent(
 ): Promise<boolean> {
   const resolved = complexModel();
   const sampling = forwardSamplingParams(resolved.params);
-  const reasoning = reasoningProviderOptions(
-    resolved.params,
-    resolved.model,
-    resolved.npm,
+  const providerOptions = customProviderOptions(
+    resolved,
+    ENTERTAINMENT_AGENT_CONTROLS,
   );
   const result = streamText({
     model: resolved.model,
@@ -120,7 +120,7 @@ async function runRewriteAgent(
     timeout: TIMEOUTS.novel,
     abortSignal: signal,
     ...sampling,
-    ...(reasoning && { providerOptions: reasoning }),
+    ...(providerOptions && { providerOptions }),
     toolsContext: { outputProcessedContent: { threadId, chapterNumber } },
     telemetry: {
       isEnabled: settingsService.settings.langfuse.enabled,

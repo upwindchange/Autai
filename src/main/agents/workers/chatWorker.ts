@@ -13,7 +13,7 @@ import { settingsService } from "@/services";
 import { mcpService } from "@/services/mcpService";
 import {
   forwardSamplingParams,
-  reasoningProviderOptions,
+  customProviderOptions,
 } from "@agents/providers";
 import type { MCPClient } from "@ai-sdk/mcp";
 import type { ModelParameters } from "@shared";
@@ -92,17 +92,17 @@ export class ChatWorker {
       // explicitly set are forwarded (undefined ⇒ SDK/model default).
       // NOTE: ModelParameters.maxTokens → streamText.maxOutputTokens.
       const forwardedParams = forwardSamplingParams(params);
-      const reasoningOptions = reasoningProviderOptions(
+      const providerOptions = customProviderOptions({
+        model: chatLanguageModel,
+        npm: chatNpm,
         params,
-        chatLanguageModel,
-        chatNpm,
-      );
+      });
 
       this.logger.debug("creating stream with chat model", {
         systemLength: mergedSystem.length,
         hasUserSystemPrompt: !!system,
         forwardedParams,
-        reasoningOptions,
+        providerOptions,
         toolCount: Object.keys(mergedTools).length,
       });
 
@@ -115,7 +115,7 @@ export class ChatWorker {
         timeout: TIMEOUTS.chat,
         abortSignal: signal,
         ...forwardedParams,
-        ...(reasoningOptions && { providerOptions: reasoningOptions }),
+        ...(providerOptions && { providerOptions }),
         ...(Object.keys(mergedTools).length > 0 && { tools: mergedTools }),
         experimental_repairToolCall: repairToolCall,
         telemetry: {
