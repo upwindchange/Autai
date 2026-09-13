@@ -165,7 +165,7 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
 
   // Next chapter's phase — derived on the backend (same `status.phase` the TOC
   // renders). Swap the chevron for a dot only while it's actively working
-  // (acquiring 原文 or rewriting); success/stopped/error keep the chevron.
+  // (acquiring 原文 or rewriting); other phases keep the chevron.
   const next = chapters.find(
     (c) => c.chapterNumber === (currentChapterNumber ?? 0) + 1,
   );

@@ -87,15 +87,15 @@ export type LangfuseConfig = z.infer<typeof LangfuseConfigSchema>;
 // Timeout configuration schema (values in seconds, converted to ms internally)
 export const TimeoutsConfigSchema = z.object({
   /** stepMs for chat + planning (seconds) */
-  response: z.number().int().min(30).max(3600).default(300),
+  response: z.number().int().min(30).max(3600).default(1800),
   /** stepMs for actionExecution (seconds) */
-  action: z.number().int().min(30).max(3600).default(480),
+  action: z.number().int().min(30).max(3600).default(1800),
   /** stepMs for hitlAgent (seconds) */
-  interactive: z.number().int().min(30).max(3600).default(600),
+  interactive: z.number().int().min(30).max(3600).default(1800),
   /** chunkMs for all agents (seconds) */
   streaming: z.number().int().min(30).max(3600).default(120),
   /** stepMs for novel dehydration — pipeline ① one-pass chunk (seconds) */
-  novel: z.number().int().min(30).max(3600).default(1200),
+  novel: z.number().int().min(30).max(3600).default(1800),
 });
 export type TimeoutsConfig = z.infer<typeof TimeoutsConfigSchema>;
 

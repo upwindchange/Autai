@@ -943,16 +943,16 @@ export type ChapterPipeline = "file" | "internet" | "nonNovel";
  * mapping is pipeline-blind — file and internet threads show identical
  * iconography; only the message copy varies by pipeline:
  *   - `searching` acquiring 原文 (sourceStatus "fetching").
- *   - `loading`   原文 acquired but rewrite not started (queued), or actively
- *                 rewriting (rewriteStatus "rewriting").
+ *   - `loading`   anything still on its way to readable: not yet processed
+ *                 (no rows / not reached), 原文 acquired but rewrite not yet
+ *                 started (queued), or actively rewriting ("rewriting").
  *   - `streaming` readable prose, but the chunk ended mid-scene and the
  *                 continuation is still being written ("to_be_continued").
  *   - `error`     source or rewrite failed — terminal.
  *   - `success`   rewritten — ready to read; the renderer draws NO icon for it.
- *   - `stopped`   not yet processed (no rows / not reached).
  */
 export type ChapterPhase =
-  "searching" | "loading" | "streaming" | "error" | "success" | "stopped";
+  "searching" | "loading" | "streaming" | "error" | "success";
 
 /**
  * Reader-facing per-chapter status — the single source the renderer renders from.
@@ -1035,7 +1035,7 @@ export function deriveChapterStatus(
     };
   }
   // 7. Not yet processed.
-  return { phase: "stopped", messageKey: `reader.status.${p}.pending` };
+  return { phase: "loading", messageKey: `reader.status.${p}.pending` };
 }
 
 /**

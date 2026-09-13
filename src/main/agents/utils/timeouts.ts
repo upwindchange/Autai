@@ -4,15 +4,15 @@ import { settingsService } from "@/services/settingsService";
 /** Default timeout values (in seconds). Converted to ms at runtime. */
 const DEFAULT_TIMEOUTS = {
   /** response (chat + planning) */
-  response: 300,
+  response: 1800,
   /** action execution */
-  action: 480,
+  action: 1800,
   /** hitl agent */
-  interactive: 600,
+  interactive: 1800,
   /** streaming chunk (shared) */
   streaming: 120,
-  /** novel dehydration — pipeline ① one-pass chunk (long single-step generation) */
-  novel: 1200,
+  /** novel dehydration — pipeline ① one-pass chunk */
+  novel: 1800,
 } as const;
 
 /**
