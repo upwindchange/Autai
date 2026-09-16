@@ -189,7 +189,7 @@ Screenshots, documents, whatever you have — drop them in and the AI works with
 - **Per-conversation overrides** — model, temperature, max tokens, and system prompt, set per thread.
 - **Slash commands** — switch between browser, quick search, and deep research without leaving the keyboard.
 - **MCP servers** — plug external tool servers into Autai from Settings.
-- **Remote access** — expose Autai on your network with password auth, then use it from any browser — phone included.
+- **Remote access** — expose Autai on your network with password auth, then use it from any browser — phone included. Launch with `--remote` to force it on for that session without changing saved settings.
 - **Spoken answers** — built-in speech synthesis reads replies aloud.
 - **Dark, light, or system theme** — your call.
 - **English and 中文 UI** — switch languages in-app.

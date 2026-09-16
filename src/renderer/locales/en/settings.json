@@ -82,6 +82,7 @@
   "connection.port.tooltip": "Port browsers use to reach the backend in Remote Access mode. Choose a fixed, open, unused port. In Local Mode the port is assigned automatically.",
   "connection.port.automatic": "Automatic",
   "connection.restartHint": "Connection changes take effect after restarting the app.",
+  "connection.remoteOverride": "This session was started with the --remote command-line flag, so Remote Access is active regardless of the mode selected here. Your changes are saved and take effect the next time the app starts without the flag.",
   "connection.auth.title": "Authentication",
   "connection.auth.description": "Protect remote access with a single password",
   "connection.auth.status.set": "A password is configured. Remote browsers and the mobile app must sign in.",

@@ -82,6 +82,7 @@
   "connection.port.tooltip": "远程访问模式下浏览器连接后端所用的端口。请选择一个开放且未被占用的固定端口。本地模式下端口由系统自动分配。",
   "connection.port.automatic": "自动分配",
   "connection.restartHint": "连接设置的更改将在重启应用后生效。",
+  "connection.remoteOverride": "本次启动使用了 --remote 命令行参数，因此无论此处选择什么模式，远程访问均已生效。你的更改会被保存，并在下次不带该参数启动应用时生效。",
   "connection.auth.title": "身份验证",
   "connection.auth.description": "用单一密码保护远程访问",
   "connection.auth.status.set": "已设置密码。远程浏览器和移动端应用需要登录。",

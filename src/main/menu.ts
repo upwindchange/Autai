@@ -4,6 +4,7 @@ import {
   Menu,
   type MenuItemConstructorOptions,
 } from "electron";
+import { argvWithoutOverrides } from "./cli";
 import { i18n } from "@/i18n";
 import { settingsService } from "@/services";
 
@@ -24,7 +25,10 @@ export function resetToLocalMode(): void {
     ...settingsService.settings,
     serverMode: "standalone",
   });
-  app.relaunch();
+  // Strip CLI overrides (e.g. --remote): app.relaunch() replays the current
+  // command line, which would boot the new instance straight back into Remote
+  // Access despite the settings change above.
+  app.relaunch({ args: argvWithoutOverrides() });
   app.quit();
 }
 

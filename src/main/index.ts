@@ -23,6 +23,7 @@ import { initializeTelemetry, shutdownTelemetry } from "@agents/utils";
 import * as registry from "@agents/providers/registry";
 import { eventBus } from "@/utils/eventBus";
 import { searchService } from "@/services/searchService";
+import { hasRemoteOverride } from "./cli";
 import { initializeDatabase, closeDatabase } from "@/db";
 import { initI18n, i18n } from "@/i18n";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -165,11 +166,15 @@ async function createWindow(splash?: BrowserWindow) {
   // Load renderer AFTER services and handlers are fully initialized. The API
   // port is passed via the URL query string (no IPC): the renderer reads
   // ?apiPort= to build its base URL. A remote browser (served by the backend)
-  // gets no param and uses same-origin relative URLs instead.
+  // gets no param and uses same-origin relative URLs instead. ?remoteOverride=1
+  // marks a session forced into Remote Access by the --remote CLI flag so the
+  // Connection settings can reflect the actual runtime mode.
+  const query: Record<string, string> = { apiPort: String(currentApiPort) };
+  if (hasRemoteOverride()) query.remoteOverride = "1";
   if (import.meta.env.DEV) {
-    win.loadURL(`${ELECTRON_RENDERER_URL!}?apiPort=${currentApiPort}`);
+    win.loadURL(`${ELECTRON_RENDERER_URL!}?${new URLSearchParams(query)}`);
   } else {
-    win.loadFile(indexHtml, { query: { apiPort: String(currentApiPort) } });
+    win.loadFile(indexHtml, { query });
   }
 
   // `did-finish-load` fires on EVERY load — including later renderer reloads
@@ -274,10 +279,12 @@ app.whenReady().then(async () => {
 
   // Start API server — host/port come from the connection settings. Standalone
   // always binds 127.0.0.1 on a random port; Remote Access binds the configured
-  // host/port (default 0.0.0.0) so browsers on the network can reach it.
+  // host/port (default 0.0.0.0) so browsers on the network can reach it. The
+  // --remote CLI flag forces Remote Access for this run without touching the
+  // persisted settings.
   updateSplashStatus("Starting API server...");
   const connCfg = settingsService.settings;
-  const isRemote = connCfg.serverMode === "remote";
+  const isRemote = settingsService.effectiveServerMode === "remote";
   const host = isRemote ? connCfg.serverHost.trim() || "0.0.0.0" : "127.0.0.1";
   const port = isRemote ? connCfg.serverPort || 8787 : 0;
   currentApiPort = await apiServer.start({
@@ -286,7 +293,7 @@ app.whenReady().then(async () => {
     staticRoot: RENDERER_DIST,
   });
   logger.info(
-    `API server running on http://${host}:${currentApiPort} (${connCfg.serverMode})`,
+    `API server running on http://${host}:${currentApiPort} (${settingsService.effectiveServerMode})`,
   );
 
   // Start window

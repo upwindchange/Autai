@@ -56,7 +56,7 @@ There is **no Electron IPC**. All renderer↔main traffic is HTTP REST plus Serv
 
 - **Run modes** (`settings.serverMode`):
   - **Standalone** (default): binds `127.0.0.1` on a random OS-assigned port; the renderer receives the port via `?apiPort=` in its load URL. Local only.
-  - **Remote Access**: binds a configurable host/port (default `0.0.0.0:8787`) and also serves the built renderer SPA, so network browsers can use the app. An auth middleware activates **only in remote mode when a password is set** (session cookie / bearer token; loopback owner exempt; public SPA/health/login paths exempt).
+  - **`--remote` CLI flag**: boots in Remote Access mode regardless of the persisted setting (see `settingsService.effectiveServerMode`); settings stay editable and apply again on the next flag-free start. `resetToLocalMode` strips the flag on relaunch (`app.relaunch()` replays argv). Dev: `ELECTRON_CLI_ARGS='["--remote"]' pnpm dev`.
 - **REST routes** mounted in `apiServer.setupRoutes()`: `/chat`, `/entertainment`, `/threads`, `/tags`, `/settings`, `/providers`, `/mcp`, `/events`, `/app`, `/shell`, `/dialog`, `/sessions`, `/hitl`, `/auth`, plus `/health`.
 - **SSE** (`GET /events`, `eventsRoutes.ts`): forwards `eventBus` emissions to connected clients as named events with monotonic IDs, sends a 25s heartbeat to avoid idle timeouts, and resumes from `Last-Event-ID`. Event names: `threads:metadataUpdated`, `threads:suggestionsUpdated`, `app:message`, `splitview:activate`, `threads:listChanged`.
 

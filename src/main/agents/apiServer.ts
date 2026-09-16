@@ -65,7 +65,7 @@ export class ApiServer {
     // API routes and the SPA catch-all so it gates both.
     this.app.use("*", async (c, next) => {
       const authActive =
-        settingsService.settings.serverMode === "remote" &&
+        settingsService.effectiveServerMode === "remote" &&
         authService.hasPassword();
       if (
         !authActive ||

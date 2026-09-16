@@ -17,6 +17,7 @@ import { ShieldAlert, TriangleAlert } from "lucide-react";
 import { useSettings } from "@/components/settings";
 import { useTranslation } from "react-i18next";
 import { getApiBase } from "@/lib/api";
+import { hasRemoteOverride } from "@/lib/env";
 import { getAuthStatus, setPassword, clearPassword } from "@/lib/authClient";
 import type { SettingsState, ServerMode } from "@shared";
 
@@ -227,7 +228,16 @@ function AuthSection() {
 export function ConnectionSection({ settings }: ConnectionSectionProps) {
   const { updateSettings } = useSettings();
   const { t } = useTranslation("settings");
-  const isStandalone = settings.serverMode === "standalone";
+  // The --remote CLI flag forces Remote Access for this run regardless of the
+  // persisted mode; the UI must reflect what is actually serving (auth gate,
+  // host/port bind), while the radio still shows the saved choice for the next
+  // flag-free start.
+  const remoteOverride = hasRemoteOverride();
+  // Runtime view mirrors main's bind resolution: standalone binds 127.0.0.1 on
+  // a random port; remote binds the configured host (default 0.0.0.0) and port
+  // (default 8787).
+  const runtimeMode: ServerMode = remoteOverride ? "remote" : settings.serverMode;
+  const isStandalone = runtimeMode === "standalone";
 
   // In Local Mode the port is chosen at random by the OS; fetch the running
   // value from /health so the (read-only) field shows what is actually in use.
@@ -270,6 +280,13 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
         <h2 className="text-2xl font-bold">{t("connection.title")}</h2>
         <p className="text-muted-foreground mt-1">{t("connection.subtitle")}</p>
       </div>
+
+      {remoteOverride && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{t("connection.remoteOverride")}</span>
+        </div>
+      )}
 
       <Card>
         <CardHeader>

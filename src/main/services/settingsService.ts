@@ -12,6 +12,7 @@ import { getDb } from "@/db";
 import { settings, userProviders, modelAssignments } from "@/db/schema";
 import log from "electron-log/main";
 import type {
+  ServerMode,
   SettingsState,
   TestConnectionConfig,
   UserProviderConfig,
@@ -20,6 +21,7 @@ import type {
   ProviderRuntimeConfig,
 } from "@shared";
 import { SettingsStateSchema } from "@shared";
+import { hasRemoteOverride } from "@/cli";
 import type { UserProviderRow, ModelAssignmentRow } from "@/db/types";
 
 class SettingsService {
@@ -61,6 +63,13 @@ class SettingsService {
 
   private set settings(value: SettingsState) {
     this._settings = value;
+  }
+
+  // `--remote` boot override (see @/cli): reported everywhere the app decides
+  // how to serve — bind resolution, auth gates — but never persisted, so the
+  // saved configuration applies again on the next start without the flag.
+  get effectiveServerMode(): ServerMode {
+    return hasRemoteOverride() ? "remote" : this._settings.serverMode;
   }
 
   /**
