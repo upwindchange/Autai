@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
-import { ShieldAlert } from "lucide-react";
+import { ShieldAlert, TriangleAlert } from "lucide-react";
 import { useSettings } from "@/components/settings";
 import { useTranslation } from "react-i18next";
 import { getApiBase } from "@/lib/api";
@@ -362,9 +362,10 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
 
       {!isStandalone && <AuthSection />}
 
-      <p className="text-sm text-muted-foreground">
-        {t("connection.restartHint")}
-      </p>
+      <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
+        <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+        <span>{t("connection.restartHint")}</span>
+      </div>
     </div>
   );
 }

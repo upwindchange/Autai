@@ -6,6 +6,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import {
   Select,
   SelectContent,
@@ -13,8 +15,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useTheme } from "next-themes";
 import { useTranslation } from "react-i18next";
 import { useSettings } from "@/components/settings";
@@ -53,54 +53,29 @@ export function GeneralSection() {
           <CardDescription>{t("general.theme.description")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <RadioGroup
-            value={theme}
-            onValueChange={setTheme}
-            className="grid grid-cols-3 gap-4"
-          >
-            <Label
-              htmlFor="theme-light"
-              className="flex flex-col items-center gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5 dark:has-data-[state=checked]:bg-primary/10"
-            >
-              <RadioGroupItem
-                value="light"
-                id="theme-light"
-                className="sr-only"
-              />
-              <Sun className="size-6" />
-              <span className="text-sm font-medium">
-                {t("general.theme.light")}
-              </span>
-            </Label>
-            <Label
-              htmlFor="theme-dark"
-              className="flex flex-col items-center gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5 dark:has-data-[state=checked]:bg-primary/10"
-            >
-              <RadioGroupItem
-                value="dark"
-                id="theme-dark"
-                className="sr-only"
-              />
-              <Moon className="size-6" />
-              <span className="text-sm font-medium">
-                {t("general.theme.dark")}
-              </span>
-            </Label>
-            <Label
-              htmlFor="theme-system"
-              className="flex flex-col items-center gap-3 rounded-lg border p-4 cursor-pointer hover:bg-accent has-data-[state=checked]:border-primary has-data-[state=checked]:bg-primary/5 dark:has-data-[state=checked]:bg-primary/10"
-            >
-              <RadioGroupItem
-                value="system"
-                id="theme-system"
-                className="sr-only"
-              />
-              <SunMoon className="size-6" />
-              <span className="text-sm font-medium">
-                {t("general.theme.system")}
-              </span>
-            </Label>
-          </RadioGroup>
+          <ButtonGroup>
+            {(
+              [
+                { value: "light", icon: Sun, label: t("general.theme.light") },
+                { value: "dark", icon: Moon, label: t("general.theme.dark") },
+                {
+                  value: "system",
+                  icon: SunMoon,
+                  label: t("general.theme.system"),
+                },
+              ] as const
+            ).map(({ value, icon: Icon, label }) => (
+              <Button
+                key={value}
+                variant={theme === value ? "default" : "outline"}
+                aria-pressed={theme === value}
+                onClick={() => setTheme(value)}
+              >
+                <Icon className="size-4" />
+                {label}
+              </Button>
+            ))}
+          </ButtonGroup>
         </CardContent>
       </Card>
 

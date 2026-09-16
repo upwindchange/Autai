@@ -10,7 +10,7 @@ const DEFAULT_TIMEOUTS = {
   /** hitl agent */
   interactive: 1800,
   /** streaming chunk (shared) */
-  streaming: 120,
+  streaming: 1800,
   /** novel dehydration — pipeline ① one-pass chunk */
   novel: 1800,
 } as const;
