@@ -17,7 +17,7 @@ import { ShieldAlert, TriangleAlert } from "lucide-react";
 import { useSettings } from "@/components/settings";
 import { useTranslation } from "react-i18next";
 import { getApiBase } from "@/lib/api";
-import { hasRemoteOverride } from "@/lib/env";
+import { hasRemoteOverride, hostOverride, portOverride } from "@/lib/env";
 import { getAuthStatus, setPassword, clearPassword } from "@/lib/authClient";
 import type { SettingsState, ServerMode } from "@shared";
 
@@ -231,13 +231,18 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
   // The --remote CLI flag forces Remote Access for this run regardless of the
   // persisted mode; the UI must reflect what is actually serving (auth gate,
   // host/port bind), while the radio still shows the saved choice for the next
-  // flag-free start.
+  // flag-free start. --host/--port additionally override this run's bind; the
+  // host/port inputs below then display the CLI values (read-only mirror of
+  // what is serving) instead of the saved values they would normally edit.
   const remoteOverride = hasRemoteOverride();
+  const cliHost = hostOverride();
+  const cliPort = portOverride();
   // Runtime view mirrors main's bind resolution: standalone binds 127.0.0.1 on
   // a random port; remote binds the configured host (default 0.0.0.0) and port
   // (default 8787).
   const runtimeMode: ServerMode = remoteOverride ? "remote" : settings.serverMode;
   const isStandalone = runtimeMode === "standalone";
+  const bindOverridden = !isStandalone && (cliHost !== undefined || cliPort !== undefined);
 
   // In Local Mode the port is chosen at random by the OS; fetch the running
   // value from /health so the (read-only) field shows what is actually in use.
@@ -287,6 +292,7 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
           <span>{t("connection.remoteOverride")}</span>
         </div>
       )}
+
 
       <Card>
         <CardHeader>
@@ -341,8 +347,12 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
               id="server-host"
               className="w-64"
               placeholder="0.0.0.0"
-              value={isStandalone ? "127.0.0.1" : settings.serverHost}
-              disabled={isStandalone}
+              value={
+                isStandalone ? "127.0.0.1"
+                : cliHost !== undefined ? cliHost
+                : settings.serverHost
+              }
+              disabled={isStandalone || cliHost !== undefined}
               onChange={(e) => handleHostChange(e.target.value)}
             />
           </div>
@@ -366,11 +376,15 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
               min={1}
               max={65535}
               className="w-40"
-              value={isStandalone ? (runtimePort ?? "") : settings.serverPort}
+              value={
+                isStandalone ? (runtimePort ?? "")
+                : cliPort !== undefined ? cliPort
+                : settings.serverPort
+              }
               placeholder={
                 isStandalone ? t("connection.port.automatic") : "8787"
               }
-              disabled={isStandalone}
+              disabled={isStandalone || cliPort !== undefined}
               onChange={(e) => handlePortChange(e.target.value)}
             />
           </div>
@@ -378,6 +392,13 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
       </Card>
 
       {!isStandalone && <AuthSection />}
+
+      {bindOverridden && (
+        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>{t("connection.bindOverride")}</span>
+        </div>
+      )}
 
       <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
         <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />

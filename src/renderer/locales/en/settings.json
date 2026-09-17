@@ -81,7 +81,7 @@
   "connection.port.label": "Port",
   "connection.port.tooltip": "Port browsers use to reach the backend in Remote Access mode. Choose a fixed, open, unused port. In Local Mode the port is assigned automatically.",
   "connection.port.automatic": "Automatic",
-  "connection.restartHint": "Connection changes take effect after restarting the app.",
+  "connection.bindOverride": "The host and/or port are overridden by the --host / --port command-line flags for this run; the fields above show what is actually serving. Your changes are saved and take effect the next time the app starts without the flags.",
   "connection.remoteOverride": "This session was started with the --remote command-line flag, so Remote Access is active regardless of the mode selected here. Your changes are saved and take effect the next time the app starts without the flag.",
   "connection.auth.title": "Authentication",
   "connection.auth.description": "Protect remote access with a single password",

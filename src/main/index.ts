@@ -23,7 +23,7 @@ import { initializeTelemetry, shutdownTelemetry } from "@agents/utils";
 import * as registry from "@agents/providers/registry";
 import { eventBus } from "@/utils/eventBus";
 import { searchService } from "@/services/searchService";
-import { hasRemoteOverride } from "./cli";
+import { hasRemoteOverride, hostOverride, portOverride } from "./cli";
 import { initializeDatabase, closeDatabase } from "@/db";
 import { initI18n, i18n } from "@/i18n";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -167,10 +167,15 @@ async function createWindow(splash?: BrowserWindow) {
   // port is passed via the URL query string (no IPC): the renderer reads
   // ?apiPort= to build its base URL. A remote browser (served by the backend)
   // gets no param and uses same-origin relative URLs instead. ?remoteOverride=1
-  // marks a session forced into Remote Access by the --remote CLI flag so the
-  // Connection settings can reflect the actual runtime mode.
+  // (plus ?overrideHost=/?overridePort= when --host/--port were given) marks a
+  // session forced into Remote Access by the --remote CLI flag so the
+  // Connection settings can reflect the actual runtime bind.
+  const cliHost = hostOverride();
+  const cliPort = portOverride();
   const query: Record<string, string> = { apiPort: String(currentApiPort) };
   if (hasRemoteOverride()) query.remoteOverride = "1";
+  if (cliHost) query.overrideHost = cliHost;
+  if (cliPort) query.overridePort = String(cliPort);
   if (import.meta.env.DEV) {
     win.loadURL(`${ELECTRON_RENDERER_URL!}?${new URLSearchParams(query)}`);
   } else {
@@ -279,14 +284,18 @@ app.whenReady().then(async () => {
 
   // Start API server — host/port come from the connection settings. Standalone
   // always binds 127.0.0.1 on a random port; Remote Access binds the configured
-  // host/port (default 0.0.0.0) so browsers on the network can reach it. The
-  // --remote CLI flag forces Remote Access for this run without touching the
-  // persisted settings.
+  // host/port (default 0.0.0.0:8787) so browsers on the network can reach it.
+  // The --remote CLI flag forces Remote Access for this run without touching
+  // the persisted settings; --host/--port override the saved bind for this run
+  // (--host/--port are inert without --remote).
   updateSplashStatus("Starting API server...");
   const connCfg = settingsService.settings;
   const isRemote = settingsService.effectiveServerMode === "remote";
-  const host = isRemote ? connCfg.serverHost.trim() || "0.0.0.0" : "127.0.0.1";
-  const port = isRemote ? connCfg.serverPort || 8787 : 0;
+  const host =
+    isRemote ?
+      (hostOverride() ?? (connCfg.serverHost.trim() || "0.0.0.0"))
+    : "127.0.0.1";
+  const port = isRemote ? (portOverride() ?? (connCfg.serverPort || 8787)) : 0;
   currentApiPort = await apiServer.start({
     host,
     port,
