@@ -1,5 +1,5 @@
 export { AboutSection } from "./about-section";
-export { AiAgentsSection } from "./ai-agents-section";
+export { SEARCH_ENGINE_OPTIONS, AiAgentsSection } from "./ai-agents-section";
 export { ConnectionSection } from "./connection-section";
 export { DevelopmentSection } from "./development-section";
 export { GeneralSection } from "./general-section";

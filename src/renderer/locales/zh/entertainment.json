@@ -51,6 +51,7 @@
   "novel.internet.sourceKind.page.desc": "书上任意阅读页，更慢一些。",
   "novel.internet.sourceKind.search.label": "搜索引擎",
   "novel.internet.sourceKind.search.desc": "非常慢——每一章都要靠网络搜索定位。只有愿意让应用在后台跑很长时间时才选它。",
+  "novel.internet.sourceKind.search.engineLabel": "搜索引擎：",
   "novel.internet.sourceKind.badge.fastest": "最快",
   "novel.internet.sourceKind.content.label": "内容链接",
   "novel.internet.sourceKind.content.desc": "单篇连续内容需要指向内容本身的直链。",

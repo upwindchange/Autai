@@ -140,7 +140,8 @@ export function ConfiguredProviderCard({
                 onChange={(e) =>
                   setEditState({
                     ...editState,
-                    displayName: e.target.value.trim() ? e.target.value : undefined,
+                    displayName:
+                      e.target.value.trim() ? e.target.value : undefined,
                   })
                 }
                 placeholder={t("form.displayName.placeholder")}
@@ -253,7 +254,7 @@ export function ConfiguredProviderCard({
   return (
     <Card>
       <CardHeader className="py-4 px-4">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex items-center gap-3 min-w-0">
             {definition.logo && (
               <span

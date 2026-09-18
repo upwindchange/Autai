@@ -164,7 +164,7 @@ function AuthSection() {
 
         {error && <p className="text-sm text-destructive">{error}</p>}
 
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button onClick={handleSave} disabled={busy || !pw}>
             {hasPassword ?
               t("connection.auth.change")
@@ -179,7 +179,7 @@ function AuthSection() {
 
         <Separator />
 
-        <div className="flex items-center justify-between">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-0.5">
             <Label htmlFor="session-expires">
               {t("connection.auth.expiration.label")}
@@ -240,7 +240,8 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
   // Runtime view mirrors main's bind resolution: standalone binds 127.0.0.1 on
   // a random port; remote binds the configured host (default 0.0.0.0) and port
   // (default 8787).
-  const runtimeMode: ServerMode = remoteOverride ? "remote" : settings.serverMode;
+  const runtimeMode: ServerMode =
+    remoteOverride ? "remote" : settings.serverMode;
   const isStandalone = runtimeMode === "standalone";
   const bindOverridden = !isStandalone && (cliHost !== undefined || cliPort !== undefined);
 
@@ -293,105 +294,116 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
         </div>
       )}
 
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("connection.mode.title")}</CardTitle>
-          <CardDescription>{t("connection.mode.description")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <RadioGroup
-            value={settings.serverMode}
-            onValueChange={handleModeChange}
-            className="gap-2"
-          >
-            {MODE_OPTIONS.map((opt) => (
-              <div
-                key={opt.value}
-                className="flex items-start gap-3 rounded-md border p-3"
-              >
-                <RadioGroupItem
-                  value={opt.value}
-                  id={`mode-${opt.value}`}
-                  className="mt-0.5"
-                />
-                <div className="space-y-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <Label htmlFor={`mode-${opt.value}`}>
-                      {t(opt.labelKey)}
-                    </Label>
-                    <HelpTooltip content={t(opt.tooltipKey)} />
+      <div className="columns-1 gap-6 -mb-6 xl:columns-2 *:mb-6 *:break-inside-avoid">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("connection.mode.title")}</CardTitle>
+            <CardDescription>
+              {t("connection.mode.description")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <RadioGroup
+              value={settings.serverMode}
+              onValueChange={handleModeChange}
+              className="gap-2"
+            >
+              {MODE_OPTIONS.map((opt) => (
+                <div
+                  key={opt.value}
+                  className="flex items-start gap-3 rounded-md border p-3"
+                >
+                  <RadioGroupItem
+                    value={opt.value}
+                    id={`mode-${opt.value}`}
+                    className="mt-0.5"
+                  />
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <Label htmlFor={`mode-${opt.value}`}>
+                        {t(opt.labelKey)}
+                      </Label>
+                      <HelpTooltip content={t(opt.tooltipKey)} />
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      {t(opt.descKey)}
+                    </p>
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    {t(opt.descKey)}
-                  </p>
                 </div>
+              ))}
+            </RadioGroup>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("connection.host.title")}</CardTitle>
+            <CardDescription>
+              {t("connection.host.description")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="server-host">
+                  {t("connection.host.label")}
+                </Label>
+                <HelpTooltip content={t("connection.host.tooltip")} />
               </div>
-            ))}
-          </RadioGroup>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("connection.host.title")}</CardTitle>
-          <CardDescription>{t("connection.host.description")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="server-host">{t("connection.host.label")}</Label>
-              <HelpTooltip content={t("connection.host.tooltip")} />
+              <Input
+                id="server-host"
+                className="w-full max-w-64"
+                placeholder="0.0.0.0"
+                value={
+                  isStandalone ? "127.0.0.1"
+                  : cliHost !== undefined ? cliHost
+                  : settings.serverHost
+                }
+                disabled={isStandalone || cliHost !== undefined}
+                onChange={(e) => handleHostChange(e.target.value)}
+              />
             </div>
-            <Input
-              id="server-host"
-              className="w-64"
-              placeholder="0.0.0.0"
-              value={
-                isStandalone ? "127.0.0.1"
-                : cliHost !== undefined ? cliHost
-                : settings.serverHost
-              }
-              disabled={isStandalone || cliHost !== undefined}
-              onChange={(e) => handleHostChange(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("connection.port.title")}</CardTitle>
-          <CardDescription>{t("connection.port.description")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <div className="flex items-center gap-1.5">
-              <Label htmlFor="server-port">{t("connection.port.label")}</Label>
-              <HelpTooltip content={t("connection.port.tooltip")} />
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("connection.port.title")}</CardTitle>
+            <CardDescription>
+              {t("connection.port.description")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Label htmlFor="server-port">
+                  {t("connection.port.label")}
+                </Label>
+                <HelpTooltip content={t("connection.port.tooltip")} />
+              </div>
+              <Input
+                id="server-port"
+                type="number"
+                min={1}
+                max={65535}
+                className="w-full max-w-40"
+                value={
+                  isStandalone ? (runtimePort ?? "")
+                  : cliPort !== undefined ? cliPort
+                  : settings.serverPort
+                }
+                placeholder={
+                  isStandalone ? t("connection.port.automatic") : "8787"
+                }
+                disabled={isStandalone || cliPort !== undefined}
+                onChange={(e) => handlePortChange(e.target.value)}
+              />
             </div>
-            <Input
-              id="server-port"
-              type="number"
-              min={1}
-              max={65535}
-              className="w-40"
-              value={
-                isStandalone ? (runtimePort ?? "")
-                : cliPort !== undefined ? cliPort
-                : settings.serverPort
-              }
-              placeholder={
-                isStandalone ? t("connection.port.automatic") : "8787"
-              }
-              disabled={isStandalone || cliPort !== undefined}
-              onChange={(e) => handlePortChange(e.target.value)}
-            />
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      {!isStandalone && <AuthSection />}
+        {!isStandalone && <AuthSection />}
+      </div>
 
       {bindOverridden && (
         <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">

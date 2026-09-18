@@ -56,7 +56,7 @@ export function ProviderCatalog({ onSelect, onBack }: ProviderCatalogProps) {
         <div className="py-8 text-center text-sm text-muted-foreground">
           {t("catalog.loading")}
         </div>
-      : <div className="grid grid-cols-[repeat(auto-fill,minmax(200px,1fr))] gap-4">
+      : <div className="grid grid-cols-[repeat(auto-fill,minmax(240px,1fr))] gap-4">
           {filtered.map((provider) => (
             <ProviderCatalogCard
               key={provider.dir}

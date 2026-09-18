@@ -71,83 +71,85 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
         <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("autoTag.title")}</CardTitle>
-          <CardDescription>{t("autoTag.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex items-center justify-between">
-            <div className="space-y-0.5">
-              <Label htmlFor="auto-tag-enabled">
-                {t("autoTag.enabled.label")}
-              </Label>
-              <p className="text-sm text-muted-foreground">
-                {t("autoTag.enabled.hint")}
-              </p>
-            </div>
-            <Switch
-              id="auto-tag-enabled"
-              checked={settings.autoTagEnabled}
-              onCheckedChange={handleAutoTagToggle}
-            />
-          </div>
-
-          {settings.autoTagEnabled && (
-            <>
-              <Separator />
-              <div className="flex items-center justify-between">
-                <div className="space-y-0.5">
-                  <Label htmlFor="auto-tag-creation-enabled">
-                    {t("autoTag.creation.label")}
-                  </Label>
-                  <p className="text-sm text-muted-foreground">
-                    {t("autoTag.creation.hint")}
-                  </p>
-                </div>
-                <Switch
-                  id="auto-tag-creation-enabled"
-                  checked={settings.autoTagCreationEnabled}
-                  onCheckedChange={handleAutoTagCreationToggle}
-                />
+      <div className="columns-1 gap-6 -mb-6 xl:columns-2 *:mb-6 *:break-inside-avoid">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("autoTag.title")}</CardTitle>
+            <CardDescription>{t("autoTag.description")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="space-y-0.5">
+                <Label htmlFor="auto-tag-enabled">
+                  {t("autoTag.enabled.label")}
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  {t("autoTag.enabled.hint")}
+                </p>
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+              <Switch
+                id="auto-tag-enabled"
+                checked={settings.autoTagEnabled}
+                onCheckedChange={handleAutoTagToggle}
+              />
+            </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("tagManagement.title")}</CardTitle>
-          <CardDescription>{t("tagManagement.description")}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="chat">
-            <TabsList>
-              <TabsTrigger value="chat">
-                {t("tagManagement.chatTab")}
-              </TabsTrigger>
-              <TabsTrigger value="entertainment">
-                {t("tagManagement.entertainmentTab")}
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="chat">
-              <TagManager
-                mode="chat"
-                tags={tags.filter((tag) => tag.mode === "chat")}
-                onChanged={loadTags}
-              />
-            </TabsContent>
-            <TabsContent value="entertainment">
-              <TagManager
-                mode="entertainment"
-                tags={tags.filter((tag) => tag.mode === "entertainment")}
-                onChanged={loadTags}
-              />
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
+            {settings.autoTagEnabled && (
+              <>
+                <Separator />
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="auto-tag-creation-enabled">
+                      {t("autoTag.creation.label")}
+                    </Label>
+                    <p className="text-sm text-muted-foreground">
+                      {t("autoTag.creation.hint")}
+                    </p>
+                  </div>
+                  <Switch
+                    id="auto-tag-creation-enabled"
+                    checked={settings.autoTagCreationEnabled}
+                    onCheckedChange={handleAutoTagCreationToggle}
+                  />
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("tagManagement.title")}</CardTitle>
+            <CardDescription>{t("tagManagement.description")}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Tabs defaultValue="chat">
+              <TabsList>
+                <TabsTrigger value="chat">
+                  {t("tagManagement.chatTab")}
+                </TabsTrigger>
+                <TabsTrigger value="entertainment">
+                  {t("tagManagement.entertainmentTab")}
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="chat">
+                <TagManager
+                  mode="chat"
+                  tags={tags.filter((tag) => tag.mode === "chat")}
+                  onChanged={loadTags}
+                />
+              </TabsContent>
+              <TabsContent value="entertainment">
+                <TagManager
+                  mode="entertainment"
+                  tags={tags.filter((tag) => tag.mode === "entertainment")}
+                  onChanged={loadTags}
+                />
+              </TabsContent>
+            </Tabs>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
@@ -251,7 +253,7 @@ function TagManager({ mode, tags, onChanged }: TagManagerProps) {
           value={newTagName}
           onChange={(e) => setNewTagName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleCreateTag()}
-          className="max-w-xs"
+          className="flex-1 max-w-xs"
         />
         <Button
           variant="outline"
@@ -287,7 +289,7 @@ function TagManager({ mode, tags, onChanged }: TagManagerProps) {
                   value={editingTagName}
                   onChange={(e) => setEditingTagName(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleSaveTag(tag.id)}
-                  className="h-8 max-w-xs"
+                  className="h-8 flex-1 max-w-xs"
                   autoFocus
                 />
                 <Button
@@ -312,7 +314,7 @@ function TagManager({ mode, tags, onChanged }: TagManagerProps) {
                   color={tag.color}
                   onChange={(color) => handleColorChange(tag.id, color)}
                 />
-                <span className="flex-1 text-sm">{tag.name}</span>
+                <span className="flex-1 text-sm truncate">{tag.name}</span>
                 <Button
                   variant="ghost"
                   size="icon"

@@ -51,6 +51,7 @@
   "novel.internet.sourceKind.page.desc": "Any reading page on the book's site. Slower still.",
   "novel.internet.sourceKind.search.label": "Search engine",
   "novel.internet.sourceKind.search.desc": "Very slow — each chapter is found via web search. Only pick this if you're comfortable leaving the app running in the background for a significant amount of time.",
+  "novel.internet.sourceKind.search.engineLabel": "Search with:",
   "novel.internet.sourceKind.badge.fastest": "Fastest",
   "novel.internet.sourceKind.content.label": "Link to the content",
   "novel.internet.sourceKind.content.desc": "A single continuous text needs a direct link to the content itself.",

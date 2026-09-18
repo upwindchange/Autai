@@ -41,15 +41,11 @@ export function AboutSection() {
         platform: string;
         electronVersion: string;
         nodeVersion: string;
-        chromeVersion?: string;
-        v8Version?: string;
       }>("/app/system-info")
       .then((systemInfo) => {
-        setPlatform(systemInfo.platform || t("common:value.unknown"));
-        setElectronVersion(
-          systemInfo.electronVersion || t("common:value.unknown"),
-        );
-        setNodeVersion(systemInfo.nodeVersion || t("common:value.unknown"));
+        setPlatform(systemInfo.platform);
+        setElectronVersion(systemInfo.electronVersion);
+        setNodeVersion(systemInfo.nodeVersion);
       })
       .catch(() => {
         setPlatform(t("common:value.unknown"));
@@ -72,172 +68,174 @@ export function AboutSection() {
         <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("info.title")}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {t("info.version")}
-              </p>
-              <p className="font-mono">{appVersion}</p>
+      <div className="columns-1 gap-6 -mb-6 xl:columns-2 *:mb-6 *:break-inside-avoid">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("info.title")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">
+                  {t("info.version")}
+                </p>
+                <p className="font-mono truncate">{appVersion}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">
+                  {t("info.platform")}
+                </p>
+                <p className="font-mono truncate">{platform}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">
+                  {t("info.electron")}
+                </p>
+                <p className="font-mono truncate">{electronVersion}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">
+                  {t("info.nodejs")}
+                </p>
+                <p className="font-mono truncate">{nodeVersion}</p>
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm text-muted-foreground">
+                  {t("info.author")}
+                </p>
+                <p>{t("info.authorName")}</p>
+              </div>
             </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {t("info.platform")}
-              </p>
-              <p className="font-mono">{platform}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {t("info.electron")}
-              </p>
-              <p className="font-mono">{electronVersion}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {t("info.nodejs")}
-              </p>
-              <p className="font-mono">{nodeVersion}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">
-                {t("info.author")}
-              </p>
-              <p>{t("info.authorName")}</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("resources.title")}</CardTitle>
-          <CardDescription>{t("resources.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
-            onClick={() =>
-              openExternal("https://github.com/upwindchange/Autai")
-            }
-          >
-            <GitHubIcon className="h-4 w-4" />
-            {t("resources.github")}
-            <ExternalLink className="h-3 w-3 ml-auto" />
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
-            onClick={() =>
-              openExternal("https://github.com/upwindchange/Autai/issues")
-            }
-          >
-            <FileText className="h-4 w-4" />
-            {t("resources.reportIssue")}
-            <ExternalLink className="h-3 w-3 ml-auto" />
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full justify-start gap-2"
-            onClick={() =>
-              openExternal("https://github.com/upwindchange/Autai")
-            }
-          >
-            <FileText className="h-4 w-4" />
-            {t("resources.documentation")}
-            <ExternalLink className="h-3 w-3 ml-auto" />
-          </Button>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>{t("credits.title")}</CardTitle>
-          <CardDescription>{t("credits.description")}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2 text-sm">
-            <p className="flex items-center gap-2">
-              <Heart className="h-3 w-3 text-red-500" />
-              {t("credits.intro")}
-            </p>
-          </div>
-          <div className="space-y-2">
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("resources.title")}</CardTitle>
+            <CardDescription>{t("resources.description")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
             <Button
               variant="outline"
               className="w-full justify-start gap-2"
-              onClick={() => openExternal("https://www.electronjs.org")}
+              onClick={() =>
+                openExternal("https://github.com/upwindchange/Autai")
+              }
             >
-              <span className="font-medium">Electron</span>
-              <span className="text-xs text-muted-foreground">
-                {t("credits.electron")}
-              </span>
-              <ExternalLink className="h-3 w-3 ml-auto" />
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-2"
-              onClick={() => openExternal("https://www.assistant-ui.com")}
-            >
-              <span className="font-medium">Assistant UI</span>
-              <span className="text-xs text-muted-foreground">
-                {t("credits.assistantUI")}
-              </span>
-              <ExternalLink className="h-3 w-3 ml-auto" />
-            </Button>
-            <Button
-              variant="outline"
-              className="w-full justify-start gap-2"
-              onClick={() => openExternal("https://sdk.vercel.ai")}
-            >
-              <span className="font-medium">AI SDK</span>
-              <span className="text-xs text-muted-foreground">
-                {t("credits.aiSDK")}
-              </span>
-              <ExternalLink className="h-3 w-3 ml-auto" />
+              <GitHubIcon className="h-4 w-4 shrink-0" />
+              <span className="truncate">{t("resources.github")}</span>
+              <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
             </Button>
             <Button
               variant="outline"
               className="w-full justify-start gap-2"
               onClick={() =>
-                openExternal(
-                  "https://github.com/upwindchange/Autai/blob/master/package.json",
-                )
+                openExternal("https://github.com/upwindchange/Autai/issues")
               }
             >
-              <span className="text-muted-foreground text-xs">
-                {t("credits.more")}
-              </span>
-              <ExternalLink className="h-3 w-3 ml-auto" />
+              <FileText className="h-4 w-4 shrink-0" />
+              <span className="truncate">{t("resources.reportIssue")}</span>
+              <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
             </Button>
-          </div>
-          <div className="space-y-2 text-sm">
-            <p className="font-medium">{t("credits.specialThanks")}</p>
             <Button
               variant="outline"
               className="w-full justify-start gap-2"
               onClick={() =>
-                openExternal("https://github.com/browser-use/browser-use")
+                openExternal("https://github.com/upwindchange/Autai")
               }
             >
-              <span className="font-medium">Browser-Use</span>
-              <span className="text-xs text-muted-foreground">
-                {t("credits.browserUse")}
-              </span>
-              <ExternalLink className="h-3 w-3 ml-auto" />
+              <FileText className="h-4 w-4 shrink-0" />
+              <span className="truncate">{t("resources.documentation")}</span>
+              <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
             </Button>
-          </div>
-          <Separator />
-          <div className="text-xs text-muted-foreground">
-            <p>{t("copyright")}</p>
-            <p className="mt-1">{t("disclaimer")}</p>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("credits.title")}</CardTitle>
+            <CardDescription>{t("credits.description")}</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-2 text-sm">
+              <p className="flex items-center gap-2">
+                <Heart className="h-3 w-3 shrink-0 text-red-500" />
+                {t("credits.intro")}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-2"
+                onClick={() => openExternal("https://www.electronjs.org")}
+              >
+                <span className="font-medium shrink-0">Electron</span>
+                <span className="text-xs text-muted-foreground truncate">
+                  {t("credits.electron")}
+                </span>
+                <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-2"
+                onClick={() => openExternal("https://www.assistant-ui.com")}
+              >
+                <span className="font-medium shrink-0">Assistant UI</span>
+                <span className="text-xs text-muted-foreground truncate">
+                  {t("credits.assistantUI")}
+                </span>
+                <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-2"
+                onClick={() => openExternal("https://sdk.vercel.ai")}
+              >
+                <span className="font-medium shrink-0">AI SDK</span>
+                <span className="text-xs text-muted-foreground truncate">
+                  {t("credits.aiSDK")}
+                </span>
+                <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-2"
+                onClick={() =>
+                  openExternal(
+                    "https://github.com/upwindchange/Autai/blob/master/package.json",
+                  )
+                }
+              >
+                <span className="text-muted-foreground text-xs truncate">
+                  {t("credits.more")}
+                </span>
+                <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+              </Button>
+            </div>
+            <div className="space-y-2 text-sm">
+              <p className="font-medium">{t("credits.specialThanks")}</p>
+              <Button
+                variant="outline"
+                className="w-full justify-start gap-2"
+                onClick={() =>
+                  openExternal("https://github.com/browser-use/browser-use")
+                }
+              >
+                <span className="font-medium shrink-0">Browser-Use</span>
+                <span className="text-xs text-muted-foreground truncate">
+                  {t("credits.browserUse")}
+                </span>
+                <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+              </Button>
+            </div>
+            <Separator />
+            <div className="text-xs text-muted-foreground">
+              <p>{t("copyright")}</p>
+              <p className="mt-1">{t("disclaimer")}</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

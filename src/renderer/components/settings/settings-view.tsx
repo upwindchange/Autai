@@ -54,8 +54,10 @@ export function SettingsView() {
 
       {/* Content Area - No sidebar here anymore */}
       <ScrollArea className="flex-1 overflow-hidden">
-        <div className="p-6 h-full">
-          <div className="max-w-3xl mx-auto">{renderSection()}</div>
+        <div className="p-4 sm:p-6 h-full">
+          <div className="mx-auto w-full max-w-3xl md:max-w-5xl 2xl:max-w-7xl">
+            {renderSection()}
+          </div>
         </div>
       </ScrollArea>
     </div>

@@ -332,7 +332,7 @@ export function ProvidersModelsSection({
   return (
     <div className="space-y-6">
       {/* Section Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">{t("title")}</h2>
           <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
@@ -344,24 +344,26 @@ export function ProvidersModelsSection({
       </div>
 
       {/* Configured providers */}
-      {providers.map((provider) => {
-        const definition = getDefinition(provider.providerDir);
-        if (!definition) return null;
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+        {providers.map((provider) => {
+          const definition = getDefinition(provider.providerDir);
+          if (!definition) return null;
 
-        return (
-          <ConfiguredProviderCard
-            key={provider.id}
-            provider={provider}
-            definition={definition}
-            isEditing={editingProviderId === provider.id}
-            assignedRoles={getAssignedRoles(provider.id)}
-            onEdit={() => setEditingProviderId(provider.id)}
-            onCancel={handleCancelEdit}
-            onSave={handleSaveProvider}
-            onDelete={() => handleDeleteProvider(provider.id)}
-          />
-        );
-      })}
+          return (
+            <ConfiguredProviderCard
+              key={provider.id}
+              provider={provider}
+              definition={definition}
+              isEditing={editingProviderId === provider.id}
+              assignedRoles={getAssignedRoles(provider.id)}
+              onEdit={() => setEditingProviderId(provider.id)}
+              onCancel={handleCancelEdit}
+              onSave={handleSaveProvider}
+              onDelete={() => handleDeleteProvider(provider.id)}
+            />
+          );
+        })}
+      </div>
 
       {/* Model Roles + params — only meaningful once a provider is configured. */}
       {providers.length > 0 && (
@@ -424,101 +426,104 @@ export function ProvidersModelsSection({
             </CardContent>
           </Card>
 
-          {/* Chat defaults — system-level systemPrompt + defaultModelParams for
-              the chat role. Moved here from threads-section so all model/param
-              configuration lives under one section. */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{tt("defaultChatParams.title")}</CardTitle>
-              <CardDescription>
-                {tt("defaultChatParams.description")}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <ModelParamsFields
-                value={chatDefaultsDraft}
-                onChange={setChatDefaultsDraft}
-                systemPromptPlaceholder={tt(
-                  "defaultChatParams.systemPromptEmpty",
-                )}
-                i18nNamespace="threads"
-                keyPrefix="defaultChatParams"
-                reasoningOptions={chatReasoning}
-              />
-              <div className="flex justify-end pt-1">
-                <Button
-                  onClick={handleSaveChatDefaults}
-                  disabled={chatDefaultsSaving}
-                >
-                  {chatDefaultsSaving ?
-                    <Loader2 className="size-4 animate-spin" />
-                  : tt("defaultChatParams.save")}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+          {/* Params cards — grid on wide screens. */}
+          <div className="grid grid-cols-1 gap-6 xl:grid-cols-2 2xl:grid-cols-3 *:min-w-0">
+            {/* Chat defaults — system-level systemPrompt + defaultModelParams
+                for the chat role. Moved here from threads-section so all
+                model/param configuration lives under one section. */}
+            <Card>
+              <CardHeader>
+                <CardTitle>{tt("defaultChatParams.title")}</CardTitle>
+                <CardDescription>
+                  {tt("defaultChatParams.description")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ModelParamsFields
+                  value={chatDefaultsDraft}
+                  onChange={setChatDefaultsDraft}
+                  systemPromptPlaceholder={tt(
+                    "defaultChatParams.systemPromptEmpty",
+                  )}
+                  i18nNamespace="threads"
+                  keyPrefix="defaultChatParams"
+                  reasoningOptions={chatReasoning}
+                />
+                <div className="flex justify-end pt-1">
+                  <Button
+                    onClick={handleSaveChatDefaults}
+                    disabled={chatDefaultsSaving}
+                  >
+                    {chatDefaultsSaving ?
+                      <Loader2 className="size-4 animate-spin" />
+                    : tt("defaultChatParams.save")}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
-          {/* Per-agent params — always shown, regardless of useSameModelForAgents.
+            {/* Per-agent params — always shown, regardless of useSameModelForAgents.
               The MODEL may be shared with chat when that toggle is on, but each
               agent role keeps its OWN sampling + reasoning config. Reasoning
               controls are driven by the effective model's catalog entry. */}
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("params.simple.title")}</CardTitle>
-              <CardDescription>
-                {t("params.simple.description")}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <ModelParamsFields
-                value={simpleParams.draft}
-                onChange={simpleParams.setDraft}
-                i18nNamespace="providers"
-                keyPrefix="params"
-                reasoningOptions={simpleReasoning}
-                hideSystemPrompt
-              />
-              <div className="flex justify-end pt-1">
-                <Button
-                  onClick={handleSaveSimpleParams}
-                  disabled={simpleParams.saving}
-                >
-                  {simpleParams.saving ?
-                    <Loader2 className="size-4 animate-spin" />
-                  : t("params.save")}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("params.simple.title")}</CardTitle>
+                <CardDescription>
+                  {t("params.simple.description")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ModelParamsFields
+                  value={simpleParams.draft}
+                  onChange={simpleParams.setDraft}
+                  i18nNamespace="providers"
+                  keyPrefix="params"
+                  reasoningOptions={simpleReasoning}
+                  hideSystemPrompt
+                />
+                <div className="flex justify-end pt-1">
+                  <Button
+                    onClick={handleSaveSimpleParams}
+                    disabled={simpleParams.saving}
+                  >
+                    {simpleParams.saving ?
+                      <Loader2 className="size-4 animate-spin" />
+                    : t("params.save")}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>{t("params.complex.title")}</CardTitle>
-              <CardDescription>
-                {t("params.complex.description")}
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <ModelParamsFields
-                value={complexParams.draft}
-                onChange={complexParams.setDraft}
-                i18nNamespace="providers"
-                keyPrefix="params"
-                reasoningOptions={complexReasoning}
-                hideSystemPrompt
-              />
-              <div className="flex justify-end pt-1">
-                <Button
-                  onClick={handleSaveComplexParams}
-                  disabled={complexParams.saving}
-                >
-                  {complexParams.saving ?
-                    <Loader2 className="size-4 animate-spin" />
-                  : t("params.save")}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>{t("params.complex.title")}</CardTitle>
+                <CardDescription>
+                  {t("params.complex.description")}
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <ModelParamsFields
+                  value={complexParams.draft}
+                  onChange={complexParams.setDraft}
+                  i18nNamespace="providers"
+                  keyPrefix="params"
+                  reasoningOptions={complexReasoning}
+                  hideSystemPrompt
+                />
+                <div className="flex justify-end pt-1">
+                  <Button
+                    onClick={handleSaveComplexParams}
+                    disabled={complexParams.saving}
+                  >
+                    {complexParams.saving ?
+                      <Loader2 className="size-4 animate-spin" />
+                    : t("params.save")}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
         </>
       )}
     </div>

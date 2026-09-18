@@ -16,8 +16,17 @@ import { AlphaGlyph } from "@/components/ui/alpha-glyph";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useSettings } from "@/components/settings";
+import { SEARCH_ENGINE_OPTIONS } from "@/components/settings/settings-sections";
 import { isValidHttpUrl } from "@shared";
-import type { EntertainmentConfig, SourceKind } from "@shared";
+import type { EntertainmentConfig, SearchEngine, SourceKind } from "@shared";
 import { pickFiles } from "@/lib/filePicker";
 import { patchSharedOptions } from "../wizardSteps";
 
@@ -37,9 +46,17 @@ export const StepNovel: FC<StepNovelProps> = ({
   setAgreed,
 }) => {
   const { t } = useTranslation("entertainment");
+  const { settings, updateSettings } = useSettings();
+  // The engine that runs the search is the app-wide default, kept in
+  // settings — changing it here updates the same setting the AI Agents page
+  // owns, so both stay in sync.
+  const handleSearchEngineChange = (value: string) => {
+    void updateSettings({ ...settings, searchEngine: value as SearchEngine });
+  };
   // When on, the source is one continuous text (a post, an email thread, …)
   // and the title/author fields below are disabled — there's no "book title".
   const nonNovel = config.options.nonNovelSource;
+
 
   // sourceKind is always present on runtime configs; the ?? "search" fallback
   // mirrors isStepValid for hand-cast (test) configs missing the field.
@@ -418,6 +435,32 @@ export const StepNovel: FC<StepNovelProps> = ({
                   <p className="pl-6 text-xs text-amber-600 dark:text-amber-400">
                     {t("novel.internet.sourceKind.search.desc")}
                   </p>
+                  <div className="flex flex-wrap items-center gap-2 pl-6">
+                    <span className="text-xs text-muted-foreground">
+                      {t("novel.internet.sourceKind.search.engineLabel")}
+                    </span>
+                    <Select
+                      value={settings.searchEngine}
+                      onValueChange={handleSearchEngineChange}
+                    >
+                      <SelectTrigger
+                        size="sm"
+                        className="h-7 w-fit text-xs"
+                        aria-label={t(
+                          "novel.internet.sourceKind.search.engineLabel",
+                        )}
+                      >
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {SEARCH_ENGINE_OPTIONS.map((o) => (
+                          <SelectItem key={o.value} value={o.value}>
+                            {o.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </RadioGroup>
             }

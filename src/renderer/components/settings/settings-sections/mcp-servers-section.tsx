@@ -237,12 +237,12 @@ export function McpServersSection() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
               <CardTitle>{t("serverList.title")}</CardTitle>
               <CardDescription>{t("serverList.description")}</CardDescription>
             </div>
-            <Button onClick={handleOpenAdd} className="gap-2">
+            <Button onClick={handleOpenAdd} className="gap-2 shrink-0">
               <ToolCase className="h-4 w-4" />
               {t("serverList.add")}
             </Button>
@@ -262,7 +262,7 @@ export function McpServersSection() {
                 return (
                   <div
                     key={server.id}
-                    className="flex items-start gap-4 rounded-lg border p-4"
+                    className="flex flex-col gap-3 rounded-lg border p-4 sm:flex-row sm:items-start sm:gap-4"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
@@ -311,7 +311,7 @@ export function McpServersSection() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 shrink-0 sm:justify-end">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -361,7 +361,7 @@ export function McpServersSection() {
 
       {/* Add/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {editingServer ? t("edit.button") : t("serverList.add")}
