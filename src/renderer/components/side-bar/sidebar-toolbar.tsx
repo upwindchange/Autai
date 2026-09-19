@@ -257,11 +257,11 @@ function ToolbarIconButton({
         <Button
           variant="ghost"
           size="icon"
-          className={cn("size-6", active && "bg-muted hover:bg-muted")}
+          className={cn("size-6", active && "bg-sidebar-accent hover:bg-sidebar-accent")}
           onClick={onClick}
           disabled={disabled}
         >
-          <Icon className={cn("size-3.5", active && "text-blue-500")} />
+          <Icon className={cn("size-3.5", active && "text-sidebar-primary")} />
         </Button>
       </TooltipTrigger>
       <TooltipContent side="bottom">{label}</TooltipContent>
@@ -340,12 +340,12 @@ function ViewModeToggle({
             size="icon"
             className={cn(
               "size-6 rounded-r-none",
-              mode === "flat" && "bg-muted hover:bg-muted",
+              mode === "flat" && "bg-sidebar-accent hover:bg-sidebar-accent",
             )}
             onClick={() => onChange("flat")}
           >
             <ListIcon
-              className={cn("size-3.5", mode === "flat" && "text-blue-500")}
+              className={cn("size-3.5", mode === "flat" && "text-sidebar-primary")}
             />
           </Button>
         </TooltipTrigger>
@@ -358,12 +358,12 @@ function ViewModeToggle({
             size="icon"
             className={cn(
               "size-6 rounded-l-none",
-              mode === "grouped" && "bg-muted hover:bg-muted",
+              mode === "grouped" && "bg-sidebar-accent hover:bg-sidebar-accent",
             )}
             onClick={() => onChange("grouped")}
           >
             <FolderTreeIcon
-              className={cn("size-3.5", mode === "grouped" && "text-blue-500")}
+              className={cn("size-3.5", mode === "grouped" && "text-sidebar-primary")}
             />
           </Button>
         </TooltipTrigger>
@@ -447,7 +447,7 @@ function TagPanel() {
           {canCreate && (
             <button
               onClick={() => void createAndSelect()}
-              className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-border px-2 py-0.5 text-xs text-muted-foreground hover:bg-accent"
+              className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-sidebar-border px-2 py-0.5 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent"
             >
               <Plus className="size-3" />
               {t("sidebar.createTagItem", { name: query.trim() })}

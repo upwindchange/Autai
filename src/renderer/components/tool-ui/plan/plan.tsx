@@ -65,11 +65,11 @@ const TodoIcon = memo(function TodoIcon({
   if (status === "cancelled") {
     return (
       <span
-        className="border-destructive bg-destructive flex size-6 shrink-0 items-center justify-center rounded-full border shadow-sm motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-75 motion-safe:duration-300 motion-safe:ease-out dark:border-red-600 dark:bg-red-600"
+        className="border-destructive bg-destructive flex size-6 shrink-0 items-center justify-center rounded-full border shadow-sm motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-75 motion-safe:duration-300 motion-safe:ease-out"
         aria-hidden="true"
       >
         <X
-          className="size-4 text-white motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-75 motion-safe:delay-75 motion-safe:duration-200 motion-safe:fill-mode-both"
+          className="text-destructive-foreground size-4 motion-safe:animate-in motion-safe:fade-in motion-safe:zoom-in-75 motion-safe:delay-75 motion-safe:duration-200 motion-safe:fill-mode-both"
           strokeWidth={3}
         />
       </span>
@@ -257,22 +257,20 @@ const ProgressBar = memo(function ProgressBar({
     >
       <div
         className={cn(
-          "h-full rounded-full transition-all duration-500",
-          progress === 100 ?
-            "bg-gradient-to-r from-emerald-600 via-emerald-500 to-emerald-400 motion-safe:animate-in motion-safe:fade-in motion-safe:duration-500 motion-safe:ease-out"
-          : "bg-primary",
+          "h-full rounded-full bg-primary transition-all duration-500",
+          progress === 100 &&
+            "motion-safe:animate-in motion-safe:fade-in motion-safe:duration-500 motion-safe:ease-out",
         )}
         style={{
           width: `${progress}%`,
-          boxShadow:
-            "inset 0 1px 0 rgba(255,255,255,0.3), 0 1px 2px rgba(0,0,0,0.2)",
         }}
       />
       {isCelebrating && (
         <div
           className="pointer-events-none absolute inset-0 rounded-full motion-safe:animate-pulse"
           style={{
-            boxShadow: "0 0 20px rgba(16, 185, 129, 0.6)",
+            boxShadow:
+              "0 0 20px color-mix(in oklab, var(--primary) 60%, transparent)",
           }}
         />
       )}
@@ -384,11 +382,10 @@ function PlanRoot({
             {description && <CardDescription>{description}</CardDescription>}
           </div>
           {allComplete && (
-            <Check className="mt-0.5 size-5 shrink-0 text-emerald-500" />
+            <Check className="mt-0.5 size-5 shrink-0 text-primary" />
           )}
         </CardHeader>
       )}
-
       <CardContent className="min-w-0 px-4">
         <div
           className={cn(

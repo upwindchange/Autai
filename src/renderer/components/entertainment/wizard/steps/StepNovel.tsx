@@ -252,7 +252,7 @@ export const StepNovel: FC<StepNovelProps> = ({
               inline (not a tooltip) while the internet branch is open. */}
           {config.novel.type === "internet" && (
             <div className="flex flex-col gap-1">
-              <p className="text-xs text-amber-600 dark:text-amber-400">
+              <p className="text-xs text-chart-4">
                 {t("novel.internet.slowerThanFile")}
               </p>
               <p className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -432,7 +432,7 @@ export const StepNovel: FC<StepNovelProps> = ({
                       {t("novel.internet.sourceKind.search.label")}
                     </Label>
                   </div>
-                  <p className="pl-6 text-xs text-amber-600 dark:text-amber-400">
+                  <p className="pl-6 text-xs text-chart-4">
                     {t("novel.internet.sourceKind.search.desc")}
                   </p>
                   <div className="flex flex-wrap items-center gap-2 pl-6">

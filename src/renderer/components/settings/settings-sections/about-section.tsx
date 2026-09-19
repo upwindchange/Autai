@@ -159,7 +159,7 @@ export function AboutSection() {
           <CardContent className="space-y-4">
             <div className="space-y-2 text-sm">
               <p className="flex items-center gap-2">
-                <Heart className="h-3 w-3 shrink-0 text-red-500" />
+                <Heart className="h-3 w-3 shrink-0 text-destructive" />
                 {t("credits.intro")}
               </p>
             </div>

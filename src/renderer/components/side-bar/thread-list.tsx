@@ -179,7 +179,7 @@ const ThreadListItem: FC = () => {
   return (
     <ThreadListItemPrimitive.Root
       className={cn(
-        "aui-thread-list-item group/thread relative flex min-h-9 items-center gap-2 rounded-lg border border-transparent px-2 py-0.5 transition-colors hover:bg-muted focus-visible:bg-muted focus-visible:outline-none data-active:border-l-2 data-active:border-primary data-active:bg-accent",
+        "aui-thread-list-item group/thread relative flex min-h-9 items-center gap-2 rounded-lg border border-transparent px-2 py-0.5 transition-colors hover:bg-sidebar-accent focus-visible:bg-sidebar-accent focus-visible:outline-none data-active:border-l-2 data-active:border-sidebar-primary data-active:bg-sidebar-accent",
         activeStyles,
       )}
       onClickCapture={(e) => {
@@ -249,7 +249,7 @@ const ThreadListItemMore: FC<{ threadId: string | undefined }> = ({
           <Button
             variant="ghost"
             size="icon"
-            className="aui-thread-list-item-more mr-2 size-7 p-0 opacity-0 transition-opacity group-hover/thread:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100 group-data-active:opacity-100"
+            className="aui-thread-list-item-more mr-2 size-7 p-0 opacity-0 transition-opacity group-hover/thread:opacity-100 data-[state=open]:bg-sidebar-accent data-[state=open]:opacity-100 group-data-active:opacity-100"
           >
             <MoreHorizontalIcon className="size-4" />
             <span className="sr-only">More options</span>

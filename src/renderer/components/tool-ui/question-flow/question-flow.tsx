@@ -195,7 +195,7 @@ function QuestionFlowReceipt({
       >
         <div className="flex items-center justify-between gap-3">
           <span className="text-base font-medium">{choice.title}</span>
-          <span className="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-500">
+          <span className="flex items-center gap-1.5 text-xs font-medium text-primary">
             <Check className="size-3.5" />
             Complete
           </span>

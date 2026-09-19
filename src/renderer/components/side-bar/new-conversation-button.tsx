@@ -27,8 +27,8 @@ export function NewConversationButton() {
   return (
     <ThreadListPrimitive.New asChild>
       <Button
-        variant="outline"
-        className="aui-thread-list-new h-9 w-full justify-start gap-2 rounded-lg px-3 text-sm hover:bg-muted data-active:bg-muted"
+        variant="ghost"
+        className="aui-thread-list-new h-9 w-full justify-start gap-2 rounded-lg border border-sidebar-border bg-sidebar-accent px-3 text-sm text-sidebar-accent-foreground shadow-xs hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent/80"
       >
         <PlusIcon className="size-4" />
         {t("sidebar.newConversation")}
@@ -48,8 +48,8 @@ function EntertainmentNewConversationButton() {
   const inWizard = useChaptersStore((s) => s.currentChapterNumber == null);
   return (
     <Button
-      variant="outline"
-      className="aui-thread-list-new h-9 w-full justify-start gap-2 rounded-lg px-3 text-sm hover:bg-muted data-active:bg-muted disabled:opacity-50"
+      variant="ghost"
+      className="aui-thread-list-new h-9 w-full justify-start gap-2 rounded-lg border border-sidebar-border bg-sidebar-accent px-3 text-sm text-sidebar-accent-foreground shadow-xs hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground data-active:bg-sidebar-accent/80 disabled:opacity-50"
       onClick={() => useEntertainmentThreadsStore.getState().abandon()}
       disabled={inWizard}
     >

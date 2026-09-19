@@ -177,10 +177,7 @@ export const ComposerAction: FC = () => {
                             <span
                               className={cn(
                                 "relative",
-                                useBrowser ?
-                                  usePlannedBrowser ? "text-purple-500"
-                                  : "text-blue-500"
-                                : undefined,
+                                useBrowser && "text-primary",
                               )}
                             >
                               {t("composer.tools.browserUse")}
@@ -188,8 +185,7 @@ export const ComposerAction: FC = () => {
                                 className={cn(
                                   "absolute -top-2 -right-3.5",
                                   useBrowser ?
-                                    usePlannedBrowser ? "text-purple-500"
-                                    : "text-blue-500"
+                                    "text-primary"
                                   : "text-muted-foreground",
                                 )}
                               />
@@ -256,16 +252,16 @@ export const ComposerAction: FC = () => {
                         <Blocks
                           className={cn(
                             "size-4",
-                            hasActiveMcpServers ? "text-orange-500" : (
-                              "text-muted-foreground"
-                            ),
+                            hasActiveMcpServers ?
+                              "text-primary"
+                            : "text-muted-foreground",
                           )}
                         />
                         <span
                           className={cn(
-                            hasActiveMcpServers ? "text-orange-500" : (
-                              "text-muted-foreground"
-                            ),
+                            hasActiveMcpServers ?
+                              "text-primary"
+                            : "text-muted-foreground",
                           )}
                         >
                           {t("composer.tools.extensions")}

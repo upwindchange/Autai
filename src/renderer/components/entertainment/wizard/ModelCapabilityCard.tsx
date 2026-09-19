@@ -83,12 +83,12 @@ export const ModelCapabilityCard: FC<{
   if (!complex && !simple) {
     return (
       <section
-        className="fade-in slide-in-from-bottom-1 animate-in fill-mode-both mx-auto flex w-full max-w-4xl items-center gap-3 rounded-lg border border-amber-500/40 bg-amber-500/5 p-4 duration-200"
+        className="fade-in slide-in-from-bottom-1 animate-in fill-mode-both mx-auto flex w-full max-w-4xl items-center gap-3 rounded-lg border border-chart-4/40 bg-chart-4/10 p-4 duration-200"
         role="alert"
       >
         <DotMatrix state="warning" className="size-5 shrink-0" />
         <div className="flex-1">
-          <p className="text-sm font-medium text-amber-700 dark:text-amber-500">
+          <p className="text-sm font-medium text-chart-4">
             {t("capability.notConfigured.title")}
           </p>
           <p className="text-xs text-muted-foreground">
@@ -214,7 +214,7 @@ const ModelColumn: FC<{
             </span>
           </div>
           {!model.hasKnownLimit && (
-            <div className="flex items-center gap-1 text-[11px] text-amber-600 dark:text-amber-500">
+            <div className="flex items-center gap-1 text-[11px] text-chart-4">
               <TriangleAlert className="size-3 shrink-0" />
               {t("capability.defaultBadge")}
             </div>
@@ -222,7 +222,7 @@ const ModelColumn: FC<{
         </>
       : <div className="flex items-center gap-2 py-1">
           <DotMatrix state="warning" className="size-4 shrink-0" />
-          <p className="text-xs text-amber-600 dark:text-amber-500">
+          <p className="text-xs text-chart-4">
             {t("capability.notConfigured.body")}
           </p>
         </div>

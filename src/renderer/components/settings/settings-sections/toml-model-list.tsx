@@ -255,19 +255,19 @@ function ModelBadges({ model }: { model: ModelDefinition }) {
 
   // Vision (image input)
   if (model.modalities?.input?.includes("image")) {
-    icons.push(<Eye key="vision" className="h-3 w-3 text-blue-500" />);
+    icons.push(<Eye key="vision" className="h-3 w-3 text-chart-2" />);
   }
   // PDF support
   if (model.modalities?.input?.includes("pdf")) {
-    icons.push(<FileText key="pdf" className="h-3 w-3 text-orange-500" />);
+    icons.push(<FileText key="pdf" className="h-3 w-3 text-chart-4" />);
   }
   // Reasoning / thinking
   if (model.reasoning) {
-    icons.push(<Brain key="reasoning" className="h-3 w-3 text-purple-500" />);
+    icons.push(<Brain key="reasoning" className="h-3 w-3 text-chart-5" />);
   }
   // Tool calling
   if (model.toolCall) {
-    icons.push(<Wrench key="tool" className="h-3 w-3 text-green-500" />);
+    icons.push(<Wrench key="tool" className="h-3 w-3 text-chart-3" />);
   }
 
   if (icons.length === 0) return null;

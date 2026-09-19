@@ -275,7 +275,7 @@ export function McpServersSection() {
                         {testResult?.success && (
                           <Badge
                             variant="outline"
-                            className="text-green-600 border-green-300 dark:text-green-400 dark:border-green-800"
+                            className="text-chart-3 border-chart-3/40"
                           >
                             <Wifi className="h-3 w-3 mr-1" />
                             {testResult.toolCount}{" "}
@@ -285,7 +285,7 @@ export function McpServersSection() {
                         {testResult && !testResult.success && (
                           <Badge
                             variant="outline"
-                            className="text-red-600 border-red-300 dark:text-red-400 dark:border-red-800"
+                            className="text-destructive border-destructive/40"
                           >
                             <WifiOff className="h-3 w-3 mr-1" />
                             {t("test.failed")}

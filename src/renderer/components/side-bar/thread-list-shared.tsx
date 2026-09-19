@@ -79,7 +79,7 @@ export function useMultiSelectHandlers(threadId: string | undefined) {
 
   const activeStyles =
     isMultiSelectMode && isSelected ?
-      "bg-accent border-l-2 border-primary"
+      "bg-sidebar-accent border-l-2 border-sidebar-primary"
     : "";
 
   return {
@@ -173,20 +173,26 @@ export const ThreadTagChip: FC<{
       className="gap-0.5 px-1 py-0 text-[10px] leading-tight"
     >
       {tag.name}
-      {hovered && (
-        <span
-          role="button"
-          tabIndex={0}
-          onClick={handleRemove}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ")
-              handleRemove(e as unknown as React.MouseEvent);
-          }}
-          className="ml-0.5 inline-flex size-3 cursor-pointer items-center justify-center rounded-full opacity-60 hover:opacity-100"
-        >
-          <XIcon className="size-2" />
-        </span>
-      )}
+      {/* Always mounted so the chip's width is constant — hover only fades
+          the X in. Mounting it on hover would grow the chip and re-wrap the
+          tag row (pushing the line's last chip down a line). */}
+      <span
+        role="button"
+        tabIndex={hovered ? 0 : -1}
+        aria-hidden={!hovered}
+        onClick={handleRemove}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            handleRemove(e as unknown as React.MouseEvent);
+          }
+        }}
+        className={cn(
+          "inline-flex size-3 cursor-pointer items-center justify-center rounded-full opacity-60 hover:opacity-100",
+          !hovered && "invisible pointer-events-none",
+        )}
+      >
+        <XIcon className="size-2" />
+      </span>
     </TagBadge>
   );
 };
@@ -223,7 +229,7 @@ export const CollapsibleTagGroup: FC<{
     <div className="flex flex-col">
       <button
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-muted"
+        className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold text-sidebar-foreground/70 hover:bg-sidebar-accent"
       >
         <ChevronRightIcon
           className={`size-3 transition-transform ${open ? "rotate-90" : ""}`}
@@ -291,8 +297,8 @@ export const GroupedThreadItem: FC<{
         }
       }}
       className={cn(
-        "flex min-h-9 items-center gap-2 rounded-lg px-3 py-1 text-start text-sm transition-colors hover:bg-muted",
-        activeThreadId === thread.id && !isMultiSelectMode && "bg-muted",
+        "flex min-h-9 items-center gap-2 rounded-lg px-3 py-1 text-start text-sm transition-colors hover:bg-sidebar-accent",
+        activeThreadId === thread.id && !isMultiSelectMode && "bg-sidebar-accent",
         activeStyles,
       )}
       {...(!isMultiSelectMode ? longPress : {})}

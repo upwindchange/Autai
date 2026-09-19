@@ -44,16 +44,16 @@ const getUsageSeverity = (percent: number): UsageSeverity => {
 
 const getStrokeColor = (percent: number): string => {
   const severity = getUsageSeverity(percent);
-  if (severity === "critical") return "stroke-red-500";
-  if (severity === "warning") return "stroke-amber-500";
-  return "stroke-emerald-500";
+  if (severity === "critical") return "stroke-destructive";
+  if (severity === "warning") return "stroke-chart-4";
+  return "stroke-primary";
 };
 
 const getBarColor = (percent: number): string => {
   const severity = getUsageSeverity(percent);
-  if (severity === "critical") return "bg-red-500";
-  if (severity === "warning") return "bg-amber-500";
-  return "bg-emerald-500";
+  if (severity === "critical") return "bg-destructive";
+  if (severity === "warning") return "bg-chart-4";
+  return "bg-primary";
 };
 
 type ContextDisplayContextValue = {

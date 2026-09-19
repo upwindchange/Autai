@@ -425,6 +425,8 @@ function SliderRow({
     return `inset(0 ${snapRightInset(valuePercent)} 0 0)`;
   }, [crossesZero, zeroPercent, valuePercent]);
 
+  // Fill opacity ramp as a mask (only the alpha channel applies; the fill
+  // itself is bg-primary below, so this tracks the theme).
   const fillMaskImage =
     crossesZero ?
       "linear-gradient(to right, rgba(0,0,0,0.2) 0%, rgba(0,0,0,0.35) 50%, rgba(0,0,0,0.7) 100%)"

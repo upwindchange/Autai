@@ -60,7 +60,7 @@ export const MarkdownText = () => {
       shikiTheme={["github-light", "github-dark"]}
       mermaid={{
         config: {
-          theme: resolvedTheme === "dark" ? "dark" : "base",
+          theme: resolvedTheme === "dark" ? "neo-dark" : "neo",
           ...naturalDiagramSize,
         },
         errorComponent: ({ retry }) => (

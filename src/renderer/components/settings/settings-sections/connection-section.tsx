@@ -288,7 +288,7 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
       </div>
 
       {remoteOverride && (
-        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
+        <div className="flex items-start gap-2 rounded-md border border-chart-4/40 bg-chart-4/10 p-3 text-sm text-chart-4">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{t("connection.remoteOverride")}</span>
         </div>
@@ -406,13 +406,13 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
       </div>
 
       {bindOverridden && (
-        <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
+        <div className="flex items-start gap-2 rounded-md border border-chart-4/40 bg-chart-4/10 p-3 text-sm text-chart-4">
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
           <span>{t("connection.bindOverride")}</span>
         </div>
       )}
 
-      <div className="flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-700 dark:text-amber-400">
+      <div className="flex items-start gap-2 rounded-md border border-chart-4/40 bg-chart-4/10 p-3 text-sm text-chart-4">
         <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
         <span>{t("connection.restartHint")}</span>
       </div>

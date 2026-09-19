@@ -156,10 +156,10 @@ const FlatEntertainmentItem: FC<{
   return (
     <div
       className={cn(
-        "group/thread relative flex min-h-9 items-center gap-2 rounded-lg border border-transparent px-2 py-0.5 transition-colors hover:bg-muted",
+        "group/thread relative flex min-h-9 items-center gap-2 rounded-lg border border-transparent px-2 py-0.5 transition-colors hover:bg-sidebar-accent",
         thread.id === activeThreadId &&
           !isMultiSelectMode &&
-          "border-l-2 border-primary bg-accent",
+          "border-l-2 border-sidebar-primary bg-sidebar-accent",
         activeStyles,
       )}
       onClickCapture={(e) => {
@@ -240,7 +240,7 @@ const EntertainmentThreadItemMenu: FC<{
           <Button
             variant="ghost"
             size="icon"
-            className="mr-2 size-7 p-0 opacity-0 transition-opacity group-hover/thread:opacity-100 data-[state=open]:bg-accent data-[state=open]:opacity-100"
+            className="mr-2 size-7 p-0 opacity-0 transition-opacity group-hover/thread:opacity-100 data-[state=open]:bg-sidebar-accent data-[state=open]:opacity-100"
           >
             <MoreHorizontalIcon className="size-4" />
             <span className="sr-only">More options</span>

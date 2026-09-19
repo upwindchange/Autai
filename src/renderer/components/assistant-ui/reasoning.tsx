@@ -173,11 +173,13 @@ function ReasoningFade({
 function ReasoningTrigger({
   active,
   duration,
+  label = "Reasoning",
   className,
   ...props
 }: React.ComponentProps<typeof CollapsibleTrigger> & {
   active?: boolean;
   duration?: number;
+  label?: string;
 }) {
   const durationText = duration ? ` (${duration}s)` : "";
 
@@ -198,14 +200,14 @@ function ReasoningTrigger({
         data-slot="reasoning-trigger-label"
         className="aui-reasoning-trigger-label-wrapper relative inline-block leading-none tabular-nums"
       >
-        <span>Reasoning{durationText}</span>
+        <span>{label}{durationText}</span>
         {active ?
           <span
             aria-hidden
             data-slot="reasoning-trigger-shimmer"
             className="aui-reasoning-trigger-shimmer shimmer pointer-events-none absolute inset-0 motion-reduce:animate-none"
           >
-            Reasoning{durationText}
+            {label}{durationText}
           </span>
         : null}
       </span>

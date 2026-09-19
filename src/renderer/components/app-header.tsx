@@ -137,7 +137,7 @@ export const AppHeader: FC<AppHeaderProps> = ({ title, shortTitle }) => {
                 size="sm"
                 pressed={showSplitView}
                 onPressedChange={toggleSplitView}
-                className="hidden gap-1.5 rounded-lg px-2 text-xs data-[state=on]:bg-blue-500/10 data-[state=on]:text-blue-500 data-[state=on]:border-blue-500/40 md:inline-flex"
+                className="hidden gap-1.5 rounded-lg px-2 text-xs data-[state=on]:bg-primary/10 data-[state=on]:text-primary data-[state=on]:border-primary/40 md:inline-flex"
               >
                 <PanelRightIcon className="size-4" />
                 {t("splitView.label")}

@@ -90,7 +90,7 @@
   "composer.send": "Send",
   "composer.placeholder": "Send a message...",
   "common.confirm": "Confirm",
-  "thread.scrollToBottom": "Scroll to bottom",
+  "thread.reasoning": "Reasoning",
   "thread.working": "Autai is working",
   "composer.ariaLabel": "Message input",
   "composer.sendMessage": "Send message",

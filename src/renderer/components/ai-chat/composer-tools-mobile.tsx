@@ -149,16 +149,14 @@ export const ComposerToolsMobile: FC<ComposerToolsMobileProps> = ({
               <Blocks
                 className={cn(
                   "size-4",
-                  hasActiveMcpServers ? "text-orange-500" : (
-                    "text-muted-foreground"
-                  ),
+                  hasActiveMcpServers ? "text-primary"
+                  : "text-muted-foreground",
                 )}
               />
               <span
                 className={cn(
-                  hasActiveMcpServers ? "text-orange-500" : (
-                    "text-muted-foreground"
-                  ),
+                  hasActiveMcpServers ? "text-primary"
+                  : "text-muted-foreground",
                 )}
               >
                 {t("composer.tools.extensions")}

@@ -268,7 +268,7 @@ const Composer: FC = () => {
 const MessageError: FC = () => {
   return (
     <MessagePrimitive.Error>
-      <ErrorPrimitive.Root className="aui-message-error-root mt-2 rounded-md border border-destructive bg-destructive/10 p-3 text-destructive text-sm dark:bg-destructive/5 dark:text-red-200">
+      <ErrorPrimitive.Root className="aui-message-error-root mt-2 rounded-md border border-destructive bg-destructive/10 p-3 text-destructive text-sm dark:bg-destructive/5">
         <ErrorPrimitive.Message className="aui-message-error-message line-clamp-2" />
       </ErrorPrimitive.Root>
     </MessagePrimitive.Error>
@@ -309,7 +309,10 @@ const AssistantMessage: FC = () => {
                 const running = part.status.type === "running";
                 return (
                   <ReasoningRoot defaultOpen={running}>
-                    <ReasoningTrigger active={running} />
+                    <ReasoningTrigger
+                      active={running}
+                      label={t("thread.reasoning")}
+                    />
                     <ReasoningContent aria-busy={running}>
                       <ReasoningText>{children}</ReasoningText>
                     </ReasoningContent>
