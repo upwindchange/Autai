@@ -141,6 +141,19 @@ export function AboutSection() {
               variant="outline"
               className="w-full justify-start gap-2"
               onClick={() =>
+                openExternal(
+                  "https://github.com/upwindchange/Autai/blob/master/PRIVACY.md",
+                )
+              }
+            >
+              <FileText className="h-4 w-4 shrink-0" />
+              <span className="truncate">{t("resources.privacyPolicy")}</span>
+              <ExternalLink className="h-3 w-3 ml-auto shrink-0" />
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full justify-start gap-2"
+              onClick={() =>
                 openExternal("https://github.com/upwindchange/Autai")
               }
             >
@@ -202,7 +215,7 @@ export function AboutSection() {
                 className="w-full justify-start gap-2"
                 onClick={() =>
                   openExternal(
-                    "https://github.com/upwindchange/Autai/blob/master/package.json",
+                    "https://github.com/upwindchange/Autai/blob/master/THIRD-PARTY-NOTICES.md",
                   )
                 }
               >
