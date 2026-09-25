@@ -53,6 +53,6 @@ Material changes will be reflected by updating this page with a new "last update
 
 ## Contact
 
-Project homepage: https://github.com/upwindchange/Autai
-Issues / any privacy question: https://github.com/upwindchange/Autai/issues
-Email: zyw@tutamail.com
+- Project homepage: [github.com/upwindchange/Autai](https://github.com/upwindchange/Autai)
+- Issues and privacy questions: [github.com/upwindchange/Autai/issues](https://github.com/upwindchange/Autai/issues)
+- Email: [zyw@tutamail.com](mailto:zyw@tutamail.com)
