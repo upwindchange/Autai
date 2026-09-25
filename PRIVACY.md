@@ -12,7 +12,7 @@ Autai stores all of its data — chat threads, entertainment library, tags, sett
 
 - never leaves your device as a result of anything Autai does;
 - is never transmitted to the developer or any developer-operated service;
-- can be deleted at any time by uninstalling the app, which removes the database along with it.
+- can be deleted at any time with or without uninstalling the Autai app.
 
 ## AI provider keys and requests (you choose, we never see)
 
