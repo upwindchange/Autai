@@ -21,7 +21,7 @@ import { useTranslation } from "react-i18next";
 import {
   ArchiveIcon,
   BookmarkIcon,
-  MoreHorizontalIcon,
+  EllipsisVertical,
   PencilIcon,
   TrashIcon,
 } from "lucide-react";
@@ -156,7 +156,7 @@ const FlatEntertainmentItem: FC<{
   return (
     <div
       className={cn(
-        "group/thread relative flex min-h-9 items-center gap-2 rounded-lg border border-transparent px-2 py-0.5 transition-colors hover:bg-sidebar-accent",
+        "group/thread relative flex min-h-9 items-center gap-2 rounded-lg border border-transparent px-2 py-0.5 transition-[padding,background-color,border-color] duration-150 hover:bg-sidebar-accent hover:pr-9 has-[[data-state=open]]:pr-9",
         thread.id === activeThreadId &&
           !isMultiSelectMode &&
           "border-l-2 border-sidebar-primary bg-sidebar-accent",
@@ -176,11 +176,10 @@ const FlatEntertainmentItem: FC<{
         onClick={() =>
           isMultiSelectMode ? handleClick() : onSwitch(thread.id)
         }
-        className="relative flex min-w-0 flex-1 flex-col items-start px-1 py-1 text-start text-sm"
+        className="flex min-w-0 flex-1 flex-col items-start px-1 py-1 text-start text-sm"
       >
         <div className="flex w-full items-center">
           <span className="min-w-0 flex-1 truncate">{thread.title}</span>
-          <span className="pointer-events-none absolute right-0 top-0 h-6 w-8 shrink-0 bg-linear-to-l from-(--sidebar-background) to-transparent" />
         </div>
         <div className="flex flex-wrap items-center gap-0.5">
           {threadTags.map((tag) => (
@@ -240,9 +239,9 @@ const EntertainmentThreadItemMenu: FC<{
           <Button
             variant="ghost"
             size="icon"
-            className="mr-2 size-7 p-0 opacity-0 transition-opacity group-hover/thread:opacity-100 data-[state=open]:bg-sidebar-accent data-[state=open]:opacity-100"
+            className="absolute top-1/2 right-1 size-7 -translate-y-1/2 p-0 opacity-0 group-hover/thread:opacity-100 focus-visible:opacity-100 data-[state=open]:bg-sidebar-accent data-[state=open]:opacity-100"
           >
-            <MoreHorizontalIcon className="size-4" />
+            <EllipsisVertical className="size-4" />
             <span className="sr-only">More options</span>
           </Button>
         </DropdownMenuTrigger>

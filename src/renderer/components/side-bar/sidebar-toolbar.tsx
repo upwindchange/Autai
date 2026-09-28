@@ -15,6 +15,7 @@ import {
   TrashIcon,
   XIcon,
 } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -257,7 +258,10 @@ function ToolbarIconButton({
         <Button
           variant="ghost"
           size="icon"
-          className={cn("size-6", active && "bg-sidebar-accent hover:bg-sidebar-accent")}
+          className={cn(
+            "size-6",
+            active && "bg-sidebar-accent hover:bg-sidebar-accent",
+          )}
           onClick={onClick}
           disabled={disabled}
         >
@@ -345,7 +349,10 @@ function ViewModeToggle({
             onClick={() => onChange("flat")}
           >
             <ListIcon
-              className={cn("size-3.5", mode === "flat" && "text-sidebar-primary")}
+              className={cn(
+                "size-3.5",
+                mode === "flat" && "text-sidebar-primary",
+              )}
             />
           </Button>
         </TooltipTrigger>
@@ -363,7 +370,10 @@ function ViewModeToggle({
             onClick={() => onChange("grouped")}
           >
             <FolderTreeIcon
-              className={cn("size-3.5", mode === "grouped" && "text-sidebar-primary")}
+              className={cn(
+                "size-3.5",
+                mode === "grouped" && "text-sidebar-primary",
+              )}
             />
           </Button>
         </TooltipTrigger>
@@ -410,50 +420,54 @@ function TagPanel() {
       />
 
       {/* Tag chips — capped, scrollable when tag count exceeds the cap */}
-      <div className="max-h-[192px] overflow-y-auto">
-        <div className="flex flex-wrap gap-1">
-          <TagChip
-            label={t("sidebar.tagAll")}
-            color={null}
-            selected={selectedTagId === null}
-            onClick={() => setSelectedTagId(null)}
-          />
-          {filtered.map((tag) => (
-            <ContextMenu key={tag.id}>
-              <ContextMenuTrigger asChild>
-                <div>
-                  <TagChip
-                    label={tag.name}
-                    color={tag.color}
-                    selected={selectedTagId === tag.id}
-                    onClick={() =>
-                      setSelectedTagId(selectedTagId === tag.id ? null : tag.id)
-                    }
-                  />
-                </div>
-              </ContextMenuTrigger>
-              <ContextMenuContent>
-                <RenameTagMenuItem tagId={tag.id} currentName={tag.name} />
-                <ContextMenuItem
-                  className="text-destructive"
-                  onClick={() => useTagStore.getState().deleteTag(tag.id)}
-                >
-                  <TrashIcon className="mr-2 size-4" />
-                  {t("sidebar.tagDelete")}
-                </ContextMenuItem>
-              </ContextMenuContent>
-            </ContextMenu>
-          ))}
-          {canCreate && (
-            <button
-              onClick={() => void createAndSelect()}
-              className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-sidebar-border px-2 py-0.5 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent"
-            >
-              <Plus className="size-3" />
-              {t("sidebar.createTagItem", { name: query.trim() })}
-            </button>
-          )}
-        </div>
+      <div className="flex max-h-[192px] flex-col">
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="flex flex-wrap gap-1">
+            <TagChip
+              label={t("sidebar.tagAll")}
+              color={null}
+              selected={selectedTagId === null}
+              onClick={() => setSelectedTagId(null)}
+            />
+            {filtered.map((tag) => (
+              <ContextMenu key={tag.id}>
+                <ContextMenuTrigger asChild>
+                  <div>
+                    <TagChip
+                      label={tag.name}
+                      color={tag.color}
+                      selected={selectedTagId === tag.id}
+                      onClick={() =>
+                        setSelectedTagId(
+                          selectedTagId === tag.id ? null : tag.id,
+                        )
+                      }
+                    />
+                  </div>
+                </ContextMenuTrigger>
+                <ContextMenuContent>
+                  <RenameTagMenuItem tagId={tag.id} currentName={tag.name} />
+                  <ContextMenuItem
+                    className="text-destructive"
+                    onClick={() => useTagStore.getState().deleteTag(tag.id)}
+                  >
+                    <TrashIcon className="mr-2 size-4" />
+                    {t("sidebar.tagDelete")}
+                  </ContextMenuItem>
+                </ContextMenuContent>
+              </ContextMenu>
+            ))}
+            {canCreate && (
+              <button
+                onClick={() => void createAndSelect()}
+                className="inline-flex items-center gap-0.5 rounded-full border border-dashed border-sidebar-border px-2 py-0.5 text-xs text-sidebar-foreground/70 hover:bg-sidebar-accent"
+              >
+                <Plus className="size-3" />
+                {t("sidebar.createTagItem", { name: query.trim() })}
+              </button>
+            )}
+          </div>
+        </ScrollArea>
       </div>
     </div>
   );

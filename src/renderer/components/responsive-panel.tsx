@@ -5,6 +5,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Drawer,
   DrawerContent,
@@ -123,14 +124,11 @@ export const ResponsivePanel: FC<ResponsivePanelProps> = ({
           <DrawerHeader className="text-left">
             <DrawerTitle>{title}</DrawerTitle>
           </DrawerHeader>
-          <div
-            className={cn(
-              "relative overflow-y-auto px-4 pb-6",
-              contentClassName,
-            )}
+          <ScrollArea
+            className={cn("min-h-0 flex-1 px-4 pb-6", contentClassName)}
           >
             {children}
-          </div>
+          </ScrollArea>
           {footer && (
             <div className="border-t bg-background px-4 py-3">{footer}</div>
           )}
@@ -147,21 +145,23 @@ export const ResponsivePanel: FC<ResponsivePanelProps> = ({
         align={align}
         sideOffset={8}
         className={cn(
-          footer ?
-            "relative flex max-h-[80vh] w-80 flex-col overflow-hidden p-0"
-          : "relative max-h-[80vh] w-80 overflow-y-auto p-4",
+          "relative flex max-h-[80vh] w-80 flex-col p-0",
           contentClassName,
         )}
       >
         {footer ?
           <>
             <div className="px-4 pt-4 pb-2 text-sm font-medium">{title}</div>
-            <div className="flex-1 overflow-y-auto px-4 pb-4">{children}</div>
+            <ScrollArea className="min-h-0 flex-1 px-4 pb-4">
+              {children}
+            </ScrollArea>
             <div className="border-t bg-background px-4 py-3">{footer}</div>
           </>
         : <>
-            <div className="mb-3 text-sm font-medium">{title}</div>
-            {children}
+            <div className="px-4 pt-4 pb-3 text-sm font-medium">{title}</div>
+            <ScrollArea className="min-h-0 flex-1 px-4 pb-4">
+              {children}
+            </ScrollArea>
           </>
         }
       </PopoverContent>

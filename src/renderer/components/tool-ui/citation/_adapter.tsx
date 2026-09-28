@@ -16,3 +16,4 @@ export {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+export { ScrollArea } from "@/components/ui/scroll-area";

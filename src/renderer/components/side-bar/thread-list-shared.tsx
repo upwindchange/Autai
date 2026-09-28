@@ -11,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { useTagStore, type ThreadInfo } from "@/stores/tagStore";
 import { getRandomPaletteColor } from "@/lib/tagColors";
 import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import type { TagRow } from "@shared/tag";
@@ -298,7 +299,9 @@ export const GroupedThreadItem: FC<{
       }}
       className={cn(
         "flex min-h-9 items-center gap-2 rounded-lg px-3 py-1 text-start text-sm transition-colors hover:bg-sidebar-accent",
-        activeThreadId === thread.id && !isMultiSelectMode && "bg-sidebar-accent",
+        activeThreadId === thread.id &&
+          !isMultiSelectMode &&
+          "bg-sidebar-accent",
         activeStyles,
       )}
       {...(!isMultiSelectMode ? longPress : {})}
@@ -398,41 +401,43 @@ export const AddTagSubmenuContent: FC<{
           className="h-7 text-xs"
         />
       </div>
-      <div className="max-h-[200px] overflow-y-auto p-1">
-        {filtered.length === 0 && !canCreate && (
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">
-            {t("sidebar.tagPickerEmpty")}
-          </div>
-        )}
-        {filtered.map((tag) => {
-          const applied = assignedTagIds.has(tag.id);
-          return (
+      <div className="flex max-h-[200px] flex-col">
+        <ScrollArea className="min-h-0 flex-1 p-1">
+          {filtered.length === 0 && !canCreate && (
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">
+              {t("sidebar.tagPickerEmpty")}
+            </div>
+          )}
+          {filtered.map((tag) => {
+            const applied = assignedTagIds.has(tag.id);
+            return (
+              <DropdownMenuItem
+                key={tag.id}
+                disabled={applied}
+                onSelect={(e) => {
+                  e.preventDefault();
+                  void addTag(tag.id);
+                }}
+              >
+                <TagBadge color={tag.color}>{tag.name}</TagBadge>
+                {applied && (
+                  <CheckIcon className="ml-auto size-3.5 text-muted-foreground" />
+                )}
+              </DropdownMenuItem>
+            );
+          })}
+          {canCreate && (
             <DropdownMenuItem
-              key={tag.id}
-              disabled={applied}
               onSelect={(e) => {
                 e.preventDefault();
-                void addTag(tag.id);
+                void createAndAdd();
               }}
             >
-              <TagBadge color={tag.color}>{tag.name}</TagBadge>
-              {applied && (
-                <CheckIcon className="ml-auto size-3.5 text-muted-foreground" />
-              )}
+              <Plus className="size-4" />
+              {t("sidebar.createTagItem", { name: query.trim() })}
             </DropdownMenuItem>
-          );
-        })}
-        {canCreate && (
-          <DropdownMenuItem
-            onSelect={(e) => {
-              e.preventDefault();
-              void createAndAdd();
-            }}
-          >
-            <Plus className="size-4" />
-            {t("sidebar.createTagItem", { name: query.trim() })}
-          </DropdownMenuItem>
-        )}
+          )}
+        </ScrollArea>
       </div>
     </>
   );

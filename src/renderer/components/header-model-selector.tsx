@@ -15,6 +15,7 @@ import { useThreadModelStore } from "@/stores/threadModelStore";
 import { setThreadChatOverride } from "@/lib/tagApi";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Drawer,
   DrawerContent,
@@ -163,7 +164,7 @@ export function HeaderModelSelector() {
           <DrawerHeader className="text-left">
             <DrawerTitle>{t("header.modelSelector.title")}</DrawerTitle>
           </DrawerHeader>
-          <div className="relative overflow-y-auto px-2 pb-4">
+          <ScrollArea className="min-h-0 max-h-[60vh] px-2 pb-4">
             {options.map((opt) => {
               const isActive = opt.id === value;
               return (
@@ -189,7 +190,7 @@ export function HeaderModelSelector() {
                 </button>
               );
             })}
-          </div>
+          </ScrollArea>
         </DrawerContent>
       </Drawer>
     );

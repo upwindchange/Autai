@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -109,35 +110,37 @@ export function TomlModelList({
         />
       </div>
 
-      <div className="max-h-64 overflow-y-auto rounded-md border">
-        {filtered.map((model) => (
-          <button
-            key={model.file}
-            onClick={() => onModelSelect(model.file)}
-            className={cn(
-              "flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent transition-colors border-b last:border-b-0",
-              selectedModel === model.file && "bg-accent",
-            )}
-          >
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <span className="text-sm font-medium truncate">
-                  {model.name}
-                </span>
-                {selectedModel === model.file && (
-                  <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
-                )}
+      <div className="flex max-h-64 flex-col rounded-md border">
+        <ScrollArea className="min-h-0 flex-1">
+          {filtered.map((model) => (
+            <button
+              key={model.file}
+              onClick={() => onModelSelect(model.file)}
+              className={cn(
+                "flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-accent transition-colors border-b last:border-b-0",
+                selectedModel === model.file && "bg-accent",
+              )}
+            >
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-medium truncate">
+                    {model.name}
+                  </span>
+                  {selectedModel === model.file && (
+                    <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
+                  )}
+                </div>
+                <ModelBadges model={model} />
               </div>
-              <ModelBadges model={model} />
+              <ModelMetrics model={model} />
+            </button>
+          ))}
+          {filtered.length === 0 && (
+            <div className="px-3 py-4 text-center text-sm text-muted-foreground">
+              {t("modelList.noMatch", { filter })}
             </div>
-            <ModelMetrics model={model} />
-          </button>
-        ))}
-        {filtered.length === 0 && (
-          <div className="px-3 py-4 text-center text-sm text-muted-foreground">
-            {t("modelList.noMatch", { filter })}
-          </div>
-        )}
+          )}
+        </ScrollArea>
       </div>
 
       <div className="space-y-1.5">

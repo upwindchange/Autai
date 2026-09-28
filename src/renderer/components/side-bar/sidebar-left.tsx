@@ -1,6 +1,7 @@
 "use client";
 import type { ComponentProps } from "react";
 
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sidebar, SidebarContent } from "@/components/ui/sidebar";
 import { NavSecondary } from "@/components/side-bar/nav-secondary";
 import { ThreadList } from "@/components/side-bar/thread-list";
@@ -25,11 +26,11 @@ export function SidebarLeft(props: SidebarLeftProps) {
         </div>
         <div className="mx-2 border-t" />
         <SidebarToolbar />
-        <div className="flex-1 overflow-y-auto">
+        <ScrollArea className="flex-1 min-h-0">
           {appMode === "entertainment" ?
             <EntertainmentThreadList />
           : <ThreadList />}
-        </div>
+        </ScrollArea>
       </SidebarContent>
       <NavSecondary className="shrink-0" />
     </Sidebar>

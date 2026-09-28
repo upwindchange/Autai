@@ -11,7 +11,13 @@ import {
   File,
   ExternalLink,
 } from "lucide-react";
-import { cn, Popover, PopoverContent, PopoverTrigger } from "./_adapter";
+import {
+  cn,
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  ScrollArea,
+} from "./_adapter";
 import { Citation } from "./citation";
 import type {
   SerializableCitation,
@@ -206,14 +212,16 @@ function OverflowIndicator({
   };
 
   const popoverContent = (
-    <div className="flex max-h-72 flex-col overflow-y-auto">
-      {citations.map((citation) => (
-        <OverflowItem
-          key={citation.id}
-          citation={citation}
-          onClick={() => handleClick(citation)}
-        />
-      ))}
+    <div className="flex max-h-72 flex-col">
+      <ScrollArea className="min-h-0 flex-1">
+        {citations.map((citation) => (
+          <OverflowItem
+            key={citation.id}
+            citation={citation}
+            onClick={() => handleClick(citation)}
+          />
+        ))}
+      </ScrollArea>
     </div>
   );
 
@@ -441,14 +449,16 @@ function StackedCitations({
           onBlur={handleBlur}
           onEscapeKeyDown={() => setOpen(false)}
         >
-          <div className="flex max-h-72 flex-col overflow-y-auto">
-            {citations.map((citation) => (
-              <OverflowItem
-                key={citation.id}
-                citation={citation}
-                onClick={() => handleClick(citation)}
-              />
-            ))}
+          <div className="flex max-h-72 flex-col">
+            <ScrollArea className="min-h-0 flex-1">
+              {citations.map((citation) => (
+                <OverflowItem
+                  key={citation.id}
+                  citation={citation}
+                  onClick={() => handleClick(citation)}
+                />
+              ))}
+            </ScrollArea>
           </div>
         </PopoverContent>
       </Popover>
