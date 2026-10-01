@@ -17,6 +17,7 @@
   "value.unknown": "Unknown",
   "sidebar.toggle": "Toggle Sidebar",
   "sidebar.newConversation": "New Conversation",
+  "sidebar.newStory": "New Story",
   "sidebar.tags": "Tags",
   "sidebar.search": "Search",
   "sidebar.searchPlaceholder": "Search conversations...",

@@ -95,8 +95,7 @@ export function SettingsSidebar(props: SettingsSidebarProps) {
       <SidebarContent>
         <div className="px-3 pt-2 pb-1">
           <Button
-            variant="ghost"
-            className="h-9 w-full justify-start gap-2 rounded-lg border border-sidebar-border bg-sidebar-accent px-3 text-sm text-sidebar-accent-foreground shadow-xs hover:bg-sidebar-accent/80 hover:text-sidebar-accent-foreground"
+            className="h-9 w-full justify-start gap-2 rounded-lg px-3"
             onClick={() => setShowSettings(false)}
           >
             <ArrowLeft className="size-4" />
