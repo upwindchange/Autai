@@ -209,9 +209,61 @@ jobs:
           pnpm exec electron-vite build
           pnpm exec electron-builder --win appx --publish never
 
+      # Store ingestion runs the same validation as WACK — failing here is
+      # cheaper than a bounced submission. appcert's dynamic tests require an
+      # installable package; the appx is deliberately unsigned (Partner Center
+      # re-signs it), so sign it locally with a throwaway self-signed cert
+      # whose subject matches appx.publisher. Test-only: cert + signature
+      # never leave this ephemeral runner; the uploaded artifact stays the
+      # unsigned appx.
+      - name: Validate with Windows App Certification Kit (WACK)
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $publisher = "CN=36582D6A-6F9D-4D61-8B74-8CABAC43E1A2"
+          $appx = (Get-ChildItem "release/*/Autai_*_x64.appx" | Select-Object -First 1).FullName
+          if (-not $appx) { throw "no x64 appx found under release/" }
+
+          # Throwaway self-signed cert matching the appx publisher identity.
+          $pw = "wack-" + [guid]::NewGuid().ToString("N")
+          $pfx = Join-Path $env:RUNNER_TEMP "wack-signing.pfx"
+          $cert = New-SelfSignedCertificate -Subject $publisher `
+            -Type CodeSigningCert -KeyUsage DigitalSignature `
+            -FriendlyName "WACK test signing" -CertStoreLocation "Cert:\CurrentUser\My"
+          $certPwd = ConvertTo-SecureString $pw -AsPlainText -Force
+          Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $certPwd | Out-Null
+
+          # Trust + sign so appcert can install the package for dynamic tests.
+          Import-PfxCertificate -FilePath $pfx -CertStoreLocation "Cert:\CurrentUser\Root" -Password $certPwd | Out-Null
+          $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
+            Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          & $signtool sign /fd SHA256 /f $pfx /p $pw $appx
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed" }
+
+          # WACK. Admin context + interactive-style session per appcert rules.
+          $appcert = "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcert.exe"
+          $report = Join-Path $env:RUNNER_TEMP "WACK-report.xml"
+          & $appcert reset | Out-Null
+          & $appcert test -appxpackagepath $appx -reportoutputpath $report
+          if ($LASTEXITCODE -ne 0) { throw "appcert exited with $LASTEXITCODE (report: $report)" }
+
+          # Surface failures in the log; keep the XML as an artifact either
+          # way. Report schema (matches ChristopheLav/wack-certification's
+          # analyzer): REPORT/OVERALL_RESULT + TEST nodes with child Result.
+          [xml]$xml = Get-Content $report
+          $overall = $xml.SelectSingleNode("//REPORT/OVERALL_RESULT").InnerText
+          $fails = @($xml.SelectNodes("//TEST") | Where-Object { $_.Result.InnerText -eq "FAIL" })
+          $fails | ForEach-Object { Write-Host "::error::[WACK FAIL] $($_.Description)" }
+          if ($fails.Count -gt 0 -or $overall -ine "PASS") {
+            throw "WACK failed (overall: $overall, failing tests: $($fails.Count))"
+          }
+          Copy-Item $report "WACK-report.xml"
+          Write-Host "WACK passed (overall: $overall)"
+
       - name: Upload APPX artifacts
-        uses: actions/upload-artifact@v7.0.1
         with:
           name: appx-packages
-          path: release/*/Autai_*.appx*
+          path: |
+            release/*/Autai_*.appx*
+            WACK-report.xml
           if-no-files-found: error
