@@ -92,9 +92,24 @@ CN, in which case pkg signing will fail (workaround: patch
 hard-coded legacy name with `Mac Installer Distribution`).
 
 Each cert is exported as its own `.p12` (see the `~/apple-signing/mac`
-README for the openssl CSR/p12 procedure). The workflow imports both into
-one temporary keychain; `electron-builder` picks the right identity for each
-phase automatically.
+README for the openssl CSR/p12 procedure). The p12s **must use the legacy
+PKCS12 encryption profile** — Apple's Security framework (`security import`)
+cannot read OpenSSL 3's default PBES2/AES-256 + SHA-256 MAC containers and
+fails with a misleading `MAC verification failed (wrong password?)`. Export
+with:
+
+```bash
+openssl pkcs12 -export -in mac_app.pem -inkey app_private.key \
+  -name "3rd Party Mac Developer Application: ..." \
+  -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 \
+  -passout pass:PW -out app.p12
+```
+
+Check any p12 before uploading: `openssl pkcs12 -info -in <f>.p12` must show
+`pbeWithSHA1And3-KeyTripleDES-CBC` (not `PBES2`/`AES-256`) and `MAC: sha1`.
+The workflow's import step also fails fast on PBES2 containers. The workflow
+imports both into one temporary keychain; `electron-builder` picks the right
+identity for each phase automatically.
 
 ### Secrets
 
