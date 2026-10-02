@@ -123,6 +123,23 @@ jobs:
           KEYCHAIN=build.keychain
           echo -n "$MAC_APP_P12_BASE64" | base64 --decode > app.p12
           echo -n "$MAC_INSTALLER_P12_BASE64" | base64 --decode > installer.p12
+
+          # Diagnose secret pairs before import — openssl reports the same
+          # MAC-check the keychain does, but per-file, so a mismatch says
+          # WHICH secret pair is broken instead of a bare "wrong password".
+          # Prints only sizes/subjects — never key material.
+          for f in app installer; do
+            var_pw="${f^^}_P12_PASSWORD"
+            if openssl pkcs12 -in "$f.p12" -nokeys -nomacver -passin pass:"${!var_pw}" -info 2>/dev/null | grep -q subject; then
+              echo "$f.p12: decrypts with its password (structure OK)"
+            else
+              echo "$f.p12: DECRYPTION FAILED — base64 or password secret is wrong for this pair"
+            fi
+            openssl pkcs12 -in "$f.p12" -nokeys -passin pass:"${!var_pw}" -info 2>&1 | grep -m1 "MAC"
+            # Distinguish corrupted base64 (wrong size/garbage) from a real p12.
+            wc -c < "$f.p12"
+          done
+
           security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
           security default-keychain -s "$KEYCHAIN"
           security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
