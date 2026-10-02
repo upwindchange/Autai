@@ -128,17 +128,20 @@ jobs:
           # MAC-check the keychain does, but per-file, so a mismatch says
           # WHICH secret pair is broken instead of a bare "wrong password".
           # Prints only sizes/subjects — never key material.
-          for f in app installer; do
-            var_pw="${f^^}_P12_PASSWORD"
-            if openssl pkcs12 -in "$f.p12" -nokeys -nomacver -passin pass:"${!var_pw}" -info 2>/dev/null | grep -q subject; then
-              echo "$f.p12: decrypts with its password (structure OK)"
+          check_p12() {
+            # $1 = file, $2 = password. macOS runners ship bash 3.2 — no
+            # ${var^^} or other bash-4 expansions here.
+            if openssl pkcs12 -in "$1" -nokeys -nomacver -passin pass:"$2" -info 2>/dev/null | grep -q subject; then
+              echo "$1: decrypts with its password (structure OK)"
             else
-              echo "$f.p12: DECRYPTION FAILED — base64 or password secret is wrong for this pair"
+              echo "$1: DECRYPTION FAILED — base64 or password secret is wrong for this pair"
             fi
-            openssl pkcs12 -in "$f.p12" -nokeys -passin pass:"${!var_pw}" -info 2>&1 | grep -m1 "MAC"
+            openssl pkcs12 -in "$1" -nokeys -passin pass:"$2" -info 2>&1 | grep -m1 "MAC"
             # Distinguish corrupted base64 (wrong size/garbage) from a real p12.
-            wc -c < "$f.p12"
-          done
+            wc -c < "$1"
+          }
+          check_p12 app.p12 "$MAC_APP_P12_PASSWORD"
+          check_p12 installer.p12 "$MAC_INSTALLER_P12_PASSWORD"
 
           security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
           security default-keychain -s "$KEYCHAIN"
