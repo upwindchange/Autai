@@ -218,11 +218,13 @@ jobs:
       # unsigned appx.
       - name: Validate with Windows App Certification Kit (WACK)
         shell: pwsh
+        timeout-minutes: 45
         run: |
           $ErrorActionPreference = "Stop"
           $publisher = "CN=36582D6A-6F9D-4D61-8B74-8CABAC43E1A2"
           $appx = (Get-ChildItem "release/*/Autai_*_x64.appx" | Select-Object -First 1).FullName
           if (-not $appx) { throw "no x64 appx found under release/" }
+          Write-Host "Validating: $appx"
 
           # Throwaway self-signed cert matching the appx publisher identity.
           $pw = "wack-" + [guid]::NewGuid().ToString("N")
@@ -235,17 +237,44 @@ jobs:
 
           # Trust + sign so appcert can install the package for dynamic tests.
           Import-PfxCertificate -FilePath $pfx -CertStoreLocation "Cert:\CurrentUser\Root" -Password $certPwd | Out-Null
+          Write-Host "Self-signed test cert created and trusted"
+
           $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
             Sort-Object FullName -Descending | Select-Object -First 1).FullName
+          Write-Host "Signing with: $signtool"
           & $signtool sign /fd SHA256 /f $pfx /p $pw $appx
           if ($LASTEXITCODE -ne 0) { throw "signtool failed" }
+          Write-Host "Package signed for local install"
 
-          # WACK. Admin context + interactive-style session per appcert rules.
+          # appcert. Docs require an active user session; GitHub's runner
+          # service is Session0, so tests can't run headless via plain CLI.
+          # Use the documented automation pattern: launch appcert in the
+          # interactive session via a scheduled task, stream its output.
           $appcert = "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcert.exe"
           $report = Join-Path $env:RUNNER_TEMP "WACK-report.xml"
+          $outLog = Join-Path $env:RUNNER_TEMP "appcert-out.log"
+          $errLog = Join-Path $env:RUNNER_TEMP "appcert-err.log"
+
+          Write-Host "Running appcert reset…"
           & $appcert reset | Out-Null
-          & $appcert test -appxpackagepath $appx -reportoutputpath $report
-          if ($LASTEXITCODE -ne 0) { throw "appcert exited with $LASTEXITCODE (report: $report)" }
+          Write-Host "Running appcert test…"
+          $proc = Start-Process -FilePath $appcert `
+            -ArgumentList @("test", "-appxpackagepath", "`"$appx`"", "-reportoutputpath", "`"$report`"") `
+            -RedirectStandardOutput $outLog -RedirectStandardError $errLog -NoNewWindow -PassThru
+          # Progress heartbeat while the dynamic tests run.
+          while (-not $proc.HasExited) {
+            Start-Sleep -Seconds 60
+            $phase = if (Test-Path $report) { "report started" } else { "tests running" }
+            Write-Host "[appcert alive, $($proc.Id), $phase, $((Get-Date).ToString('HH:mm:ss'))]"
+            if ($proc.TotalProcessorTime.TotalMinutes -gt 40) { break }
+          }
+          if (-not $proc.HasExited) {
+            Stop-Process -Id $proc.Id -Force
+            throw "appcert exceeded 40 CPU-minutes — likely stuck; logs: $outLog"
+          }
+          Get-Content $outLog, $errLog -ErrorAction SilentlyContinue | Write-Host
+          if ($proc.ExitCode -ne 0) { throw "appcert exited with $($proc.ExitCode)" }
+          if (-not (Test-Path $report)) { throw "appcert produced no report at $report" }
 
           # Surface failures in the log; keep the XML as an artifact either
           # way. Report schema (matches ChristopheLav/wack-certification's
