@@ -261,6 +261,7 @@ jobs:
           Write-Host "WACK passed (overall: $overall)"
 
       - name: Upload APPX artifacts
+        uses: actions/upload-artifact@v7.0.1
         with:
           name: appx-packages
           path: |
