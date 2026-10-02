@@ -5,7 +5,6 @@ import type {
   DehydrateConfig,
   DehydrateDepth,
   EntertainmentConfig,
-  EntertainmentMode,
   LanguageAdaptation,
   SituationDehydrate,
   SituationTactics,
@@ -22,7 +21,7 @@ import {
  *
  * The in-progress config is the strict `EntertainmentConfig` discriminated
  * union. Spreading a union widens the `mode` discriminant, so every mutation
- * narrows on `mode` first (see `patchSharedOptions` / `swapMode`).
+ * narrows on `mode` first (see `patchSharedOptions`).
  */
 
 export const DEFAULT_BASIC: DehydrateBasic = {
@@ -73,61 +72,6 @@ export const INITIAL_DEHYDRATE: DehydrateConfig = {
   },
 };
 
-/**
- * Switch the top-level mode. Carries the shared `basic` + `situation` +
- * `crossChapter` + `depth` + `language` + `customInstruction` options over (all
- * modes have them) and resets `novel` to a valid shape for the new mode:
- * audiobook ⇒ file; dehydrate ⇒ file too (upload is the fastest acquisition).
- */
-export function swapMode(
-  config: EntertainmentConfig,
-  mode: EntertainmentMode,
-): EntertainmentConfig {
-  if (config.mode === mode) return config;
-  // All modes share basic + situation + crossChapter + depth + language +
-  // nonNovelSource + customInstruction, so they survive the swap unchanged.
-  const basic = config.options.basic;
-  const situation = config.options.situation;
-  const crossChapter = config.options.crossChapter;
-  const depth = config.options.depth;
-  const language = config.options.language;
-  const nonNovelSource = config.options.nonNovelSource;
-  const customInstruction = config.options.customInstruction;
-  switch (mode) {
-    case "audiobook":
-      return {
-        mode: "audiobook",
-        novel: { type: "file", filename: "" },
-        options: {
-          basic,
-          situation,
-          crossChapter,
-          depth,
-          language,
-          nonNovelSource,
-          customInstruction,
-        },
-      };
-    case "dehydrate":
-      return {
-        mode: "dehydrate",
-        novel: { type: "file", filename: "" },
-        options: {
-          basic,
-          situation,
-          crossChapter,
-          depth,
-          language,
-          nonNovelSource,
-          customInstruction,
-        },
-      };
-    // Future modes fall through unchanged rather than producing an invalid
-    // config; the caller can add a dedicated case when a new mode lands.
-    default:
-      return config;
-  }
-}
 
 /** Per-key depth patch: each field is `{ enabled, level }`. */
 type DepthPatch = Partial<
@@ -284,11 +228,10 @@ export function isStepValid(
   modelsConfigured = true,
 ): boolean {
   switch (step) {
-    case 0:
-      // Mode itself is always set, but both agent models must resolve to a
-      // configured (provider, model) pair before the user can advance.
-      return modelsConfigured;
-    case 1: {
+    case 0: {
+      // Both agent models must resolve to a configured (provider, model)
+      // pair before the novel step can advance.
+      if (!modelsConfigured) return false;
       // novel
       if (config.novel.type === "file") return config.novel.filename.length > 0;
       // internet: rules depend on sourceKind (legacy configs without the
@@ -316,7 +259,7 @@ export function isStepValid(
         (start !== undefined && Number.isInteger(start) && start >= 1);
       return titleOk && startOk && urlOk && chapterStartOk;
     }
-    case 2: {
+    case 1: {
       // Translation target language is required when translate is on.
       const { translate, targetLanguage } = config.options.language;
       if (translate.enabled && targetLanguage.trim().length === 0) {

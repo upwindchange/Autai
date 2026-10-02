@@ -50,6 +50,9 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       if (bootMode && bootMode !== useUiStore.getState().appMode) {
         useUiStore.getState().setAppMode(bootMode);
       }
+      useUiStore
+        .getState()
+        .setWelcomeActive(loadedSettings.showWelcomeOnStartup);
       if (loadedSettings.language) {
         const resolved = resolveLanguage(loadedSettings.language);
         if (resolved !== i18n.language) {

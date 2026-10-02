@@ -7,8 +7,9 @@ interface ProgressBarProps {
 }
 
 /**
- * Three-node horizontal stepper. The connector lines are `flex-1`, so nodes sit
- * at 0%/50%/100% — hence the labels below use left/center/right alignment.
+ * Horizontal stepper (one node per label). The connector lines are `flex-1`,
+ * so nodes sit evenly spaced — hence the labels below use left/center/right
+ * alignment.
  */
 export function ProgressBar({ step, labels }: ProgressBarProps) {
   const last = labels.length - 1;

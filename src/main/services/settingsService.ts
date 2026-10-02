@@ -156,6 +156,8 @@ class SettingsService {
         settingsMap.get("default_app_mode") === "entertainment" ?
           "entertainment"
         : "chat",
+      showWelcomeOnStartup:
+        settingsMap.get("show_welcome_on_startup") !== "false",
       maxParallelAgents: parseInt(
         settingsMap.get("max_parallel_agents") || "2",
         10,
@@ -240,6 +242,7 @@ class SettingsService {
           : "[]",
         ],
         ["default_app_mode", settingsState.defaultAppMode],
+        ["show_welcome_on_startup", String(settingsState.showWelcomeOnStartup)],
         ["max_parallel_agents", String(settingsState.maxParallelAgents)],
         ["max_retries", String(settingsState.maxRetries)],
         ["search_engine", settingsState.searchEngine || "google"],

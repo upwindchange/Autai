@@ -54,6 +54,11 @@ interface UiState {
   appMode: AppMode;
   setAppMode: (mode: AppMode) => void;
 
+  // Welcome screen (boot mode picker) — while true and settings are closed,
+  // the welcome screen covers the app instead of the normal layout.
+  welcomeActive: boolean;
+  setWelcomeActive: (active: boolean) => void;
+
   // Zen mode: hides the sidebar + header so the entertainment reader fills the
   // whole window. Only effective in entertainment mode without settings open;
   // AppContent derives the effective flag and clamps this to false otherwise.
@@ -140,6 +145,10 @@ export const useUiStore = create<UiState>()(
     // App mode
     appMode: "chat",
     setAppMode: (appMode) => set({ appMode }),
+
+    // Welcome screen — boot default true until loaded settings say otherwise
+    welcomeActive: true,
+    setWelcomeActive: (welcomeActive) => set({ welcomeActive }),
 
     // Zen mode
     zenMode: false,

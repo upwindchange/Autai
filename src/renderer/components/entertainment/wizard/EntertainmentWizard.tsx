@@ -1,6 +1,6 @@
 import { type FC, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, ChevronLeft, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { httpClient } from "@/lib/httpClient";
 import { useEntertainmentThreadsStore } from "@/stores/entertainmentThreadsStore";
@@ -9,13 +9,17 @@ import { toFileTransfer } from "@/lib/fileTransfer";
 import type { EntertainmentConfig } from "@shared";
 import { INITIAL_DEHYDRATE, isStepValid } from "./wizardSteps";
 import { ProgressBar } from "./ProgressBar";
-import { StepMode } from "./steps/StepMode";
 import { StepNovel } from "./steps/StepNovel";
 import { StepOptions } from "./steps/StepOptions";
+import {
+  ModelsNotConfiguredBanner,
+  useAgentModelsConfigured,
+} from "@/components/welcome/ModelSummary";
 
-const STEPS = 3;
+const STEPS = 2;
 
-/** Entertainment wizard — 3 steps (mode → novel → options), shown on an empty thread. */
+/** Entertainment wizard — 2 steps (novel source → rewrite options), shown on
+ * an empty thread. The mode itself is chosen on the welcome screen. */
 export const EntertainmentWizard: FC = () => {
   const { t } = useTranslation("entertainment");
   const activeThreadId = useEntertainmentThreadsStore((s) => s.activeThreadId);
@@ -28,9 +32,9 @@ export const EntertainmentWizard: FC = () => {
 
   const [config, setConfig] = useState<EntertainmentConfig>(INITIAL_DEHYDRATE);
   const [pendingFile, setPendingFile] = useState<File | undefined>(undefined);
-  // Whether both agent roles resolve to a configured (provider, model) pair —
-  // reported by ModelCapabilityCard on Step 0. While false, Next is disabled.
-  const [modelsConfigured, setModelsConfigured] = useState(true);
+  // Whether both agent roles resolve to a configured (provider, model) pair.
+  // While false, the banner shows on step 0 and Next is disabled.
+  const modelsConfigured = useAgentModelsConfigured();
   const [submitted, setSubmitted] = useState(false);
   // Legal acknowledgment — UI-only (not sent to the backend or persisted). Gates
   // forward navigation to reduce the author's legal exposure.
@@ -134,8 +138,8 @@ export const EntertainmentWizard: FC = () => {
       void submit();
       return;
     }
-    // Step 1 → 2: waits for agreement, then commits (creates thread + ingests file).
-    if (step === 1) {
+    // Step 0 → 1: waits for agreement, then commits (creates thread + ingests file).
+    if (step === 0) {
       if (!agreed) return;
       void commitAndAdvance();
       return;
@@ -198,19 +202,13 @@ export const EntertainmentWizard: FC = () => {
 
   const valid = isStepValid(step, config, modelsConfigured);
 
-  // The options page locks the thread to its source (uploaded file OR internet
-  // source) — no Back, for EITHER mode. Step 0↔1 still allows Back (nothing is
-  // materialized yet there).
-  const canGoBack = step > 0 && step < STEPS - 1;
-
-  const isUploadButton = step === 1 && isFile;
-  const isFetchButton = step === 1 && !isFile;
+  const isUploadButton = step === 0 && isFile;
+  const isFetchButton = step === 0 && !isFile;
   const startBlocked =
     isLast && (prepareError !== null || (isFile && ingesting));
-  // Agreement is acknowledged on the novel step (step 1). It blocks the novel
-  // step's commit and — as belt-and-suspenders — the final Start; step 0's Next
-  // is gated by isStepValid (mode set + both agent models configured).
-  const agreeBlocked = step >= 1 && !agreed;
+  // Agreement is acknowledged on the novel step (step 0). It blocks the novel
+  // step's commit and — as belt-and-suspenders — the final Start.
+  const agreeBlocked = !agreed;
 
   return (
     <div className="my-auto mx-auto flex w-full flex-col gap-4 px-4 pb-10 sm:max-w-2xl sm:gap-6 lg:max-w-5xl xl:max-w-7xl 2xl:max-w-[96rem]">
@@ -228,26 +226,21 @@ export const EntertainmentWizard: FC = () => {
           floating as a narrow strip over wide content. */}
       <ProgressBar
         step={step}
-        labels={[t("step.0.title"), t("step.1.title"), t("step.2.title")]}
+        labels={[t("step.0.title"), t("step.1.title")]}
       />
       {step === 0 && (
-        <StepMode
-          config={config}
-          setConfig={setConfig}
-          onModelsConfiguredChange={setModelsConfigured}
-        />
+        <>
+          {!modelsConfigured && <ModelsNotConfiguredBanner />}
+          <StepNovel
+            config={config}
+            setConfig={setConfig}
+            setPendingFile={setPendingFile}
+            agreed={agreed}
+            setAgreed={setAgreed}
+          />
+        </>
       )}
-
-      {step === 1 && (
-        <StepNovel
-          config={config}
-          setConfig={setConfig}
-          setPendingFile={setPendingFile}
-          agreed={agreed}
-          setAgreed={setAgreed}
-        />
-      )}
-      {step === 2 && <StepOptions config={config} setConfig={setConfig} />}
+      {step === 1 && <StepOptions config={config} setConfig={setConfig} />}
 
       {prepareError && (
         <div className="flex flex-col items-center gap-3">
@@ -267,17 +260,6 @@ export const EntertainmentWizard: FC = () => {
       )}
 
       <div className="flex items-center gap-2">
-        {canGoBack && (
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => setStep((s) => Math.max(0, s - 1))}
-            disabled={submitted}
-          >
-            <ChevronLeft className="size-4" />
-            {t("nav.back")}
-          </Button>
-        )}
         <Button
           type="button"
           onClick={advance}
@@ -287,11 +269,7 @@ export const EntertainmentWizard: FC = () => {
           {isUploadButton && t("nav.uploadAndContinue")}
           {isFetchButton && t("nav.fetchAndContinue")}
           {isLast && (ingesting ? t("nav.preparing") : t("nav.start"))}
-          {!isUploadButton && !isFetchButton && !isLast && t("nav.next")}
           {ingesting && <Loader2 className="size-4 animate-spin" />}
-          {!isLast && !isUploadButton && !isFetchButton && !ingesting && (
-            <ArrowRight className="size-4" />
-          )}
         </Button>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { Moon, Sun, SunMoon } from "lucide-react";
 import { resolveLanguage } from "@/i18n";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
   CardContent,
@@ -130,6 +131,33 @@ export function GeneralSection() {
                 </SelectItem>
               </SelectContent>
             </Select>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("general.welcome.title")}</CardTitle>
+            <CardDescription>
+              {t("general.welcome.description")}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <label
+              htmlFor="show-welcome"
+              className="flex cursor-pointer items-center gap-2 text-sm font-normal"
+            >
+              <Checkbox
+                id="show-welcome"
+                checked={settings.showWelcomeOnStartup}
+                onCheckedChange={(c) =>
+                  void updateSettings({
+                    ...settings,
+                    showWelcomeOnStartup: c === true,
+                  })
+                }
+              />
+              {t("general.welcome.show")}
+            </label>
           </CardContent>
         </Card>
       </div>

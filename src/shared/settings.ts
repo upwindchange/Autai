@@ -131,6 +131,8 @@ const DEFAULT_SETTINGS = {
   language: "system" as const,
   // Which top-level mode (chat | entertainment) the app opens in on boot.
   defaultAppMode: "chat" as const,
+  // Whether the boot mode-picker (welcome screen) shows before the layout.
+  showWelcomeOnStartup: true as const,
   maxParallelAgents: 2,
   maxRetries: 3,
   searchEngine: "google" as const,
@@ -176,6 +178,9 @@ export const SettingsStateSchema = z
     defaultAppMode: z
       .enum(["chat", "entertainment"])
       .default(DEFAULT_SETTINGS.defaultAppMode),
+    showWelcomeOnStartup: z
+      .boolean()
+      .default(DEFAULT_SETTINGS.showWelcomeOnStartup),
     maxParallelAgents: z
       .number()
       .int()

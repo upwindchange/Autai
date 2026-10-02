@@ -53,7 +53,7 @@ import { isNativeRenderer } from "@/lib/env";
 import { serverEvents } from "@/lib/serverEvents";
 import { getAuthStatus, AUTH_UNAUTHORIZED_EVENT } from "@/lib/authClient";
 import { LoginScreen } from "@/components/auth/LoginScreen";
-
+import { WelcomeScreen } from "@/components/welcome/WelcomeScreen";
 import "./index.css";
 
 const logger = log.scope("Main");
@@ -140,6 +140,7 @@ function AppContent() {
   const { showSettings, showSplitView, setContainerRef } = useUiStore();
   const appMode = useUiStore((s) => s.appMode);
   const zenMode = useUiStore((s) => s.zenMode);
+  const welcomeActive = useUiStore((s) => s.welcomeActive);
   // The active thread id is the chat runtime's main thread (chat) or the
   // entertainment store's active thread (entertainment). Both hooks run
   // unconditionally; the mode only selects which value is used.
@@ -284,6 +285,19 @@ function AppContent() {
   // Effective zen: hide sidebar + header so the reader fills the window. Only
   // in entertainment mode without settings open.
   const zen = zenMode && appMode === "entertainment" && !showSettings;
+
+  // Boot welcome screen: full-bleed mode picker while active and settings are
+  // closed. Opening Settings (Configure-models button on the model panel)
+  // falls through to the normal layout's SettingsView; closing it returns here.
+  const welcome = welcomeActive && !showSettings;
+
+  if (welcome) {
+    return (
+      <SettingsProvider>
+        <WelcomeScreen />
+      </SettingsProvider>
+    );
+  }
 
   return (
     <SettingsProvider>
