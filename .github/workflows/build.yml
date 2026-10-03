@@ -167,6 +167,17 @@ jobs:
         run: |
           pnpm exec electron-vite build
           pnpm exec electron-builder --mac mas --publish never
+          # The signing log prints provisioningProfile=none when none is
+          # configured in electron-builder.json; @electron/osx-sign may
+          # still auto-embed one from ~/Library/MobileDevice. Answer it
+          # factually: check the built bundle directly.
+          for app in release/*/mas-*/Autai.app; do
+            if [ -e "$app/Contents/embedded.provisionprofile" ]; then
+              echo "$(dirname "$app"): embedded.provisionprofile PRESENT"
+            else
+              echo "$(dirname "$app"): embedded.provisionprofile ABSENT"
+            fi
+          done
 
       - name: Upload MAS artifacts
         uses: actions/upload-artifact@v7.0.1
