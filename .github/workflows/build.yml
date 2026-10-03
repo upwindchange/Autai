@@ -340,14 +340,28 @@ jobs:
           [xml]$xml = Get-Content $report
           $overall = $xml.SelectSingleNode("//REPORT/OVERALL_RESULT").InnerText
           $fails = @($xml.SelectNodes("//TEST") | Where-Object { $_.Result.InnerText -eq "FAIL" })
-          $fails | ForEach-Object { Write-Host "::error::[WACK FAIL] $($_.Description)" }
-          if ($fails.Count -gt 0 -or $overall -ine "PASS") {
-            throw "WACK failed (overall: $overall, failing tests: $($fails.Count))"
-          }
+          # Always keep the report — failure runs need it more than passes.
           Copy-Item $report "WACK-report.xml"
+          $fails | ForEach-Object {
+            Write-Host "::error::[WACK FAIL] $($_.Description)"
+            # A failing TEST carries_MESSAGES/…/MESSAGE nodes naming the
+            # exact offending files/flags — print them so the log alone is
+            # enough to act on.
+            @($_.MESSAGES.MESSAGE) + @($_.SelectNodes(".//MESSAGE")) |
+              Select-Object -Unique | ForEach-Object {
+                $txt = if ($_.InnerText) { $_.InnerText.Trim() } else { $_ }
+                if ($txt) { Write-Host "    $txt" }
+              }
+          }
+          if ($fails.Count -gt 0 -or $overall -ine "PASS") {
+            throw "WACK failed (overall: $overall, failing tests: $($fails.Count)); see WACK-report.xml in artifacts and MESSAGE lines above"
+          }
           Write-Host "WACK passed (overall: $overall)"
 
+      # Runs even when WACK fails — the report is the artifact you need most
+      # on a failing run. appx is always present (build step succeeded).
       - name: Upload APPX artifacts
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7.0.1
         with:
           name: appx-packages
