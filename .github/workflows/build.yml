@@ -124,36 +124,20 @@ jobs:
           echo -n "$MAC_APP_P12_BASE64" | base64 --decode > app.p12
           echo -n "$MAC_INSTALLER_P12_BASE64" | base64 --decode > installer.p12
 
-          # Diagnose secret pairs before import — openssl reports the same
-          # MAC-check the keychain does, but per-file, so a mismatch says
-          # WHICH secret pair is broken instead of a bare "wrong password".
-          # Prints only sizes/subjects — never key material.
-          check_p12() {
-            # $1 = file, $2 = password. macOS runners ship bash 3.2 — no
-            # ${var^^} or other bash-4 expansions here.
-            info="$(openssl pkcs12 -in "$1" -nokeys -passin pass:"$2" -info 2>&1)"
-            if echo "$info" | grep -q subject; then
-              echo "$1: decrypts with its password (pair OK)"
-            else
-              echo "$1: DECRYPTION FAILED — base64 or password secret is wrong for this pair"
+          # Silent guard: Apple's Security framework cannot import OpenSSL-3
+          # p12s (PBES2/AES-256 + SHA-256 MAC) and misreports it as a
+          # password failure. Fail fast with the fix if detected; say
+          # nothing otherwise. Bash 3.2 on macOS runners — no bash-4 syntax.
+          for f in app installer; do
+            case "$f" in
+              app) pw="$MAC_APP_P12_PASSWORD" ;;
+              installer) pw="$MAC_INSTALLER_P12_PASSWORD" ;;
+            esac
+            if openssl pkcs12 -in "$f.p12" -nokeys -nomacver -passin pass:"$pw" -info 2>&1 | grep -q PBES2; then
+              echo "::error::$f.p12 is an OpenSSL-3-format p12 (PBES2). Re-export with -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 and update its BASE64 secret (docs/store-signing.md)."
+              exit 1
             fi
-            echo "$info" | grep -m1 "MAC"
-            # Apple's Security framework only imports the legacy PKCS12
-            # profile (3DES/RC2 + SHA-1 MAC). OpenSSL 3 defaults to
-            # PBES2/AES-256 + SHA-256, which keychain import rejects with a
-            # misleading "MAC verification failed (wrong password?)".
-            if echo "$info" | grep -q PBES2; then
-              echo "::error::$1 was exported with OpenSSL-3 defaults (PBES2). Re-export with -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1, then update the BASE64 secret (docs/store-signing.md)."
-              BAD_FORMAT=1
-            fi
-            wc -c < "$1"
-          }
-          check_p12 app.p12 "$MAC_APP_P12_PASSWORD"
-          check_p12 installer.p12 "$MAC_INSTALLER_P12_PASSWORD"
-          if [ "${BAD_FORMAT:-0}" = "1" ]; then
-            echo "Refusing to import OpenSSL-3-format p12s — fix the secrets, not the workflow."
-            exit 1
-          fi
+          done
 
           security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
           security default-keychain -s "$KEYCHAIN"
@@ -250,13 +234,33 @@ jobs:
       # unsigned appx.
       - name: Validate with Windows App Certification Kit (WACK)
         shell: pwsh
-        timeout-minutes: 45
+        # Diagnostic mode: the previous dispatch hung with zero output, so
+        # keep the budget tight (1 min past launch) and sample aggressively.
+        timeout-minutes: 3
         run: |
           $ErrorActionPreference = "Stop"
+          function Dump-State([string]$tag) {
+            # Everything worth knowing when appcert stalls: processes,
+            # sessions, installer logs, report/log file states.
+            Write-Host "=== [$tag] $((Get-Date).ToString('HH:mm:ss')) ==="
+            Get-Process appcert, appcertui, msiexec -ErrorAction SilentlyContinue |
+              Select-Object Id, ProcessName, @{n='CPU_s';e={[math]::Round($_.CPU,1)}}, @{n='WS_MB';e={[math]::Round($_.WorkingSet64/1MB)}} |
+              Format-Table -AutoSize | Out-String | Write-Host
+            quser 2>&1 | Out-String | Write-Host
+            Get-ChildItem "$env:ProgramFiles(x86)\Windows Kits\10\App Certification Kit" -Filter "*.log" -ErrorAction SilentlyContinue |
+              Sort-Object LastWriteTime -Descending | Select-Object -First 3 Name, Length, LastWriteTime | Format-Table -AutoSize | Out-String | Write-Host
+            foreach ($f in @($report, $outLog, $errLog)) {
+              if (Test-Path $f) {
+                $i = Get-Item $f
+                Write-Host "$($i.Name): $($i.Length) bytes, mtime $($i.LastWriteTime.ToString('HH:mm:ss'))"
+              }
+            }
+          }
+
           $publisher = "CN=36582D6A-6F9D-4D61-8B74-8CABAC43E1A2"
           $appx = (Get-ChildItem "release/*/Autai_*_x64.appx" | Select-Object -First 1).FullName
           if (-not $appx) { throw "no x64 appx found under release/" }
-          Write-Host "Validating: $appx"
+          Write-Host "Validating: $appx ($((Get-Item $appx).Length) bytes)"
 
           # Throwaway self-signed cert matching the appx publisher identity.
           $pw = "wack-" + [guid]::NewGuid().ToString("N")
@@ -266,51 +270,57 @@ jobs:
             -FriendlyName "WACK test signing" -CertStoreLocation "Cert:\CurrentUser\My"
           $certPwd = ConvertTo-SecureString $pw -AsPlainText -Force
           Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $certPwd | Out-Null
-
-          # Trust + sign so appcert can install the package for dynamic tests.
           Import-PfxCertificate -FilePath $pfx -CertStoreLocation "Cert:\CurrentUser\Root" -Password $certPwd | Out-Null
-          Write-Host "Self-signed test cert created and trusted"
+          Write-Host "[prep] cert created+trusted: $($cert.Thumbprint)"
 
           $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
             Sort-Object FullName -Descending | Select-Object -First 1).FullName
-          Write-Host "Signing with: $signtool"
+          Write-Host "[prep] signtool: $signtool"
           & $signtool sign /fd SHA256 /f $pfx /p $pw $appx
-          if ($LASTEXITCODE -ne 0) { throw "signtool failed" }
-          Write-Host "Package signed for local install"
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed ($LASTEXITCODE)" }
+          Write-Host "[prep] package signed"
 
-          # appcert. Docs require an active user session; GitHub's runner
-          # service is Session0, so tests can't run headless via plain CLI.
-          # Use the documented automation pattern: launch appcert in the
-          # interactive session via a scheduled task, stream its output.
           $appcert = "C:\Program Files (x86)\Windows Kits\10\App Certification Kit\appcert.exe"
           $report = Join-Path $env:RUNNER_TEMP "WACK-report.xml"
           $outLog = Join-Path $env:RUNNER_TEMP "appcert-out.log"
           $errLog = Join-Path $env:RUNNER_TEMP "appcert-err.log"
 
-          Write-Host "Running appcert reset…"
+          Write-Host "[appcert] reset…"
           & $appcert reset | Out-Null
-          Write-Host "Running appcert test…"
+          Write-Host "[appcert] launching test…"
           $proc = Start-Process -FilePath $appcert `
             -ArgumentList @("test", "-appxpackagepath", "`"$appx`"", "-reportoutputpath", "`"$report`"") `
             -RedirectStandardOutput $outLog -RedirectStandardError $errLog -NoNewWindow -PassThru
-          # Progress heartbeat while the dynamic tests run.
-          while (-not $proc.HasExited) {
-            Start-Sleep -Seconds 60
-            $phase = if (Test-Path $report) { "report started" } else { "tests running" }
-            Write-Host "[appcert alive, $($proc.Id), $phase, $((Get-Date).ToString('HH:mm:ss'))]"
-            if ($proc.TotalProcessorTime.TotalMinutes -gt 40) { break }
+          Write-Host "[appcert] pid $($proc.Id)"
+
+          # 60-second watchdog: sample every 5s. A healthy run needs 10-30
+          # min; this dispatch is purely diagnostic — we want the state at
+          # the moment of the stall, not a finished report.
+          $deadline = (Get-Date).AddSeconds(60)
+          while (-not $proc.HasExited -and (Get-Date) -lt $deadline) {
+            Start-Sleep -Seconds 5
+            $cpu = try { [math]::Round($proc.CPU, 1) } catch { -1 }
+            $ws = try { [math]::Round($proc.WorkingSet64 / 1MB) } catch { -1 }
+            Write-Host ("[watch {0}] alive cpu={1}s ws={2}MB report={3}" -f `
+              (Get-Date).ToString('HH:mm:ss'), $cpu, $ws, (Test-Path $report))
           }
+
+          Get-Content $outLog, $errLog -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "[appcert-out] $_" }
           if (-not $proc.HasExited) {
-            Stop-Process -Id $proc.Id -Force
-            throw "appcert exceeded 40 CPU-minutes — likely stuck; logs: $outLog"
+            Dump-State "stalled"
+            # appcert's interactive UI is the known Session-0 casualty — if a
+            # UI process is sitting there, that is the diagnosis itself.
+            Get-Process appcertui -ErrorAction SilentlyContinue | ForEach-Object {
+              Write-Host "::error::appcertui (interactive UI) is running — appcert is waiting on an interactive session the runner cannot provide"
+            }
+            Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+            Get-Process appcertui -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            throw "appcert stalled (no exit after 60s) — diagnostic state dumped above"
           }
-          Get-Content $outLog, $errLog -ErrorAction SilentlyContinue | Write-Host
           if ($proc.ExitCode -ne 0) { throw "appcert exited with $($proc.ExitCode)" }
           if (-not (Test-Path $report)) { throw "appcert produced no report at $report" }
 
-          # Surface failures in the log; keep the XML as an artifact either
-          # way. Report schema (matches ChristopheLav/wack-certification's
-          # analyzer): REPORT/OVERALL_RESULT + TEST nodes with child Result.
+          # Report schema per ChristopheLav/wack-certification's analyzer.
           [xml]$xml = Get-Content $report
           $overall = $xml.SelectSingleNode("//REPORT/OVERALL_RESULT").InnerText
           $fails = @($xml.SelectNodes("//TEST") | Where-Object { $_.Result.InnerText -eq "FAIL" })
