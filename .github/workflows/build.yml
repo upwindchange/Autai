@@ -234,9 +234,10 @@ jobs:
       # unsigned appx.
       - name: Validate with Windows App Certification Kit (WACK)
         shell: pwsh
-        # Diagnostic mode: the previous dispatch hung with zero output, so
-        # keep the budget tight (1 min past launch) and sample aggressively.
-        timeout-minutes: 3
+        # 35 min covers the 30-min appcert watchdog plus cert/signing prep.
+        # The earlier silent multi-hour hang was the cert-trust dialog, not
+        # appcert (fixed below) — the watchdog is the backstop now.
+        timeout-minutes: 35
         run: |
           $ErrorActionPreference = "Stop"
           function Dump-State([string]$tag) {
@@ -263,15 +264,24 @@ jobs:
           Write-Host "Validating: $appx ($((Get-Item $appx).Length) bytes)"
 
           # Throwaway self-signed cert matching the appx publisher identity.
+          # Trust goes into LocalMachine\Root: current-user Root additions
+          # raise Windows' "install this certificate?" confirmation dialog,
+          # which blocks forever on a headless runner (that was the 2h30
+          # "hang" — the cert line, not appcert). Machine-store writes are
+          # silent under the runner's admin context. The PFX itself is only
+          # a file for signtool — it never needs importing into any store.
+          Write-Host "[prep] creating cert…"
           $pw = "wack-" + [guid]::NewGuid().ToString("N")
           $pfx = Join-Path $env:RUNNER_TEMP "wack-signing.pfx"
           $cert = New-SelfSignedCertificate -Subject $publisher `
             -Type CodeSigningCert -KeyUsage DigitalSignature `
             -FriendlyName "WACK test signing" -CertStoreLocation "Cert:\CurrentUser\My"
+          Write-Host "[prep] exporting pfx…"
           $certPwd = ConvertTo-SecureString $pw -AsPlainText -Force
           Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $certPwd | Out-Null
-          Import-PfxCertificate -FilePath $pfx -CertStoreLocation "Cert:\CurrentUser\Root" -Password $certPwd | Out-Null
-          Write-Host "[prep] cert created+trusted: $($cert.Thumbprint)"
+          Write-Host "[prep] trusting in LocalMachine\Root…"
+          Import-Certificate -FilePath $pfx -CertStoreLocation "Cert:\LocalMachine\Root" | Out-Null
+          Write-Host "[prep] cert trusted: $($cert.Thumbprint)"
 
           $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
             Sort-Object FullName -Descending | Select-Object -First 1).FullName
@@ -293,12 +303,13 @@ jobs:
             -RedirectStandardOutput $outLog -RedirectStandardError $errLog -NoNewWindow -PassThru
           Write-Host "[appcert] pid $($proc.Id)"
 
-          # 60-second watchdog: sample every 5s. A healthy run needs 10-30
-          # min; this dispatch is purely diagnostic — we want the state at
-          # the moment of the stall, not a finished report.
-          $deadline = (Get-Date).AddSeconds(60)
+          # Watchdog: 5s samples for the first minute (where the previous
+          # stall lived), then 60s heartbeats. Healthy WACK runs take 10-30
+          # min for an Electron appx; the 30-min ceiling kills true hangs.
+          $deadline = (Get-Date).AddMinutes(30)
           while (-not $proc.HasExited -and (Get-Date) -lt $deadline) {
-            Start-Sleep -Seconds 5
+            $elapsed = [int]((Get-Date) - $proc.StartTime).TotalSeconds
+            Start-Sleep -Seconds $(if ($elapsed -lt 60) { 5 } else { 60 })
             $cpu = try { [math]::Round($proc.CPU, 1) } catch { -1 }
             $ws = try { [math]::Round($proc.WorkingSet64 / 1MB) } catch { -1 }
             Write-Host ("[watch {0}] alive cpu={1}s ws={2}MB report={3}" -f `
