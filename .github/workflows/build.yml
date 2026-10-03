@@ -280,7 +280,12 @@ jobs:
           $certPwd = ConvertTo-SecureString $pw -AsPlainText -Force
           Export-PfxCertificate -Cert $cert -FilePath $pfx -Password $certPwd | Out-Null
           Write-Host "[prep] trusting in LocalMachine\Root…"
-          Import-Certificate -FilePath $pfx -CertStoreLocation "Cert:\LocalMachine\Root" | Out-Null
+          # Root trust needs only the public cert: export a .cer (PFX is not
+          # accepted by Import-Certificate) and import that — silent under
+          # admin, unlike CurrentUser\Root's confirmation dialog.
+          $cer = Join-Path $env:RUNNER_TEMP "wack-signing.cer"
+          Export-Certificate -Cert $cert -FilePath $cer | Out-Null
+          Import-Certificate -FilePath $cer -CertStoreLocation "Cert:\LocalMachine\Root" | Out-Null
           Write-Host "[prep] cert trusted: $($cert.Thumbprint)"
 
           $signtool = (Get-ChildItem "C:\Program Files (x86)\Windows Kits\10\bin\*\x64\signtool.exe" |
