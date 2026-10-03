@@ -336,23 +336,31 @@ jobs:
           if ($proc.ExitCode -ne 0) { throw "appcert exited with $($proc.ExitCode)" }
           if (-not (Test-Path $report)) { throw "appcert produced no report at $report" }
 
-          # Report schema per ChristopheLav/wack-certification's analyzer:
-          # OVERALL_RESULT is an ATTRIBUTE of REPORT; per-TEST Result is a
-          # child node. Failure detail: dump the failing TEST node's raw
-          # XML — schema-independent, always names the offending files.
+          # Store semantics: OVERALL_RESULT (attribute of REPORT) is the
+          # verdict; tests carry OPTIONAL="TRUE/FALSE". Electron apps
+          # routinely trip the optional blocked-executables scan (Chromium
+          # runtime refs + dependency strings); the store discounts those,
+          # so we warn on optional FAILs and error only on the overall
+          # verdict / mandatory-test failures.
           [xml]$xml = Get-Content $report
           $overall = $xml.REPORT.OVERALL_RESULT
           $fails = @($xml.SelectNodes("//TEST") | Where-Object { $_.Result.InnerText -eq "FAIL" })
           # Always keep the report — failure runs need it more than passes.
           Copy-Item $report "WACK-report.xml"
-          $fails | ForEach-Object {
-            Write-Host "::error::[WACK FAIL] $($_.Description)"
-            Write-Host $_.OuterXml
+          foreach ($t in $fails) {
+            $sev = if ($t.OPTIONAL -eq "TRUE") { "::warning::" } else { "::error::" }
+            Write-Host "${sev}[WACK FAIL] $($t.NAME) (optional=$($t.OPTIONAL))"
+            @($t.MESSAGES.MESSAGE) | ForEach-Object { Write-Host "    $($_.TEXT)" }
           }
-          if ($fails.Count -gt 0 -or $overall -ine "PASS") {
-            throw "WACK failed (overall: $overall, failing tests: $($fails.Count)); see WACK-report.xml in artifacts"
+          $mandatoryFails = @($fails | Where-Object { $_.OPTIONAL -ne "TRUE" })
+          if ($overall -ine "PASS" -or $mandatoryFails.Count -gt 0) {
+            throw "WACK failed (overall: $overall, mandatory failures: $($mandatoryFails.Count)); see WACK-report.xml in artifacts"
           }
-          Write-Host "WACK passed (overall: $overall)"
+          if ($fails.Count -gt 0) {
+            Write-Host "WACK passed (overall: $overall; $($fails.Count) optional test failure(s) listed as warnings above)"
+          } else {
+            Write-Host "WACK passed (overall: $overall)"
+          }
 
       # Runs even when WACK fails — the report is the artifact you need most
       # on a failing run. appx is always present (build step succeeded).
