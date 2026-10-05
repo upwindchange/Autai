@@ -182,9 +182,9 @@ const ServerAvatar: FC = () => {
 
 const STATUS_VARIANT: Record<
   MCPConnectionState,
-  "default" | "secondary" | "destructive"
+  "secondary" | "destructive" | "success"
 > = {
-  connected: "default",
+  connected: "success",
   connecting: "secondary",
   authRequired: "secondary",
   authPending: "secondary",
