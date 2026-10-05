@@ -18,7 +18,7 @@ import type { TagRow } from "@shared/tag";
 import { TagBadge } from "./tag-badge";
 
 // Stable empty array for selectors that need a default. Shared so the chat and
-// entertainment lists use the same reference.
+// story lists use the same reference.
 export const EMPTY_TAGS: TagRow[] = [];
 
 /** True when no search is active, or when `id` is in the current search results. */
@@ -101,7 +101,7 @@ export interface TagGroup {
 
 /**
  * Group threads by their primary tag, applying the archive/tag/search filters.
- * Pure (no hooks) so both the chat list and the entertainment list share it.
+ * Pure (no hooks) so both the chat list and the story list share it.
  * Returns the tag-ordered groups plus the untagged threads (the caller renders
  * the untagged group with its own localized label).
  */

@@ -50,7 +50,7 @@ export type ProviderOptionControls = {
   /** Force one tool call per assistant message (`parallel_tool_calls: false`).
    *  A per-agent-loop pacing decision — never a persistent model setting. */
   disallowParallelToolCalls?: boolean;
-  /** Override `params.reasoningEnabled` (e.g. entertainment agents force off). */
+  /** Override `params.reasoningEnabled` (e.g. story agents force off). */
   reasoningEnabled?: boolean;
   /** Override `params.reasoningEffort`. */
   reasoningEffort?: string;
@@ -175,7 +175,7 @@ export function customProviderOptions(
       if (effort) payload.reasoningEffort = effort;
       // No "disabled" knob on OpenAI: explicit disable without an effort
       // override can only be expressed as effort "none" — map it, so the
-      // entertainment agents' forced-off actually lands.
+      // story agents' forced-off actually lands.
       if (enabled === false && !effort) payload.reasoningEffort = "none";
       if (noParallel) payload.parallel_tool_calls = false;
       if (!Object.keys(payload).length) return undefined;

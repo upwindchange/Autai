@@ -28,7 +28,7 @@
   "general.startup.title": "启动模式",
   "general.startup.description": "选择应用启动时进入的模式",
   "general.startup.chat": "对话",
-  "general.startup.entertainment": "娱乐模式",
+  "general.startup.story": "故事模式",
   "general.welcome.title": "欢迎页",
   "general.welcome.description": "应用启动时显示模式选择页",
   "general.welcome.show": "启动时显示欢迎页",

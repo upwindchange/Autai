@@ -8,7 +8,7 @@ export { DOMService } from "./dom";
 export { threadPersistenceService } from "./threadPersistenceService";
 export { threadIntelligenceService } from "./threadIntelligenceService";
 export {
-  entertainmentFrontendService,
-  entertainmentBackendService,
-} from "./entertainment";
+  storyFrontendService,
+  storyBackendService,
+} from "./story";
 export { authService } from "./authService";

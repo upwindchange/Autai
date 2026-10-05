@@ -1,1 +1,0 @@
-ALTER TABLE `entertainment_configs` ADD `site_anchors` text;

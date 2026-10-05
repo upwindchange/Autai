@@ -3,16 +3,16 @@ import { useUiStore } from "@/stores/uiStore";
 import { isTypingTarget } from "./useReaderHotkeys";
 
 /**
- * Window-level hotkeys for the entertainment reader's zen mode:
+ * Window-level hotkeys for the story reader's zen mode:
  *
- *   F10  enter zen mode (entertainment only; ignored while typing)
+ *   F10  enter zen mode (story only; ignored while typing)
  *   Esc  exit zen mode (ignored while typing or while an overlay is open, so
  *        Esc keeps closing popovers / drawers / dialogs first)
  *
  * F11 stays bound to Electron's OS-fullscreen menu accelerator
  * (src/main/menu.ts) and is intentionally not handled here. The renderer-level
  * preventDefault matches the codebase's existing hotkey pattern
- * (useReaderHotkeys, EntertainmentWizard); on Linux/macOS it fully owns F10.
+ * (useReaderHotkeys, StoryWizard); on Linux/macOS it fully owns F10.
  *
  * Mounted once in AppContent. State is read through useUiStore.getState() inside
  * the handler so the listener never goes stale and never resubscribes.
@@ -27,7 +27,7 @@ export function useZenModeHotkeys(): void {
 
       if (e.key === "F10") {
         if (
-          appMode === "entertainment" &&
+          appMode === "story" &&
           !zenMode &&
           !isTypingTarget(e.target)
         ) {

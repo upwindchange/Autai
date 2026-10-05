@@ -16,8 +16,8 @@ export type ReaderTheme =
 export type ReaderTextAlign = "left" | "justify";
 
 /**
- * Reader display preferences for entertainment mode. These drive CSS variables
- * on the entertainment thread root (see reader-theme.ts → buildReaderCssVars),
+ * Reader display preferences for story mode. These drive CSS variables
+ * on the story thread root (see reader-theme.ts → buildReaderCssVars),
  * which cascade into every `.novel-reader` render.
  */
 export interface ReaderSettings {

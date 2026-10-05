@@ -111,7 +111,7 @@ export const WelcomeScreen: FC = () => {
   // shows then. Chat is never blocked.
   const enter = (mode: WelcomeChoice) => {
     if (mode === "story" && !modelsConfigured) return;
-    const appMode = mode === "chat" ? "chat" : "entertainment";
+    const appMode = mode === "chat" ? "chat" : "story";
     if (dontShow) {
       void updateSettings({
         ...settings,

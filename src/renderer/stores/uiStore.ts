@@ -11,9 +11,9 @@ export type SettingsSection =
   | "development"
   | "about";
 
-// Top-level UI mode: chat vs entertainment (more can be added). Drives which
+// Top-level UI mode: chat vs story (more can be added). Drives which
 // thread set the sidebar lists and which thread view fills the content slot.
-export type AppMode = "chat" | "entertainment";
+export type AppMode = "chat" | "story";
 
 interface UiState {
   // Settings visibility
@@ -59,8 +59,8 @@ interface UiState {
   welcomeActive: boolean;
   setWelcomeActive: (active: boolean) => void;
 
-  // Zen mode: hides the sidebar + header so the entertainment reader fills the
-  // whole window. Only effective in entertainment mode without settings open;
+  // Zen mode: hides the sidebar + header so the story reader fills the
+  // whole window. Only effective in story mode without settings open;
   // AppContent derives the effective flag and clamps this to false otherwise.
   zenMode: boolean;
   setZenMode: (zen: boolean) => void;
@@ -68,9 +68,9 @@ interface UiState {
 
   // Last-active thread id per mode, so switching modes restores the thread the
   // user was on instead of landing on a fresh one.
-  lastActiveByMode: Record<"chat" | "entertainment", string | null>;
+  lastActiveByMode: Record<"chat" | "story", string | null>;
   setLastActiveByMode: (
-    mode: "chat" | "entertainment",
+    mode: "chat" | "story",
     threadId: string | null,
   ) => void;
 
@@ -154,7 +154,7 @@ export const useUiStore = create<UiState>()(
     zenMode: false,
     setZenMode: (zenMode) => set({ zenMode }),
     toggleZenMode: () => set((state) => ({ zenMode: !state.zenMode })),
-    lastActiveByMode: { chat: null, entertainment: null },
+    lastActiveByMode: { chat: null, story: null },
     setLastActiveByMode: (mode, threadId) =>
       set((state) => ({
         lastActiveByMode: { ...state.lastActiveByMode, [mode]: threadId },

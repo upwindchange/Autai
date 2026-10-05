@@ -1,0 +1,647 @@
+/**
+ * Story REST API — mounted at `/story` (see apiServer.ts). This
+ * is the story backend surface: the wizard's file submit, chapter
+ * progress + detail polling, read-position persistence, and config/export/
+ * bookmarks. (The `audiobook` mode is a UI-only "coming soon" placeholder
+ * today — no endpoint serves it yet.)
+ */
+import { Hono } from "hono";
+import { z } from "zod";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { Worker } from "node:worker_threads";
+import {
+  storyFrontendService,
+  storyBackendService,
+  threadPersistenceService,
+  threadIntelligenceService,
+} from "@/services";
+import { eventBus } from "@/utils/eventBus";
+import {
+  deriveChapterStatus,
+  resolvePipelineType,
+  StoryConfigSchema,
+  isValidHttpUrl,
+} from "@shared";
+import { clearSearchCache } from "@/agents/workers/storyWorker/pipeline2ChapteredInternet/internetFetch/searchEntry";
+import { getActiveWallPrompt } from "@/agents/workers/storyWorker/pipeline2ChapteredInternet/internetFetch/wallGate";
+import { storyScheduler } from "@/agents/workers/storyWorker/scheduler";
+import { SessionTabService } from "@/services";
+import log from "electron-log/main";
+
+/**
+ * Full backend teardown when the reader moves OFF a thread (Stop → fresh
+ * wizard, or switching to another thread): abort the in-flight runner AND
+ * destroy the thread's crawl/search sessions. Without the session teardown
+ * the crawl WebContentsView survives with its last page open, so a restart
+ * (or the split view) resumes from that stale page instead of a clean tab.
+ * The next fetch for this thread calls activateSession again, which
+ * recreates the session + a fresh welcome-page tab.
+ */
+async function teardownThreadSessions(threadId: string): Promise<void> {
+  storyScheduler.stopThread(threadId);
+  // Wait out the dying runner's final iteration: it may hold an in-flight
+  // search/agent step that could otherwise recreate a session mid-teardown.
+  await storyScheduler.whenSettled(threadId);
+  const sts = SessionTabService.getInstance();
+  await sts
+    .deleteSession(`story-fetch-${threadId}`)
+    .catch((err) =>
+      logger.warn("crawl session teardown failed", { threadId, err }),
+    );
+  await sts
+    .deleteSession(`story-search-${threadId}`)
+    .catch((err) =>
+      logger.warn("search session teardown failed", { threadId, err }),
+    );
+}
+
+const logger = log.scope("ApiServer:Story");
+
+// Path to the compiled novel-decode worker (`decodeWorker.cjs` in out/main,
+// built by the `buildDecodeWorker` vite plugin via esbuild). The main bundle's
+// __dirname is out/main/, so this resolves to a sibling file. `.cjs` because
+// iconv-lite is CommonJS and needs native require (ESM — the default for `.js`
+// under package.json "type":"module" — can't satisfy its `require("buffer")`).
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DECODE_WORKER_PATH = path.join(__dirname, "decodeWorker.cjs");
+
+/**
+ * Decode a novel file's raw bytes to a string by offloading the CPU-bound work
+ * (jschardet.detect + iconv.decode + normalizeText) to a `worker_threads`
+ * Worker, OFF the main-process event loop. Previously this ran inline and
+ * blocked the loop for hundreds of ms to seconds on large files, freezing the
+ * whole UI (window paint, the Start button's animation, options toggles).
+ *
+ * Auto-detects encoding (jschardet) — not every text file is UTF-8
+ * (GBK/GB2312/GB18030 are common for Chinese-language novels). Bytes arrive
+ * from a native filesystem path (`fsPath`, the Electron picker) or as base64
+ * (`base64`, browser fallback). The worker is a pure function: bytes in →
+ * normalized string out. Spawn-on-demand, terminated after it replies.
+ */
+async function decodeViaWorker(input: {
+  fsPath?: string;
+  base64?: string;
+}): Promise<string> {
+  const worker = new Worker(DECODE_WORKER_PATH, {
+    workerData: { fsPath: input.fsPath, base64: input.base64 },
+  });
+  try {
+    const result = await new Promise<{
+      ok: boolean;
+      decoded?: string;
+      error?: string;
+    }>((resolve, reject) => {
+      worker.once("message", (msg) => resolve(msg));
+      worker.once("error", (err: Error) => reject(err));
+      // A runaway decode on a pathological file should never hang the upload —
+      // 30s is well beyond any realistic multi-MB novel.
+      const timer = setTimeout(() => {
+        void worker.terminate();
+        reject(new Error("novel decode timed out"));
+      }, 30_000);
+      worker.once("message", () => clearTimeout(timer));
+      worker.once("error", () => clearTimeout(timer));
+    });
+    if (!result.ok) throw new Error(result.error);
+    return result.decoded ?? "";
+  } finally {
+    void worker.terminate();
+  }
+}
+
+export const storyRoutes = new Hono();
+
+const PositionSchema = z.object({
+  chapterNumber: z.number().int().min(1),
+});
+
+/** Body for the live reader cursor: the thread + chapter the reader is showing
+ *  right now, or nulls to clear. The renderer resolves `currentChapterNumber
+ *  ?? 1` before sending, so a thread that exists but whose reader hasn't opened
+ *  yet reports chapter 1. */
+const ReaderCursorSchema = z.object({
+  threadId: z.string().nullable(),
+  chapterNumber: z.number().int().min(1).nullable(),
+});
+
+const IngestSchema = z.object({
+  config: StoryConfigSchema,
+  // Native pick: backend reads the file by path → detects encoding. Browser
+  // fallback: renderer sends base64 bytes. Exactly one is present.
+  fsPath: z.string().optional(),
+  fileBytesBase64: z.string().optional(),
+});
+
+/** `{ config }` body shared by the wizard's `/ingest` and the reader's
+ *  `PUT /config` (mid-run option edits). */
+const ConfigBodySchema = z.object({
+  config: StoryConfigSchema,
+});
+
+const BookmarkAnchorSchema = z.object({
+  percentile: z.number().min(0).max(100),
+});
+
+const CreateBookmarkSchema = z.object({
+  chapterNumber: z.number().int().min(1),
+  anchor: BookmarkAnchorSchema.optional(),
+  label: z.string().optional(),
+  note: z.string().optional(),
+});
+
+/**
+ * Persist config + first-time thread setup (title/tag). Idempotent:
+ * setupStoryThread only fires on the thread's first config.
+ *
+ * The story wizard pre-creates the thread row (POST /threads) before
+ * submitting config, so the row usually already exists here (isNew = false) and
+ * this just writes the config + runs first-time setup. The threads:listChanged
+ * emit on a genuine first-create keeps other clients — and this client's
+ * tagStore-backed thread list — in sync.
+ */
+function applyConfig(
+  threadId: string,
+  config: z.infer<typeof StoryConfigSchema>,
+): void {
+  const isNew = !threadPersistenceService.getThread(threadId);
+  if (isNew) {
+    threadPersistenceService.createThread(threadId, "story");
+    eventBus.emitEvent("threads:listChanged", null);
+  }
+  const isFirst =
+    !storyFrontendService.getStoryConfig(threadId);
+  storyFrontendService.upsertStoryConfig(threadId, config);
+  if (isFirst)
+    storyFrontendService.setupStoryThread(threadId, config);
+  logger.info("applied config", {
+    threadId,
+    mode: config.mode,
+    novelType: config.novel.type,
+    isFirst,
+  });
+}
+
+// POST /story/threads/:threadId/ingest — file wizard "Upload &
+// Continue": backend detects encoding + decodes (iconv) and persists the raw
+// text + zero consumed offset. The response resolves only after the
+// DB write, so the renderer can rely on raw text being present when this
+// returns.
+storyRoutes.post("/threads/:threadId/ingest", async (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const body = await c.req.json().catch(() => ({}));
+    const parsed = IngestSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Invalid request body", details: parsed.error.issues },
+        400,
+      );
+    }
+    const { config, fsPath, fileBytesBase64 } = parsed.data;
+    // Ingest serves file novels only.
+    if (config.novel.type !== "file") {
+      return c.json({ error: "Ingest requires a file novel" }, 400);
+    }
+    if (!fsPath && !fileBytesBase64) {
+      return c.json({ error: "fsPath or fileBytesBase64 is required" }, 400);
+    }
+
+    logger.info("ingest request", {
+      threadId,
+      novelType: config.novel.type,
+      via: fsPath ? "fsPath" : "base64",
+      nonNovelSource: config.options.nonNovelSource,
+      crossChapterStrength: config.options.crossChapter.strength,
+      filename: config.novel.filename,
+    });
+    // applyConfig runs first (synchronous) → setupStoryThread on the
+    // first config write emits `threads:metadataUpdated`, so the sidebar shows
+    // the filename-based title immediately while decode is still running.
+    applyConfig(threadId, config);
+
+    const decoded = await decodeViaWorker({ fsPath, base64: fileBytesBase64 });
+    // Reject an empty file before any DB write / LLM call.
+    if (!decoded.trim()) {
+      logger.warn("ingest rejected — decoded file is empty", { threadId });
+      return c.json({ error: "The file is empty" }, 400);
+    }
+    storyBackendService.setRawNovelText(threadId, decoded);
+    storyFrontendService.setLastReadChapterNumber(threadId, 1);
+    logger.info("file decoded + raw text persisted", {
+      threadId,
+      charLen: decoded.length,
+      byteEstimate: fsPath ? "(fsPath)" : (fileBytesBase64?.length ?? 0),
+    });
+    // Kick off the dehydrate loop in the background. Async — the route returns
+    // immediately; the loop reads rawConsumedOffset from DB and runs to EOF.
+    storyScheduler.startFilePipeline(threadId);
+
+    // Enrich the thread (extract real title + assign genre/trope tags) from
+    // the opening of the decoded text. Fire-and-forget — runs alongside the
+    // dehydrate loop; the deterministic title from applyConfig is the instant
+    // placeholder this refines.
+    threadIntelligenceService
+      .enrichStoryThreadFromDb(threadId)
+      .catch((err) => {
+        logger.warn("Story enrichment failed:", err);
+      });
+    return c.json({ ok: true });
+  } catch (error) {
+    logger.error("Error in ingest:", error);
+    return c.json({ error: "Failed to ingest novel" }, 500);
+  }
+});
+
+// GET /story/threads/:threadId/chapters — per-chapter progress
+// (source + rewrite statuses merged), ordered, each carrying a derived `status`
+// ({ phase, messageKey, messageParams }) computed from the statuses + the
+// thread's pipeline. Drives the TOC + reader states; the renderer renders
+// `status.phase` via DotMatrix and `t(status.messageKey, status.messageParams)`
+// for the copy, with no mapping.
+storyRoutes.get("/threads/:threadId/chapters", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const progress = storyFrontendService.listChapterProgress(threadId);
+    const pipeline = resolvePipelineType(
+      storyFrontendService.getParsedConfig(threadId),
+    );
+    const chapters = progress.map((ch) => ({
+      ...ch,
+      status: deriveChapterStatus(ch, { pipeline }),
+    }));
+    const novelType = storyFrontendService.getNovelType(threadId);
+    const finalChapterNumber =
+      storyFrontendService.getFinalChapterNumber(threadId);
+    return c.json({ chapters, novelType, finalChapterNumber });
+  } catch (error) {
+    logger.error("Error listing chapters:", error);
+    return c.json({ error: "Failed to list chapters" }, 500);
+  }
+});
+
+// GET /story/threads/:threadId/chapters/:n — single-chapter detail
+// (statuses + rewritten prose; null content until rewritten) with a derived
+// `status`. The poll target.
+storyRoutes.get("/threads/:threadId/chapters/:n", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const n = Number(c.req.param("n"));
+    if (!Number.isInteger(n) || n < 1) {
+      return c.json({ error: "Invalid chapter number" }, 400);
+    }
+    const chapter = storyFrontendService.getChapterDetail(threadId, n);
+    const pipeline = resolvePipelineType(
+      storyFrontendService.getParsedConfig(threadId),
+    );
+    return c.json({
+      chapter: {
+        ...chapter,
+        status: deriveChapterStatus(chapter, { pipeline }),
+      },
+    });
+  } catch (error) {
+    logger.error("Error getting chapter:", error);
+    return c.json({ error: "Failed to get chapter" }, 500);
+  }
+});
+
+// GET /story/threads/:threadId/position — last-read chapter (recovery).
+storyRoutes.get("/threads/:threadId/position", (c) => {
+  const threadId = c.req.param("threadId");
+  const lastReadChapterNumber =
+    storyFrontendService.getLastReadChapterNumber(threadId);
+  return c.json({ lastReadChapterNumber });
+});
+
+// POST /story/threads/:threadId/position — persist current chapter.
+storyRoutes.post("/threads/:threadId/position", async (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const body = await c.req.json().catch(() => ({}));
+    const parsed = PositionSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Invalid request body", details: parsed.error.issues },
+        400,
+      );
+    }
+    storyFrontendService.setLastReadChapterNumber(
+      threadId,
+      parsed.data.chapterNumber,
+    );
+    logger.debug("position set", {
+      threadId,
+      chapterNumber: parsed.data.chapterNumber,
+    });
+    return c.json({ ok: true });
+  } catch (error) {
+    logger.error("Error setting position:", error);
+    return c.json({ error: "Failed to set position" }, 500);
+  }
+});
+
+// PUT /story/reader-cursor — set or clear the LIVE in-memory reader
+// cursor (the thread + chapter the reader is currently showing). This is NOT
+// the persisted recovery position (POST .../position) — it is a volatile
+// main-process pointer pushed by the reader so workers can read "where is the
+// reader right now" without a DB trip. A null threadId (or null chapterNumber)
+// clears it: wizard open with no thread, abandoned, or story mode
+// unmounted. Not thread-scoped (unlike .../position) because the clear case has
+// no threadId.
+storyRoutes.put("/reader-cursor", async (c) => {
+  try {
+    const body = await c.req.json().catch(() => ({}));
+    const parsed = ReaderCursorSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Invalid request body", details: parsed.error.issues },
+        400,
+      );
+    }
+    const { threadId, chapterNumber } = parsed.data;
+    // Thread switch: if the reader moved away from a different thread, abort
+    // that thread's in-flight runner before adopting the new cursor.
+    const prev = storyFrontendService.getReaderCursor();
+    if (prev && prev.threadId !== threadId) {
+      await teardownThreadSessions(prev.threadId);
+    }
+    if (threadId == null || chapterNumber == null) {
+      storyFrontendService.setReaderCursor(null);
+    } else {
+      storyFrontendService.setReaderCursor({ threadId, chapterNumber });
+      // Resume unfinished work for the thread now in focus. Idempotent —
+      // no-ops if a runner is already in flight (the reader polls this often).
+      storyScheduler.resumeOnOpen(threadId);
+    }
+    return c.json({ ok: true });
+  } catch (error) {
+    logger.error("Error setting reader cursor:", error);
+    return c.json({ error: "Failed to set reader cursor" }, 500);
+  }
+});
+
+// GET /story/threads/:threadId/wall-prompt — the thread's CURRENT
+// wall prompt (or null). Recovery read after a renderer reload/SSE reconnect:
+// the card's answer channel is POST /hitl/respond (same id).
+storyRoutes.get("/threads/:threadId/wall-prompt", (c) => {
+  const threadId = c.req.param("threadId");
+  return c.json({ prompt: getActiveWallPrompt(threadId) });
+});
+
+// POST /story/threads/:threadId/prefetch — internet wizard "Fetch &
+// Continue": persist config + start fetching source chapters WITHOUT
+// rewriting. The wizard advances to options immediately; fetching fills
+// `source_chapters` in the background so the reader has content sooner once
+// the user presses Start. Internet novels only (file novels use /ingest).
+storyRoutes.post("/threads/:threadId/prefetch", async (c) => {
+  const threadId = c.req.param("threadId");
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = ConfigBodySchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid body", details: parsed.error.issues }, 400);
+  }
+  applyConfig(threadId, parsed.data.config);
+  if (parsed.data.config.novel.type !== "internet") {
+    return c.json({ error: "Prefetch requires an internet novel" }, 400);
+  }
+  storyScheduler.startInternetPrefetch(threadId);
+  return c.json({ ok: true });
+});
+
+// POST /story/threads/:threadId/start — internet wizard "Start":
+// persist the user's final options, then run fetch (idempotent — skips already
+// fetched chapters) + rewrite together. File threads don't use this; their
+// loop starts at /ingest.
+storyRoutes.post("/threads/:threadId/start", async (c) => {
+  const threadId = c.req.param("threadId");
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = ConfigBodySchema.safeParse(body);
+  if (!parsed.success) {
+    return c.json({ error: "Invalid body", details: parsed.error.issues }, 400);
+  }
+  applyConfig(threadId, parsed.data.config); // store final options for the rewriter
+  storyScheduler.startInternetPipeline(threadId); // fetch + rewrite
+  return c.json({ ok: true });
+});
+
+// POST /story/threads/:threadId/resume — re-evaluate the thread's DB
+// state and continue unfinished work. Footer "Process next N" / "Process all".
+// No body needed — the scheduler reads the persisted config.
+storyRoutes.post("/threads/:threadId/resume", async (c) => {
+  const threadId = c.req.param("threadId");
+  storyScheduler.resumeOnOpen(threadId);
+  return c.json({ ok: true });
+});
+
+// POST /story/threads/:threadId/current-url — reader "chapter link"
+// override: the user pasted the page they are reading; the fetch restarts
+// from the reader cursor's chapter using that URL (extract-only, no
+// verification). Requires a live reader cursor on this thread.
+storyRoutes.post("/threads/:threadId/current-url", async (c) => {
+  const threadId = c.req.param("threadId");
+  const body = await c.req.json().catch(() => ({}));
+  const url = typeof (body as Record<string, unknown>)?.url === "string" ? ((body as Record<string, unknown>).url as string).trim() : "";
+  if (!isValidHttpUrl(url)) return c.json({ error: "invalid url" }, 400);
+  const cursor = storyFrontendService.getReaderCursor();
+  if (!cursor || cursor.threadId !== threadId || cursor.chapterNumber == null)
+    return c.json({ error: "no reader cursor" }, 400);
+  const applied = storyScheduler.submitCurrentUrl(
+    threadId,
+    cursor.chapterNumber,
+    url,
+  );
+  return applied ?
+      c.json({ ok: true })
+    : c.json({ error: "not a chaptered internet thread" }, 400);
+});
+
+// POST /story/threads/:threadId/reprocess-failed — re-enqueue
+// errored chapters (source or rewrite "error"). Footer "Redo failed".
+storyRoutes.post("/threads/:threadId/reprocess-failed", async (c) => {
+  const threadId = c.req.param("threadId");
+  const enqueued = storyScheduler.retryFailed(threadId);
+  return c.json({ ok: true, enqueued });
+});
+
+// POST /story/threads/:threadId/reset-sources — reader "Reset" in the
+// footer's more menu: forget the book's site knowledge so the next fetch
+// re-anchors from scratch. Stops any in-flight runner, clears the crawl-site
+// blocklist + site anchors, nulls every stored chapter URL, and drops the
+// book-scoped search cache. Chapter content/statuses are untouched.
+storyRoutes.post("/threads/:threadId/reset-sources", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    storyScheduler.stopThread(threadId);
+    storyBackendService.clearBlockedSites(threadId);
+    storyBackendService.clearSiteAnchors(threadId);
+    storyBackendService.clearSourceChapterUrls(threadId);
+    clearSearchCache(threadId);
+    logger.info("sources reset", { threadId });
+    return c.json({ ok: true });
+  } catch (error) {
+    logger.error("Error resetting sources:", error);
+    return c.json({ error: "Failed to reset sources" }, 500);
+  }
+});
+
+// GET /story/threads/:threadId/config — read the thread's persisted
+// story config (mode + novel source + options). Used by the reader's
+// in-flight settings editor to seed its form from the DB. Returns 404 when the
+// thread has no story config.
+storyRoutes.get("/threads/:threadId/config", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const config = storyFrontendService.getParsedConfig(threadId);
+    if (!config) return c.json({ error: "No config for thread" }, 404);
+    return c.json({ config });
+  } catch (error) {
+    logger.error("Error reading config:", error);
+    return c.json({ error: "Failed to read config" }, 500);
+  }
+});
+
+// PUT /story/threads/:threadId/config — update the thread's options
+// mid-run WITHOUT re-running one-time thread setup. Validates the whole config
+// with the Zod schema. Does NOT touch novelSource/mode semantics.
+storyRoutes.put("/threads/:threadId/config", async (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const body = await c.req.json().catch(() => ({}));
+    const parsed = ConfigBodySchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Invalid request body", details: parsed.error.issues },
+        400,
+      );
+    }
+    storyFrontendService.upsertStoryConfig(
+      threadId,
+      parsed.data.config,
+    );
+    logger.info("updated config", {
+      threadId,
+      mode: parsed.data.config.mode,
+      novelType: parsed.data.config.novel.type,
+    });
+    return c.json({ ok: true });
+  } catch (error) {
+    logger.error("Error updating config:", error);
+    return c.json({ error: "Failed to update config" }, 500);
+  }
+});
+
+// GET /story/threads/:threadId/export?range=current|fromCurrent|all&chapter=<n>
+// — download rewritten chapters as plain text (.txt). `current` = just chapter;
+// `fromCurrent` = chapter → last ready; `all` = every ready chapter. The browser
+// handles the download via a same-origin <a download> (cookie auto-attaches for
+// remote-auth; standalone has no auth), so no Blob/fetch plumbing is needed.
+storyRoutes.get("/threads/:threadId/export", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const range = (c.req.query("range") ?? "all") as
+      "current" | "fromCurrent" | "all";
+    const chapter = Number(c.req.query("chapter") ?? NaN);
+    let query: { from?: number; to?: number };
+    if (range === "current") {
+      if (!Number.isInteger(chapter) || chapter < 1) {
+        return c.json({ error: "Invalid chapter for range=current" }, 400);
+      }
+      query = { from: chapter, to: chapter };
+    } else if (range === "fromCurrent") {
+      if (!Number.isInteger(chapter) || chapter < 1) {
+        return c.json({ error: "Invalid chapter for range=fromCurrent" }, 400);
+      }
+      query = { from: chapter };
+    } else {
+      query = {};
+    }
+    const chapters = storyFrontendService.listExportChapters(
+      threadId,
+      query,
+    );
+    if (chapters.length === 0) {
+      return c.json({ error: "No processed chapters to export" }, 404);
+    }
+    const body = chapters
+      .map((ch) => {
+        const header = ch.title?.trim() || `第${ch.chapterNumber}章`;
+        return `${header}\n\n${ch.content.trim()}`;
+      })
+      .join("\n\n\n");
+    const title =
+      threadPersistenceService.getThread(threadId)?.title?.trim() ?? "";
+    const utf8Name = `${title || "novel"}-${range}.txt`;
+    const disposition = `attachment; filename="chapters.txt"; filename*=UTF-8''${encodeURIComponent(utf8Name)}`;
+    return c.text(body, 200, {
+      "Content-Type": "text/plain;charset=utf-8",
+      "Content-Disposition": disposition,
+    });
+  } catch (error) {
+    logger.error("Error exporting:", error);
+    return c.json({ error: "Failed to export" }, 500);
+  }
+});
+
+// --- Bookmarks -------------------------------------------------------------
+// Saved reading spots. The renderer works in chapter numbers (never the DB id),
+// so create takes chapterNumber and the service resolves the rewrittenChapter
+// id. list/delete are scoped by threadId. `anchor` is a JSON coordinate
+// ({ percentile }); the reader decides the shape.
+
+// GET /story/threads/:threadId/bookmarks — all bookmarks, newest first,
+// with chapterNumber + title joined for display + jump.
+storyRoutes.get("/threads/:threadId/bookmarks", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    return c.json({
+      bookmarks: storyFrontendService.listBookmarks(threadId),
+    });
+  } catch (error) {
+    logger.error("Error listing bookmarks:", error);
+    return c.json({ error: "Failed to list bookmarks" }, 500);
+  }
+});
+
+// POST /story/threads/:threadId/bookmarks — save the current reading
+// spot. 400 if the chapter has no rewrite row yet (defensive — the reader only
+// bookmarks ready chapters).
+storyRoutes.post("/threads/:threadId/bookmarks", async (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const body = await c.req.json().catch(() => ({}));
+    const parsed = CreateBookmarkSchema.safeParse(body);
+    if (!parsed.success) {
+      return c.json(
+        { error: "Invalid request body", details: parsed.error.issues },
+        400,
+      );
+    }
+    const { chapterNumber, anchor, label, note } = parsed.data;
+    const bookmark = storyFrontendService.createBookmark(
+      threadId,
+      chapterNumber,
+      anchor,
+      label,
+      note,
+    );
+    return c.json({ bookmark }, 201);
+  } catch (error) {
+    logger.error("Error creating bookmark:", error);
+    return c.json({ error: "Failed to create bookmark" }, 500);
+  }
+});
+
+// DELETE /story/threads/:threadId/bookmarks/:id — remove one bookmark
+// (scoped by threadId).
+storyRoutes.delete("/threads/:threadId/bookmarks/:id", (c) => {
+  try {
+    const threadId = c.req.param("threadId");
+    const id = c.req.param("id");
+    storyFrontendService.deleteBookmark(threadId, id);
+    return c.json({ ok: true });
+  } catch (error) {
+    logger.error("Error deleting bookmark:", error);
+    return c.json({ error: "Failed to delete bookmark" }, 500);
+  }
+});

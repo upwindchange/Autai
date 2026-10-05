@@ -2,8 +2,8 @@ import { describe, expect, test } from "vitest";
 import {
   INITIAL_DEHYDRATE,
   isStepValid,
-} from "../src/renderer/components/entertainment/wizard/wizardSteps";
-import type { EntertainmentConfig } from "@shared";
+} from "../src/renderer/components/story/wizard/wizardSteps";
+import type { StoryConfig } from "@shared";
 
 /**
  * Step-0 gating: Next must be disabled (isStepValid false) until both agent
@@ -12,7 +12,7 @@ import type { EntertainmentConfig } from "@shared";
  */
 
 describe("isStepValid step 0 (mode) — models-configured gate", () => {
-  const config: EntertainmentConfig = INITIAL_DEHYDRATE;
+  const config: StoryConfig = INITIAL_DEHYDRATE;
 
   test("no provider/model configured → invalid (Next disabled)", () => {
     expect(isStepValid(0, config, false)).toBe(false);
@@ -27,7 +27,7 @@ describe("isStepValid step 0 (mode) — models-configured gate", () => {
   });
 
   test("flag only gates step 0 — later steps ignore it", () => {
-    const novelConfig: EntertainmentConfig = {
+    const novelConfig: StoryConfig = {
       ...config,
       novel: { type: "file", filename: "a.txt" },
     };
@@ -43,7 +43,7 @@ describe("isStepValid step 1 (novel) — start chapter gate", () => {
   const base = {
     ...INITIAL_DEHYDRATE,
     novel: { type: "internet", title: "T", source: "s" },
-  } as EntertainmentConfig;
+  } as StoryConfig;
 
   test("unset start chapter (default) → valid", () => {
     expect(base.novel).toMatchObject({ type: "internet" });
@@ -54,7 +54,7 @@ describe("isStepValid step 1 (novel) — start chapter gate", () => {
     const config = {
       ...base,
       novel: { ...base.novel, startChapterNumber: 42 },
-    } as EntertainmentConfig;
+    } as StoryConfig;
     expect(isStepValid(1, config, true)).toBe(true);
   });
 
@@ -62,7 +62,7 @@ describe("isStepValid step 1 (novel) — start chapter gate", () => {
     const config = {
       ...base,
       novel: { ...base.novel, startChapterNumber: Number.NaN },
-    } as EntertainmentConfig;
+    } as StoryConfig;
     expect(isStepValid(1, config, true)).toBe(false);
   });
 
@@ -71,7 +71,7 @@ describe("isStepValid step 1 (novel) — start chapter gate", () => {
       const config = {
         ...base,
         novel: { ...base.novel, startChapterNumber },
-      } as EntertainmentConfig;
+      } as StoryConfig;
       expect(isStepValid(1, config, true)).toBe(false);
     }
   });
@@ -86,7 +86,7 @@ describe("isStepValid step 1 — sourceKind gating", () => {
       ...INITIAL_DEHYDRATE,
       novel: { type: "internet", title: "T", source: "", ...novel },
       options: { ...INITIAL_DEHYDRATE.options, ...options },
-    }) as EntertainmentConfig;
+    }) as StoryConfig;
 
   test("chapter kind: URL + startChapterNumber → valid", () => {
     expect(

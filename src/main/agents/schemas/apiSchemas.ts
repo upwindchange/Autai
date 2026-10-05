@@ -22,7 +22,7 @@ export const ChatRequestSchema = z.object({
 // crypto.randomUUID). Chat still sends its own id.
 export const CreateThreadSchema = z.object({
   id: z.string().min(1).optional(),
-  mode: z.enum(["chat", "entertainment"]).optional(),
+  mode: z.enum(["chat", "story"]).optional(),
 });
 
 // Per-thread chat model override (null providerId/modelId/params/systemPrompt =
@@ -48,7 +48,7 @@ export const CreateTagSchema = z.object({
   name: z.string().min(1).max(50),
   color: z.string().regex(/^#[0-9A-Fa-f]{6}$/),
   sortOrder: z.number().int().optional(),
-  mode: z.enum(["chat", "entertainment"]).optional(),
+  mode: z.enum(["chat", "story"]).optional(),
 });
 
 // Tag update schema

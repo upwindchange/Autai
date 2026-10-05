@@ -49,7 +49,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useTagStore, type ViewMode } from "@/stores/tagStore";
 import { useUiStore } from "@/stores/uiStore";
-import { useEntertainmentThreadsStore } from "@/stores/entertainmentThreadsStore";
+import { useStoryThreadsStore } from "@/stores/storyThreadsStore";
 import { useThreadListRefresh } from "@/hooks/useThreadListRefresh";
 import {
   deleteAllThreads,
@@ -86,14 +86,14 @@ export function SidebarToolbar() {
   const clearSearch = useTagStore((s) => s.clearSearch);
   const fetchTags = useTagStore((s) => s.fetchTags);
   const appMode = useUiStore((s) => s.appMode);
-  // Refresh the ACTIVE mode's thread list. Entertainment re-fetches its own
+  // Refresh the ACTIVE mode's thread list. Story re-fetches its own
   // thread set into tagStore; chat reuses the chat thread-list reload. The two
-  // must not cross (a chat reload in entertainment mode would overwrite
+  // must not cross (a chat reload in story mode would overwrite
   // tagStore with chat threads).
   const chatRefresh = useThreadListRefresh();
   const refreshThreads = useCallback(async () => {
-    if (useUiStore.getState().appMode === "entertainment") {
-      await useEntertainmentThreadsStore.getState().refresh();
+    if (useUiStore.getState().appMode === "story") {
+      await useStoryThreadsStore.getState().refresh();
     } else {
       await chatRefresh();
     }

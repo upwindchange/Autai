@@ -1,0 +1,682 @@
+import log from "electron-log/main";
+import { getDb } from "@/db";
+import {
+  sourceChapters,
+  rewrittenChapters,
+  storyConfigs,
+  threads,
+} from "@/db/schema";
+import type { RewrittenChapterStatus, SourceChapterStatus } from "@shared";
+import { and, eq, sql } from "drizzle-orm";
+import { eventBus } from "@/utils/eventBus";
+
+import type { AnyRelations } from "drizzle-orm";
+import type { BetterSQLiteTransaction } from "drizzle-orm/better-sqlite3";
+
+/** Transaction handle for the sync drizzle better-sqlite3 driver (default
+ *  `EmptyRelations` — this project uses the query-builder API, not
+ *  `db.query`). */
+type DbTx = BetterSQLiteTransaction<AnyRelations>;
+
+/** SQLite "now" expression for every `updatedAt` write in this service. */
+const NOW = sql`(datetime('now'))`;
+
+const logger = log.scope("StoryBackend");
+
+/**
+ * Active crawl-site anchors for the chaptered internet fetch — the site the
+ * fetcher has confirmed is our book (host) plus its book page and
+ * table-of-contents URLs. JSON-persisted in `story_configs.site_anchors`.
+ */
+export interface SiteAnchors {
+  host: string;
+  bookUrl: string;
+  tocUrl: string;
+}
+
+/**
+ * Story backend persistence — the DB CRUD layer the story
+ * chapter tables write through. Pure writes + the write-side readers
+ * (raw novel text, consumed offset, output numbering, final-chapter, thread
+ * "touch"). Holds NO reader/REST logic: the reader's merged view and the REST
+ * surface live in `frontendService`. Mirrors the CRUD style of
+ * `threadPersistenceService`.
+ */
+class StoryBackendService {
+  // --- source chapters (原文) — writes ------------------------------------
+
+  /** Insert a source row (caller ensures it doesn't exist yet). */
+  insertSourceChapter(input: {
+    threadId: string;
+    chapterNumber: number;
+    title?: string | null;
+    content?: string | null;
+    url?: string | null;
+    status: SourceChapterStatus;
+  }): void {
+    const db = getDb();
+    db.insert(sourceChapters)
+      .values({
+        id: crypto.randomUUID(),
+        threadId: input.threadId,
+        chapterNumber: input.chapterNumber,
+        title: input.title ?? null,
+        content: input.content ?? null,
+        ...(input.url != null && { url: input.url }),
+        status: input.status,
+      })
+      .run();
+    eventBus.emitEvent("story:chaptersChanged", {
+      threadId: input.threadId,
+    });
+  }
+  /**
+   * Own a source row's transition into `"fetching"`: insert a fresh row, or
+   * reset a stale one (crash mid-fetch / previous error / re-run). The single
+   * upsert every fetcher goes through.
+   */
+  markSourceChapterFetching(input: {
+    threadId: string;
+    chapterNumber: number;
+  }): void {
+    const db = getDb();
+    db.insert(sourceChapters)
+      .values({
+        id: crypto.randomUUID(),
+        threadId: input.threadId,
+        chapterNumber: input.chapterNumber,
+        status: "fetching",
+      })
+      .onConflictDoUpdate({
+        target: [sourceChapters.threadId, sourceChapters.chapterNumber],
+        set: {
+          status: "fetching",
+          updatedAt: NOW,
+        },
+      })
+      .run();
+    eventBus.emitEvent("story:chaptersChanged", {
+      threadId: input.threadId,
+    });
+  }
+
+  /** Patch a source row's mutable columns. */
+  updateSourceChapter(
+    threadId: string,
+    chapterNumber: number,
+    patch: {
+      status?: SourceChapterStatus;
+      content?: string | null;
+      title?: string | null;
+      url?: string | null;
+    },
+  ): void {
+    const db = getDb();
+    db.update(sourceChapters)
+      .set({ ...patch, updatedAt: NOW })
+      .where(
+        and(
+          eq(sourceChapters.threadId, threadId),
+          eq(sourceChapters.chapterNumber, chapterNumber),
+        ),
+      )
+      .run();
+    eventBus.emitEvent("story:chaptersChanged", { threadId });
+  }
+  /**
+   * Delete a source row by (threadId, chapterNumber). Idempotent. NOTE:
+   * rewritten_chapters has no source-chapter FK, so this does NOT cascade —
+   * callers manage the rewrite row separately when they need to.
+   */
+  deleteSourceChapter(threadId: string, chapterNumber: number): void {
+    const db = getDb();
+    db.delete(sourceChapters)
+      .where(
+        and(
+          eq(sourceChapters.threadId, threadId),
+          eq(sourceChapters.chapterNumber, chapterNumber),
+        ),
+      )
+      .run();
+    eventBus.emitEvent("story:chaptersChanged", { threadId });
+  }
+
+  // --- rewritten chapters (重写) — writes ---------------------------------
+
+  /**
+   * Insert a rewrite row (caller ensures it doesn't exist yet).
+   * `chapterNumber` is the reader spine key — for chaptered sources it mirrors
+   * the source chapter's number (1:1).
+   */
+  insertRewrittenChapter(input: {
+    threadId: string;
+    chapterNumber: number;
+    content?: string | null;
+    status: RewrittenChapterStatus;
+  }): void {
+    const db = getDb();
+    db.insert(rewrittenChapters)
+      .values({
+        id: crypto.randomUUID(),
+        threadId: input.threadId,
+        chapterNumber: input.chapterNumber,
+        content: input.content ?? null,
+        status: input.status,
+      })
+      .run();
+    eventBus.emitEvent("story:chaptersChanged", {
+      threadId: input.threadId,
+    });
+  }
+
+  /**
+   * Own a rewrite row's transition into `"rewriting"`: insert a fresh row, or
+   * reset a stale one (previous error / re-run). The single upsert the
+   * rewriter goes through.
+   */
+  markRewrittenChapterRewriting(input: {
+    threadId: string;
+    chapterNumber: number;
+  }): void {
+    const db = getDb();
+    db.insert(rewrittenChapters)
+      .values({
+        id: crypto.randomUUID(),
+        threadId: input.threadId,
+        chapterNumber: input.chapterNumber,
+        status: "rewriting",
+      })
+      .onConflictDoUpdate({
+        target: [rewrittenChapters.threadId, rewrittenChapters.chapterNumber],
+        set: {
+          status: "rewriting",
+          updatedAt: NOW,
+        },
+      })
+      .run();
+    eventBus.emitEvent("story:chaptersChanged", {
+      threadId: input.threadId,
+    });
+  }
+
+  /** Patch a rewrite row's mutable columns. */
+  updateRewrittenChapter(
+    threadId: string,
+    chapterNumber: number,
+    patch: {
+      status?: RewrittenChapterStatus;
+      content?: string | null;
+    },
+  ): void {
+    const db = getDb();
+    db.update(rewrittenChapters)
+      .set({ ...patch, updatedAt: NOW })
+      .where(
+        and(
+          eq(rewrittenChapters.threadId, threadId),
+          eq(rewrittenChapters.chapterNumber, chapterNumber),
+        ),
+      )
+      .run();
+    eventBus.emitEvent("story:chaptersChanged", { threadId });
+  }
+
+  // --- dehydrate drip writes ----------------------------------------------
+
+  /**
+   * Write ONE dehydrate chapter's rows inside a transaction: INSERT the
+   * rewrite row + the source-title row, or — when this chapter lands on the
+   * prior pass's `to_be_continued` row (lead-in continuation) — UPDATE both
+   * rows in place instead.
+   */
+  private upsertChapterRows(
+    tx: DbTx,
+    threadId: string,
+    chapter: {
+      chapterNumber: number;
+      title: string;
+      content: string;
+      rewriteStatus: RewrittenChapterStatus;
+    },
+    replaceAtChapterNumber?: number,
+  ): void {
+    const isReplaceRow =
+      replaceAtChapterNumber != null &&
+      chapter.chapterNumber === replaceAtChapterNumber;
+    if (isReplaceRow) {
+      // Lead-in continuation: UPDATE the existing to_be_continued row.
+      tx.update(rewrittenChapters)
+        .set({
+          content: chapter.content,
+          status: chapter.rewriteStatus,
+          updatedAt: NOW,
+        })
+        .where(
+          and(
+            eq(rewrittenChapters.threadId, threadId),
+            eq(rewrittenChapters.chapterNumber, chapter.chapterNumber),
+          ),
+        )
+        .run();
+      tx.update(sourceChapters)
+        .set({
+          title: chapter.title,
+          updatedAt: NOW,
+        })
+        .where(
+          and(
+            eq(sourceChapters.threadId, threadId),
+            eq(sourceChapters.chapterNumber, chapter.chapterNumber),
+          ),
+        )
+        .run();
+    } else {
+      tx.insert(rewrittenChapters)
+        .values({
+          id: crypto.randomUUID(),
+          threadId,
+          chapterNumber: chapter.chapterNumber,
+          content: chapter.content,
+          status: chapter.rewriteStatus,
+        })
+        .run();
+      tx.insert(sourceChapters)
+        .values({
+          id: crypto.randomUUID(),
+          threadId,
+          chapterNumber: chapter.chapterNumber,
+          title: chapter.title,
+          status: "fetched",
+        })
+        .run();
+    }
+  }
+
+  /** Atomic write of ONE dripped dehydrate chapter (INSERT, or UPDATE-in-place
+   *  when chapterNumber === replaceAtChapterNumber). Emits chaptersChanged. */
+  flushDehydrateChapter(input: {
+    threadId: string;
+    chapterNumber: number;
+    title: string;
+    content: string;
+    rewriteStatus: RewrittenChapterStatus;
+    replaceAtChapterNumber?: number;
+  }): void {
+    const db = getDb();
+    db.transaction((tx) => {
+      this.upsertChapterRows(
+        tx,
+        input.threadId,
+        {
+          chapterNumber: input.chapterNumber,
+          title: input.title,
+          content: input.content,
+          rewriteStatus: input.rewriteStatus,
+        },
+        input.replaceAtChapterNumber,
+      );
+      tx.update(threads)
+        .set({ updatedAt: NOW })
+        .where(eq(threads.id, input.threadId))
+        .run();
+    });
+    eventBus.emitEvent("story:chaptersChanged", {
+      threadId: input.threadId,
+    });
+  }
+
+  /** Atomic end-of-pass: writes the FINAL chapter AND advances rawConsumedOffset
+   *  (+ sets finalChapterNumber on EOF) in ONE transaction — no crash window
+   *  between a visible final chapter and the offset advance. Emits
+   *  chaptersChanged. */
+  flushDehydrateTermination(input: {
+    threadId: string;
+    chapterNumber: number;
+    title: string;
+    content: string;
+    rewriteStatus: RewrittenChapterStatus;
+    replaceAtChapterNumber?: number;
+    newOffset: number;
+    finalChapterNumber?: number;
+  }): void {
+    const db = getDb();
+    db.transaction((tx) => {
+      this.upsertChapterRows(
+        tx,
+        input.threadId,
+        {
+          chapterNumber: input.chapterNumber,
+          title: input.title,
+          content: input.content,
+          rewriteStatus: input.rewriteStatus,
+        },
+        input.replaceAtChapterNumber,
+      );
+      tx.update(storyConfigs)
+        .set({
+          rawConsumedOffset: input.newOffset,
+          ...(input.finalChapterNumber != null && {
+            finalChapterNumber: input.finalChapterNumber,
+          }),
+          updatedAt: NOW,
+        })
+        .where(eq(storyConfigs.threadId, input.threadId))
+        .run();
+      tx.update(threads)
+        .set({ updatedAt: NOW })
+        .where(eq(threads.id, input.threadId))
+        .run();
+    });
+    eventBus.emitEvent("story:chaptersChanged", {
+      threadId: input.threadId,
+    });
+  }
+
+  // --- internet dead-site blocklist ----------------------------------------
+
+  /**
+   * Read the thread's persistent dead-site blocklist: hostname → reason the
+   * site was judged dead (paywall / captcha / wrong-content / …). Stored as
+   * JSON in `story_configs.blocked_sites`; never throws — malformed
+   * stored JSON yields an empty record.
+   */
+  getBlockedSites(threadId: string): Record<string, string> {
+    const db = getDb();
+    const row = db
+      .select({ blockedSites: storyConfigs.blockedSites })
+      .from(storyConfigs)
+      .where(eq(storyConfigs.threadId, threadId))
+      .get();
+    if (!row?.blockedSites) return {};
+    try {
+      const parsed: unknown = JSON.parse(row.blockedSites);
+      if (
+        parsed &&
+        typeof parsed === "object" &&
+        Object.values(parsed).every((v) => typeof v === "string")
+      ) {
+        return parsed as Record<string, string>;
+      }
+      return {};
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * Mark a hostname dead for the thread with a reason. Idempotent merge into
+   * the stored JSON (the FIRST reason a site earns is kept — it is the most
+   * specific diagnosis).
+   */
+  blockSite(threadId: string, hostname: string, reason: string): void {
+    const blocked = this.getBlockedSites(threadId);
+    if (hostname in blocked) return;
+    blocked[hostname] = reason;
+    const db = getDb();
+    db.update(storyConfigs)
+      .set({ blockedSites: JSON.stringify(blocked), updatedAt: NOW })
+      .where(eq(storyConfigs.threadId, threadId))
+      .run();
+    logger.info("site blocked for thread", { threadId, hostname, reason });
+  }
+
+  /**
+   * Reset the blocklist (called when the crawl tab is released at book end,
+   * or on an explicit user reset so a site can be re-probed).
+   */
+  clearBlockedSites(threadId: string): void {
+    const db = getDb();
+    db.update(storyConfigs)
+      .set({ blockedSites: null, updatedAt: NOW })
+      .where(eq(storyConfigs.threadId, threadId))
+      .run();
+  }
+
+  /**
+   * Remove one hostname from the blocklist (the reader's chapter-link
+   * override unblocks the site the user just vouched for). Rewrites the
+   * stored JSON without the key, or nulls it when nothing remains.
+   */
+  unblockSite(threadId: string, hostname: string): void {
+    const blocked = this.getBlockedSites(threadId);
+    if (!(hostname in blocked)) return;
+    delete blocked[hostname];
+    const db = getDb();
+    db.update(storyConfigs)
+      .set({
+        blockedSites:
+          Object.keys(blocked).length > 0 ? JSON.stringify(blocked) : null,
+        updatedAt: NOW,
+      })
+      .where(eq(storyConfigs.threadId, threadId))
+      .run();
+    logger.info("site unblocked for thread", { threadId, hostname });
+  }
+
+  /**
+   * Read the thread's site anchors (the active crawl site's host + book/toc
+   * URLs, JSON in `story_configs.site_anchors`). Never throws —
+   * malformed stored JSON yields null.
+   */
+  getSiteAnchors(threadId: string): SiteAnchors | null {
+    const db = getDb();
+    const row = db
+      .select({ siteAnchors: storyConfigs.siteAnchors })
+      .from(storyConfigs)
+      .where(eq(storyConfigs.threadId, threadId))
+      .get();
+    if (!row?.siteAnchors) return null;
+    try {
+      const parsed: unknown = JSON.parse(row.siteAnchors);
+      if (
+        parsed != null &&
+        typeof parsed === "object" &&
+        typeof (parsed as Record<string, unknown>).host === "string" &&
+        typeof (parsed as Record<string, unknown>).bookUrl === "string" &&
+        typeof (parsed as Record<string, unknown>).tocUrl === "string"
+      ) {
+        return parsed as SiteAnchors;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Persist the active crawl site's anchors (internal state; logged only). */
+  setSiteAnchors(threadId: string, anchors: SiteAnchors): void {
+    const db = getDb();
+    db.update(storyConfigs)
+      .set({ siteAnchors: JSON.stringify(anchors), updatedAt: NOW })
+      .where(eq(storyConfigs.threadId, threadId))
+      .run();
+    logger.info("site anchors saved", { threadId, host: anchors.host });
+  }
+
+  /** Clear the anchors (site judged dead, override to a different host, or book end). */
+  clearSiteAnchors(threadId: string): void {
+    const db = getDb();
+    db.update(storyConfigs)
+      .set({ siteAnchors: null, updatedAt: NOW })
+      .where(eq(storyConfigs.threadId, threadId))
+      .run();
+    logger.info("site anchors cleared", { threadId });
+  }
+
+  /**
+   * Null out every stored chapter URL for the thread (the reader's Reset:
+   * forget where chapters were fetched from so the next fetch re-anchors via
+   * search instead of advancing from a possibly-stale saved page).
+   */
+  clearSourceChapterUrls(threadId: string): void {
+    const db = getDb();
+    db.update(sourceChapters)
+      .set({ url: null, updatedAt: NOW })
+      .where(eq(sourceChapters.threadId, threadId))
+      .run();
+    logger.info("source chapter urls cleared", { threadId });
+  }
+
+
+  /**
+   * Demote every in-progress status left over from a previous process that
+   * died mid-run (power loss, crash, force-quit): `fetching` sources and
+   * `rewriting` rewrites become `error`. No runner survives a process exit,
+   * so such rows are permanently frozen otherwise — they'd spin the UI as
+   * "fetching/rewriting" forever and `retryFailed` (which collects only
+   * `error`) would never pick them up. As `error` they are ordinary retryable
+   * rows: the reader's 重试 button, footer reprocess, and resume paths all
+   * handle them; refetch/refine resets the status before running.
+   *
+   * One global sweep at startup, BEFORE any scheduler runs (main index calls
+   * this right after DB init). Per-row updates keep it simple — the counts
+   * are tiny (at most one frozen chapter per thread), and a bulk UPDATE ...
+   * RETURNING would complicate the per-thread event emission for no gain.
+   */
+  sweepStaleInProgress(): void {
+    const db = getDb();
+    let swept = 0;
+    for (const [table, staleStatus] of [
+      [sourceChapters, "fetching"],
+      [rewrittenChapters, "rewriting"],
+    ] as const) {
+      const stale = db
+        .select({
+          threadId: table.threadId,
+          chapterNumber: table.chapterNumber,
+        })
+        .from(table)
+        .where(eq(table.status, staleStatus))
+        .all();
+      for (const row of stale) {
+        db.update(table)
+          .set({ status: "error", updatedAt: NOW })
+          .where(
+            and(
+              eq(table.threadId, row.threadId),
+              eq(table.chapterNumber, row.chapterNumber),
+            ),
+          )
+          .run();
+        eventBus.emitEvent("story:chaptersChanged", {
+          threadId: row.threadId,
+        });
+      }
+      swept += stale.length;
+    }
+    if (swept > 0) {
+      logger.info("swept stale in-progress rows", { swept });
+    }
+  }
+
+  // --- output numbering ---------------------------------------------------
+
+  /**
+   * Highest rewrite OUTPUT sequential number for the thread, or 0 if none.
+   */
+  maxRewrittenChapterNumber(threadId: string): number {
+    const db = getDb();
+    const row = db
+      .select({
+        max: sql<number>`cast(max(${rewrittenChapters.chapterNumber}) as integer)`,
+      })
+      .from(rewrittenChapters)
+      .where(eq(rewrittenChapters.threadId, threadId))
+      .get();
+    return row?.max ?? 0;
+  }
+
+  /** The persisted raw novel text (null if none / already cleared). */
+  getRawNovelText(threadId: string): string | null {
+    const db = getDb();
+    const row = db
+      .select({ rawText: storyConfigs.rawText })
+      .from(storyConfigs)
+      .where(eq(storyConfigs.threadId, threadId))
+      .get();
+    return row?.rawText ?? null;
+  }
+
+  /** Persist the decoded raw novel text (called once at upload). */
+  setRawNovelText(threadId: string, rawText: string): void {
+    const db = getDb();
+    db.update(storyConfigs)
+      .set({
+        rawText,
+        rawConsumedOffset: 0,
+        updatedAt: NOW,
+      })
+      .where(eq(storyConfigs.threadId, threadId))
+      .run();
+  }
+
+  clearRawNovelText(threadId: string): void {
+    const db = getDb();
+    db.update(storyConfigs)
+      .set({
+        rawText: null,
+        updatedAt: NOW,
+      })
+      .where(eq(storyConfigs.threadId, threadId))
+      .run();
+  }
+
+  getConsumedOffset(threadId: string): number {
+    const db = getDb();
+    const row = db
+      .select({
+        rawConsumedOffset: storyConfigs.rawConsumedOffset,
+      })
+      .from(storyConfigs)
+      .where(eq(storyConfigs.threadId, threadId))
+      .get();
+    return row?.rawConsumedOffset ?? 0;
+  }
+
+
+  // --- final chapter ------------------------------------------------------
+
+  /** Persist the book's final chapter number. */
+  setFinalChapterNumber(threadId: string, chapterNumber: number): void {
+    const db = getDb();
+    db.update(storyConfigs)
+      .set({
+        finalChapterNumber: chapterNumber,
+        updatedAt: NOW,
+      })
+      .where(eq(storyConfigs.threadId, threadId))
+      .run();
+    eventBus.emitEvent("story:chaptersChanged", { threadId });
+  }
+
+  // --- thread touch -------------------------------------------------------
+
+  /** Bump `threads.updatedAt` so the thread floats to the top of the sidebar. */
+  touchThread(threadId: string): void {
+    const db = getDb();
+    db.update(threads)
+      .set({ updatedAt: NOW })
+      .where(eq(threads.id, threadId))
+      .run();
+  }
+  // --- scheduler queries --------------------------------------------------
+
+  /**
+   * Count rewrite OUTPUT rows for the thread. The scheduler uses this to tell
+   * a done thread from a not-yet-started one (zero rewrites ⇒ user never
+   * pressed Start ⇒ don't auto-run rewrite on open).
+   */
+  countRewrittenChapters(threadId: string): number {
+    const db = getDb();
+    const row = db
+      .select({
+        count: sql<number>`cast(count(*) as integer)`,
+      })
+      .from(rewrittenChapters)
+      .where(eq(rewrittenChapters.threadId, threadId))
+      .get();
+    return row?.count ?? 0;
+  }
+}
+
+export const storyBackendService = new StoryBackendService();

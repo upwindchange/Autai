@@ -8,7 +8,7 @@ Autai ("we", "the developer") is a desktop application that provides AI-driven r
 
 ## Data stored on your device
 
-Autai stores all of its data — chat threads, entertainment library, tags, settings, and provider configurations — in a local SQLite database on your computer. This data:
+Autai stores all of its data — chat threads, story library, tags, settings, and provider configurations — in a local SQLite database on your computer. This data:
 
 - never leaves your device as a result of anything Autai does;
 - is never transmitted to the developer or any developer-operated service;

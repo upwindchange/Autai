@@ -4,7 +4,7 @@ import type {
   ChapterDetail,
   ChapterStatus,
   ChapterProgress,
-  EntertainmentConfig,
+  StoryConfig,
 } from "@shared";
 import { httpClient } from "@/lib/httpClient";
 
@@ -48,7 +48,7 @@ const sameChapterView = (a: ChapterView, b: ChapterView): boolean =>
   a.content === b.content;
 
 /**
- * Entertainment reader store — the reader's source of truth.
+ * Story reader store — the reader's source of truth.
  *
  * Polling-driven, NOT event-driven: there is NO SSE subscription for chapters.
  * The DB status columns are the single source of truth; this store is just a
@@ -89,24 +89,24 @@ interface ChaptersState {
    * background. Resolves once raw text is committed to DB. */
   ingestFile: (
     threadId: string,
-    config: EntertainmentConfig,
+    config: StoryConfig,
     payload: { fsPath?: string; fileBytesBase64?: string },
   ) => Promise<void>;
-  /** Read a thread's persisted entertainment config (seeds the in-flight settings editor). */
-  getThreadConfig: (threadId: string) => Promise<EntertainmentConfig | null>;
+  /** Read a thread's persisted story config (seeds the in-flight settings editor). */
+  getThreadConfig: (threadId: string) => Promise<StoryConfig | null>;
   /** Update a thread's config WITHOUT re-running one-time setup.
    * Validates the whole config with the Zod schema. Does NOT touch
    * novelSource/mode semantics. */
   updateThreadConfig: (
     threadId: string,
-    config: EntertainmentConfig,
+    config: StoryConfig,
   ) => Promise<void>;
   /** Last-read chapter (for resume-on-reopen). */
   getPosition: (threadId: string) => Promise<number | null>;
   /** Persist the reader's current chapter. */
   setPosition: (threadId: string, n: number) => Promise<void>;
   /** Push the live reader cursor (thread + chapter, or null to clear) to the
-   *  backend's in-memory mirror on entertainmentFrontendService. Fire-and-
+   *  backend's in-memory mirror on storyFrontendService. Fire-and-
    *  forget — the renderer's (activeThreadId, currentChapterNumber) is the
    *  source of truth; this just projects it into the main process for workers. */
   setReaderCursor: (
@@ -117,12 +117,12 @@ interface ChaptersState {
    *  rewriting. The wizard advances to options immediately. */
   prefetchInternet: (
     threadId: string,
-    config: EntertainmentConfig,
+    config: StoryConfig,
   ) => Promise<void>;
   /** Internet wizard "Start": fetch (idempotent) + rewrite together. */
   startInternet: (
     threadId: string,
-    config: EntertainmentConfig,
+    config: StoryConfig,
   ) => Promise<void>;
   /** Re-evaluate the thread's DB state and continue unfinished work. Footer
    * "Process next N" / "Process all" buttons. */
@@ -167,7 +167,7 @@ export const useChaptersStore = create<ChaptersState>()(
             chapters: (ChapterProgress & { status: ChapterStatus })[];
             novelType: "file" | "internet" | null;
             finalChapterNumber: number | null;
-          }>(`/entertainment/threads/${threadId}/chapters`);
+          }>(`/story/threads/${threadId}/chapters`);
         set((state) => {
           // The poll fires every 1500ms regardless of activity; without a
           // change-check, a fresh `chapters` array (and fresh chapter objects)
@@ -227,7 +227,7 @@ export const useChaptersStore = create<ChaptersState>()(
       try {
         const { chapter } = await httpClient.getJSON<{
           chapter: ChapterDetail & { status: ChapterStatus };
-        }>(`/entertainment/threads/${threadId}/chapters/${n}`);
+        }>(`/story/threads/${threadId}/chapters/${n}`);
         set((state) => {
           // Upsert: a network chapter may not be in the list yet (no source row).
           const idx = state.chapters.findIndex((c) => c.chapterNumber === n);
@@ -258,52 +258,52 @@ export const useChaptersStore = create<ChaptersState>()(
     },
 
     ingestFile: async (threadId, config, payload) => {
-      await httpClient.postJSON(`/entertainment/threads/${threadId}/ingest`, {
+      await httpClient.postJSON(`/story/threads/${threadId}/ingest`, {
         config,
         ...payload,
       });
     },
 
     prefetchInternet: async (threadId, config) => {
-      await httpClient.postJSON(`/entertainment/threads/${threadId}/prefetch`, {
+      await httpClient.postJSON(`/story/threads/${threadId}/prefetch`, {
         config,
       });
     },
 
     startInternet: async (threadId, config) => {
-      await httpClient.postJSON(`/entertainment/threads/${threadId}/start`, {
+      await httpClient.postJSON(`/story/threads/${threadId}/start`, {
         config,
       });
     },
 
     resumeThread: async (threadId) => {
-      await httpClient.postJSON(`/entertainment/threads/${threadId}/resume`);
+      await httpClient.postJSON(`/story/threads/${threadId}/resume`);
     },
 
     submitCurrentUrl: async (threadId, url) => {
       await httpClient.postJSON(
-        `/entertainment/threads/${threadId}/current-url`,
+        `/story/threads/${threadId}/current-url`,
         { url },
       );
     },
 
     resetSources: async (threadId) => {
       await httpClient.postJSON(
-        `/entertainment/threads/${threadId}/reset-sources`,
+        `/story/threads/${threadId}/reset-sources`,
       );
     },
 
     reprocessFailed: async (threadId) => {
       return httpClient.postJSON<{ enqueued: number }>(
-        `/entertainment/threads/${threadId}/reprocess-failed`,
+        `/story/threads/${threadId}/reprocess-failed`,
       );
     },
 
     getThreadConfig: async (threadId) => {
       try {
         const { config } = await httpClient.getJSON<{
-          config: EntertainmentConfig;
-        }>(`/entertainment/threads/${threadId}/config`);
+          config: StoryConfig;
+        }>(`/story/threads/${threadId}/config`);
         return config;
       } catch {
         // 404 (no config) or fetch error — either way nothing to edit.
@@ -313,7 +313,7 @@ export const useChaptersStore = create<ChaptersState>()(
 
     updateThreadConfig: (threadId, config) =>
       httpClient
-        .putJSON<{ ok: boolean }>(`/entertainment/threads/${threadId}/config`, {
+        .putJSON<{ ok: boolean }>(`/story/threads/${threadId}/config`, {
           config,
         })
         .then(() => undefined),
@@ -321,16 +321,16 @@ export const useChaptersStore = create<ChaptersState>()(
     getPosition: async (threadId) => {
       const { lastReadChapterNumber } = await httpClient.getJSON<{
         lastReadChapterNumber: number | null;
-      }>(`/entertainment/threads/${threadId}/position`);
+      }>(`/story/threads/${threadId}/position`);
       return lastReadChapterNumber;
     },
 
     setPosition: (threadId, n) =>
-      httpClient.postJSON(`/entertainment/threads/${threadId}/position`, {
+      httpClient.postJSON(`/story/threads/${threadId}/position`, {
         chapterNumber: n,
       }),
     setReaderCursor: (threadId, chapterNumber) =>
-      httpClient.putJSON("/entertainment/reader-cursor", {
+      httpClient.putJSON("/story/reader-cursor", {
         threadId,
         chapterNumber,
       }),

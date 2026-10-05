@@ -28,7 +28,7 @@
   "general.startup.title": "Startup mode",
   "general.startup.description": "Pick which mode the app opens in",
   "general.startup.chat": "Chat",
-  "general.startup.entertainment": "Entertainment",
+  "general.startup.story": "Story",
   "general.welcome.title": "Welcome screen",
   "general.welcome.description": "Show the mode picker when the app starts",
   "general.welcome.show": "Show the welcome screen on startup",

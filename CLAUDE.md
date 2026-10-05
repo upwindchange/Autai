@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Autai is a desktop application built with Electron, React, and TypeScript. Its core capability is AI-driven **research** — quick, normal, and deep web research that synthesizes cited answers — plus an **entertainment mode** that transforms web novels into cleaner or interactive reading. **Browser-use** (direct AI control of a real browser) is a bonus alpha feature that also serves as the foundation underpinning the research and entertainment agents. The app is in active alpha development.
+Autai is a desktop application built with Electron, React, and TypeScript. Its core capability is AI-driven **research** — quick, normal, and deep web research that synthesizes cited answers — plus a **story mode** that transforms web novels into cleaner or interactive reading. **Browser-use** (direct AI control of a real browser) is a bonus alpha feature that also serves as the foundation underpinning the research and story agents. The app is in active alpha development.
 
 ## Key Commands
 
@@ -48,7 +48,7 @@ pnpm db:generate:custom # Generate a custom (empty) drizzle migration
 - **Main Process** (`src/main/`): Electron main process — manages windows, native APIs, core services, and the AI agent system. Hosts the Hono REST + SSE API server.
 - **Renderer Process** (`src/renderer/`): React 19 app — UI layer with TypeScript, Tailwind CSS v4, and @assistant-ui/react. A pure HTTP/SSE client of the main process.
 - **Preload** (`src/preload/`): **Intentionally a no-op.** The renderer reaches the backend exclusively over HTTP/SSE, and the API port is passed via the load URL (`?apiPort=`). With no IPC surface, there is nothing for `contextBridge` to inject. (`sandbox` is currently `false`, with a tracked follow-up to flip it to `true`.)
-- **Shared** (`src/shared/`): Type definitions shared between main and renderer — `settings`, `providers`, `session`, `tools`, `logger`, `tag`, `mcp`, `auth`, `events`, `entertainment`, plus the `dom/` subpackage.
+- **Shared** (`src/shared/`): Type definitions shared between main and renderer — `settings`, `providers`, `session`, `tools`, `logger`, `tag`, `mcp`, `auth`, `events`, `story`, plus the `dom/` subpackage.
 
 ### Communication: REST + SSE
 
@@ -57,7 +57,7 @@ There is **no Electron IPC**. All renderer↔main traffic is HTTP REST plus Serv
 - **Run modes** (`settings.serverMode`):
   - **Standalone** (default): binds `127.0.0.1` on a random OS-assigned port; the renderer receives the port via `?apiPort=` in its load URL. Local only.
   - **`--remote` CLI flag**: boots in Remote Access mode regardless of the persisted setting (see `settingsService.effectiveServerMode`); settings stay editable and apply again on the next flag-free start. `resetToLocalMode` strips the flag on relaunch (`app.relaunch()` replays argv). Dev: `ELECTRON_CLI_ARGS='["--remote"]' pnpm dev`.
-- **REST routes** mounted in `apiServer.setupRoutes()`: `/chat`, `/entertainment`, `/threads`, `/tags`, `/settings`, `/providers`, `/mcp`, `/events`, `/app`, `/shell`, `/dialog`, `/sessions`, `/hitl`, `/auth`, plus `/health`.
+- **REST routes** mounted in `apiServer.setupRoutes()`: `/chat`, `/story`, `/threads`, `/tags`, `/settings`, `/providers`, `/mcp`, `/events`, `/app`, `/shell`, `/dialog`, `/sessions`, `/hitl`, `/auth`, plus `/health`.
 - **SSE** (`GET /events`, `eventsRoutes.ts`): forwards `eventBus` emissions to connected clients as named events with monotonic IDs, sends a 25s heartbeat to avoid idle timeouts, and resumes from `Last-Event-ID`. Event names: `threads:metadataUpdated`, `threads:suggestionsUpdated`, `app:message`, `splitview:activate`, `threads:listChanged`.
 
 ### Main Process
@@ -67,7 +67,7 @@ The main process initializes in `src/main/index.ts` with this startup sequence: 
 **Agent System** (`src/main/agents/`):
 
 - `apiServer.ts` — Hono REST + SSE server (see above)
-- `routes/` — 14 REST route files (chat, entertainment, threads, tags, settings, providers, mcp, events, app, shell, dialog, sessions, hitl, auth)
+- `routes/` — 14 REST route files (chat, story, threads, tags, settings, providers, mcp, events, app, shell, dialog, sessions, hitl, auth)
 - `providers/` — AI provider factory (`provider.ts`) and registry (`registry.ts`); the provider/model catalog is loaded from TOML files in `resources/providers/`, layered with per-user credentials and overrides stored in SQLite
 - `schemas/` — Zod schemas for API request/response validation
 - `tools/` — Agent tools exported as `allBrowserTools`: `interactiveTools` (click/fill/hover/drag/scroll/getAttribute/evaluate/getBasicInfo), `domTools` (`getDOMTree`/`getFlattenDOM`), `sessionTools`, `navigationTools` (navigate/refresh/goBack/goForward), `hitlTools` (`requestHumanIntervention`/`requestUserInput`/`requestOptionList`/`requestQuestionFlow`), `askUserTool`, `sourceTools`, `calculateTool`
@@ -77,7 +77,7 @@ The main process initializes in `src/main/index.ts` with this startup sequence: 
   - `browserWorker/browser-use/` — **bonus alpha** browser automation: planner → HITL approval → action-executor → replanner → summary (planned mode), or simple direct execution
   - `browserWorker/browser-research/` — normal + quick research: setup → researchPlanner (queries) → executeSearchQueries (per-query tabs) → extractResultsFromUrls (skipped in quick mode) → summarizeFindings / summarizeFindingsFromSnippets → references
   - `browserWorker/deep-research/` — deep research: pre-research → optional HITL clarification (`askUser`) → deepResearchPlanner (subtopics) → per-subtopic loop (plan → search → extract → summarize) → citation remap → composition → references
-  - `entertainmentWorker/scheduler.ts` — entertainment background-worker trigger layer (REST-event driven, no queue): `pipeline1ChapteredFile/rewriter` (file dehydrate loop — serves chaptered and non-chaptered uploads alike), `pipeline2ChapteredInternet/` (per-chapter internet fetch + rewrite), `pipeline3NonChapteredInternet/` (single-page fetch + one-shot rewrite for non-chaptered internet sources).
+  - `storyWorker/scheduler.ts` — story background-worker trigger layer (REST-event driven, no queue): `pipeline1ChapteredFile/rewriter` (file dehydrate loop — serves chaptered and non-chaptered uploads alike), `pipeline2ChapteredInternet/` (per-chapter internet fetch + rewrite), `pipeline3NonChapteredInternet/` (single-page fetch + one-shot rewrite for non-chaptered internet sources).
 
 **Services** (`src/main/services/`):
 
@@ -94,15 +94,15 @@ The main process initializes in `src/main/index.ts` with this startup sequence: 
 **Database** (`src/main/db/`):
 
 - SQLite via better-sqlite3 with Drizzle ORM (1.0.0-beta.22)
-- Schema in `schema.ts` (9 tables): `settings` (key-value), `userProviders`, `modelAssignments` (per-role model selection), `threads` (includes `mode` = `chat`|`entertainment`, plus per-thread `chatProviderId`/`chatModelId`/`chatModelParams`/`chatSystemPrompt` overrides), `messages`, `tags`, `mcpServers`, `threadTags` (many-to-many), `authSessions`
+- Schema in `schema.ts` (9 tables): `settings` (key-value), `userProviders`, `modelAssignments` (per-role model selection), `threads` (includes `mode` = `chat`|`story`, plus per-thread `chatProviderId`/`chatModelId`/`chatModelParams`/`chatSystemPrompt` overrides), `messages`, `tags`, `mcpServers`, `threadTags` (many-to-many), `authSessions`
 - Migrations generated to `drizzle/` via `pnpm db:generate`, copied to `out/main/drizzle/` at build time
 - Custom Vite plugins in `electron.vite.config.ts` handle native binding copy (`bindingSqlite3`, copies the Node-API prebuilt from `node_modules/better-sqlite3/prebuilds/`), migration copy (`copyMigrations`), and dev main-process reload (`watch-main-reload`)
 
 ### App Modes
 
-- **Top-level `appMode`** (`chat` | `entertainment`), toggled in `components/side-bar/nav-secondary.tsx`. Threads are partitioned by `threads.mode`, and the thread list is scoped to the active app mode.
+- **Top-level `appMode`** (`chat` | `story`), toggled in `components/side-bar/nav-secondary.tsx`. Threads are partitioned by `threads.mode`, and the thread list is scoped to the active app mode.
 - **Research sub-modes** (within `chat`, mutually exclusive, held in `uiStore`): `webSearch` (normal research), `quickSearch` (quick research — skips content extraction, summarizes from snippets), `deepResearch` (deep research), and `useBrowser` / `usePlannedBrowser` (bonus alpha browser automation). Each sub-mode maps to a worker under `browserWorker/` (see Agent System).
-- **Entertainment sub-modes**: `dehydrate` (implemented via `entertainmentWorker/`); `audiobook` is a disabled UI placeholder.
+- **Story sub-modes**: `dehydrate` (implemented via `storyWorker/`); `audiobook` is a disabled UI placeholder.
 
 ### Renderer Process
 
@@ -116,14 +116,14 @@ Built on @assistant-ui/react with custom components. The renderer is a pure HTTP
 
 **API layer** (`src/renderer/lib/`): `httpClient.ts` (postJSON/postStream/postCommand/delete/getJSON; emits `AUTH_UNAUTHORIZED_EVENT` on 401), `api.ts` (resolves the API base from `?apiPort=` or same-origin), `serverEvents.ts` (EventSource manager for `/events` with `on()`/`onReconnect()`).
 
-**Adapters**: `adapters/backendThreadListAdapter.tsx` — REST thread CRUD scoped by `appMode`, plus `BackendThreadHistoryAdapter` for message history. `AssistantChatTransport` in `main.tsx` attaches custom headers (`X-Use-Browser`, `X-Web-Search`, `X-Deep-Research`, `X-Quick-Search`, `X-Session-Id`, `X-Mcp-Servers`, `X-Chat-Provider-Id`, `X-Chat-Model-Id`) and routes requests to `/chat` or `/entertainment` based on `appMode`.
+**Adapters**: `adapters/backendThreadListAdapter.tsx` — REST thread CRUD scoped by `appMode`, plus `BackendThreadHistoryAdapter` for message history. `AssistantChatTransport` in `main.tsx` attaches custom headers (`X-Use-Browser`, `X-Web-Search`, `X-Deep-Research`, `X-Quick-Search`, `X-Session-Id`, `X-Mcp-Servers`, `X-Chat-Provider-Id`, `X-Chat-Model-Id`) and routes requests to `/chat` or `/story` based on `appMode`.
 
 **Key Component Areas** (`src/renderer/components/`):
 
 - `ai-chat/` — main chat UI: thread, markdown streaming, attachments, running indicator
 - `assistant-ui/` — vendored from @assistant-ui/react (do not modify directly; copy out if changes needed)
 - `auth/` — `LoginScreen` for remote-access mode
-- `entertainment/` — entertainment-mode UI: `EntertainmentWizard` (with `steps/`), `entertainment-thread` (reader; `reader/` holds footer, TOC, bookmarks, reader-settings), `ProgressBar`
+- `story/` — story-mode UI: `StoryWizard` (with `steps/`), `story-thread` (reader; `reader/` holds footer, TOC, bookmarks, reader-settings), `ProgressBar`
 - `tool-ui/` — tool-specific UI cards: approval-card, citation, input-card, option-list, parameter-slider, plan, question-flow
 - `tools/` — frontend toolkits (generic, hitl)
 - `settings/` — provider/model configuration, MCP servers, connection, AI agents, and other sections under `settings-sections/`

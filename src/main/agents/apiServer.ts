@@ -5,7 +5,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import fs from "node:fs";
 import path from "node:path";
 import { chatRoutes } from "./routes/chatRoutes";
-import { entertainmentRoutes } from "./routes/entertainmentRoutes";
+import { storyRoutes } from "./routes/storyRoutes";
 import { threadRoutes } from "./routes/threadRoutes";
 import { tagRoutes } from "./routes/tagRoutes";
 import { settingsRoutes } from "./routes/settingsRoutes";
@@ -49,7 +49,7 @@ export class ApiServer {
     // downstream handler still run unchanged. ThreadId / chapter number are
     // dynamic, so match by path shape, not value.
     const QUIET_PATH_RE =
-      /^\/(?:entertainment\/threads\/[^/]+\/(?:chapters(?:\/[^/]+)?|bookmarks)|events|health)$/;
+      /^\/(?:story\/threads\/[^/]+\/(?:chapters(?:\/[^/]+)?|bookmarks)|events|health)$/;
 
     this.app.use("*", async (c, next) => {
       if (!QUIET_PATH_RE.test(c.req.path)) {
@@ -85,7 +85,7 @@ export class ApiServer {
 
   private setupRoutes(): void {
     this.app.route("/chat", chatRoutes);
-    this.app.route("/entertainment", entertainmentRoutes);
+    this.app.route("/story", storyRoutes);
     this.app.route("/threads", threadRoutes);
     this.app.route("/tags", tagRoutes);
     this.app.route("/settings", settingsRoutes);

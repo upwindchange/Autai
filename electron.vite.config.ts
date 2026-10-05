@@ -175,7 +175,7 @@ async function buildDecodeWorker(): Promise<Plugin> {
   const esbuild = viteRequire("esbuild");
   const TAG = "[vite-plugin-build-decode-worker]";
   const ENTRY =
-    "src/main/agents/workers/entertainmentWorker/pipeline1ChapteredFile/decodeWorker.ts";
+    "src/main/agents/workers/storyWorker/pipeline1ChapteredFile/decodeWorker.ts";
   const OUT_FILE = "out/main/decodeWorker.cjs";
 
   return {

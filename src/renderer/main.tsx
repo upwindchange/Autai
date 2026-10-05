@@ -13,7 +13,7 @@ import log from "electron-log/renderer";
 import { SidebarLeft } from "@/components/side-bar/sidebar-left";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Thread } from "@/components/ai-chat";
-import { EntertainmentThread } from "@/components/entertainment";
+import { StoryThread } from "@/components/story";
 import { SettingsProvider, SettingsView } from "@/components/settings";
 import { SettingsSidebar } from "@/components/settings/settings-sidebar";
 import { useUiStore } from "@/stores/uiStore";
@@ -43,7 +43,7 @@ import {
 import { useTagStore } from "@/stores/tagStore";
 import { useChaptersStore } from "@/stores/chaptersStore";
 import { useThreadModelStore } from "@/stores/threadModelStore";
-import { useEntertainmentThreadsStore } from "@/stores/entertainmentThreadsStore";
+import { useStoryThreadsStore } from "@/stores/storyThreadsStore";
 import { useRemoteThreadListRuntime } from "@assistant-ui/react";
 import { backendThreadListAdapter } from "@/adapters/backendThreadListAdapter";
 import { UniversalFileAttachmentAdapter } from "@/adapters/universalFileAttachmentAdapter";
@@ -142,14 +142,14 @@ function AppContent() {
   const zenMode = useUiStore((s) => s.zenMode);
   const welcomeActive = useUiStore((s) => s.welcomeActive);
   // The active thread id is the chat runtime's main thread (chat) or the
-  // entertainment store's active thread (entertainment). Both hooks run
+  // story store's active thread (story). Both hooks run
   // unconditionally; the mode only selects which value is used.
   const auiMainThreadId = useAuiState((s) => s.threads.mainThreadId);
-  const entertainmentActiveId = useEntertainmentThreadsStore(
+  const storyActiveId = useStoryThreadsStore(
     (s) => s.activeThreadId,
   );
   const activeThreadId =
-    appMode === "entertainment" ? entertainmentActiveId : auiMainThreadId;
+    appMode === "story" ? storyActiveId : auiMainThreadId;
   // Latest active id readable inside the appMode subscription callback (which
   // fires outside the render cycle).
   const activeThreadIdRef = useRef(activeThreadId);
@@ -159,10 +159,10 @@ function AppContent() {
       (s.threads.find((th) => th.id === activeThreadId)?.title ?? null)
     : null,
   );
-  // In entertainment mode, prefer the CURRENT chapter's title over the thread
+  // In story mode, prefer the CURRENT chapter's title over the thread
   // (novel) title in the app header — it updates live as the reader navigates
   // chapters. Falls back to the thread title when no chapter is open, the
-  // chapter has no title, or we're outside entertainment mode.
+  // chapter has no title, or we're outside story mode.
   const chapterTitle = useChaptersStore((s) => {
     const n = s.currentChapterNumber;
     if (!n) return null;
@@ -170,7 +170,7 @@ function AppContent() {
   });
 
   // Load this thread's saved chat model from the DB once (cached in RAM).
-  // Entertainment has no per-thread chat model, so this is chat-only.
+  // Story has no per-thread chat model, so this is chat-only.
   useEffect(() => {
     if (appMode !== "chat" || !activeThreadId) return;
     void useThreadModelStore.getState().loadFromDb(activeThreadId);
@@ -181,12 +181,12 @@ function AppContent() {
 
   // Reload the thread list when the set of threads changes on the backend
   // (create/delete/archive/bulk from any client). Chat reloads assistant-ui's
-  // internal cache; entertainment re-fetches its own thread set into tagStore.
+  // internal cache; story re-fetches its own thread set into tagStore.
   const refreshThreads = useThreadListRefresh();
   useEffect(() => {
     return serverEvents.on("threads:listChanged", () => {
-      if (useUiStore.getState().appMode === "entertainment") {
-        void useEntertainmentThreadsStore.getState().refresh();
+      if (useUiStore.getState().appMode === "story") {
+        void useStoryThreadsStore.getState().refresh();
       } else {
         void refreshThreads();
       }
@@ -194,7 +194,7 @@ function AppContent() {
   }, [refreshThreads]);
 
   // Reload the active mode's thread set on a top-level mode switch (chat <->
-  // entertainment). Entertainment's load() populates the sidebar thread list
+  // story). Story's load() populates the sidebar thread list
   // only — it never auto-selects or opens a thread. Chat restores its
   // last-active thread via the assistant-ui runtime reload.
   useEffect(() => {
@@ -206,9 +206,9 @@ function AppContent() {
         if (leavingId && !leavingId.startsWith("__LOCALID")) {
           useUiStore.getState().setLastActiveByMode(oldMode, leavingId);
         }
-        if (newMode === "entertainment") {
-          // load() populates the entertainment sidebar thread list.
-          void useEntertainmentThreadsStore.getState().load();
+        if (newMode === "story") {
+          // load() populates the story sidebar thread list.
+          void useStoryThreadsStore.getState().load();
         } else {
           const target = useUiStore.getState().lastActiveByMode.chat;
           void refreshThreads({ restoreTarget: target });
@@ -217,11 +217,11 @@ function AppContent() {
     );
   }, [refreshThreads]);
 
-  // Zen mode is entertainment-only: clamp it off whenever the reader isn't the
+  // Zen mode is story-only: clamp it off whenever the reader isn't the
   // active surface (mode switch or settings open) so it can't linger or snap
   // back unexpectedly. Read via getState() to avoid subscribing to zenMode here.
   useEffect(() => {
-    if (appMode !== "entertainment" || showSettings) {
+    if (appMode !== "story" || showSettings) {
       useUiStore.getState().setZenMode(false);
     }
   }, [appMode, showSettings]);
@@ -268,23 +268,23 @@ function AppContent() {
   }, [showSplitView, setContainerRef]);
 
   // Header title priority: settings title (when settings open) → current
-  // chapter title (entertainment mode, while reading) → thread/novel title →
-  // app default. The chapter title wins only in entertainment mode and only
+  // chapter title (story mode, while reading) → thread/novel title →
+  // app default. The chapter title wins only in story mode and only
   // when present, so the wizard/options page still shows the thread title.
   const headerTitle =
     showSettings ? t("header.settings")
-    : appMode === "entertainment" && chapterTitle ? chapterTitle
+    : appMode === "story" && chapterTitle ? chapterTitle
     : (threadTitle ?? `${t("app.title")} ${t("header.aiAssistant")}`);
   // Compact form for medium header widths: drop the " AI Assistant" suffix from
   // the default title (chapter/thread/settings titles have no shorter form).
   const headerTitleShort =
     showSettings ? t("header.settings")
-    : appMode === "entertainment" && chapterTitle ? chapterTitle
+    : appMode === "story" && chapterTitle ? chapterTitle
     : (threadTitle ?? t("app.title"));
 
   // Effective zen: hide sidebar + header so the reader fills the window. Only
-  // in entertainment mode without settings open.
-  const zen = zenMode && appMode === "entertainment" && !showSettings;
+  // in story mode without settings open.
+  const zen = zenMode && appMode === "story" && !showSettings;
 
   // Boot welcome screen: full-bleed mode picker while active and settings are
   // closed. Opening Settings (Configure-models button on the model panel)
@@ -320,8 +320,8 @@ function AppContent() {
                     <div className="relative flex flex-1 flex-col overflow-hidden min-h-0">
                       {showSettings ?
                         <SettingsView />
-                      : appMode === "entertainment" ?
-                        <EntertainmentThread />
+                      : appMode === "story" ?
+                        <StoryThread />
                       : <Thread />}
                       <div id="chat-panel-portal" />
                     </div>
@@ -342,8 +342,8 @@ function AppContent() {
                 <div className="relative flex flex-1 flex-col overflow-hidden h-full">
                   {showSettings ?
                     <SettingsView />
-                  : appMode === "entertainment" ?
-                    <EntertainmentThread />
+                  : appMode === "story" ?
+                    <StoryThread />
                   : <Thread />}
                   <div id="chat-panel-portal" />
                 </div>
@@ -408,7 +408,7 @@ function App() {
           // The body must be reconstructed here — providing this hook replaces
           // the default body synthesis (which injects messages/id/trigger/
           // messageId), so we mirror that shape to avoid dropping the messages
-          // payload. Entertainment mode has no chat composer — it drives the
+          // payload. Story mode has no chat composer — it drives the
           // backend through the REST chapter routes (chaptersStore) — so every
           // chat send targets /chat.
           prepareSendMessagesRequest: ({

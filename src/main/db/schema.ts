@@ -9,11 +9,11 @@ import {
 import { sql } from "drizzle-orm";
 import type { ThreadMode } from "@shared/tag";
 import type {
-  EntertainmentMode,
+  StoryMode,
   SourceChapterStatus,
   RewrittenChapterStatus,
   ChapterMetaKind,
-} from "@shared/entertainment";
+} from "@shared/story";
 
 export const settings = sqliteTable("settings", {
   key: text().primaryKey(),
@@ -45,7 +45,7 @@ export const threads = sqliteTable("threads", {
   status: text().notNull().default("regular"),
   // Top-level UI mode. Orthogonal to `status` (which assistant-ui owns as
   // regular|archived). `mode` lives entirely outside the runtime as app-local
-  // metadata and partitions threads between the chat UI and the entertainment UI.
+  // metadata and partitions threads between the chat UI and the story UI.
   mode: text("mode").notNull().default("chat"),
   createdAt: text("created_at")
     .notNull()
@@ -80,7 +80,7 @@ export const tags = sqliteTable("tags", {
   color: text(),
   sortOrder: integer("sort_order").notNull().default(0),
   // Top-level UI mode this tag belongs to, mirroring `threads.mode`. Keeps chat
-  // tags (coding/research/…) and entertainment tags (重写/互动) in separate sets
+  // tags (coding/research/…) and story tags (重写/互动) in separate sets
   // so each sidebar only ever shows its own tags.
   mode: text("mode").notNull().default("chat").$type<ThreadMode>(),
   createdAt: text("created_at")
@@ -126,14 +126,14 @@ export const authSessions = sqliteTable("auth_sessions", {
 });
 
 // ---------------------------------------------------------------------------
-// Entertainment mode
+// Story mode
 //
-// Entertainment threads (threads.mode = 'entertainment') hold a novel-reading
-// session. Unlike chat, entertainment is fully decoupled from the `messages`
+// Story threads (threads.mode = 'story') hold a novel-reading
+// session. Unlike chat, story is fully decoupled from the `messages`
 // table: chapter prose lives across `source_chapters` (原文) and
 // `rewritten_chapters` (重写), not in assistant messages. Chapters are
 // first-class entities keyed by their own UUID, never by a message id. All
-// entertainment tables hang off `threads.id`.
+// story tables hang off `threads.id`.
 // ---------------------------------------------------------------------------
 
 // Wizard settings + novel origin, 1:1 with a thread. `mode` + `options` are the
@@ -141,22 +141,18 @@ export const authSessions = sqliteTable("auth_sessions", {
 // (file path / URL / search guidance) from the wizard — NOT the novel content.
 // It is nullable and updatable because the input is dynamic. The actual
 // novel content accrues as `source_chapters` / `rewritten_chapters` rows.
-export const entertainmentConfigs = sqliteTable("entertainment_configs", {
+export const storyConfigs = sqliteTable("story_configs", {
   threadId: text("thread_id")
     .primaryKey()
     .references(() => threads.id, { onDelete: "cascade" }),
-  mode: text("mode").notNull().$type<EntertainmentMode>(),
+  mode: text("mode").notNull().$type<StoryMode>(),
   options: text("options").notNull(), // JSON: mode-dependent settings (basic/depth/frequency)
   novelSource: text("novel_source"), // nullable, updatable JSON: origin pointer/instruction (see above)
   // Last-read chapter for interrupt recovery (point 9); reopen resumes here.
   // Renamed from lastChapterNumber to avoid collision with finalChapterNumber.
   lastReadChapterNumber: integer("last_read_chapter_number"),
   // Final chapter number of the book. null = unknown → assume the next chapter
-  // exists.
-  // Distinct from lastReadChapterNumber (resume position).
-  // Final chapter number of the book. null = unknown → assume the next chapter
-  // exists.
-  // Distinct from lastReadChapterNumber (resume position).
+  // exists. Distinct from lastReadChapterNumber (resume position).
   finalChapterNumber: integer("final_chapter_number"),
   // Dead-site blocklist for internet fetches, JSON `Record<hostname, reason>`
   // (e.g. { "www.shuqi.com": "paywall" }). Persistent so a restart (or a
@@ -275,7 +271,7 @@ export const bookmarks = sqliteTable(
 // whose shape varies by kind (validated per-kind via Zod in app code). Seeded
 // kinds cover Requirement 5: per-chapter setting, user interaction, agent
 // comments, tool calls, and agent-offered story interaction options. Adding a
-// new kind for a future entertainment mode needs NO migration — just a new kind
+// new kind for a future story mode needs NO migration — just a new kind
 // string + a Zod payload schema. `sortOrder` orders multiple same-kind rows
 // (e.g. several agent comments or offered options). threadId is denormalized for
 // thread-level queries ("all agent comments in this thread").

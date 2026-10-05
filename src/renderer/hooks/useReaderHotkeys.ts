@@ -49,7 +49,7 @@ function ownsKeystroke(target: EventTarget | null): boolean {
 }
 
 /**
- * Window-level keyboard shortcuts for the entertainment reader.
+ * Window-level keyboard shortcuts for the story reader.
  *
  * Attached once on mount; the latest props are read through a ref so changing
  * `canGoPrev` / `canGoNext` / the nav callbacks never re-subscribes and never

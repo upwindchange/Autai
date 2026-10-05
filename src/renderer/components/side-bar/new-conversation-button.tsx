@@ -4,7 +4,7 @@ import { PlusIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { useUiStore } from "@/stores/uiStore";
 import { useChaptersStore } from "@/stores/chaptersStore";
-import { useEntertainmentThreadsStore } from "@/stores/entertainmentThreadsStore";
+import { useStoryThreadsStore } from "@/stores/storyThreadsStore";
 
 /**
  * "New Conversation" — mode-branched.
@@ -12,7 +12,7 @@ import { useEntertainmentThreadsStore } from "@/stores/entertainmentThreadsStore
  * CHAT mode: the stock assistant-ui flow. `ThreadListPrimitive.New` eagerly
  * creates a DB row via `adapter.initialize` (POST /threads) and switches to it.
  *
- * ENTERTAINMENT mode: drop the current thread and open a fresh wizard
+ * STORY mode: drop the current thread and open a fresh wizard
  * (`abandon` — synchronous, POST-free; the next thread is created only at the
  * wizard's StepNovel commit). Disabled while the wizard is showing: abandoning
  * an in-progress wizard is the wizard's own "Start over" concern.
@@ -21,8 +21,8 @@ export function NewConversationButton() {
   const { t } = useTranslation("common");
   const appMode = useUiStore((s) => s.appMode);
 
-  if (appMode === "entertainment") {
-    return <EntertainmentNewConversationButton />;
+  if (appMode === "story") {
+    return <StoryNewConversationButton />;
   }
   return (
     <ThreadListPrimitive.New asChild>
@@ -35,10 +35,10 @@ export function NewConversationButton() {
 }
 
 /**
- * The entertainment-mode variant. Only active in the reader (a thread with an
+ * The story-mode variant. Only active in the reader (a thread with an
  * open chapter); disabled while the wizard is showing.
  */
-function EntertainmentNewConversationButton() {
+function StoryNewConversationButton() {
   const { t } = useTranslation("common");
   // The wizard shows when no chapter is open. Disable the button then —
   // abandoning an in-progress wizard is the wizard's own concern.
@@ -46,7 +46,7 @@ function EntertainmentNewConversationButton() {
   return (
     <Button
       className="aui-thread-list-new h-9 w-full justify-start gap-2 rounded-lg px-3 disabled:opacity-50"
-      onClick={() => useEntertainmentThreadsStore.getState().abandon()}
+      onClick={() => useStoryThreadsStore.getState().abandon()}
       disabled={inWizard}
     >
       <PlusIcon className="size-4" />

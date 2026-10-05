@@ -43,7 +43,7 @@ export function SettingsProvider({ children }: SettingsProviderProps) {
       const loadedSettings = (await res.json()) as SettingsState;
       setSettings(loadedSettings);
       // Seed the boot mode once settings arrive: the persisted default
-      // decides which top-level mode (chat | entertainment) the app opens
+      // decides which top-level mode (chat | story) the app opens
       // in. This runs only on mount (one-shot), so manual toggles afterward
       // stick for the session; the default re-applies on the next launch.
       const bootMode = loadedSettings.defaultAppMode;

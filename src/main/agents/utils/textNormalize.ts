@@ -1,6 +1,6 @@
 /**
  * Canonical text normalisation applied during novel file ingestion
- * (`decodeViaWorker` in entertainmentRoutes.ts), on the raw bytes after iconv
+ * (`decodeViaWorker` in storyRoutes.ts), on the raw bytes after iconv
  * decoding, BEFORE persisting the novel text to DB.
  *
  * Pipeline (order matters — each step assumes the prior one ran):

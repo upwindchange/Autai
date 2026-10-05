@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
-import { EntertainmentConfigSchema, type DehydrateConfig } from "@shared";
-import { buildDehydrateSystemPrompt } from "../src/main/agents/workers/entertainmentWorker/shared/dehydratePrompt";
+import { StoryConfigSchema, type DehydrateConfig } from "@shared";
+import { buildDehydrateSystemPrompt } from "../src/main/agents/workers/storyWorker/shared/dehydratePrompt";
 
 /**
  * The dehydrate system prompt's 章节并写 (crossChapter) contract: the
@@ -13,7 +13,7 @@ function makeOptions(overrides?: {
 }): DehydrateConfig["options"] {
   // Parse once with no crossChapter override so zod fills every nested
   // default (tactics, depth, language…), then patch the dial on the result.
-  const base = EntertainmentConfigSchema.parse({
+  const base = StoryConfigSchema.parse({
     mode: "dehydrate",
     novel: { type: "file", filename: "a.txt" },
     options: { basic: {}, depth: {}, language: {}, nonNovelSource: false },

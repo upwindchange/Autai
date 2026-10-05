@@ -32,5 +32,5 @@ export * from "./mcp";
 // Auth types
 export * from "./auth";
 
-// Entertainment wizard config (shared between renderer + main)
-export * from "./entertainment";
+// Story wizard config (shared between renderer + main)
+export * from "./story";

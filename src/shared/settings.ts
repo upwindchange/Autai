@@ -129,7 +129,7 @@ const DEFAULT_SETTINGS = {
   defaultModelParams: undefined as
     z.infer<typeof ModelParametersSchema> | undefined,
   language: "system" as const,
-  // Which top-level mode (chat | entertainment) the app opens in on boot.
+  // Which top-level mode (chat | story) the app opens in on boot.
   defaultAppMode: "chat" as const,
   // Whether the boot mode-picker (welcome screen) shows before the layout.
   showWelcomeOnStartup: true as const,
@@ -176,7 +176,7 @@ export const SettingsStateSchema = z
     defaultModelParams: ModelParametersSchema.optional(),
     language: z.enum(["system", "en", "zh"]).default(DEFAULT_SETTINGS.language),
     defaultAppMode: z
-      .enum(["chat", "entertainment"])
+      .enum(["chat", "story"])
       .default(DEFAULT_SETTINGS.defaultAppMode),
     showWelcomeOnStartup: z
       .boolean()

@@ -10,13 +10,13 @@ import log from "electron-log/main";
 const logger = log.scope("ApiServer:Tags");
 export const tagRoutes = new Hono();
 
-// GET /tags - list tags. Optional ?mode=chat|entertainment scopes to one set so
+// GET /tags - list tags. Optional ?mode=chat|story scopes to one set so
 // each sidebar only sees its own tags; omitted returns all.
 tagRoutes.get("/", (c) => {
   try {
-    const mode = c.req.query("mode") as "chat" | "entertainment" | undefined;
+    const mode = c.req.query("mode") as "chat" | "story" | undefined;
     const tags =
-      mode === "chat" || mode === "entertainment" ?
+      mode === "chat" || mode === "story" ?
         threadPersistenceService.listTagsByMode(mode)
       : threadPersistenceService.listTags();
     return c.json({ tags });
@@ -91,7 +91,7 @@ tagRoutes.delete("/:id", (c) => {
 // does not undo user renames/edits.
 tagRoutes.post("/reset-defaults", async (c) => {
   const parsed = z
-    .object({ mode: z.enum(["chat", "entertainment"]) })
+    .object({ mode: z.enum(["chat", "story"]) })
     .safeParse(await c.req.json());
   if (!parsed.success) {
     return c.json({ error: "Invalid mode", details: parsed.error.issues }, 400);

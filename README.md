@@ -6,9 +6,9 @@
 
 **An AI editor for the books you read — on top of a first-class AI chat app.**
 
-Entertainment Mode is the star: hand it a web serial, a fan translation, or a text file and it wrings the filler out, polishes the prose, translates, and serves the book in a proper reader. Underneath, Autai is a full-featured AI chat client that stands with the best of them — 200+ providers and 7,000+ models, self-hosted and local APIs included, rich rendered answers with math, code, and graphs plotted right in the conversation, MCP tool servers, a built-in browser the AI operates for you, and Perplexity-style research that reads the web and answers with citations. Your API keys, your models, running on your machine.
+Story Mode is the star: hand it a web serial, a fan translation, or a text file and it wrings the filler out, polishes the prose, translates, and serves the book in a proper reader. Underneath, Autai is a full-featured AI chat client that stands with the best of them — 200+ providers and 7,000+ models, self-hosted and local APIs included, rich rendered answers with math, code, and graphs plotted right in the conversation, MCP tool servers, a built-in browser the AI operates for you, and Perplexity-style research that reads the web and answers with citations. Your API keys, your models, running on your machine.
 
-[Download](https://github.com/upwindchange/autai/releases) · [Entertainment Mode](#-entertainment-mode) · [Features](#features) · [Getting Started](#getting-started) · [简体中文](docs/README.zh-CN.md)
+[Download](https://github.com/upwindchange/autai/releases) · [Story Mode](#-story-mode) · [Features](#features) · [Getting Started](#getting-started) · [简体中文](docs/README.zh-CN.md)
 
 [![Release](https://img.shields.io/github/v/release/upwindchange/autai?include_prereleases&style=flat-square)](https://github.com/upwindchange/autai/releases)
 [![License](https://img.shields.io/badge/license-MIT-007EC7?style=flat-square)](LICENSE)
@@ -19,9 +19,9 @@ Entertainment Mode is the star: hand it a web serial, a fan translation, or a te
 
 ---
 
-## 📖 Entertainment Mode
+## 📖 Story Mode
 
-Not everything you want to read was edited by someone who cared. Web serials ship a chapter a day and it shows. Fan translations fight grammar to a draw. Some books are 40% story and 60% word count. Entertainment Mode puts an AI editor between you and the rough draft: **it cuts the word count and keeps the story.**
+Not everything you want to read was edited by someone who cared. Web serials ship a chapter a day and it shows. Fan translations fight grammar to a draw. Some books are 40% story and 60% word count. Story Mode puts an AI editor between you and the rough draft: **it cuts the word count and keeps the story.**
 
 - **Cut the word count, keep the story.** Last chapter recapped again, the magic system re-explained, another tournament round, one more collective gasp from the crowd — compressed on contact. A single dial sets how hard, from *light touch* to *get on with it*. The plot, characters, payoffs, and foreshadowing stay exactly where the author left them.
 - **Fix the prose.** Grammar, punctuation, and the clichés every serial leans on — rewritten until they stop being clichés. Or run it the other direction: an expansion pass turns flat fight scenes into set pieces, without padding a single paragraph.
@@ -209,7 +209,7 @@ Bugs and ideas? [Open an issue](https://github.com/upwindchange/autai/issues).
 ---
 
 ## Roadmap
-- **Audiobook mode** — multi-voice audio drama and podcast-style narration for Entertainment Mode.
+- **Audiobook mode** — multi-voice audio drama and podcast-style narration for Story Mode.
 - **Flathub & auto-updates**.
 - **More languages** for the UI.
 

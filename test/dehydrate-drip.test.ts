@@ -1,13 +1,13 @@
 import { describe, expect, test } from "vitest";
-import { EntertainmentConfigSchema, type DehydrateConfig } from "@shared";
+import { StoryConfigSchema, type DehydrateConfig } from "@shared";
 import {
   buildDehydrateSystemPrompt,
   buildDehydrateLeadInUserContent,
-} from "../src/main/agents/workers/entertainmentWorker/shared/dehydratePrompt";
+} from "../src/main/agents/workers/storyWorker/shared/dehydratePrompt";
 
 function makeOptions(): DehydrateConfig["options"] {
   // Parse once so zod fills every nested default (tactics, depth, language…).
-  return EntertainmentConfigSchema.parse({
+  return StoryConfigSchema.parse({
     mode: "dehydrate",
     novel: { type: "file", filename: "a.txt" },
     options: { basic: {}, depth: {}, language: {}, nonNovelSource: false },

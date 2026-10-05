@@ -128,8 +128,8 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
                 <TabsTrigger value="chat">
                   {t("tagManagement.chatTab")}
                 </TabsTrigger>
-                <TabsTrigger value="entertainment">
-                  {t("tagManagement.entertainmentTab")}
+                <TabsTrigger value="story">
+                  {t("tagManagement.storyTab")}
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="chat">
@@ -139,10 +139,10 @@ export function ThreadsSection({ settings }: ThreadsSectionProps) {
                   onChanged={loadTags}
                 />
               </TabsContent>
-              <TabsContent value="entertainment">
+              <TabsContent value="story">
                 <TagManager
-                  mode="entertainment"
-                  tags={tags.filter((tag) => tag.mode === "entertainment")}
+                  mode="story"
+                  tags={tags.filter((tag) => tag.mode === "story")}
                   onChanged={loadTags}
                 />
               </TabsContent>

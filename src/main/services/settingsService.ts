@@ -153,8 +153,8 @@ class SettingsService {
           JSON.parse(settingsMap.get("model_overrides")!)
         : [],
       defaultAppMode:
-        settingsMap.get("default_app_mode") === "entertainment" ?
-          "entertainment"
+        settingsMap.get("default_app_mode") === "story" ?
+          "story"
         : "chat",
       showWelcomeOnStartup:
         settingsMap.get("show_welcome_on_startup") !== "false",
@@ -319,7 +319,7 @@ class SettingsService {
 
   // Raw key-value access for internal flags that must NOT surface through the
   // typed SettingsState (and therefore never reach GET/PUT /settings or the
-  // renderer). Used by one-shot seed markers like the Chinese entertainment tag
+  // renderer). Used by one-shot seed markers like the Chinese story tag
   // population flag.
   getRawSetting(key: string): string | undefined {
     const db = getDb();

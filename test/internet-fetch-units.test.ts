@@ -4,7 +4,7 @@ import {
   buildSearchQuery,
   filterBlockedHosts,
   probeWallMarkers,
-} from "../src/main/agents/workers/entertainmentWorker/pipeline2ChapteredInternet/internetFetch/pure";
+} from "../src/main/agents/workers/storyWorker/pipeline2ChapteredInternet/internetFetch/pure";
 
 describe("buildSearchQuery", () => {
   test("joins title + author with a single space", () => {

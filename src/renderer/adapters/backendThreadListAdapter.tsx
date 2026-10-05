@@ -80,7 +80,7 @@ class BackendThreadHistoryAdapter implements ThreadHistoryAdapter {
 
 export const backendThreadListAdapter: RemoteThreadListAdapter = {
   async list() {
-    // This adapter serves the chat thread list only — entertainment manages its
+    // This adapter serves the chat thread list only — story manages its
     // own threads independently — so the mode is a fixed fact of the adapter,
     // not a parameter.
     const res = await fetch(`${getApiBase()}/threads?mode=chat`);
@@ -89,7 +89,7 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
         id: string;
         title: string;
         status: "regular" | "archived";
-        mode: "chat" | "entertainment";
+        mode: "chat" | "story";
         tags: TagRow[];
       }[];
     };

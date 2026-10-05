@@ -7,7 +7,7 @@ import {
   modelAssignments,
   settings,
   mcpServers,
-  entertainmentConfigs,
+  storyConfigs,
   sourceChapters,
   rewrittenChapters,
   bookmarks,
@@ -21,8 +21,8 @@ export type UserProviderRow = InferSelectModel<typeof userProviders>;
 export type ModelAssignmentRow = InferSelectModel<typeof modelAssignments>;
 export type SettingRow = InferSelectModel<typeof settings>;
 export type McpServerRow = InferSelectModel<typeof mcpServers>;
-export type EntertainmentConfigRow = InferSelectModel<
-  typeof entertainmentConfigs
+export type StoryConfigRow = InferSelectModel<
+  typeof storyConfigs
 >;
 export type SourceChapterRow = InferSelectModel<typeof sourceChapters>;
 export type RewrittenChapterRow = InferSelectModel<typeof rewrittenChapters>;

@@ -14,7 +14,7 @@ export interface TagRow {
 
 /**
  * Top-level UI mode for a thread. Orthogonal to `status` (regular|archived).
- * `mode` partitions threads between the chat UI ("chat") and the entertainment
- * UI ("entertainment").
+ * `mode` partitions threads between the chat UI ("chat") and the story
+ * UI ("story").
  */
-export type ThreadMode = "chat" | "entertainment";
+export type ThreadMode = "chat" | "story";

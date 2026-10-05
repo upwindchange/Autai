@@ -6,7 +6,7 @@ import { httpClient } from "@/lib/httpClient";
 /**
  * Reader bookmarks store — the bookmark panel's source of truth.
  *
- * Like `chaptersStore`, this is a thin cache over the entertainment REST API:
+ * Like `chaptersStore`, this is a thin cache over the story REST API:
  * load on thread switch, await-then-prepend on create (the POST returns the
  * exact row to render, so there's no flash and no missing createdAt), and
  * optimistically remove on delete (deletion is idempotent and feels instant).
@@ -44,7 +44,7 @@ export const useBookmarksStore = create<BookmarksState>()(
       try {
         const { bookmarks } = await httpClient.getJSON<{
           bookmarks: Bookmark[];
-        }>(`/entertainment/threads/${threadId}/bookmarks`);
+        }>(`/story/threads/${threadId}/bookmarks`);
         set({
           currentThreadId: threadId,
           bookmarks: [...bookmarks].sort(byCreatedAtDesc),
@@ -57,7 +57,7 @@ export const useBookmarksStore = create<BookmarksState>()(
 
     addBookmark: async (threadId, { chapterNumber, percentile }) => {
       const { bookmark } = await httpClient.postJSON<{ bookmark: Bookmark }>(
-        `/entertainment/threads/${threadId}/bookmarks`,
+        `/story/threads/${threadId}/bookmarks`,
         {
           chapterNumber,
           // percentile (0–100) of the rendered chapter; 0 = top.
@@ -76,7 +76,7 @@ export const useBookmarksStore = create<BookmarksState>()(
         bookmarks: state.bookmarks.filter((b) => b.id !== id),
       }));
       await httpClient.delete(
-        `/entertainment/threads/${threadId}/bookmarks/${id}`,
+        `/story/threads/${threadId}/bookmarks/${id}`,
       );
     },
   })),

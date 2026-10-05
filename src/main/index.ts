@@ -15,7 +15,7 @@ import {
   TabControlService,
   threadPersistenceService,
   threadIntelligenceService,
-  entertainmentBackendService,
+  storyBackendService,
 } from "@/services";
 import { PQueueManager } from "@agents/utils";
 import { apiServer } from "@agents";
@@ -249,7 +249,7 @@ app.whenReady().then(async () => {
   // previous process that died mid-run (power loss / crash / force-quit) to
   // `error` so they become ordinary retryable rows. Must run BEFORE any
   // scheduler can start a runner (those would re-freeze the rows).
-  entertainmentBackendService.sweepStaleInProgress();
+  storyBackendService.sweepStaleInProgress();
   searchService.initialize();
   threadPersistenceService.initialize();
 

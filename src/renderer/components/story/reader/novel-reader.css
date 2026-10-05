@@ -1,0 +1,21 @@
+/* Novel-prose typography for the story reader. ChapterBody renders a
+ * chapter as plain <p> paragraphs inside a .novel-reader container; these rules
+ * shape them. Values come from the --reader-* custom properties that
+ * buildReaderCssVars() sets on the thread root, so the settings panel can
+ * live-update typography without re-rendering the prose. `text-pretty`
+ * (balanced CJK wrapping) is a Tailwind utility on the container, not a rule
+ * here. Each var has a fallback for first paint before the store hydrates. */
+
+.novel-reader {
+  font-size: var(--reader-font-size, 1.0625rem);
+  line-height: var(--reader-line-height, 1.9);
+  letter-spacing: var(--reader-letter-spacing, 0);
+  font-weight: var(--reader-font-weight, 400);
+  text-align: var(--reader-text-align, left);
+  color: var(--reader-text-color, var(--foreground));
+}
+
+.novel-reader p {
+  margin-block: var(--reader-paragraph-spacing, 0.85em);
+  text-indent: var(--reader-indent, 2em);
+}

@@ -1,0 +1,605 @@
+import "./reader/novel-reader.css"; // scoped novel-reading typography
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type FC,
+  type Dispatch,
+  type MouseEvent as ReactMouseEvent,
+  type SetStateAction,
+} from "react";
+import { useTranslation } from "react-i18next";
+import { ArrowLeft, Loader2 } from "lucide-react";
+import { DotMatrix } from "@/components/assistant-ui/dot-matrix";
+import { Button } from "@/components/ui/button";
+import { useStoryThreadsStore } from "@/stores/storyThreadsStore";
+import { useReaderSettings } from "@/stores/readerSettingsStore";
+import { useChaptersStore, type ChapterView } from "@/stores/chaptersStore";
+import { useChapterReadiness } from "@/hooks/useChapterReadiness";
+import { useReaderHotkeys } from "@/hooks/useReaderHotkeys";
+import { useIsMobile } from "@/hooks/use-mobile";
+import type { ChapterStatus, StoryConfig } from "@shared";
+import type { WallPromptPayload } from "@shared/events";
+import { httpClient } from "@/lib/httpClient";
+import { serverEvents } from "@/lib/serverEvents";
+import { StoryWizard } from "./wizard/StoryWizard";
+import { StepOptions } from "./wizard/steps/StepOptions";
+import { buildReaderCssVars } from "./reader/reader-settings/reader-theme";
+import { ReaderFooter } from "./reader/ReaderFooter";
+import { WallPromptCard } from "./reader/WallPromptCard";
+
+// Desktop-only bottom band (px from the reading viewport's bottom edge) that
+// reveals the footer on hover. Invisible — hover is detected via mousemove, not
+// an overlay, so the prose stays fully interactive. Tuned to sit just above the
+// footer pill on both tall phones and short desktop windows.
+const HOVER_BAND_PX = 120;
+
+// Module-level mount generation + pending unmount-clear timer for the
+// reader-cursor effect below. Module scope (not state): it must survive across
+// StrictMode's mount→cleanup→mount cycle and be shared by both instances.
+let readerCursorMountGeneration = 0;
+let readerCursorClearTimer: number | null = null; // window.setTimeout id
+
+/**
+ * Story thread — a guided novel-reading surface.
+ *
+ * DB-backed + polling-driven: the reader renders from the chapters store, which
+ * polls chapter detail + worker liveness (`useChapterReadiness`). The reader
+ * NEVER shows 原文 — it renders fetching / rewriting / ready / error states
+ * derived from the source+rewrite statuses, and only the rewritten prose once
+ * ready. The active thread id comes from the story store.
+ */
+
+export const StoryThread: FC = () => {
+  const settings = useReaderSettings();
+  const activeThreadId = useStoryThreadsStore((s) => s.activeThreadId);
+  const isMobile = useIsMobile();
+
+  const chapters = useChaptersStore((s) => s.chapters);
+  const currentChapterNumber = useChaptersStore((s) => s.currentChapterNumber);
+  const novelType = useChaptersStore((s) => s.novelType);
+  const finalChapterNumber = useChaptersStore((s) => s.finalChapterNumber);
+  const loadChapters = useChaptersStore((s) => s.loadChapters);
+  const getPosition = useChaptersStore((s) => s.getPosition);
+  const setPosition = useChaptersStore((s) => s.setPosition);
+  const setCurrentChapter = useChaptersStore((s) => s.setCurrentChapter);
+  const getThreadConfig = useChaptersStore((s) => s.getThreadConfig);
+  const updateThreadConfig = useChaptersStore((s) => s.updateThreadConfig);
+  const setReaderCursor = useChaptersStore((s) => s.setReaderCursor);
+  // Last fetch error (chapter list or detail) — when set, the backend is/was
+  // unreachable, which is otherwise indistinguishable from "still fetching".
+  const fetchError = useChaptersStore((s) => s.error);
+  const { t } = useTranslation("reader");
+
+  const viewportRef = useRef<HTMLDivElement>(null);
+  // Common ancestor of BOTH the reading viewport and the ReaderFooter overlay.
+  // The desktop hover listener attaches here, not to the viewport — see the
+  // hover effect below for why.
+  const rootRef = useRef<HTMLDivElement>(null);
+  // A pending jump { chapterNumber, percentile }; the apply layout-effect below
+  // scrolls to it once the target chapter's prose is measurable. Scoped to the
+  // target chapter — navigating elsewhere discards it.
+  const pendingJumpRef = useRef<{
+    chapterNumber: number;
+    percentile: number;
+  } | null>(null);
+  // Pinned open by a tap/click on the reading surface (mobile + desktop); the
+  // footer also reveals on desktop hover. See ReaderFooter.
+  const [footerPinned, setFooterPinned] = useState(false);
+  // Desktop hover state for the footer (driven by the mousemove effect below).
+  const [footerHovered, setFooterHovered] = useState(false);
+
+  // On thread switch: load chapters + resume position. The start chapter is a
+  // pending jump at percentile 0 so the apply effect scrolls it to the top.
+  // "Has chapters" = has REWRITE rows: the spine also carries source-only rows
+  // (internet fetch in flight), but a thread that never got past prefetch must
+  // keep opening the wizard, not the reader. A mid-book internet thread (start
+  // chapter >1) has no chapter-1 rows at all, so the fresh-thread default is
+  // the spine's FIRST chapter, not hardcoded 1.
+  useEffect(() => {
+    if (!activeThreadId) return;
+    void (async () => {
+      await loadChapters(activeThreadId);
+      const pos = await getPosition(activeThreadId);
+      const { chapters: spine } = useChaptersStore.getState();
+      const firstChapter = spine[0]?.chapterNumber ?? 1;
+      const committed = spine.some((c) => c.rewriteStatus != null);
+      const start = pos ?? (committed ? firstChapter : null);
+      if (start == null) return; // fresh thread — the wizard drives the first chapter.
+      pendingJumpRef.current = { chapterNumber: start, percentile: 0 };
+      setCurrentChapter(start);
+    })();
+  }, [activeThreadId, loadChapters, getPosition, setCurrentChapter]);
+
+  useEffect(() => {
+    const chapterNumber = activeThreadId ? (currentChapterNumber ?? 1) : null;
+    void setReaderCursor(activeThreadId, chapterNumber);
+  }, [activeThreadId, currentChapterNumber, setReaderCursor]);
+
+  // Wall prompt (chaptered internet fetch): SSE-driven parking card asking
+  // the reader to step in on a walled site or skip. Recovered over REST on
+  // mount + SSE reconnect; dismissed via the `cleared` state. Thread-scoped:
+  // events for other threads are ignored (their reader owns the card).
+  const [wallPrompt, setWallPrompt] = useState<WallPromptPayload | null>(null);
+  useEffect(() => {
+    if (!activeThreadId) {
+      setWallPrompt(null);
+      return;
+    }
+    void httpClient
+      .getJSON<{ prompt: WallPromptPayload | null }>(
+        `/story/threads/${activeThreadId}/wall-prompt`,
+      )
+      .then((r) => setWallPrompt(r.prompt))
+      .catch(() => {});
+    const dispose = serverEvents.on("story:wallPrompt", (p) => {
+      if (p.threadId !== activeThreadId) return;
+      setWallPrompt(p.state === "cleared" ? null : p);
+    });
+    const disposeReconnect = serverEvents.onReconnect(() => {
+      void httpClient
+        .getJSON<{ prompt: WallPromptPayload | null }>(
+          `/story/threads/${activeThreadId}/wall-prompt`,
+        )
+        .then((r) => setWallPrompt(r.prompt))
+        .catch(() => {});
+    });
+    return () => {
+      dispose();
+      disposeReconnect();
+    };
+  }, [activeThreadId]);
+
+  // Null the cursor on unmount only — a separate effect so its cleanup doesn't
+  // fire on every chapter nav. StrictMode double-mount (and any boot-time
+  // remount) runs mount→cleanup→mount back-to-back; a naive clear there PUTs a
+  // null cursor right after the set-effect PUT the thread id, and the backend
+  // reader-cursor route then stopThread()s the runner that PUT just started.
+  // Defer the clear by a macrotask; a successor mount cancels it (a real
+  // unmount has no successor).
+  useEffect(() => {
+    const myGeneration = ++readerCursorMountGeneration;
+    return () => {
+      if (readerCursorClearTimer !== null) {
+        window.clearTimeout(readerCursorClearTimer);
+        readerCursorClearTimer = null;
+      }
+      readerCursorClearTimer = window.setTimeout(() => {
+        readerCursorClearTimer = null;
+        if (readerCursorMountGeneration !== myGeneration) return; // remounted
+        void setReaderCursor(null, null);
+      }, 0);
+    };
+  }, [setReaderCursor]);
+
+  // Drive the current chapter to readiness (poll until rewritten/errored).
+  useChapterReadiness(activeThreadId, currentChapterNumber);
+
+  const current =
+    currentChapterNumber != null ?
+      chapters.find((c) => c.chapterNumber === currentChapterNumber)
+    : undefined;
+
+  const maxChapterNumber = chapters.reduce(
+    (m, c) => Math.max(m, c.chapterNumber),
+    0,
+  );
+  // A mid-book internet thread's spine begins at N>1; prev must stop at the
+  // first REAL chapter, not at 1 (chapters before the start were never fetched).
+  const firstChapterNumber = chapters[0]?.chapterNumber ?? 1;
+  const canGoPrev =
+    currentChapterNumber != null && currentChapterNumber > firstChapterNumber;
+  const canGoNext =
+    currentChapterNumber != null &&
+    (finalChapterNumber != null ?
+      currentChapterNumber < finalChapterNumber // known end → stop there
+    : novelType === "internet" || // absent → assume next exists
+      currentChapterNumber < maxChapterNumber);
+
+  // Scroll to a within-chapter percentile (0 = top, 100 = bottom). Instant (not
+  // smooth) so it can't race with a reader hotkey; a chapter that fits (max ≤ 0)
+  // has only one valid spot, the top.
+  const scrollToPercentile = (percentile: number) => {
+    const vp = viewportRef.current;
+    if (!vp) return;
+    const max = vp.scrollHeight - vp.clientHeight;
+    const top = max > 0 ? Math.round((percentile / 100) * max) : 0;
+    vp.scrollTo({ top, behavior: "instant" });
+  };
+
+  // Current within-chapter scroll position as a percentile (0–100). 0 when the
+  // viewport isn't mounted or the chapter fits it. Captured into a bookmark's
+  // anchor when the reader saves a spot.
+  const getScrollPercentile = (): number => {
+    const vp = viewportRef.current;
+    if (!vp) return 0;
+    const max = vp.scrollHeight - vp.clientHeight;
+    if (max <= 0) return 0;
+    return Math.min(100, Math.max(0, (vp.scrollTop / max) * 100));
+  };
+
+  // Single entry point for all chapter navigation. Records the intent; same-
+  // chapter applies immediately, cross-chapter restores the percentile once ready.
+  const jumpTo = (chapterNumber: number, percentile: number) => {
+    if (!activeThreadId) return;
+    pendingJumpRef.current = { chapterNumber, percentile };
+    if (chapterNumber === currentChapterNumber) {
+      scrollToPercentile(percentile);
+      pendingJumpRef.current = null;
+      return;
+    }
+    setCurrentChapter(chapterNumber);
+    void setPosition(activeThreadId, chapterNumber);
+  };
+
+  // Apply a pending jump once the target chapter's prose is measurable.
+  // useLayoutEffect so the scroll lands before paint (no top-then-jump flash).
+  // Navigated elsewhere → discard; not yet ready → wait (deps re-fire).
+  useLayoutEffect(() => {
+    const pending = pendingJumpRef.current;
+    if (!pending) return;
+    if (currentChapterNumber !== pending.chapterNumber) {
+      pendingJumpRef.current = null; // navigated elsewhere — discard
+      return;
+    }
+    if (
+      current?.rewriteStatus !== "rewritten" &&
+      current?.rewriteStatus !== "to_be_continued"
+    )
+      return; // wait for content
+    scrollToPercentile(pending.percentile);
+    pendingJumpRef.current = null; // content ready — jump complete
+  }, [currentChapterNumber, current?.rewriteStatus, current?.content]);
+
+  // Desktop hover: reveal the footer when the pointer enters the bottom band,
+  // hide when it leaves. Tracked geometrically from window-level mousemove:
+  // footer tooltips portal their content to <body>, so while the pointer is
+  // over a tooltip it is NOT over any root descendant — root-scoped listeners
+  // would fire `mouseleave` (and no `mousemove`), hiding the footer out from
+  // under the open tooltip, which then closed and let the footer re-reveal —
+  // an open/close oscillation on every tooltip hover. The rect test works no
+  // matter what element sits under the pointer; the horizontal clamp keeps
+  // the old "pointer moved onto chrome outside this reader" hiding.
+  useEffect(() => {
+    if (isMobile) return;
+    const el = rootRef.current;
+    if (!el) return;
+    const onMove = (e: MouseEvent) => {
+      const rect = el.getBoundingClientRect();
+      const fromBottom = rect.bottom - e.clientY;
+      setFooterHovered(
+        e.clientX >= rect.left &&
+          e.clientX <= rect.right &&
+          fromBottom >= 0 &&
+          fromBottom < HOVER_BAND_PX,
+      );
+    };
+    // Leaving the window entirely: mouseout with no relatedTarget.
+    const onOut = (e: MouseEvent) => {
+      if (!e.relatedTarget) setFooterHovered(false);
+    };
+    window.addEventListener("mousemove", onMove, { passive: true });
+    window.addEventListener("mouseout", onOut);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseout", onOut);
+    };
+  }, [isMobile]);
+
+  // Wizard on a fresh surface: no REWRITE rows and no open chapter. With lazy
+  // creation this includes activeThreadId === null — the wizard IS the empty
+  // state; no thread exists until the user commits at StepNovel. Rewrite-row
+  // presence (not spine length) is the gate: the spine also carries source-only
+  // rows created by the internet wizard's background prefetch, and a thread
+  // that never got past prefetch must keep opening the wizard.
+  const hasRewriteRows = chapters.some((c) => c.rewriteStatus != null);
+  const showWizard = !hasRewriteRows && currentChapterNumber == null;
+
+  const handlePrev = () => {
+    if (!canGoPrev || currentChapterNumber == null) return;
+    jumpTo(currentChapterNumber - 1, 0);
+  };
+
+  const handleNext = () => {
+    if (!canGoNext || currentChapterNumber == null) return;
+    jumpTo(currentChapterNumber + 1, 0);
+  };
+
+  // Reader keyboard shortcuts (chapter nav, Space/PageDn scroll, Home/End).
+  // Window-level; only active while a chapter is open. See useReaderHotkeys.
+  useReaderHotkeys({
+    viewportRef,
+    onPrev: () => void handlePrev(),
+    onNext: () => void handleNext(),
+    canGoPrev,
+    canGoNext,
+    enabled: currentChapterNumber != null,
+  });
+
+  // Tap/click the prose surface toggles the footer. Footer taps are siblings
+  // (don't reach here); selection and link/button clicks pass through.
+  const handleReadingClick = (e: ReactMouseEvent<HTMLDivElement>) => {
+    if (currentChapterNumber == null) return;
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) return;
+    if ((e.target as HTMLElement | null)?.closest("a, button")) return;
+    setFooterPinned((p) => !p);
+  };
+
+  // Abandon the thread and open a fresh wizard. Synchronous cache reset; this
+  // component doesn't unmount on thread switch, so the reset clears stale state.
+  const abandonThread = () => useStoryThreadsStore.getState().abandon();
+
+  const [showOptionsPage, setShowOptionsPage] = useState(false);
+  const [optionsConfig, setOptionsConfig] =
+    useState<StoryConfig | null>(null);
+  const [optionsLoading, setOptionsLoading] = useState(false);
+  const [optionsLoadFailed, setOptionsLoadFailed] = useState(false);
+  const [optionsSaving, setOptionsSaving] = useState(false);
+  const openOptionsPage = () => {
+    setShowOptionsPage(true);
+    setOptionsConfig(null);
+    setOptionsLoadFailed(false);
+    if (!activeThreadId) return;
+    setOptionsLoading(true);
+    void getThreadConfig(activeThreadId)
+      .then((cfg) => {
+        if (cfg) setOptionsConfig(cfg);
+        else setOptionsLoadFailed(true);
+      })
+      .catch(() => setOptionsLoadFailed(true))
+      .finally(() => setOptionsLoading(false));
+  };
+  const closeOptionsPage = () => {
+    setShowOptionsPage(false);
+    setOptionsConfig(null);
+    setOptionsLoadFailed(false);
+  };
+  const handleSaveOptions = async () => {
+    if (!activeThreadId || !optionsConfig) return;
+    setOptionsSaving(true);
+    try {
+      await updateThreadConfig(activeThreadId, optionsConfig);
+      closeOptionsPage();
+    } finally {
+      setOptionsSaving(false);
+    }
+  };
+
+  return (
+    <div
+      ref={rootRef}
+      className="@container relative flex h-full flex-col bg-background"
+      style={{
+        // Cascade reader CSS vars into the viewport + prose column; the root
+        // stays bg-background so the wizard/options chrome follows the app theme.
+        ...buildReaderCssVars(settings),
+      }}
+    >
+      <div
+        ref={viewportRef}
+        className="relative flex flex-1 flex-col overflow-x-auto overflow-y-auto scroll-smooth"
+        style={{
+          // Theme background on the full-width viewport (only while a chapter is
+          // open and the options page isn't up) so the theme fills the window.
+          backgroundColor:
+            currentChapterNumber != null && !showOptionsPage ?
+              "var(--reader-background)"
+            : undefined,
+        }}
+      >
+        {showWizard ?
+          // Direct child of the viewport — the wizard is a setup surface, not
+          // prose, so it doesn't inherit the prose column's --reader-margin.
+          <StoryWizard />
+        : showOptionsPage ?
+          <OptionsPage
+            loading={optionsLoading}
+            loadFailed={optionsLoadFailed}
+            config={optionsConfig}
+            setConfig={setOptionsConfig}
+            saving={optionsSaving}
+            onSave={() => void handleSaveOptions()}
+            onBack={closeOptionsPage}
+          />
+        : <div
+            onClick={handleReadingClick}
+            className="flex w-full flex-1 flex-col pt-4 pb-24"
+            // Prose column width is pure side margin (--reader-margin); the
+            // 40vw cap keeps it from collapsing on narrow windows.
+            style={{ paddingInline: "min(var(--reader-margin, 2rem), 40vw)" }}
+          >
+            {fetchError && currentChapterNumber != null && (
+              // Surface fetch failures so they don't look like a "fetching" spinner.
+              <p className="mx-auto mb-6 rounded-md bg-destructive/10 px-3 py-1.5 text-center text-sm text-destructive">
+                {t("reader.fetch.error")}
+              </p>
+            )}
+            {wallPrompt && <WallPromptCard prompt={wallPrompt} />}
+            {currentChapterNumber != null && (
+              <div className="mb-10 flex flex-col gap-y-10 empty:hidden">
+                <ChapterBody chapter={current} />
+              </div>
+            )}
+          </div>
+        }
+      </div>
+      {currentChapterNumber != null && !showOptionsPage && (
+        <ReaderFooter
+          canGoPrev={canGoPrev}
+          canGoNext={canGoNext}
+          onPrev={() => void handlePrev()}
+          onNext={() => void handleNext()}
+          pinned={footerPinned}
+          hovered={footerHovered}
+          getScrollPercentile={getScrollPercentile}
+          onJumpTo={jumpTo}
+          onStop={() => void abandonThread()}
+          onOpenOptions={openOptionsPage}
+        />
+      )}
+    </div>
+  );
+};
+
+/** Renders the current chapter. Ready prose is plain <p> paragraphs (no
+ *  markdown) so a large chapter mounts fast; typography comes from the
+ * `.novel-reader` rules in novel-reader.css. A `to_be_continued` chapter is
+ * readable NOW but its continuation is still being written, so the prose ends
+ * with a `streaming` DotMatrix marker. */
+const ChapterBody: FC<{ chapter: ChapterView | undefined }> = ({ chapter }) => {
+  const { t } = useTranslation("reader");
+  if (
+    chapter &&
+    (chapter.rewriteStatus === "rewritten" ||
+      chapter.rewriteStatus === "to_be_continued")
+  ) {
+    // Split on newline (handles CRLF); blank lines add no node. Each <p> gets
+    // the first-line indent + spacing from .novel-reader p. Plain text nodes
+    // only, so React/Blink handles a chapter as a handful of elements.
+    const paragraphs = (chapter.content ?? "").split(/\r?\n/);
+    return (
+      <div className="novel-reader text-pretty">
+        {paragraphs.map((line, i) =>
+          line.trim() ? <p key={i}>{line}</p> : null,
+        )}
+        {chapter.rewriteStatus === "to_be_continued" && (
+          <div className="mt-8 flex flex-col items-center gap-3 text-muted-foreground">
+            <DotMatrix state="streaming" className="size-10" />
+            <p className="text-sm italic">
+              {t("reader.chapter.toBeContinued")}
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+  // Not yet rewritten — render the backend-derived status placeholder. The
+  // derived `status` (phase + message) is the single source of truth shared with
+  // the TOC and footer, so they can never disagree.
+  return <ChapterStatusPlaceholder status={chapter?.status} />;
+};
+
+/**
+ * Status placeholder for a chapter that isn't ready to read yet. Renders a
+ * large DotMatrix indicator centered in the content area, with a short
+ * pipeline-aware message under it. `success` never renders here (readable
+ * chapters render prose), so every phase shown is icon-bearing. On `error`,
+ * adds a hint that processing can be retried via the footer's Process button.
+ */
+const ChapterStatusPlaceholder: FC<{ status: ChapterStatus | undefined }> = ({
+  status,
+}) => {
+  const { t } = useTranslation("reader");
+  return (
+    <div className="flex min-h-[50vh] w-full flex-1 flex-col items-center justify-center gap-4 py-20 text-center text-muted-foreground">
+      <DotMatrix
+        state={status?.phase ?? "loading"}
+        className="size-12"
+        label={
+          status ? t(status.messageKey, status.messageParams ?? {}) : undefined
+        }
+      />
+      {status && (
+        <p className="max-w-md text-sm">
+          {t(status.messageKey, status.messageParams ?? {})}
+        </p>
+      )}
+      {status?.phase === "error" && (
+        <p className="max-w-md text-sm text-muted-foreground/80">
+          {t("reader.status.retryHint")}
+        </p>
+      )}
+    </div>
+  );
+};
+
+/**
+ * Full-page rewrite-options editor for an open thread — the same StepOptions the
+ * wizard uses, editing the thread's persisted config live. Full page (not a
+ * popover) because the dense tactics grid is unreadable in an overlay. Save
+ * writes via PUT /config; back returns to the reader without writing.
+ */
+const OptionsPage: FC<{
+  loading: boolean;
+  loadFailed: boolean;
+  config: StoryConfig | null;
+  setConfig: Dispatch<SetStateAction<StoryConfig | null>>;
+  saving: boolean;
+  onSave: () => void;
+  onBack: () => void;
+}> = ({ loading, loadFailed, config, setConfig, saving, onSave, onBack }) => {
+  const { t } = useTranslation("reader");
+  return (
+    <div className="my-auto mx-auto flex w-full flex-col gap-4 px-4 pb-10 sm:max-w-2xl sm:gap-6 lg:max-w-5xl xl:max-w-7xl 2xl:max-w-[96rem]">
+      <div className="flex flex-col gap-1 xl:max-w-5xl">
+        <h1 className="fade-in slide-in-from-bottom-1 animate-in fill-mode-both font-semibold text-2xl duration-200">
+          {t("reader.options.title")}
+        </h1>
+        <p className="fade-in slide-in-from-bottom-1 animate-in fill-mode-both text-muted-foreground text-sm delay-75 duration-200">
+          {t("reader.options.subtitle")}
+        </p>
+      </div>
+
+      {loading ?
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </div>
+      : loadFailed || !config ?
+        <p className="py-20 text-center text-sm text-muted-foreground">
+          {t("reader.options.loadFailed")}
+        </p>
+      : <StepOptions
+          config={config}
+          setConfig={(updater) =>
+            setOptionsConfigSetter(setConfig, updater, config)
+          }
+        />
+      }
+
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onBack}
+          disabled={saving}
+        >
+          <ArrowLeft className="size-4" />
+          {t("reader.options.back")}
+        </Button>
+        {config && !loading && !loadFailed && (
+          <Button
+            type="button"
+            onClick={onSave}
+            disabled={saving}
+            className="self-start"
+          >
+            {saving ?
+              <Loader2 className="size-4 animate-spin" />
+            : t("reader.options.save")}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Adapter so the host's nullable-config setter can feed StepOptions' non-null
+ * setter contract. `config` is the current non-null draft (the page only
+ * renders StepOptions when config is non-null), so a functional updater is
+ * applied to it and the result written back.
+ */
+function setOptionsConfigSetter(
+  setConfig: Dispatch<SetStateAction<StoryConfig | null>>,
+  updater:
+    StoryConfig | ((prev: StoryConfig) => StoryConfig),
+  current: StoryConfig,
+): void {
+  setConfig(
+    typeof updater === "function" ?
+      (updater as (prev: StoryConfig) => StoryConfig)(current)
+    : updater,
+  );
+}

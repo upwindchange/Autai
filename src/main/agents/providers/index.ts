@@ -289,7 +289,7 @@ export const complexModel = (): ResolvedModel => createModel("complex");
  * Map a ModelParameters object to the sampling-param subset that streamText
  * accepts directly (temperature, maxTokens→maxOutputTokens, etc.). Returns an
  * empty object when params is absent so it spreads harmlessly. Mirrors the
- * mapping chatWorker already does inline; extracted so the entertainment
+ * mapping chatWorker already does inline; extracted so the story
  * workers (which currently forward no params) can apply per-role defaults too.
  */
 export function forwardSamplingParams(

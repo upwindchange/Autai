@@ -49,9 +49,9 @@ const en = {
     planning: "Planning",
     learning: "Learning",
   },
-  entertainment: {
+  story: {
     // Short mode labels — double as the deterministic thread-title suffix and
-    // the seeded entertainment tag names (Rewrite / Audiobook).
+    // the seeded story tag names (Rewrite / Audiobook).
     dehydrate: "Rewrite",
     audiobook: "Audiobook",
     // Dehydrate pipeline toasts (file-upload novels).

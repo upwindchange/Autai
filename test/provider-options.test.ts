@@ -87,7 +87,7 @@ describe("customProviderOptions — @ai-sdk/anthropic", () => {
     ).toEqual({ anthropic: { thinking: { type: "enabled", budgetTokens: 2048 } } });
   });
 
-  test("forced-off entertainment controls produce thinking disabled", () => {
+  test("forced-off story controls produce thinking disabled", () => {
     expect(
       customProviderOptions(
         { ...anthropic, params: { reasoningEnabled: true } },

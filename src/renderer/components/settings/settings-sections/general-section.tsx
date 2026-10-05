@@ -33,7 +33,7 @@ export function GeneralSection() {
   const handleStartupModeChange = async (mode: string) => {
     await updateSettings({
       ...settings,
-      defaultAppMode: mode as "chat" | "entertainment",
+      defaultAppMode: mode as "chat" | "story",
     });
   };
 
@@ -126,8 +126,8 @@ export function GeneralSection() {
                 <SelectItem value="chat">
                   {t("general.startup.chat")}
                 </SelectItem>
-                <SelectItem value="entertainment">
-                  {t("general.startup.entertainment")}
+                <SelectItem value="story">
+                  {t("general.startup.story")}
                 </SelectItem>
               </SelectContent>
             </Select>

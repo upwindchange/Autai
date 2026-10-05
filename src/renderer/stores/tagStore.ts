@@ -32,7 +32,7 @@ interface TagState {
   threadTags: Record<string, TagRow[]>;
 
   // Full thread list data for the active mode (populated by the chat adapter in
-  // chat mode, or the entertainment thread loader in entertainment mode).
+  // chat mode, or the story thread loader in story mode).
   threads: ThreadInfo[];
 
   // View state

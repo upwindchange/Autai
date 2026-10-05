@@ -48,9 +48,9 @@ const zh = {
     planning: "规划",
     learning: "学习",
   },
-  entertainment: {
+  story: {
     // Short mode labels — double as the deterministic thread-title suffix and
-    // the seeded entertainment tag names (重写 / 有声小说).
+    // the seeded story tag names (重写 / 有声小说).
     dehydrate: "重写",
     audiobook: "有声小说",
     // Dehydrate pipeline toasts (file-upload novels).

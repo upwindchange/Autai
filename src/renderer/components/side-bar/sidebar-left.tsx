@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sidebar, SidebarContent } from "@/components/ui/sidebar";
 import { NavSecondary } from "@/components/side-bar/nav-secondary";
 import { ThreadList } from "@/components/side-bar/thread-list";
-import { EntertainmentThreadList } from "@/components/side-bar/entertainment-thread-list";
+import { StoryThreadList } from "@/components/side-bar/story-thread-list";
 import { SidebarToolbar } from "@/components/side-bar/sidebar-toolbar";
 import { NewConversationButton } from "@/components/side-bar/new-conversation-button";
 import { useUiStore } from "@/stores/uiStore";
@@ -13,7 +13,7 @@ import { useUiStore } from "@/stores/uiStore";
 type SidebarLeftProps = ComponentProps<typeof Sidebar>;
 
 export function SidebarLeft(props: SidebarLeftProps) {
-  // Entertainment has its own assistant-ui-free thread list; chat keeps the
+  // Story has its own assistant-ui-free thread list; chat keeps the
   // assistant-ui-backed one. The toolbar + new-conversation button are shared
   // (they branch internally where needed) and read the same tagStore.
   const appMode = useUiStore((s) => s.appMode);
@@ -27,8 +27,8 @@ export function SidebarLeft(props: SidebarLeftProps) {
         <div className="mx-2 border-t" />
         <SidebarToolbar />
         <ScrollArea className="flex-1 min-h-0">
-          {appMode === "entertainment" ?
-            <EntertainmentThreadList />
+          {appMode === "story" ?
+            <StoryThreadList />
           : <ThreadList />}
         </ScrollArea>
       </SidebarContent>

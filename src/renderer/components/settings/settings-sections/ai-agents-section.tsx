@@ -23,7 +23,7 @@ interface AiAgentsSectionProps {
   settings: SettingsState;
 }
 
-/** Search-engine catalog — also used by the entertainment wizard (StepNovel's
+/** Search-engine catalog — also used by the story wizard (StepNovel's
  *  inline search-engine dropdown) so the two lists can never diverge. */
 export const SEARCH_ENGINE_OPTIONS: {
   value: SearchEngine;

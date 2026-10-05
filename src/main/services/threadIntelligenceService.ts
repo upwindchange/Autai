@@ -4,14 +4,14 @@ import { simpleModel } from "@agents/providers";
 import {
   settingsService,
   threadPersistenceService,
-  entertainmentFrontendService,
-  entertainmentBackendService,
+  storyFrontendService,
+  storyBackendService,
 } from "@/services";
 import { i18n } from "@/i18n";
 import log from "electron-log/main";
 import { eventBus } from "@/utils/eventBus";
 import type { ThreadMode } from "@shared/tag";
-import { ENTERTAINMENT_DEFAULT_TAGS } from "./entertainmentDefaultTags";
+import { STORY_DEFAULT_TAGS } from "./storyDefaultTags";
 
 const logger = log.scope("ThreadIntelligenceService");
 
@@ -39,36 +39,36 @@ const DEFAULT_TAG_COLORS = [
   "#76B7B2",
 ];
 
-// Fixed entertainment tags (重写 / 有声小说). Seeded mode-scoped so the chat
+// Fixed story tags (重写 / 有声小说). Seeded mode-scoped so the chat
 // sidebar never sees them. Translated at seed time — same locale-at-creation
 // behavior as the chat tags above.
-const ENTERTAINMENT_TAG_KEYS = [
-  "entertainment.dehydrate",
-  "entertainment.audiobook",
+const STORY_TAG_KEYS = [
+  "story.dehydrate",
+  "story.audiobook",
 ];
 
-const ENTERTAINMENT_TAG_COLORS = ["#F28E2B", "#E15759"];
+const STORY_TAG_COLORS = ["#F28E2B", "#E15759"];
 
 // Orphaned translated tag names from before the audiobook mode was named.
 // Seeded at creation in existing DBs; the mode was never selectable, so no
 // thread carries them — deletion is safe and idempotent. Purged every launch
 // until gone.
-const STALE_ENTERTAINMENT_TAG_NAMES = ["互动", "Interactive"];
+const STALE_STORY_TAG_NAMES = ["互动", "Interactive"];
 
 // Hidden one-shot marker (raw settings KV, never surfaced to the renderer) that
-// records whether the Chinese entertainment genre tags have been auto-seeded.
+// records whether the Chinese story genre tags have been auto-seeded.
 // Once set, the auto-seed never re-runs — users may freely edit/delete the
 // seeded tags. The manual "Reset to default" action backfills independently of
 // this flag.
-const CHINESE_TAGS_POPULATED_FLAG = "chinese_entertainment_tags_populated";
+const CHINESE_TAGS_POPULATED_FLAG = "chinese_story_tags_populated";
 
 /**
- * Character budget for the entertainment enrichment sample. Uses the opening
+ * Character budget for the story enrichment sample. Uses the opening
  * of the novel (first chapter for internet, first slice for files) — enough
  * for the LLM to identify the genre, tropes, character archetypes, and the
  * real book title without ingesting the whole upload.
  */
-const ENTERTAINMENT_SAMPLE_CHARS = 4000;
+const STORY_SAMPLE_CHARS = 4000;
 
 /** All 16 palette colors (shared with renderer's tagColors.ts). */
 const PALETTE = [
@@ -97,8 +97,8 @@ function getRandomPaletteColor(): string {
 class ThreadIntelligenceService {
   initialize(): void {
     this.seedDefaultTags();
-    this.seedEntertainmentTags();
-    this.populateChineseEntertainmentTagsIfPending();
+    this.seedStoryTags();
+    this.populateChineseStoryTagsIfPending();
   }
 
   private seedDefaultTags(): void {
@@ -119,27 +119,27 @@ class ThreadIntelligenceService {
     }
   }
 
-  // Entertainment tags (重写 / 互动) are fixed, so this is idempotent and runs
+  // Story tags (重写 / 互动) are fixed, so this is idempotent and runs
   // every launch — unlike seedDefaultTags (which only fires on an empty table),
   // this also backfills existing DBs that already have the chat tags.
-  private seedEntertainmentTags(): void {
+  private seedStoryTags(): void {
     try {
-      const tags = threadPersistenceService.listTagsByMode("entertainment");
+      const tags = threadPersistenceService.listTagsByMode("story");
       const taken = new Set(tags.map((t) => t.name));
       this.backfillTags(
-        ENTERTAINMENT_TAG_KEYS,
-        ENTERTAINMENT_TAG_COLORS,
-        "entertainment",
+        STORY_TAG_KEYS,
+        STORY_TAG_COLORS,
+        "story",
         taken,
       );
       // Purge the orphaned pre-rename tag name (best-effort; a no-op once
       // gone).
-      for (const stale of STALE_ENTERTAINMENT_TAG_NAMES) {
+      for (const stale of STALE_STORY_TAG_NAMES) {
         const row = tags.find((t) => t.name === stale);
         if (row) threadPersistenceService.deleteTag(row.id);
       }
     } catch (error) {
-      logger.error("Failed to seed entertainment tags:", error);
+      logger.error("Failed to seed story tags:", error);
     }
   }
 
@@ -166,26 +166,26 @@ class ThreadIntelligenceService {
   // decide whether the user is Chinese and whether the one-shot flag applies.
   private backfillChineseGenreTags(taken: Set<string>): void {
     // Start after the fixed 重写/互动 tags so they stay pinned at the top.
-    let sortOrder = ENTERTAINMENT_TAG_KEYS.length;
-    for (const name of ENTERTAINMENT_DEFAULT_TAGS) {
+    let sortOrder = STORY_TAG_KEYS.length;
+    for (const name of STORY_DEFAULT_TAGS) {
       if (taken.has(name)) continue;
       threadPersistenceService.createTag(
         name,
         getRandomPaletteColor(),
         sortOrder++,
-        "entertainment",
+        "story",
       );
       taken.add(name);
     }
   }
 
-  // One-shot auto-seed of the Chinese entertainment genre tags. Fires on startup
+  // One-shot auto-seed of the Chinese story genre tags. Fires on startup
   // and when the user switches the UI language to Chinese. Gated on the resolved
   // language being Chinese (these labels are meaningless to English readers) and
   // on the hidden flag — once it has run, it never runs again, so users can
   // freely edit or delete the seeded tags. Re-runs are a manual "Reset to
   // default" action (see resetTagsToDefault), which does not touch this flag.
-  populateChineseEntertainmentTagsIfPending(): void {
+  populateChineseStoryTagsIfPending(): void {
     if (!(i18n.language ?? "en").startsWith("zh")) return;
     if (settingsService.getRawSetting(CHINESE_TAGS_POPULATED_FLAG) === "1")
       return;
@@ -194,11 +194,11 @@ class ThreadIntelligenceService {
         new Set(threadPersistenceService.listTags().map((t) => t.name)),
       );
       settingsService.setRawSetting(CHINESE_TAGS_POPULATED_FLAG, "1");
-      logger.info("Seeded Chinese entertainment tags", {
-        count: ENTERTAINMENT_DEFAULT_TAGS.length,
+      logger.info("Seeded Chinese story tags", {
+        count: STORY_DEFAULT_TAGS.length,
       });
     } catch (error) {
-      logger.error("Failed to seed Chinese entertainment tags:", error);
+      logger.error("Failed to seed Chinese story tags:", error);
     }
   }
 
@@ -214,9 +214,9 @@ class ThreadIntelligenceService {
       this.backfillTags(DEFAULT_TAG_KEYS, DEFAULT_TAG_COLORS, "chat", taken);
     } else {
       this.backfillTags(
-        ENTERTAINMENT_TAG_KEYS,
-        ENTERTAINMENT_TAG_COLORS,
-        "entertainment",
+        STORY_TAG_KEYS,
+        STORY_TAG_COLORS,
+        "story",
         taken,
       );
       if ((i18n.language ?? "en").startsWith("zh")) {
@@ -236,7 +236,7 @@ class ThreadIntelligenceService {
       });
 
       const settings = settingsService.settings;
-      // Chat threads only ever see chat-scoped tags — entertainment tags
+      // Chat threads only ever see chat-scoped tags — story tags
       // (重写/互动) are invisible to the LLM tagger.
       const existingTags = threadPersistenceService.listTagsByMode("chat");
       const tagNames = existingTags.map((t) => t.name);
@@ -338,53 +338,53 @@ INSTRUCTIONS:
     }
   }
 
-  // --- Entertainment (重写 / audiobook) thread enrichment -------------------
+  // --- Story (重写 / audiobook) thread enrichment -------------------
   //
-  // Unlike chat enrichThread (1 message → 1 tag + title), entertainment
+  // Unlike chat enrichThread (1 message → 1 tag + title), story
   // enrichment reads the opening novel prose to (a) extract the real book
   // title from its content (filenames are unreliable) and (b) assign as many
-  // genre/trope/character/tone tags as fit from the entertainment-mode
+  // genre/trope/character/tone tags as fit from the story-mode
   // vocabulary. The deterministic title + mode tag set up by
-  // setupEntertainmentThread stays as the instant placeholder; this refines
+  // setupStoryThread stays as the instant placeholder; this refines
   // both once content exists.
 
   /**
-   * Enrich an entertainment thread: extract the real title and assign multiple
+   * Enrich a story thread: extract the real title and assign multiple
    * tags from the opening chapter text. Idempotent — the mode tag already
-   * attached by setupEntertainmentThread is never removed; this only ADDS
+   * attached by setupStoryThread is never removed; this only ADDS
    * genre/trope/character/tone tags. The title replaces the filename
    * placeholder.
    *
-   * @param threadId    the entertainment thread
+   * @param threadId    the story thread
    * @param sampleText  the first chapter (internet) or first ~4000 chars
    *                    (file) of decoded source prose
    * @param modeLabel   the localized mode tag name (重写 / 有声小说) — kept on
    *                    the thread; the LLM is told to only emit content tags,
    *                    never the mode itself
    */
-  async enrichEntertainmentThread(
+  async enrichStoryThread(
     threadId: string,
     sampleText: string,
     modeLabel: string,
   ): Promise<void> {
     try {
       if (!sampleText.trim()) {
-        logger.warn("entertainment enrichment skipped — empty sample", {
+        logger.warn("story enrichment skipped — empty sample", {
           threadId,
         });
         return;
       }
 
-      logger.info("Enriching entertainment thread", {
+      logger.info("Enriching story thread", {
         threadId,
         sampleLength: sampleText.length,
       });
 
       const settings = settingsService.settings;
-      // Entertainment threads only see entertainment-scoped tags. Chat tags
+      // Story threads only see story-scoped tags. Chat tags
       // (Coding/Research/…) are invisible to this tagger.
       const existingTags =
-        threadPersistenceService.listTagsByMode("entertainment");
+        threadPersistenceService.listTagsByMode("story");
       const tagNames = existingTags.map((t) => t.name);
 
       const tagInstruction =
@@ -402,7 +402,7 @@ INSTRUCTIONS:
 - Extract the novel's REAL title from the text itself (chapter headers, title lines, in-story mentions). If no title is discernible, use a 2-4 word descriptive title derived from the content. Do NOT use a filename or "Unknown". Do NOT include the mode label ("${modeLabel}") in the title. Do NOT include book-title brackets like 《》 — just the bare title.
 - ${tagInstruction}
 - The mode label "${modeLabel}" is already applied to the thread; do NOT include it in the tags.
-- Always respond by calling the setEntertainmentMeta tool.`;
+- Always respond by calling the setStoryMeta tool.`;
 
       const result = await generateText({
         model: simpleModel().model,
@@ -410,9 +410,9 @@ INSTRUCTIONS:
         prompt: `Novel opening (first ${sampleText.length} chars):\n\n${sampleText}`,
         toolChoice: "required",
         tools: {
-          setEntertainmentMeta: tool({
+          setStoryMeta: tool({
             description:
-              "Set the title and category tags for an entertainment thread",
+              "Set the title and category tags for a story thread",
             inputSchema: z.object({
               title: z
                 .string()
@@ -430,9 +430,9 @@ INSTRUCTIONS:
       });
 
       const toolCall = result.toolCalls[0];
-      if (!toolCall || toolCall.toolName !== "setEntertainmentMeta") {
+      if (!toolCall || toolCall.toolName !== "setStoryMeta") {
         logger.warn(
-          "No setEntertainmentMeta tool call in response, skipping enrichment",
+          "No setStoryMeta tool call in response, skipping enrichment",
         );
         return;
       }
@@ -443,12 +443,12 @@ INSTRUCTIONS:
       const newTitle = args.title?.trim();
       if (newTitle) {
         threadPersistenceService.renameThread(threadId, newTitle);
-        logger.info("Renamed entertainment thread", {
+        logger.info("Renamed story thread", {
           threadId,
           title: newTitle,
         });
       } else {
-        logger.warn("entertainment enrichment returned empty title", {
+        logger.warn("story enrichment returned empty title", {
           threadId,
         });
       }
@@ -473,13 +473,13 @@ INSTRUCTIONS:
             const created = threadPersistenceService.createTag(
               name,
               getRandomPaletteColor(),
-              ENTERTAINMENT_TAG_KEYS.length,
-              "entertainment",
+              STORY_TAG_KEYS.length,
+              "story",
             );
             threadPersistenceService.addTagToThread(threadId, created.id);
           }
         }
-        logger.info("Tagged entertainment thread", {
+        logger.info("Tagged story thread", {
           threadId,
           tags: args.tags,
         });
@@ -496,41 +496,41 @@ INSTRUCTIONS:
         tags: updatedTags,
       });
     } catch (error) {
-      logger.error("Failed to enrich entertainment thread:", error);
+      logger.error("Failed to enrich story thread:", error);
     }
   }
 
   /**
-   * Convenience wrapper for entertainment enrichment: reads the opening
+   * Convenience wrapper for story enrichment: reads the opening
    * content from the DB (raw text for file novels; source chapter 1 for
    * internet novels), slices it to the sample budget, and delegates to
-   * {@link enrichEntertainmentThread}. Resolves the localized mode label from
+   * {@link enrichStoryThread}. Resolves the localized mode label from
    * the thread's stored config.
    */
-  async enrichEntertainmentThreadFromDb(threadId: string): Promise<void> {
-    const config = entertainmentFrontendService.getParsedConfig(threadId);
+  async enrichStoryThreadFromDb(threadId: string): Promise<void> {
+    const config = storyFrontendService.getParsedConfig(threadId);
     if (!config) {
-      logger.warn("entertainment enrichment — no config", { threadId });
+      logger.warn("story enrichment — no config", { threadId });
       return;
     }
-    const modeLabel = i18n.t(`entertainment.${config.mode}`);
+    const modeLabel = i18n.t(`story.${config.mode}`);
 
     const sample =
       config.novel.type === "file" ?
-        (entertainmentBackendService
+        (storyBackendService
           .getRawNovelText(threadId)
-          ?.slice(0, ENTERTAINMENT_SAMPLE_CHARS) ?? null)
-      : (entertainmentFrontendService
+          ?.slice(0, STORY_SAMPLE_CHARS) ?? null)
+      : (storyFrontendService
           .listSourceChapters(threadId)
           .find((c) => c.content)?.content ?? null);
     if (!sample) {
-      logger.warn("entertainment enrichment — no source content yet", {
+      logger.warn("story enrichment — no source content yet", {
         threadId,
         novelType: config.novel.type,
       });
       return;
     }
-    await this.enrichEntertainmentThread(threadId, sample, modeLabel);
+    await this.enrichStoryThread(threadId, sample, modeLabel);
   }
 
   async generateSuggestions(

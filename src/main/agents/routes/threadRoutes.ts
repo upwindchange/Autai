@@ -18,12 +18,12 @@ import log from "electron-log/main";
 const logger = log.scope("ApiServer:Threads");
 export const threadRoutes = new Hono();
 
-// GET /threads - list threads for a mode (?mode=chat|entertainment, default chat).
+// GET /threads - list threads for a mode (?mode=chat|story, default chat).
 // Returns regular + archived of that mode; the client filters by status.
 threadRoutes.get("/", (c) => {
   try {
     const mode =
-      (c.req.query("mode") as "chat" | "entertainment" | undefined) ?? "chat";
+      (c.req.query("mode") as "chat" | "story" | undefined) ?? "chat";
     const threads = threadPersistenceService.listThreadsByMode(mode);
     return c.json({
       threads: threads.map((t) => ({
@@ -42,7 +42,7 @@ threadRoutes.get("/", (c) => {
 
 // POST /threads - create thread. When no id is provided, the backend generates
 // one (the single source of truth for thread identity). The mode defaults to
-// "chat"; entertainment's wizard-start posts { mode: "entertainment" } with no
+// "chat"; story's wizard-start posts { mode: "story" } with no
 // id and uses the returned { id }.
 threadRoutes.post("/", async (c) => {
   try {
@@ -68,7 +68,7 @@ threadRoutes.post("/", async (c) => {
 threadRoutes.post("/archive-all", async (c) => {
   try {
     const body = await c.req.json().catch(() => ({}));
-    const mode = (body?.mode as "chat" | "entertainment") ?? "chat";
+    const mode = (body?.mode as "chat" | "story") ?? "chat";
     threadPersistenceService.archiveAllThreads(mode);
     eventBus.emitEvent("threads:listChanged", null);
     return c.json({ success: true });
@@ -83,7 +83,7 @@ threadRoutes.delete("/bulk", async (c) => {
   try {
     const body = await c.req.json();
     const status = body?.status as "regular" | "archived" | undefined;
-    const mode = (body?.mode as "chat" | "entertainment") ?? "chat";
+    const mode = (body?.mode as "chat" | "story") ?? "chat";
     if (!status) {
       return c.json({ error: "status is required" }, 400);
     }
@@ -148,7 +148,7 @@ threadRoutes.get("/search", (c) => {
     if (!query.trim()) {
       return c.json({ threads: [] });
     }
-    const mode = c.req.query("mode") as "chat" | "entertainment" | undefined;
+    const mode = c.req.query("mode") as "chat" | "story" | undefined;
     const threads = searchService.searchThreads(
       query,
       threadPersistenceService.getTagsForThread.bind(threadPersistenceService),

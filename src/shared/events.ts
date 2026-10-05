@@ -26,7 +26,7 @@ export interface ChaptersChangedPayload {
 }
 
 /**
- * Payload for `entertainment:wallPrompt`: a chaptered internet fetch hit a
+ * Payload for `story:wallPrompt`: a chaptered internet fetch hit a
  * wall (login / paywall / captcha / age gate) and parked, asking the reader
  * to step in or skip. `ask` = the card, `stepping` = the user is working in
  * the split view (slim banner), `cleared` = dismissed (answered / thread
@@ -62,8 +62,8 @@ export interface ServerEvents {
   "threads:metadataUpdated": ThreadMetadataPayload;
   "threads:suggestionsUpdated": ThreadSuggestionsPayload;
   "app:message": AppMessage;
-  "entertainment:chaptersChanged": ChaptersChangedPayload;
-  "entertainment:wallPrompt": WallPromptPayload;
+  "story:chaptersChanged": ChaptersChangedPayload;
+  "story:wallPrompt": WallPromptPayload;
 }
 
 export type ServerEventName = keyof ServerEvents;
@@ -79,6 +79,6 @@ export const SERVER_EVENT_NAMES: readonly ServerEventName[] = [
   "threads:metadataUpdated",
   "threads:suggestionsUpdated",
   "app:message",
-  "entertainment:chaptersChanged",
-  "entertainment:wallPrompt",
+  "story:chaptersChanged",
+  "story:wallPrompt",
 ];
