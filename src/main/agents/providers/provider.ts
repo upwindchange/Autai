@@ -24,10 +24,9 @@ import { createPerplexity } from "@ai-sdk/perplexity";
 import { createTogetherAI } from "@ai-sdk/togetherai";
 import { createCerebras } from "@ai-sdk/cerebras";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
-import { createVercel } from "@ai-sdk/vercel";
+import { createGatewayProvider } from "@ai-sdk/gateway";
 // NOTE: @ai-sdk/gateway (Vercel AI Gateway) is unrelated to the `ai-gateway-provider`
 // (Cloudflare) outlier handled below — do not confuse the two.
-import { createGatewayProvider } from "@ai-sdk/gateway";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createAihubmix } from "@aihubmix/ai-sdk-provider";
 import { createVenice } from "venice-ai-sdk-provider";
@@ -62,7 +61,6 @@ const STANDARD_PROVIDERS: Record<string, StandardCreator> = {
   "@ai-sdk/togetherai": createTogetherAI,
   "@ai-sdk/cerebras": createCerebras,
   "@ai-sdk/google": createGoogleGenerativeAI,
-  "@ai-sdk/vercel": createVercel,
   "@ai-sdk/gateway": createGatewayProvider,
   "@openrouter/ai-sdk-provider": createOpenRouter,
   "@aihubmix/ai-sdk-provider": createAihubmix,
