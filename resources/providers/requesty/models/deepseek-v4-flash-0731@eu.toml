@@ -5,12 +5,9 @@ name = "DeepSeek V4 Flash 0731 (EU)"
 type = "effort"
 values = ["none", "low", "medium", "high", "max"]
 
-[[reasoning_options]]
-type = "budget_tokens"
-
 [cost]
-input = 0.14
-output = 0.28
+input = 0.28
+output = 0.56
 cache_read = 0.07
 
 [limit]
