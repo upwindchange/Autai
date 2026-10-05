@@ -153,22 +153,3 @@ CREATE UNIQUE INDEX `rewritten_chapters_thread_number_unique` ON `rewritten_chap
 CREATE INDEX `rewritten_chapters_thread_id_idx` ON `rewritten_chapters` (`thread_id`);--> statement-breakpoint
 CREATE UNIQUE INDEX `source_chapters_thread_number_unique` ON `source_chapters` (`thread_id`,`chapter_number`);--> statement-breakpoint
 CREATE INDEX `source_chapters_thread_id_idx` ON `source_chapters` (`thread_id`);
---> statement-breakpoint
-CREATE VIRTUAL TABLE IF NOT EXISTS threads_fts USING fts5(
-  thread_id UNINDEXED,
-  title,
-  tokenize='trigram'
-);
---> statement-breakpoint
-CREATE TRIGGER IF NOT EXISTS threads_fts_insert AFTER INSERT ON threads BEGIN
-  INSERT INTO threads_fts(thread_id, title) VALUES (new.id, new.title);
-END;
---> statement-breakpoint
-CREATE TRIGGER IF NOT EXISTS threads_fts_update AFTER UPDATE ON threads BEGIN
-  DELETE FROM threads_fts WHERE thread_id = old.id;
-  INSERT INTO threads_fts(thread_id, title) VALUES (new.id, new.title);
-END;
---> statement-breakpoint
-CREATE TRIGGER IF NOT EXISTS threads_fts_delete AFTER DELETE ON threads BEGIN
-  DELETE FROM threads_fts WHERE thread_id = old.id;
-END;

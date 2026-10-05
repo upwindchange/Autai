@@ -95,7 +95,8 @@ The main process initializes in `src/main/index.ts` with this startup sequence: 
 
 - SQLite via better-sqlite3 with Drizzle ORM (1.0.0-beta.22)
 - Schema in `schema.ts` (9 tables): `settings` (key-value), `userProviders`, `modelAssignments` (per-role model selection), `threads` (includes `mode` = `chat`|`story`, plus per-thread `chatProviderId`/`chatModelId`/`chatModelParams`/`chatSystemPrompt` overrides), `messages`, `tags`, `mcpServers`, `threadTags` (many-to-many), `authSessions`
-- Migrations generated to `drizzle/` via `pnpm db:generate`, copied to `out/main/drizzle/` at build time
+- Migrations live in `drizzle/`, copied to `out/main/drizzle/` at build time. Folder naming: `<YYYYMMDDHHMMSS>_<version>[_<tag>]` — pass the intended next release version, e.g. `pnpm db:generate --name 1.0.1` (timestamp prefix is forced by drizzle-kit and required by the migrator; never edit it). Manual SQL (things drizzle can't express, like FTS5) gets its own folder via `pnpm db:generate:custom --name 1.0.1_fts5`, then fill the placeholder `migration.sql`. The migrator matches applied migrations by folder name — renaming folders requires recreating dev DBs.
+- `threads_fts` (FTS5 full-text search over thread titles, trigram tokenizer + 3 sync triggers, used by `searchService`) lives ONLY in the manual `*_fts5` migration — never fold it into a generated migration. If migrations are ever squashed, regenerate init from `schema.ts` and re-add the fts5 folder (its `IF NOT EXISTS` statements no-op on existing DBs).
 - Custom Vite plugins in `electron.vite.config.ts` handle native binding copy (`bindingSqlite3`, copies the Node-API prebuilt from `node_modules/better-sqlite3/prebuilds/`), migration copy (`copyMigrations`), and dev main-process reload (`watch-main-reload`)
 
 ### App Modes

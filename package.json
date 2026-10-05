@@ -23,8 +23,8 @@
     "test": "vitest run",
     "lint": "eslint .",
     "format": "prettier --write src/",
-    "db:generate": "drizzle-kit generate",
-    "db:generate:custom": "drizzle-kit generate --custom",
+    "db:generate": "node scripts/db-generate.mjs",
+    "db:generate:custom": "node scripts/db-generate.mjs --custom",
     "postinstall": "install-electron"
   },
   "prettier": {
