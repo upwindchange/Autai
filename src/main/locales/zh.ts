@@ -56,6 +56,10 @@ const zh = {
     // Dehydrate pipeline toasts (file-upload novels).
     dehydrateStartedTitle: "重写已开始",
     dehydrateStartedBody: "正在为这本小说脱水重写，请稍候。",
+    // 拦截门（章节互联网抓取）：读者拒绝在受阻网站协助，且未开启搜索备用源。
+    wallRejectedTitle: "章节被拦截",
+    wallRejectedBody:
+      "你拒绝在 {{host}} 上协助，且未开启其他书源搜索。可通过底部菜单粘贴章节链接，或开启搜索备用源。",
   },
   agents: {
     searchingTitle: "同时查找多个话题：{{title}}",

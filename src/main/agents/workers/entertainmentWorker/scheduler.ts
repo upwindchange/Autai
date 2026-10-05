@@ -28,6 +28,7 @@ import {
 } from "@/services";
 import { runDehydrateLoop } from "./pipeline1ChapteredFile/rewriter";
 import { fetchInternetChapter } from "./pipeline2ChapteredInternet/internetFetch";
+import { clearWallPrompt } from "./pipeline2ChapteredInternet/internetFetch/wallGate";
 import { rewriteChapter } from "./pipeline2ChapteredInternet/rewriter";
 import {
   runSinglePagePipeline,
@@ -120,6 +121,9 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
   // --- stop / resume / retry ----------------------------------------------
 
   stopThread(threadId: string): void {
+    // Dismiss any parked wall card first — the abort below rejects the gate's
+    // pending HITL request and the runner winds down normally.
+    clearWallPrompt(threadId);
     const controller = this.active.get(threadId);
     if (!controller) return;
     controller.abort();
@@ -254,7 +258,11 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
             const outcome = await fetchInternetChapter(
               novel,
               c.chapterNumber,
-              { threadId, abortSignal: signal },
+              {
+                threadId,
+                abortSignal: signal,
+                webSearchFallback: config.options.webSearchFallback,
+              },
             );
             if (outcome === "error" || outcome === "finalChapter") {
               logger.info("retry re-fetch not recovered", {
@@ -406,6 +414,7 @@ class EntertainmentSchedulerImpl implements EntertainmentScheduler {
           threadId,
           abortSignal: signal,
           overrideUrl: isOverrideChapter ? opts.overrideUrl : undefined,
+          webSearchFallback: options.webSearchFallback,
         });
         if (outcome === "finalChapter") {
           logger.info("fetchLoop — fetch reported final chapter", {

@@ -846,6 +846,9 @@ export const DehydrateConfigSchema = z.object({
     // not a chaptered novel; segment its storyline into organic chapters
     // instead of parsing per-chapter pages/markers.
     nonNovelSource: z.boolean().default(false),
+    // true = after the user declines to step in on a walled site, search
+    // the web for another host; false (default) = the chapter errors instead.
+    webSearchFallback: z.boolean().default(false),
     customInstruction: CustomInstructionSchema,
   }),
 }).check((ctx) => {
@@ -869,6 +872,8 @@ export const AudiobookConfigSchema = z.object({
     depth: DehydrateDepthSchema,
     language: LanguageAdaptationSchema,
     nonNovelSource: z.boolean().default(false),
+    // See DehydrateConfigSchema — one flag serves both option blocks.
+    webSearchFallback: z.boolean().default(false),
     customInstruction: CustomInstructionSchema,
   }),
 }).check((ctx) => {

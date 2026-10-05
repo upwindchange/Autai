@@ -98,5 +98,20 @@
   "reader.options.back": "Back to reading",
   "reader.options.loadFailed": "Could not load options for this thread",
   "reader.stop.label": "Stop and start over",
-  "reader.stop.hint": "Stop all agents and start a new task"
+  "reader.stop.hint": "Stop all agents and start a new task",
+  "reader.wall.title": "This site needs you",
+  "reader.wall.body": "The site {{host}} is blocking chapter {{n}} with a login, payment, or verification page. Step in to pass it once — the login is remembered.",
+  "reader.wall.stepIn": "Step in",
+  "reader.wall.reject": "Skip this site",
+  "reader.wall.stepping": "Finish in the browser view, then press Done. We'll continue automatically.",
+  "reader.wall.done": "Done",
+  "reader.wall.giveUp": "Give up",
+  "reader.wall.reason.chapter": "Chapter",
+  "reader.wall.reason.site": "Site",
+  "reader.wall.reason.reason": "Reason",
+  "reader.wall.reason.login": "Login required",
+  "reader.wall.reason.paywall": "Paywall / VIP",
+  "reader.wall.reason.captcha": "CAPTCHA / verification",
+  "reader.wall.reason.age": "Age gate",
+  "reader.wall.reason.unknown": "Blocked"
 }

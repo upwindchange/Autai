@@ -98,5 +98,20 @@
   "reader.options.back": "返回阅读",
   "reader.options.loadFailed": "无法加载此任务的选项",
   "reader.stop.label": "停止并重新开始",
-  "reader.stop.hint": "停止所有任务并开始新任务"
+  "reader.stop.hint": "停止所有任务并开始新任务",
+  "reader.wall.title": "这个网站需要你",
+  "reader.wall.body": "网站 {{host}} 用登录/付费/验证页面挡住了第 {{n}} 章。协助通过一次即可，登录会被记住。",
+  "reader.wall.stepIn": "协助",
+  "reader.wall.reject": "跳过该站",
+  "reader.wall.stepping": "在右侧浏览器中完成后点“完成”，我们会自动继续。",
+  "reader.wall.done": "完成",
+  "reader.wall.giveUp": "放弃",
+  "reader.wall.reason.chapter": "章节",
+  "reader.wall.reason.site": "网站",
+  "reader.wall.reason.reason": "原因",
+  "reader.wall.reason.login": "需要登录",
+  "reader.wall.reason.paywall": "付费/VIP",
+  "reader.wall.reason.captcha": "人机验证",
+  "reader.wall.reason.age": "年龄限制",
+  "reader.wall.reason.unknown": "被拦截"
 }

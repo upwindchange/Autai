@@ -26,6 +26,22 @@ export interface ChaptersChangedPayload {
 }
 
 /**
+ * Payload for `entertainment:wallPrompt`: a chaptered internet fetch hit a
+ * wall (login / paywall / captcha / age gate) and parked, asking the reader
+ * to step in or skip. `ask` = the card, `stepping` = the user is working in
+ * the split view (slim banner), `cleared` = dismissed (answered / thread
+ * switched) — the reader drops the card.
+ */
+export interface WallPromptPayload {
+  id: string;
+  threadId: string;
+  chapterNumber: number;
+  host: string;
+  reason: string;
+  state: "ask" | "stepping" | "cleared";
+}
+
+/**
  * Payload for the `app:message` server-push event: a toast notification shown
  * to the user (info / alert / warning / success). `alert` is a fatal, persistent
  * error; `warning` is a non-fatal partial failure the workflow recovers from.
@@ -47,6 +63,7 @@ export interface ServerEvents {
   "threads:suggestionsUpdated": ThreadSuggestionsPayload;
   "app:message": AppMessage;
   "entertainment:chaptersChanged": ChaptersChangedPayload;
+  "entertainment:wallPrompt": WallPromptPayload;
 }
 
 export type ServerEventName = keyof ServerEvents;
@@ -63,4 +80,5 @@ export const SERVER_EVENT_NAMES: readonly ServerEventName[] = [
   "threads:suggestionsUpdated",
   "app:message",
   "entertainment:chaptersChanged",
+  "entertainment:wallPrompt",
 ];

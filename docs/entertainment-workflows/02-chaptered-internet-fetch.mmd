@@ -53,7 +53,7 @@ flowchart TD
     C3 -->|"wrong book"| C2
 
     Block2 --> Rung3
-    A2 -->|"wall found"| Block1["Put the site on<br/>this book's blocked list"]
+    A2 -->|"wall found"| Block1["Wall hit: ask the user first<br/>(step-in card in the reader);<br/>on skip: block the site,<br/>then (if the book's search-fallback<br/>toggle is on) rotate to search"]
     B2 -->|"wall found"| Block1
     C2 -->|"all candidates used up"| Err(["Chapter marked failed<br/>fetchLoop stops,<br/>user can press Redo failed"])
     Block1 --> Rung3

@@ -20,10 +20,14 @@ import { useChapterReadiness } from "@/hooks/useChapterReadiness";
 import { useReaderHotkeys } from "@/hooks/useReaderHotkeys";
 import { useIsMobile } from "@/hooks/use-mobile";
 import type { ChapterStatus, EntertainmentConfig } from "@shared";
+import type { WallPromptPayload } from "@shared/events";
+import { httpClient } from "@/lib/httpClient";
+import { serverEvents } from "@/lib/serverEvents";
 import { EntertainmentWizard } from "./wizard/EntertainmentWizard";
 import { StepOptions } from "./wizard/steps/StepOptions";
 import { buildReaderCssVars } from "./reader/reader-settings/reader-theme";
 import { ReaderFooter } from "./reader/ReaderFooter";
+import { WallPromptCard } from "./reader/WallPromptCard";
 
 // Desktop-only bottom band (px from the reading viewport's bottom edge) that
 // reveals the footer on hover. Invisible — hover is detected via mousemove, not
@@ -112,6 +116,40 @@ export const EntertainmentThread: FC = () => {
     const chapterNumber = activeThreadId ? (currentChapterNumber ?? 1) : null;
     void setReaderCursor(activeThreadId, chapterNumber);
   }, [activeThreadId, currentChapterNumber, setReaderCursor]);
+
+  // Wall prompt (chaptered internet fetch): SSE-driven parking card asking
+  // the reader to step in on a walled site or skip. Recovered over REST on
+  // mount + SSE reconnect; dismissed via the `cleared` state. Thread-scoped:
+  // events for other threads are ignored (their reader owns the card).
+  const [wallPrompt, setWallPrompt] = useState<WallPromptPayload | null>(null);
+  useEffect(() => {
+    if (!activeThreadId) {
+      setWallPrompt(null);
+      return;
+    }
+    void httpClient
+      .getJSON<{ prompt: WallPromptPayload | null }>(
+        `/entertainment/threads/${activeThreadId}/wall-prompt`,
+      )
+      .then((r) => setWallPrompt(r.prompt))
+      .catch(() => {});
+    const dispose = serverEvents.on("entertainment:wallPrompt", (p) => {
+      if (p.threadId !== activeThreadId) return;
+      setWallPrompt(p.state === "cleared" ? null : p);
+    });
+    const disposeReconnect = serverEvents.onReconnect(() => {
+      void httpClient
+        .getJSON<{ prompt: WallPromptPayload | null }>(
+          `/entertainment/threads/${activeThreadId}/wall-prompt`,
+        )
+        .then((r) => setWallPrompt(r.prompt))
+        .catch(() => {});
+    });
+    return () => {
+      dispose();
+      disposeReconnect();
+    };
+  }, [activeThreadId]);
 
   // Null the cursor on unmount only — a separate effect so its cleanup doesn't
   // fire on every chapter nav. StrictMode double-mount (and any boot-time
@@ -378,6 +416,7 @@ export const EntertainmentThread: FC = () => {
                 {t("reader.fetch.error")}
               </p>
             )}
+            {wallPrompt && <WallPromptCard prompt={wallPrompt} />}
             {currentChapterNumber != null && (
               <div className="mb-10 flex flex-col gap-y-10 empty:hidden">
                 <ChapterBody chapter={current} />

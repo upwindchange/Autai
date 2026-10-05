@@ -96,8 +96,16 @@ Sprinkled through the ladder are safety checks:
 
 - **Walls.** After every page opens, a cheap code check
   (`runDomWallProbe`) scans the page text for paywall/login/captcha phrases
-  (VIP章节, 登录后阅读, captcha, …). A hit blacklists the site for this book
-  without spending an AI call. The agents also carry a `reportWall` tool to
+  (VIP章节, 登录后阅读, captcha, …). A hit first pauses the fetch and asks
+  the reader to step in (an approval card over the reading surface): the
+  crawl tab is brought to the split view so the user can log in / pay /
+  solve it — the shared cookie jar remembers the login — and pressing
+  "Done" re-checks the wall and continues on the same site. Only on a skip
+  (or when no reader is focused on the thread) is the site blacklisted, and
+  the web-search rung below then runs only if the book's "search another
+  site when blocked" option is on (default OFF); when it is off and the wall
+  was skipped, the chapter errors ("Redo failed" and the chapter-link paste
+  remain the escapes). The agents also carry a `reportWall` tool to
   call out walls the text scan missed.
 - **Dead ends.** A site that lands on the wrong chapter twice, or hands back
   too little text (under 500 characters), gets marked "dead end" and skipped.

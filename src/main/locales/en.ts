@@ -57,6 +57,11 @@ const en = {
     // Dehydrate pipeline toasts (file-upload novels).
     dehydrateStartedTitle: "Rewrite started",
     dehydrateStartedBody: "Dehydrating and rewriting this novel — please wait.",
+    // Wall gate (chaptered internet): the reader declined to step in on a
+    // walled site and the search fallback is off.
+    wallRejectedTitle: "Chapter blocked",
+    wallRejectedBody:
+      "You declined to step in on {{host}} and searching for another site is turned off. Open the footer menu to paste a chapter link or enable the search fallback.",
   },
   agents: {
     searchingTitle: "Looking up multiple topics at once: {{title}}",

@@ -19,6 +19,8 @@
  */
 
 import log from "electron-log/main";
+import { i18n } from "@/i18n";
+import { sendWarning } from "@/utils/messageUtils";
 import type { InternetNovel } from "@shared";
 import {
   entertainmentBackendService,
@@ -38,6 +40,7 @@ import {
   type Ctx,
 } from "./agents";
 import { runDomWallProbe } from "./wallGuard";
+import { requestWallHelp } from "./wallGate";
 
 const logger = log.scope("Dehydrate:InternetFetch");
 
@@ -99,9 +102,12 @@ export async function fetchInternetChapter(
     threadId: string;
     abortSignal?: AbortSignal;
     overrideUrl?: string;
+    /** Rung 3 (book search) runs only when true; a declined wall then
+     * errors the chapter instead of hunting for another host. */
+    webSearchFallback: boolean;
   },
 ): Promise<FetchOutcome> {
-  const { threadId, abortSignal, overrideUrl } = options;
+  const { threadId, abortSignal, overrideUrl, webSearchFallback } = options;
   const n = chapterNumber;
 
   entertainmentBackendService.markSourceChapterFetching({
@@ -204,10 +210,9 @@ export async function fetchInternetChapter(
   }
 
   // --- normal path: entry ladder with budgets -----------------------------
-
+  let deadline = Date.now() + CHAPTER_DEADLINE_MS;
   const attemptedHosts = new Set<string>();
   const probedUrls = new Set<string>();
-  const deadline = Date.now() + CHAPTER_DEADLINE_MS;
   let anchors: SiteAnchors | null =
     entertainmentBackendService.getSiteAnchors(threadId);
   let recovery: LandingRecoveryInput | null = null;
@@ -220,39 +225,93 @@ export async function fetchInternetChapter(
   const readAnchors = (): SiteAnchors | null =>
     entertainmentBackendService.getSiteAnchors(threadId);
 
+  // --- wall gate: ask the reader before blacklisting ----------------------
+
+  /** Host of the wall the user most recently declined to step into (for the
+   * rung-3 skip toast; empty until a wall is declined). */
+  let lastWallHost = "";
+  let userRejectedWall = false;
   /**
-   * Extract on the current landing. Returns the fetch outcome when the
-   * chapter is safely saved, or null when the site was rotated (caller
-   * continues the ladder). Handles the one extract retry and the
-   * no-content / wall dead-ends. `host` is the landing host; every block
-   * re-derives from the OPENED page (the extract agent may navigate).
+   * Park the fetch and ask the reader to pass the wall manually (or skip).
+   * "resolved" ⇒ the site is NOT blocked — the caller retries it; the
+   * 10-minute deadline freezes while parked so a step-in never eats budget.
    */
-  const extractHere = async (host: string): Promise<FetchOutcome | null> => {
-    // Block/rotate against the page the verdict was actually made on.
-    const blockHere = (reason: string): void =>
-      blockSite(hostnameOf(liveUrl(activeTabId)) ?? host, reason);
+  const gate = async (
+    host: string,
+    reason: string,
+  ): Promise<"resolved" | "rejected"> => {
+    const t0 = Date.now();
+    const verdict = await requestWallHelp({
+      threadId,
+      chapterNumber: n,
+      sessionId,
+      host,
+      reason,
+      signal: abortSignal,
+      probeNow: () => probe(),
+    });
+    deadline += Date.now() - t0;
+    if (verdict === "rejected") {
+      userRejectedWall = true;
+      lastWallHost = host;
+    }
+    return verdict;
+  };
+
+  /**
+   * One extract pass (with its single built-in retry on a transient
+   * failure), no wall gate. "saved-short" = prose saved but below
+   * MIN_PROSE_CHARS — the caller treats it as a dead end like "dead-end".
+   */
+  const runExtract = async (): Promise<
+    "fetched" | { wall: string } | "dead-end" | "saved-short"
+  > => {
     let extracted = await extractChapterAgent(ctx, novel, n);
     if (extracted.kind === "failed") {
       // One retry, then the site is a dead end for this chapter.
       extracted = await extractChapterAgent(ctx, novel, n);
     }
-    if (extracted.kind === "wall") {
-      blockHere(extracted.reason);
-      return null;
-    }
-    if (extracted.kind === "failed") {
-      blockHere("dead-end:no-content");
-      return null;
-    }
+    if (extracted.kind === "wall") return { wall: extracted.reason };
+    if (extracted.kind === "failed") return "dead-end";
     entertainmentBackendService.updateSourceChapter(threadId, n, {
       url: liveUrl(activeTabId),
       status: "fetched",
     });
-    if (extracted.content.length < MIN_PROSE_CHARS) {
+    if (extracted.content.length < MIN_PROSE_CHARS) return "saved-short";
+    return "fetched";
+  };
+
+  /**
+   * Extract on the current landing. Returns the fetch outcome when the
+   * chapter is safely saved, or null when the site was rotated (caller
+   * continues the ladder). Handles the one extract retry and the
+   * no-content dead-ends; a WALL is first offered to the reader via the
+   * gate and the extract re-run once (a second wall blocks + rotates).
+   * `host` is the landing host; every block re-derives from the OPENED page
+   * (the extract agent may navigate).
+   */
+  const extractHere = async (host: string): Promise<FetchOutcome | null> => {
+    // Block/rotate against the page the verdict was actually made on.
+    const blockHere = (reason: string): void =>
+      blockSite(hostnameOf(liveUrl(activeTabId)) ?? host, reason);
+    let verdict = await runExtract();
+    if (typeof verdict !== "string") {
+      const openedHost = hostnameOf(liveUrl(activeTabId)) ?? host;
+      if ((await gate(openedHost, verdict.wall)) === "rejected") {
+        blockHere(verdict.wall);
+        return null;
+      }
+      verdict = await runExtract(); // reader passed the wall — retry ONCE
+      if (typeof verdict !== "string") {
+        blockHere(verdict.wall);
+        return null;
+      }
+    }
+    if (verdict === "dead-end" || verdict === "saved-short") {
       blockHere("dead-end:no-content");
       return null;
     }
-    return "fetched";
+    return verdict;
   };
 
   /** Book-end cleanup: release the crawl tab + all per-book rotation state. */
@@ -303,6 +362,9 @@ export async function fetchInternetChapter(
         const prevHost = hostnameOf(liveUrl(activeTabId)) ?? savedHost;
         const marker = await probe();
         if (marker != null) {
+          if ((await gate(prevHost, "wall:" + marker)) === "resolved") {
+            continue ladder; // user passed it — same site retried
+          }
           blockSite(prevHost, "wall:" + marker);
           continue ladder;
         }
@@ -314,7 +376,11 @@ export async function fetchInternetChapter(
           continue ladder;
         }
         if (result.kind === "wall") {
-          blockSite(hostnameOf(liveUrl(activeTabId)) ?? prevHost, result.reason);
+          const wallHost = hostnameOf(liveUrl(activeTabId)) ?? prevHost;
+          if ((await gate(wallHost, result.reason)) === "resolved") {
+            continue ladder; // user passed it — same site retried
+          }
+          blockSite(wallHost, result.reason);
           continue ladder;
         }
         if (result.kind === "no-next") {
@@ -325,10 +391,11 @@ export async function fetchInternetChapter(
           if (await navigate(proofUrl)) {
             const proofMarker = await probe();
             if (proofMarker != null) {
-              blockSite(
-                hostnameOf(liveUrl(activeTabId)) ?? prevHost,
-                "wall:" + proofMarker,
-              );
+              const proofWallHost = hostnameOf(liveUrl(activeTabId)) ?? prevHost;
+              if ((await gate(proofWallHost, "wall:" + proofMarker)) === "resolved") {
+                continue ladder; // user passed it — same site retried
+              }
+              blockSite(proofWallHost, "wall:" + proofMarker);
               continue ladder;
             }
             const proof = await finalityProofAgent(
@@ -346,7 +413,11 @@ export async function fetchInternetChapter(
               return "finalChapter";
             }
             if (proof.kind === "wall") {
-              blockSite(hostnameOf(liveUrl(activeTabId)) ?? prevHost, proof.reason);
+              const proofWallHost = hostnameOf(liveUrl(activeTabId)) ?? prevHost;
+              if ((await gate(proofWallHost, proof.reason)) === "resolved") {
+                continue ladder; // user passed it — same site retried
+              }
+              blockSite(proofWallHost, proof.reason);
               continue ladder;
             }
             // not-last / failed → fall through to the target rung
@@ -372,6 +443,9 @@ export async function fetchInternetChapter(
         const liveHost = hostnameOf(liveUrl(activeTabId)) ?? anchors.host;
         const marker = await probe();
         if (marker != null) {
+          if ((await gate(liveHost, "wall:" + marker)) === "resolved") {
+            continue ladder; // user passed it — same site retried
+          }
           blockSite(liveHost, "wall:" + marker);
           rotated = true;
           break;
@@ -390,6 +464,9 @@ export async function fetchInternetChapter(
           break;
         }
         if (result.kind === "wall") {
+          if ((await gate(liveHost, result.reason)) === "resolved") {
+            continue ladder; // user passed it — same site retried
+          }
           blockSite(liveHost, result.reason);
           rotated = true;
           break;
@@ -416,6 +493,24 @@ export async function fetchInternetChapter(
       continue ladder;
     }
 
+    // --- rung 3: search for the book ---------------------------------------
+    // The search rung is opt-in: without the toggle, a declined (or
+    // unanswerable) wall errors the chapter instead of hunting for another
+    // host. The escapes are the reader's chapter-link paste, Redo failed
+    // after Reset, or enabling the toggle.
+    if (!webSearchFallback) {
+      if (userRejectedWall) {
+        sendWarning(
+          i18n.t("entertainment.wallRejectedTitle"),
+          i18n.t("entertainment.wallRejectedBody", { host: lastWallHost }),
+        );
+      }
+      logger.warn("rung3 skipped — web search fallback disabled", {
+        threadId,
+        n,
+      });
+      break ladder;
+    }
     // --- rung 3: search for the book ---------------------------------------
     const candidates = await runBookSearch(
       novel,
@@ -477,6 +572,11 @@ export async function fetchInternetChapter(
       attemptedHosts.add(host);
       const marker = await probe();
       if (marker != null) {
+        // Resolved ⇒ the site is retried from the top of the ladder; the
+        // candidate must NOT be marked probed or it would be skipped.
+        if ((await gate(host, "wall:" + marker)) === "resolved") {
+          continue ladder;
+        }
         blockSite(host, "wall:" + marker);
         probedUrls.add(candidate);
         continue;
@@ -501,9 +601,15 @@ export async function fetchInternetChapter(
         break; // enter the target rung at the next ladder iteration
       }
       if (result.kind === "wall") {
-        // The wall was hit on whatever page the agent ended up on — block
+        // The wall was hit on whatever page the agent ended up on — judge
         // THAT host, re-read live (never the candidate string).
-        blockSite(hostnameOf(liveUrl(activeTabId)) ?? host, result.reason);
+        const wallHost = hostnameOf(liveUrl(activeTabId)) ?? host;
+        // Resolved ⇒ the site is retried from the top of the ladder; the
+        // candidate must NOT be marked probed or it would be skipped.
+        if ((await gate(wallHost, result.reason)) === "resolved") {
+          continue ladder;
+        }
+        blockSite(wallHost, result.reason);
         probedUrls.add(candidate);
         continue;
       }

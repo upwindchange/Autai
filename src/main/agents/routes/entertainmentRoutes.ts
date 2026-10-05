@@ -24,6 +24,7 @@ import {
   isValidHttpUrl,
 } from "@shared";
 import { clearSearchCache } from "@/agents/workers/entertainmentWorker/pipeline2ChapteredInternet/internetFetch/searchEntry";
+import { getActiveWallPrompt } from "@/agents/workers/entertainmentWorker/pipeline2ChapteredInternet/internetFetch/wallGate";
 import { entertainmentScheduler } from "@/agents/workers/entertainmentWorker/scheduler";
 import { SessionTabService } from "@/services";
 import log from "electron-log/main";
@@ -378,6 +379,14 @@ entertainmentRoutes.put("/reader-cursor", async (c) => {
     logger.error("Error setting reader cursor:", error);
     return c.json({ error: "Failed to set reader cursor" }, 500);
   }
+});
+
+// GET /entertainment/threads/:threadId/wall-prompt — the thread's CURRENT
+// wall prompt (or null). Recovery read after a renderer reload/SSE reconnect:
+// the card's answer channel is POST /hitl/respond (same id).
+entertainmentRoutes.get("/threads/:threadId/wall-prompt", (c) => {
+  const threadId = c.req.param("threadId");
+  return c.json({ prompt: getActiveWallPrompt(threadId) });
 });
 
 // POST /entertainment/threads/:threadId/prefetch — internet wizard "Fetch &

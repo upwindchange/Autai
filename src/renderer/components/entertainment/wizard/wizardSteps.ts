@@ -68,6 +68,7 @@ export const INITIAL_DEHYDRATE: DehydrateConfig = {
     depth: structuredClone(DEFAULT_DEPTH),
     language: structuredClone(DEFAULT_LANGUAGE),
     nonNovelSource: false,
+    webSearchFallback: false,
     customInstruction: "",
   },
 };
@@ -145,6 +146,7 @@ export function patchSharedOptions(
     depth?: DepthPatch;
     language?: LanguagePatch;
     nonNovelSource?: boolean;
+    webSearchFallback?: boolean;
     customInstruction?: string;
   },
 ): EntertainmentConfig {
@@ -214,6 +216,9 @@ export function patchSharedOptions(
       : {}),
       ...(patch.nonNovelSource !== undefined ?
         { nonNovelSource: patch.nonNovelSource }
+      : {}),
+      ...(patch.webSearchFallback !== undefined ?
+        { webSearchFallback: patch.webSearchFallback }
       : {}),
       ...(patch.customInstruction !== undefined ?
         { customInstruction: patch.customInstruction }

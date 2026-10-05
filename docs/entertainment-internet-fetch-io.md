@@ -16,6 +16,10 @@ fetchInternetChapter(
     overrideUrl?: string;      // reader "chapter link" override — user-anchored
                                // chapter N: extract-only from this URL, no
                                // verification of chapter identity
+    webSearchFallback: boolean; // config `options.webSearchFallback` — gates
+                               // rung 3 (book search): with it off, a declined
+                               // wall errors the chapter instead of hunting
+                               // for another host
   },
 ): Promise<"fetched" | "finalChapter" | "error">
 ```
@@ -84,6 +88,35 @@ eventBus — that is the UI's chapter-list/progress refresh signal.
 - `"error"` — row marked `error` (unless aborted); `fetchLoop` stops; UI shows error; `retryFailed` can re-enqueue.
 
 The function **never throws** for expected outcomes.
+
+## Wall gate (HITL) — events + REST
+
+Every wall verdict (probe marker or agent `reportWall`) first parks the fetch
+and asks the reader before blacklisting. `wallGate.ts` drives it:
+
+- **SSE event `entertainment:wallPrompt`** — payload
+  `{ id, threadId, chapterNumber, host, reason, state: "ask" | "stepping" | "cleared" }`.
+  `ask` = the reader shows the step-in ApprovalCard (`WallPromptCard.tsx`);
+  `stepping` = the user is working in the split view (slim banner with
+  Done / Give up); `cleared` = dismissed (answered / thread switch).
+- **Answers** go through the existing `POST /hitl/respond` with
+  `{ id, response: { action: "stepIn" | "reject" | "done" | "giveUp" } }` —
+  no new respond route. The gate waits (max 32-bit timeout ≈ 24.8 days; the
+  abort signal is the real bound) via `HitlService.request(id, WAIT_FOREVER_MS, signal)`.
+- **`GET /entertainment/threads/:threadId/wall-prompt`** — `{ prompt | null }`,
+  the thread's CURRENT prompt; the reader re-reads it on mount and on SSE
+  reconnect (renderer reload recovery).
+- **Step-in** re-activates the crawl session
+  (`SessionTabService.activateSession("ent-fetch-${threadId}")`) and emits
+  `splitview:activate` so the crawl tab is on screen; the default cookie jar
+  shares the login across chapters/restarts. **Done** re-probes the wall:
+  clean ⇒ `"resolved"` (same site retried, NOT blocked); still walled ⇒ the
+  card re-asks. **Reject / Give up** ⇒ `"rejected"`: the site is blacklisted
+  and rotation proceeds.
+- **No reader focus** (`entertainmentFrontendService.getReaderCursor()` on
+  another thread) ⇒ auto-reject with no card (wizard prefetch can't park).
+  The fetch's 10-minute deadline freezes while parked; `stopThread` calls
+  `clearWallPrompt(threadId)` so switching books dismisses any parked card.
 
 ## Intermediate state (non-DB)
 

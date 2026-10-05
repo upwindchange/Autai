@@ -16,6 +16,7 @@ import { AlphaGlyph } from "@/components/ui/alpha-glyph";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { HelpTooltip } from "@/components/ui/help-tooltip";
+import { Switch } from "@/components/ui/switch";
 import {
   Select,
   SelectContent,
@@ -470,6 +471,34 @@ export const StepNovel: FC<StepNovelProps> = ({
               </p>
             )}
           </Field>
+
+          {/* Search fallback — when a site walls a chapter and the reader
+              declines to step in, look for another host via web search
+              instead of failing the chapter. Chaptered internet only. */}
+          {!nonNovel && (
+            <div className="rounded-lg border bg-card px-4 py-3">
+              <Field orientation="horizontal">
+                <Switch
+                  id="ent-search-fallback"
+                  checked={config.options.webSearchFallback}
+                  onCheckedChange={(v) =>
+                    setConfig(patchSharedOptions(config, { webSearchFallback: v }))
+                  }
+                />
+                <FieldContent>
+                  <FieldLabel
+                    htmlFor="ent-search-fallback"
+                    className="cursor-pointer text-sm font-medium"
+                  >
+                    <span>{t("novel.internet.searchFallback.label")}</span>
+                    <HelpTooltip
+                      content={t("novel.internet.searchFallback.tooltip")}
+                    />
+                  </FieldLabel>
+                </FieldContent>
+              </Field>
+            </div>
+          )}
 
           {/* Source — the link itself. Link kinds get a validated single-line
               URL input (red border + FieldError once a non-URL is typed);

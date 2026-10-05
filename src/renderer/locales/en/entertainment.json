@@ -53,6 +53,8 @@
   "novel.internet.alphaNote": "Online fetch is in alpha — things may not always work as expected.",
   "novel.source.recommendFile.note": "Uploading the text file is the fastest way by far — reading starts almost immediately. It also unlocks file-only features: table-of-contents navigation, cross-chapter processing (which patterns repeat, which lore was already explained), and more. Every online option is much slower — the crawl has to find and read each chapter page.",
   "novel.source.structureLabel": "Structure",
+  "novel.internet.searchFallback.label": "Search another site when blocked",
+  "novel.internet.searchFallback.tooltip": "After you decline to step in on a blocked site, search the web for another source. Off by default: the chapter fails instead.",
   "novel.source.acquisitionLabel": "Acquisition",
   "options.reset": "Reset to defaults",
   "options.basic.none": "No basic options enabled",
