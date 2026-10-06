@@ -96,7 +96,6 @@ export const Thread: FC = () => {
       <ThreadIdTracker />
       <SelectionToolbar />
       <ThreadPrimitive.Viewport
-        turnAnchor="top"
         autoScroll
         data-slot="aui_thread-viewport"
         className="relative flex flex-1 flex-col overflow-x-auto overflow-y-auto scroll-smooth"

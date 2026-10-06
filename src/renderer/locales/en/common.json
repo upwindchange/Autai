@@ -92,6 +92,7 @@
   "common.confirm": "Confirm",
   "thread.reasoning": "Reasoning",
   "thread.working": "Autai is working",
+  "thread.scrollToBottom": "Scroll to bottom",
   "composer.ariaLabel": "Message input",
   "composer.sendMessage": "Send message",
   "composer.stopGenerating": "Stop generating",
