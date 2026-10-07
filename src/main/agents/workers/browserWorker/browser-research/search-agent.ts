@@ -14,9 +14,7 @@ import {
 } from "@agents/utils";
 import { navigateTool } from "@agents/tools/TabControlTools";
 import { getFlattenDOMTool } from "@agents/tools/DOMTools";
-import { interceptClickUrlTool } from "@agents/tools/InteractiveTools";
 import { getAttributeTool } from "@agents/tools/InteractiveTools";
-import { getAllAttributesTool } from "@agents/tools/InteractiveTools";
 import { settingsService, SessionTabService } from "@/services";
 import { i18n } from "@/i18n";
 import { sendWarning } from "@/utils/messageUtils";
@@ -232,64 +230,100 @@ async function getFlattenDOM(
   return (result as { representation: string }).representation;
 }
 
-function isValidUrl(value: string): boolean {
-  if (!/^https?:\/\//i.test(value)) return false;
+/**
+ * Turn a result link's href into a destination URL.
+ *
+ * Off-origin: only absolute http(s) URLs pass. On-origin: redirect
+ * wrappers pass (decoded when possible, else absolutized — the engine
+ * server-redirects them); everything else is engine chrome → null.
+ */
+function extractTargetUrl(
+  href: string | null | undefined,
+  serpOrigin: string,
+): string | null {
+  if (!href || !serpOrigin) return null;
+
+  let base: URL;
   try {
-    new URL(value);
-    return true;
+    base = new URL(serpOrigin);
   } catch {
-    return false;
+    return null;
   }
+
+  let parsed: URL;
+  try {
+    parsed = new URL(href, base);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return null;
+  }
+
+  // Off-origin: trust only fully-qualified absolute http(s) URLs
+  if (parsed.host !== base.host) {
+    return /^https?:\/\//i.test(href) ? parsed.toString() : null;
+  }
+
+  // Decodable wrapper: /url?q=<destination>
+  if (parsed.pathname.replace(/\/+$/, "") === "/url") {
+    const target = parsed.searchParams.get("q") ?? "";
+    try {
+      const decoded = new URL(target);
+      if (decoded.protocol === "http:" || decoded.protocol === "https:") {
+        return decoded.toString();
+      }
+    } catch {
+      // fall through to wrapper-as-redirect below
+    }
+  }
+
+  // Opaque wrapper: keep absolutized — the engine redirects it
+  if (REDIRECT_WRAPPER_PATHS[parsed.pathname.replace(/\/+$/, "")]) {
+    return parsed.toString();
+  }
+
+  return null;
 }
 
-async function interceptLinkUrl(
+// Result-redirect wrapper pathnames (Google, Bing, DDG, Baidu, Sogou).
+const REDIRECT_WRAPPER_PATHS: Record<string, true> = {
+  "/url": true,
+  "/goto": true,
+  "/ck/a": true,
+  "/l": true,
+  "/link": true,
+};
+
+/**
+ * Resolve a result link to its destination URL from its href.
+ * Unresolvable hrefs (JS-routed links, missing href) yield null and
+ * are dropped by the caller.
+ */
+async function resolveResultUrl(
   backendNodeId: number,
   sessionId: string,
   activeTabId: string,
 ): Promise<string | null> {
-  const toolContext = {
-    toolCallId: generateId(),
-    messages: [],
-    context: { sessionId, activeTabId },
-  };
+  const attrResult = (await getAttributeTool.execute!(
+    { backendNodeId, attributeName: "href" },
+    {
+      toolCallId: generateId(),
+      messages: [],
+      context: { sessionId, activeTabId },
+    },
+  )) as { value?: string | null; exists?: boolean };
+  if (!attrResult.exists) return null;
 
-  // Tier 1: Try getAttribute("href") — single CDP call, ~10ms
-  try {
-    const attrResult = (await getAttributeTool.execute!(
-      { backendNodeId, attributeName: "href" },
-      toolContext,
-    )) as { value?: string | null; exists?: boolean };
-    if (attrResult.exists && attrResult.value && isValidUrl(attrResult.value)) {
-      return attrResult.value;
-    }
-  } catch {
-    // fall through to tier 2
-  }
+  // SERP URL — relative wrapper hrefs resolve against it
+  const serpUrl =
+    SessionTabService.getInstance()
+      .getTab(activeTabId)
+      ?.webContents.getURL() ?? "";
 
-  // Tier 2: Try getAllAttributes — scan all attribute values for any URL
-  try {
-    const allAttrsResult = (await getAllAttributesTool.execute!(
-      { backendNodeId },
-      toolContext,
-    )) as { attributes?: Record<string, string> };
-    if (allAttrsResult.attributes) {
-      for (const value of Object.values(allAttrsResult.attributes)) {
-        if (isValidUrl(value)) {
-          return value;
-        }
-      }
-    }
-  } catch {
-    // fall through to tier 3
-  }
-
-  // Tier 3: Fallback to click + intercept — slow but handles JS navigation
-  const result = (await interceptClickUrlTool.execute!(
-    { backendNodeId },
-    toolContext,
-  )) as { interceptedUrl?: string };
-  return result.interceptedUrl ?? null;
+  return extractTargetUrl(attrResult.value, serpUrl);
 }
+
 
 // ===== Dedup =====
 
@@ -331,7 +365,7 @@ async function resolveSearchResultUrls(
   const resolved: SearchResultItem[] = [];
 
   for (const r of rawResults) {
-    const url = await interceptLinkUrl(r.backendNodeId, sessionId, activeTabId);
+    const url = await resolveResultUrl(r.backendNodeId, sessionId, activeTabId);
     if (url) {
       resolved.push({
         url,
@@ -341,7 +375,7 @@ async function resolveSearchResultUrls(
         queryIndex,
       });
     } else {
-      logger.warn("Failed to intercept URL for backendNodeId", {
+      logger.warn("Failed to resolve result URL for backendNodeId", {
         backendNodeId: r.backendNodeId,
         title: r.title,
       });
@@ -380,7 +414,35 @@ async function executeSingleSearchQuery(
     if (state) state.activeTabId = tabId;
     await sessionTabService.setBackendVisibility(tabId, true);
 
-    const domRepresentation = await getFlattenDOM(sessionId, tabId);
+    // SERPs commit before hydrating; an early snapshot can catch the
+    // empty pre-render document. Poll briefly for a rendered page
+    // before spending an LLM call.
+    let domRepresentation = "";
+    const renderDeadline = Date.now() + 3000;
+    while (Date.now() < renderDeadline) {
+      domRepresentation = await getFlattenDOM(sessionId, tabId);
+      if (
+        domRepresentation.length > 500 &&
+        domRepresentation !== "No DOM tree available"
+      ) {
+        break;
+      }
+      const { promise: retryDelay, resolve: wake } =
+        Promise.withResolvers<void>();
+      setTimeout(wake, 250);
+      await retryDelay;
+    }
+
+    if (
+      domRepresentation.length <= 500 ||
+      domRepresentation === "No DOM tree available"
+    ) {
+      logger.warn("Search results page never rendered", {
+        query,
+        searchUrl,
+      });
+      return [];
+    }
 
     const truncatedDom =
       domRepresentation.length > 50000 ?

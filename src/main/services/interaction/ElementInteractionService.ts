@@ -57,6 +57,9 @@ interface CharInfo {
 export class ElementInteractionService {
   private webContents: WebContents;
   private logger: LogFunctions;
+  private downloadInterceptor:
+    | ((event: Electron.Event, item: Electron.DownloadItem) => void)
+    | null = null;
   private pendingInterceptResolver: ((url: string) => void) | null = null;
 
   constructor(webContents: WebContents) {
@@ -92,19 +95,28 @@ export class ElementInteractionService {
       }
     });
 
-    this.webContents.session.on("will-download", (event, item) => {
+    this.downloadInterceptor = (event, item) => {
       if (this.pendingInterceptResolver) {
         event.preventDefault();
         this.pendingInterceptResolver(item.getURL());
         this.pendingInterceptResolver = null;
       }
-    });
+    };
+    // Session outlives every tab — remove in destroy() or this leaks.
+    this.webContents.session.on("will-download", this.downloadInterceptor);
   }
 
   /**
    * Cleanup resources and detach debugger
    */
   async destroy(): Promise<void> {
+    if (this.downloadInterceptor) {
+      this.webContents.session.removeListener(
+        "will-download",
+        this.downloadInterceptor,
+      );
+      this.downloadInterceptor = null;
+    }
     try {
       await detachDebugger(this.webContents, this.logger);
       this.logger.info("ElementInteractionService destroyed");
@@ -911,7 +923,7 @@ export class ElementInteractionService {
         await this.sleep(50);
 
         // Mouse down with timeout
-        sendCDPCommand(
+        await sendCDPCommand(
           this.webContents,
           "Input.dispatchMouseEvent",
           {
@@ -927,7 +939,7 @@ export class ElementInteractionService {
         await this.sleep(80);
 
         // Mouse up with timeout
-        sendCDPCommand(
+        await sendCDPCommand(
           this.webContents,
           "Input.dispatchMouseEvent",
           {
@@ -1012,15 +1024,25 @@ export class ElementInteractionService {
     this.ensureDebuggerAttached();
     const startTime = Date.now();
 
-    const urlPromise = new Promise<string | null>((resolve) => {
-      this.pendingInterceptResolver = resolve;
-      setTimeout(() => {
-        resolve(null);
-        this.pendingInterceptResolver = null;
-      }, 10000);
-    });
+    const { promise: urlPromise, resolve: resolveUrl } =
+      Promise.withResolvers<string | null>();
+    this.pendingInterceptResolver = resolveUrl;
+    // A live anchor fires navigation well within this window.
+    const timeoutId = setTimeout(() => {
+      resolveUrl(null);
+    }, 3000);
 
     const clickResult = await this.clickElement(backendNodeId, options);
+    if (!clickResult.success) {
+      // No click, no navigation — fail fast.
+      clearTimeout(timeoutId);
+      this.pendingInterceptResolver = null;
+      return {
+        ...clickResult,
+        interceptedUrl: undefined,
+        duration: Date.now() - startTime,
+      };
+    }
     const interceptedUrl = await urlPromise;
 
     return {
