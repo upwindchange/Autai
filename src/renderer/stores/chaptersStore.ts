@@ -119,11 +119,10 @@ interface ChaptersState {
     threadId: string,
     config: StoryConfig,
   ) => Promise<void>;
-  /** Internet wizard "Start": fetch (idempotent) + rewrite together. */
-  startInternet: (
-    threadId: string,
-    config: StoryConfig,
-  ) => Promise<void>;
+  /** Wizard "Start" (both modes): persist the confirmed options and kick the
+   * pipeline — file runs the dehydrate loop over ingested raw text; internet
+   * runs fetch (idempotent) + rewrite together. */
+  startThread: (threadId: string, config: StoryConfig) => Promise<void>;
   /** Re-evaluate the thread's DB state and continue unfinished work. Footer
    * "Process next N" / "Process all" buttons. */
   resumeThread: (threadId: string) => Promise<void>;
@@ -270,7 +269,7 @@ export const useChaptersStore = create<ChaptersState>()(
       });
     },
 
-    startInternet: async (threadId, config) => {
+    startThread: async (threadId, config) => {
       await httpClient.postJSON(`/story/threads/${threadId}/start`, {
         config,
       });

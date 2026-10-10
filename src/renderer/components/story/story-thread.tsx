@@ -40,7 +40,6 @@ const HOVER_BAND_PX = 120;
 // StrictMode's mount→cleanup→mount cycle and be shared by both instances.
 let readerCursorMountGeneration = 0;
 let readerCursorClearTimer: number | null = null; // window.setTimeout id
-
 /**
  * Story thread — a guided novel-reading surface.
  *

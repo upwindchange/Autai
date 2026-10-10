@@ -186,7 +186,9 @@ function applyConfig(
 // Continue": backend detects encoding + decodes (iconv) and persists the raw
 // text + zero consumed offset. The response resolves only after the
 // DB write, so the renderer can rely on raw text being present when this
-// returns.
+// returns. Deliberately does NOT start the dehydrate loop and does NOT write
+// a read position — the rewrite begins only when the user confirms options
+// and presses Start (POST .../start), with the confirmed config.
 storyRoutes.post("/threads/:threadId/ingest", async (c) => {
   try {
     const threadId = c.req.param("threadId");
@@ -218,6 +220,8 @@ storyRoutes.post("/threads/:threadId/ingest", async (c) => {
     // applyConfig runs first (synchronous) → setupStoryThread on the
     // first config write emits `threads:metadataUpdated`, so the sidebar shows
     // the filename-based title immediately while decode is still running.
+    // The step-0 config persisted here is provisional; POST .../start
+    // overwrites it with the user's confirmed options.
     applyConfig(threadId, config);
 
     const decoded = await decodeViaWorker({ fsPath, base64: fileBytesBase64 });
@@ -227,20 +231,15 @@ storyRoutes.post("/threads/:threadId/ingest", async (c) => {
       return c.json({ error: "The file is empty" }, 400);
     }
     storyBackendService.setRawNovelText(threadId, decoded);
-    storyFrontendService.setLastReadChapterNumber(threadId, 1);
     logger.info("file decoded + raw text persisted", {
       threadId,
       charLen: decoded.length,
       byteEstimate: fsPath ? "(fsPath)" : (fileBytesBase64?.length ?? 0),
     });
-    // Kick off the dehydrate loop in the background. Async — the route returns
-    // immediately; the loop reads rawConsumedOffset from DB and runs to EOF.
-    storyScheduler.startFilePipeline(threadId);
 
     // Enrich the thread (extract real title + assign genre/trope tags) from
-    // the opening of the decoded text. Fire-and-forget — runs alongside the
-    // dehydrate loop; the deterministic title from applyConfig is the instant
-    // placeholder this refines.
+    // the opening of the decoded text. Fire-and-forget — metadata only, no
+    // rewrite; the dehydrate loop starts at POST .../start.
     threadIntelligenceService
       .enrichStoryThreadFromDb(threadId)
       .catch((err) => {
@@ -409,10 +408,12 @@ storyRoutes.post("/threads/:threadId/prefetch", async (c) => {
   return c.json({ ok: true });
 });
 
-// POST /story/threads/:threadId/start — internet wizard "Start":
-// persist the user's final options, then run fetch (idempotent — skips already
-// fetched chapters) + rewrite together. File threads don't use this; their
-// loop starts at /ingest.
+// POST /story/threads/:threadId/start — wizard "Start": persist the user's
+// confirmed options, then kick the pipeline for EITHER mode. Internet runs
+// fetch (idempotent — skips already fetched chapters) + rewrite together.
+// File runs the dehydrate loop over the raw text persisted by /ingest. The
+// first Start also lands the reader's opening position (the chapter the
+// reader opens at), which doubles as the thread's "user pressed Start" mark.
 storyRoutes.post("/threads/:threadId/start", async (c) => {
   const threadId = c.req.param("threadId");
   const body = await c.req.json().catch(() => ({}));
@@ -420,8 +421,26 @@ storyRoutes.post("/threads/:threadId/start", async (c) => {
   if (!parsed.success) {
     return c.json({ error: "Invalid body", details: parsed.error.issues }, 400);
   }
-  applyConfig(threadId, parsed.data.config); // store final options for the rewriter
-  storyScheduler.startInternetPipeline(threadId); // fetch + rewrite
+  const config = parsed.data.config;
+  applyConfig(threadId, config); // store confirmed options for the rewriter
+  const startChapter =
+    config.novel.type === "internet" ?
+      (config.novel.startChapterNumber ?? 1)
+    : 1;
+  // The first Start lands the reader position (fresh thread: none yet —
+  // /ingest no longer writes one). Also marks "user committed" for
+  // resumeOnOpen, which refuses to auto-run a never-started thread.
+  storyFrontendService.setLastReadChapterNumber(threadId, startChapter);
+  if (config.novel.type === "file") {
+    storyScheduler.startFilePipeline(threadId);
+  } else {
+    storyScheduler.startInternetPipeline(threadId);
+  }
+  logger.info("started thread pipeline", {
+    threadId,
+    novelType: config.novel.type,
+    startChapter,
+  });
   return c.json({ ok: true });
 });
 

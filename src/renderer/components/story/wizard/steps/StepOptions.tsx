@@ -50,6 +50,7 @@ interface StepOptionsProps {
   setConfig: Dispatch<SetStateAction<StoryConfig>>;
 }
 
+
 // --- functional groups (bespoke per group, not a generic toggle mapper) -----
 
 const BASIC_ITEMS: {
@@ -410,6 +411,7 @@ export const StepOptions: FC<StepOptionsProps> = ({ config, setConfig }) => {
   const lang = config.options.language;
   // Genre-specific tactic taxonomy applies only to Chinese — hide the grids otherwise.
   const hideTactics = !i18n.language.startsWith("zh");
+
   // 章节并写 is only available for a local file upload.
   const crossChapterAvailable = isCrossChapterAvailable(config);
 

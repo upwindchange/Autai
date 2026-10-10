@@ -38,7 +38,8 @@ import {
 const logger = log.scope("StoryScheduler");
 
 export interface StoryScheduler {
-  /** File thread: kick off the dehydrate loop (after the wizard uploads). */
+  /** File thread: kick off the dehydrate loop. Called by POST .../start —
+   * after the user confirmed options (never at /ingest time). */
   startFilePipeline(threadId: string): void;
   /** Internet wizard "Fetch & Continue": fetch only, do not rewrite. Chaptered
    * sources run the chapter loop; non-chaptered sources run the single-page
@@ -53,7 +54,9 @@ export interface StoryScheduler {
   /** Resolves once the thread's runner has fully settled after a stop —
    * safe to tear down its crawl sessions then. */
   whenSettled(threadId: string): Promise<void>;
-  /** Resume unfinished work on open; picks the pipeline from stored config. */
+  /** Resume unfinished work on open; picks the pipeline from stored config.
+   * A never-started file thread (no Start → no read position) stays parked;
+   * a never-started internet thread resumes fetch-only. */
   resumeOnOpen(threadId: string): void;
   /** Reader "chapter link" override: restart the fetch at chapterNumber
    * using the user's URL (extract-only, no verification). False when the
@@ -153,6 +156,29 @@ class StorySchedulerImpl implements StoryScheduler {
       logger.warn("resumeOnOpen skipped — no config", { threadId });
       return;
     }
+    // "Started" = a persisted read position exists (written by the first
+    // POST .../start). Without it the thread is mid-wizard: raw text may be
+    // ingested / chapters prefetched, but the user hasn't confirmed options.
+    // A never-started file thread must NOT run its dehydrate loop (that was
+    // the auto-start-on-defaults bug); a never-started internet thread may
+    // still fetch sources — prefetch spends no LLM calls and the wizard's
+    // "Fetch & Continue" already kicked it.
+    const started =
+      storyFrontendService.getLastReadChapterNumber(threadId) != null;
+    if (!started) {
+      if (config.novel.type === "internet") {
+        logger.info("resumeOnOpen (internet) — fetch only (no Start yet)", {
+          threadId,
+        });
+        this.startInternetPrefetch(threadId);
+      } else {
+        logger.info("resumeOnOpen skipped — file thread not started yet", {
+          threadId,
+        });
+      }
+      return;
+    }
+
     const final = storyFrontendService.getFinalChapterNumber(threadId);
 
     if (config.novel.type === "file") {
@@ -179,26 +205,15 @@ class StorySchedulerImpl implements StoryScheduler {
       return;
     }
 
-    // internet: only auto-run fetch+rewrite if the user has previously pressed
-    // Start (≥1 rewrite row). A zero-rewrite thread that only has fetched
-    // sources (prefetch ran, Start never pressed) keeps fetching more chapters
-    // but does NOT rewrite — the user hasn't committed options yet.
-    const rewritten =
-      storyBackendService.countRewrittenChapters(threadId);
-    if (rewritten > 0) {
-      logger.info("resumeOnOpen (internet) — fetch + rewrite", {
-        threadId,
-        rewrittenCount: rewritten,
-        atEOF: final != null,
-      });
-      this.startInternetPipeline(threadId);
-    } else {
-      logger.info("resumeOnOpen (internet) — fetch only (no Start yet)", {
-        threadId,
-        rewrittenCount: 0,
-      });
-      this.startInternetPrefetch(threadId);
-    }
+    // Internet: the started-gate above proved the user pressed Start, so
+    // resume runs the full fetch (idempotent) + rewrite pipeline.
+    const rewritten = storyBackendService.countRewrittenChapters(threadId);
+    logger.info("resumeOnOpen (internet) — fetch + rewrite", {
+      threadId,
+      rewrittenCount: rewritten,
+      atEOF: final != null,
+    });
+    this.startInternetPipeline(threadId);
   }
 
   retryFailed(threadId: string): number {

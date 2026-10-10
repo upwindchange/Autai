@@ -18,6 +18,7 @@ import {
 
 const STEPS = 2;
 
+
 /** Story wizard — 2 steps (novel source → rewrite options), shown on
  * an empty thread. The mode itself is chosen on the welcome screen. */
 export const StoryWizard: FC = () => {
@@ -71,7 +72,6 @@ export const StoryWizard: FC = () => {
   const isFile = config.novel.type === "file";
 
   const commitAndAdvance = async () => {
-    if (committingRef.current) return;
     committingRef.current = true;
     setPrepareError(null);
     try {
@@ -108,12 +108,16 @@ export const StoryWizard: FC = () => {
   const submit = async () => {
     if (submitted || !activeThreadId) return;
     // Never start if materialization hasn't landed (or failed). Belt-and-
-    // suspenders — Start is disabled in the UI while ingesting (file) or on a
-    // prepare error (either mode).
+    // suspenders — Start is dead while ingesting (file) or on a prepare
+    // error (either mode).
     if (prepareError || (isFile && ingesting)) return;
     setSubmitError(null);
     const store = useChaptersStore.getState();
     try {
+      // Start: persist the confirmed options AND kick the pipeline (file
+      // dehydrate loop / internet fetch+rewrite). Also lands the reader's
+      // opening position, which marks the thread as user-started.
+      await store.startThread(activeThreadId, config);
       // Load novelType (+ whatever chapters exist) so canGoNext + the reader work.
       await store.loadChapters(activeThreadId);
       // Internet threads with a configured start chapter >1 have no chapter-1
@@ -123,7 +127,6 @@ export const StoryWizard: FC = () => {
           config.novel.startChapterNumber
         : undefined;
       store.setCurrentChapter(startChapter ?? 1);
-      void store.setPosition(activeThreadId, startChapter ?? 1);
       setSubmitted(true);
     } catch {
       // httpClient throws a status-only Error (no backend message), so a single
