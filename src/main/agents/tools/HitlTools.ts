@@ -150,10 +150,7 @@ export const requestOptionListTool = tool({
       .optional()
       .describe("Pre-selected option ID(s)"),
   }),
-  execute: async (
-    { prompt, options: opt },
-    execOptions,
-  ) => {
+  execute: async ({ prompt, options: opt }, execOptions) => {
     const hitlService = HitlService.getInstance();
 
     const response = await hitlService.request<{

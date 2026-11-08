@@ -10,7 +10,9 @@ export function isNativeRenderer(): boolean {
 // served by the backend and never see the param). Settings stay editable —
 // changes apply on the next start without the flag.
 export function hasRemoteOverride(): boolean {
-  return new URLSearchParams(window.location.search).get("remoteOverride") === "1";
+  return (
+    new URLSearchParams(window.location.search).get("remoteOverride") === "1"
+  );
 }
 
 // `--host` / `--port` CLI values for this run (main passes ?overrideHost= /

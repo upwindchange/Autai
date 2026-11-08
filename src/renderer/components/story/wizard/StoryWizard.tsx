@@ -18,15 +18,12 @@ import {
 
 const STEPS = 2;
 
-
 /** Story wizard — 2 steps (novel source → rewrite options), shown on
  * an empty thread. The mode itself is chosen on the welcome screen. */
 export const StoryWizard: FC = () => {
   const { t } = useTranslation("story");
   const activeThreadId = useStoryThreadsStore((s) => s.activeThreadId);
-  const setActiveThreadId = useStoryThreadsStore(
-    (s) => s.setActiveThreadId,
-  );
+  const setActiveThreadId = useStoryThreadsStore((s) => s.setActiveThreadId);
   const ensureThread = useStoryThreadsStore((s) => s.ensureThread);
   // The step is wizard-local UI state (nothing outside the wizard reads it).
   const [step, setStep] = useState(0);

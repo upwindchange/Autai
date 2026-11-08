@@ -331,8 +331,7 @@ export const StoryThread: FC = () => {
   const abandonThread = () => useStoryThreadsStore.getState().abandon();
 
   const [showOptionsPage, setShowOptionsPage] = useState(false);
-  const [optionsConfig, setOptionsConfig] =
-    useState<StoryConfig | null>(null);
+  const [optionsConfig, setOptionsConfig] = useState<StoryConfig | null>(null);
   const [optionsLoading, setOptionsLoading] = useState(false);
   const [optionsLoadFailed, setOptionsLoadFailed] = useState(false);
   const [optionsSaving, setOptionsSaving] = useState(false);
@@ -592,8 +591,7 @@ const OptionsPage: FC<{
  */
 function setOptionsConfigSetter(
   setConfig: Dispatch<SetStateAction<StoryConfig | null>>,
-  updater:
-    StoryConfig | ((prev: StoryConfig) => StoryConfig),
+  updater: StoryConfig | ((prev: StoryConfig) => StoryConfig),
   current: StoryConfig,
 ): void {
   setConfig(

@@ -61,13 +61,16 @@ export interface StoryScheduler {
   /** Reader "chapter link" override: restart the fetch at chapterNumber
    * using the user's URL (extract-only, no verification). False when the
    * thread is not a chaptered internet novel. */
-  submitCurrentUrl(threadId: string, chapterNumber: number, url: string): boolean;
+  submitCurrentUrl(
+    threadId: string,
+    chapterNumber: number,
+    url: string,
+  ): boolean;
   /** Re-enqueue errored chapters. Returns how many were reprocessed. */
   retryFailed(threadId: string): number;
 }
 
 class StorySchedulerImpl implements StoryScheduler {
-
   /** In-flight runner promises by thread — powers whenSettled. */
   private readonly runners = new Map<string, Promise<void>>();
   /** One live AbortController per thread; presence ⇒ a runner is in flight. */
@@ -111,9 +114,12 @@ class StorySchedulerImpl implements StoryScheduler {
       return;
     }
     const novel = config.novel;
-    logger.info(`startInternet (${rewrite ? "fetch + rewrite" : "fetch only"})`, {
-      threadId,
-    });
+    logger.info(
+      `startInternet (${rewrite ? "fetch + rewrite" : "fetch only"})`,
+      {
+        threadId,
+      },
+    );
     this.run(threadId, (signal) =>
       config.options.nonNovelSource ?
         runSinglePagePipeline(threadId, novel, signal, { rewrite })
@@ -241,11 +247,14 @@ class StorySchedulerImpl implements StoryScheduler {
       return 0;
     }
 
-    logger.info(`retryFailed (${config.options.nonNovelSource ? "internet, non-chaptered" : "internet"}) — re-enqueuing`, {
-      threadId,
-      failedChapters: failed.map((c) => c.chapterNumber),
-      count: failed.length,
-    });
+    logger.info(
+      `retryFailed (${config.options.nonNovelSource ? "internet, non-chaptered" : "internet"}) — re-enqueuing`,
+      {
+        threadId,
+        failedChapters: failed.map((c) => c.chapterNumber),
+        count: failed.length,
+      },
+    );
 
     // Re-enqueue: abort the in-flight runner and start a fresh one that walks
     // errored chapters one at a time — re-fetch the source when it errored,
@@ -270,15 +279,11 @@ class StorySchedulerImpl implements StoryScheduler {
             }
             storyBackendService.setFinalChapterNumber(threadId, 1);
           } else {
-            const outcome = await fetchInternetChapter(
-              novel,
-              c.chapterNumber,
-              {
-                threadId,
-                abortSignal: signal,
-                webSearchFallback: config.options.webSearchFallback,
-              },
-            );
+            const outcome = await fetchInternetChapter(novel, c.chapterNumber, {
+              threadId,
+              abortSignal: signal,
+              webSearchFallback: config.options.webSearchFallback,
+            });
             if (outcome === "error" || outcome === "finalChapter") {
               logger.info("retry re-fetch not recovered", {
                 threadId,
@@ -305,13 +310,24 @@ class StorySchedulerImpl implements StoryScheduler {
    * extract-only override. Rewrite mode mirrors what Start has done
    * (rewritten rows exist ⇒ rewrite alongside fetch).
    */
-  submitCurrentUrl(threadId: string, chapterNumber: number, url: string): boolean {
+  submitCurrentUrl(
+    threadId: string,
+    chapterNumber: number,
+    url: string,
+  ): boolean {
     this.stopThread(threadId);
     const config = storyFrontendService.getParsedConfig(threadId);
-    if (!config || config.novel.type !== "internet" || config.options.nonNovelSource) {
-      logger.warn("submitCurrentUrl skipped — not a chaptered internet thread", {
-        threadId,
-      });
+    if (
+      !config ||
+      config.novel.type !== "internet" ||
+      config.options.nonNovelSource
+    ) {
+      logger.warn(
+        "submitCurrentUrl skipped — not a chaptered internet thread",
+        {
+          threadId,
+        },
+      );
       return false;
     }
     let host: string;
@@ -411,8 +427,7 @@ class StorySchedulerImpl implements StoryScheduler {
     // is the instant placeholder this refines.
     let enriched = false;
     while (!signal.aborted) {
-      const final =
-        storyFrontendService.getFinalChapterNumber(threadId);
+      const final = storyFrontendService.getFinalChapterNumber(threadId);
       if (final != null) {
         logger.info("fetchLoop — reached EOF", {
           threadId,
@@ -459,10 +474,7 @@ class StorySchedulerImpl implements StoryScheduler {
       }
       if (opts.rewrite) {
         // Skip chapters already rewritten (idempotent resume).
-        const existing = storyFrontendService.getRewrittenChapter(
-          threadId,
-          n,
-        );
+        const existing = storyFrontendService.getRewrittenChapter(threadId, n);
         if (!existing || existing.status === "error") {
           await rewriteChapter(threadId, n, options, signal);
         }
@@ -477,5 +489,4 @@ class StorySchedulerImpl implements StoryScheduler {
   }
 }
 
-export const storyScheduler: StoryScheduler =
-  new StorySchedulerImpl();
+export const storyScheduler: StoryScheduler = new StorySchedulerImpl();

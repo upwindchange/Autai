@@ -782,9 +782,7 @@ const CustomInstructionSchema = z.string().trim().default("");
  * discriminatedUnion — `.check()` returns the same ZodObject, so the union
  * stays legal (unlike `.superRefine()`, which returns ZodEffects).
  */
-function internetSourceIssues(
-  v: StoryConfig,
-): Array<{
+function internetSourceIssues(v: StoryConfig): Array<{
   code: "custom";
   input: StoryConfig;
   path: ["novel", "sourceKind" | "source"];
@@ -833,27 +831,29 @@ function internetSourceIssues(
   return issues;
 }
 
-export const DehydrateConfigSchema = z.object({
-  mode: z.literal("dehydrate"),
-  novel: NovelInputSchema, // file | internet
-  options: z.object({
-    basic: DehydrateBasicSchema,
-    situation: SituationDehydrateSchema,
-    crossChapter: CrossChapterDehydrateSchema,
-    depth: DehydrateDepthSchema,
-    language: LanguageAdaptationSchema,
-    // true = the source is one continuous text (a post, an email thread, …),
-    // not a chaptered novel; segment its storyline into organic chapters
-    // instead of parsing per-chapter pages/markers.
-    nonNovelSource: z.boolean().default(false),
-    // true = after the user declines to step in on a walled site, search
-    // the web for another host; false (default) = the chapter errors instead.
-    webSearchFallback: z.boolean().default(false),
-    customInstruction: CustomInstructionSchema,
-  }),
-}).check((ctx) => {
-  for (const issue of internetSourceIssues(ctx.value)) ctx.issues.push(issue);
-});
+export const DehydrateConfigSchema = z
+  .object({
+    mode: z.literal("dehydrate"),
+    novel: NovelInputSchema, // file | internet
+    options: z.object({
+      basic: DehydrateBasicSchema,
+      situation: SituationDehydrateSchema,
+      crossChapter: CrossChapterDehydrateSchema,
+      depth: DehydrateDepthSchema,
+      language: LanguageAdaptationSchema,
+      // true = the source is one continuous text (a post, an email thread, …),
+      // not a chaptered novel; segment its storyline into organic chapters
+      // instead of parsing per-chapter pages/markers.
+      nonNovelSource: z.boolean().default(false),
+      // true = after the user declines to step in on a walled site, search
+      // the web for another host; false (default) = the chapter errors instead.
+      webSearchFallback: z.boolean().default(false),
+      customInstruction: CustomInstructionSchema,
+    }),
+  })
+  .check((ctx) => {
+    for (const issue of internetSourceIssues(ctx.value)) ctx.issues.push(issue);
+  });
 
 /**
  * 有声小说 (audiobook) mode — a "coming soon" placeholder. Accepts the same
@@ -861,24 +861,26 @@ export const DehydrateConfigSchema = z.object({
  * (voice casting, 评书 rewrite, …) land here when the mode ships. Not served
  * by any backend endpoint yet.
  */
-export const AudiobookConfigSchema = z.object({
-  mode: z.literal("audiobook"),
-  novel: NovelInputSchema, // file | internet
-  // Shares Module 1/2/3 + nonNovelSource + customInstruction with dehydrate.
-  options: z.object({
-    basic: DehydrateBasicSchema,
-    situation: SituationDehydrateSchema,
-    crossChapter: CrossChapterDehydrateSchema,
-    depth: DehydrateDepthSchema,
-    language: LanguageAdaptationSchema,
-    nonNovelSource: z.boolean().default(false),
-    // See DehydrateConfigSchema — one flag serves both option blocks.
-    webSearchFallback: z.boolean().default(false),
-    customInstruction: CustomInstructionSchema,
-  }),
-}).check((ctx) => {
-  for (const issue of internetSourceIssues(ctx.value)) ctx.issues.push(issue);
-});
+export const AudiobookConfigSchema = z
+  .object({
+    mode: z.literal("audiobook"),
+    novel: NovelInputSchema, // file | internet
+    // Shares Module 1/2/3 + nonNovelSource + customInstruction with dehydrate.
+    options: z.object({
+      basic: DehydrateBasicSchema,
+      situation: SituationDehydrateSchema,
+      crossChapter: CrossChapterDehydrateSchema,
+      depth: DehydrateDepthSchema,
+      language: LanguageAdaptationSchema,
+      nonNovelSource: z.boolean().default(false),
+      // See DehydrateConfigSchema — one flag serves both option blocks.
+      webSearchFallback: z.boolean().default(false),
+      customInstruction: CustomInstructionSchema,
+    }),
+  })
+  .check((ctx) => {
+    for (const issue of internetSourceIssues(ctx.value)) ctx.issues.push(issue);
+  });
 
 export const StoryConfigSchema = z.discriminatedUnion("mode", [
   DehydrateConfigSchema,

@@ -19,8 +19,14 @@ export interface ToolExecutionContext {
 export const toolContextSchema = z.object({
   sessionId: z.string().describe("Current browser session ID"),
   activeTabId: z.string().optional().describe("Active tab ID for operations"),
-  chatModel: z.custom<LanguageModel>().optional().describe("Per-thread chat model"),
-  writer: z.any().optional().describe("Stream writer for forwarding sub-agent output"),
+  chatModel: z
+    .custom<LanguageModel>()
+    .optional()
+    .describe("Per-thread chat model"),
+  writer: z
+    .any()
+    .optional()
+    .describe("Stream writer for forwarding sub-agent output"),
   abortSignal: z.custom<AbortSignal>().optional().describe("Abort signal"),
 });
 

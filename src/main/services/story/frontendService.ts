@@ -43,10 +43,7 @@ class StoryFrontendService {
       .get();
   }
 
-  upsertStoryConfig(
-    threadId: string,
-    config: StoryConfig,
-  ): void {
+  upsertStoryConfig(threadId: string, config: StoryConfig): void {
     const db = getDb();
     // novelSource = the wizard's origin pointer (file path / URL / guidance),
     // NOT the content. Nullable/mutable because input is dynamic.
@@ -451,10 +448,7 @@ class StoryFrontendService {
    * chapter content. Called by the chapter route on the first chapter of a
    * thread.
    */
-  setupStoryThread(
-    threadId: string,
-    config: StoryConfig,
-  ): void {
+  setupStoryThread(threadId: string, config: StoryConfig): void {
     const novel = config.novel;
     const modeLabel = i18n.t(`story.${config.mode}`);
     const novelLabel = novel.type === "internet" ? novel.title : novel.filename;

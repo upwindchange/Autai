@@ -73,7 +73,9 @@ export const askUserTool = tool({
     logger.debug("HITL agent invoked", { request });
 
     const userMessage =
-      contextInfo ? `## Request\n${request}\n\n## Context\n${contextInfo}` : request;
+      contextInfo ?
+        `## Request\n${request}\n\n## Context\n${contextInfo}`
+      : request;
 
     const result = streamText({
       model: context.chatModel ?? chatModel().model,

@@ -101,7 +101,6 @@ export const getSessionTabsTool = tool({
   inputSchema: z.object({}),
   contextSchema: toolContextSchema,
   execute: async (_input, { context }) => {
-
     if (!context.sessionId) {
       return {
         sessionId: "",
@@ -163,7 +162,6 @@ export const getTabInfoTool = tool({
   inputSchema: z.object({}),
   contextSchema: toolContextSchema,
   execute: async (_input, { context }) => {
-
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
@@ -278,7 +276,6 @@ export const getCurrentSessionContextTool = tool({
   inputSchema: z.object({}),
   contextSchema: toolContextSchema,
   execute: async (_input, { context }) => {
-
     if (!context.sessionId) {
       const result: GetCurrentSessionContextResult = {
         success: false,

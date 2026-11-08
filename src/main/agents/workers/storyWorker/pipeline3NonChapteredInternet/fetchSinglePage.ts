@@ -79,14 +79,10 @@ const saveContentTool = tool({
     chapterNumber: z.number(),
   }),
   execute: async (input, { context: ctx }) => {
-    storyBackendService.updateSourceChapter(
-      ctx.threadId,
-      ctx.chapterNumber,
-      {
-        content: input.content,
-        title: input.title,
-      },
-    );
+    storyBackendService.updateSourceChapter(ctx.threadId, ctx.chapterNumber, {
+      content: input.content,
+      title: input.title,
+    });
     logger.info("content saved", {
       threadId: ctx.threadId,
       contentLen: input.content.length,
@@ -146,7 +142,6 @@ async function ensureCrawlTab(sessionId: string): Promise<string> {
   return tabId;
 }
 
-
 /** Release the crawl tab once the single page is acquired (book end). */
 async function destroyCrawlTab(sessionId: string): Promise<void> {
   const sts = SessionTabService.getInstance();
@@ -196,10 +191,7 @@ async function extractPage(
   ctx: SinglePageFetchContext,
 ): Promise<boolean> {
   const resolved = complexModel();
-  const providerOptions = customProviderOptions(
-    resolved,
-    STORY_AGENT_CONTROLS,
-  );
+  const providerOptions = customProviderOptions(resolved, STORY_AGENT_CONTROLS);
   const result = streamText({
     model: resolved.model,
     instructions: buildExtractSystemPrompt(novel),

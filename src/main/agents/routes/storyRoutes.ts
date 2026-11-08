@@ -169,11 +169,9 @@ function applyConfig(
     threadPersistenceService.createThread(threadId, "story");
     eventBus.emitEvent("threads:listChanged", null);
   }
-  const isFirst =
-    !storyFrontendService.getStoryConfig(threadId);
+  const isFirst = !storyFrontendService.getStoryConfig(threadId);
   storyFrontendService.upsertStoryConfig(threadId, config);
-  if (isFirst)
-    storyFrontendService.setupStoryThread(threadId, config);
+  if (isFirst) storyFrontendService.setupStoryThread(threadId, config);
   logger.info("applied config", {
     threadId,
     mode: config.mode,
@@ -240,11 +238,9 @@ storyRoutes.post("/threads/:threadId/ingest", async (c) => {
     // Enrich the thread (extract real title + assign genre/trope tags) from
     // the opening of the decoded text. Fire-and-forget — metadata only, no
     // rewrite; the dehydrate loop starts at POST .../start.
-    threadIntelligenceService
-      .enrichStoryThreadFromDb(threadId)
-      .catch((err) => {
-        logger.warn("Story enrichment failed:", err);
-      });
+    threadIntelligenceService.enrichStoryThreadFromDb(threadId).catch((err) => {
+      logger.warn("Story enrichment failed:", err);
+    });
     return c.json({ ok: true });
   } catch (error) {
     logger.error("Error in ingest:", error);
@@ -460,7 +456,10 @@ storyRoutes.post("/threads/:threadId/resume", async (c) => {
 storyRoutes.post("/threads/:threadId/current-url", async (c) => {
   const threadId = c.req.param("threadId");
   const body = await c.req.json().catch(() => ({}));
-  const url = typeof (body as Record<string, unknown>)?.url === "string" ? ((body as Record<string, unknown>).url as string).trim() : "";
+  const url =
+    typeof (body as Record<string, unknown>)?.url === "string" ?
+      ((body as Record<string, unknown>).url as string).trim()
+    : "";
   if (!isValidHttpUrl(url)) return c.json({ error: "invalid url" }, 400);
   const cursor = storyFrontendService.getReaderCursor();
   if (!cursor || cursor.threadId !== threadId || cursor.chapterNumber == null)
@@ -534,10 +533,7 @@ storyRoutes.put("/threads/:threadId/config", async (c) => {
         400,
       );
     }
-    storyFrontendService.upsertStoryConfig(
-      threadId,
-      parsed.data.config,
-    );
+    storyFrontendService.upsertStoryConfig(threadId, parsed.data.config);
     logger.info("updated config", {
       threadId,
       mode: parsed.data.config.mode,
@@ -575,10 +571,7 @@ storyRoutes.get("/threads/:threadId/export", (c) => {
     } else {
       query = {};
     }
-    const chapters = storyFrontendService.listExportChapters(
-      threadId,
-      query,
-    );
+    const chapters = storyFrontendService.listExportChapters(threadId, query);
     if (chapters.length === 0) {
       return c.json({ error: "No processed chapters to export" }, 404);
     }

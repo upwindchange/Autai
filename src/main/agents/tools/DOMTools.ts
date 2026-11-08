@@ -50,7 +50,6 @@ export const getDOMTreeTool = tool({
   inputSchema: z.object({}),
   contextSchema: toolContextSchema,
   execute: async (_input, { context }) => {
-
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
@@ -103,7 +102,6 @@ export const getFlattenDOMTool = tool({
   inputSchema: z.object({}),
   contextSchema: toolContextSchema,
   execute: async (_input, { context }) => {
-
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +

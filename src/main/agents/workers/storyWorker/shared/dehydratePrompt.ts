@@ -830,7 +830,7 @@ const OUTPUT_CONTRACT: Record<DehydrateVariant, string> = {
     "thinking/reasoning section, keep it as short as possible: empty is " +
     "ideal, a single trivial line is acceptable. Its content does not matter " +
     "and is never read — only its brevity does. Spend nothing on thinking; " +
-    "spend everything on the tool-call content.\n"
+    "spend everything on the tool-call content.\n",
 };
 
 // ---------------------------------------------------------------------------

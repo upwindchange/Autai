@@ -153,9 +153,7 @@ class SettingsService {
           JSON.parse(settingsMap.get("model_overrides")!)
         : [],
       defaultAppMode:
-        settingsMap.get("default_app_mode") === "story" ?
-          "story"
-        : "chat",
+        settingsMap.get("default_app_mode") === "story" ? "story" : "chat",
       showWelcomeOnStartup:
         settingsMap.get("show_welcome_on_startup") !== "false",
       maxParallelAgents: parseInt(

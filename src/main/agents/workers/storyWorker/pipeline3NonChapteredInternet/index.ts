@@ -35,19 +35,16 @@ async function ensureFetched(
   signal: AbortSignal,
 ): Promise<"fetched" | "error"> {
   if (
-    storyFrontendService.getSourceChapter(threadId, 1)?.status ===
-    "fetched"
+    storyFrontendService.getSourceChapter(threadId, 1)?.status === "fetched"
   ) {
     return "fetched";
   }
   const outcome = await fetchSinglePage(novel, threadId, signal);
   if (outcome === "fetched") {
     storyBackendService.setFinalChapterNumber(threadId, 1);
-    threadIntelligenceService
-      .enrichStoryThreadFromDb(threadId)
-      .catch((err) => {
-        logger.warn("story enrichment failed", { threadId, err });
-      });
+    threadIntelligenceService.enrichStoryThreadFromDb(threadId).catch((err) => {
+      logger.warn("story enrichment failed", { threadId, err });
+    });
   }
   return outcome;
 }
@@ -72,10 +69,7 @@ export async function runSinglePagePipeline(
 
   // Fast path: the single chapter is fully done — nothing to do.
   const final = storyFrontendService.getFinalChapterNumber(threadId);
-  const rewritten = storyFrontendService.getRewrittenChapter(
-    threadId,
-    1,
-  );
+  const rewritten = storyFrontendService.getRewrittenChapter(threadId, 1);
   if (final === 1 && rewritten?.status === "rewritten") return;
 
   logger.info("runSinglePagePipeline", { threadId, rewrite: opts.rewrite });

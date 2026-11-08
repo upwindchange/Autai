@@ -24,7 +24,6 @@ export const navigateTool = tool({
   }),
   contextSchema: toolContextSchema,
   execute: async ({ url }, { context }) => {
-
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
@@ -43,7 +42,6 @@ export const refreshTool = tool({
   inputSchema: z.object({}),
   contextSchema: toolContextSchema,
   execute: async (_input, { context }) => {
-
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
@@ -62,7 +60,6 @@ export const goBackTool = tool({
   inputSchema: z.object({}),
   contextSchema: toolContextSchema,
   execute: async (_input, { context }) => {
-
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
@@ -81,7 +78,6 @@ export const goForwardTool = tool({
   inputSchema: z.object({}),
   contextSchema: toolContextSchema,
   execute: async (_input, { context }) => {
-
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +

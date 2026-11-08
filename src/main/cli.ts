@@ -46,7 +46,9 @@ const parsed = (() => {
     if (arg === HOST_FLAG || arg.startsWith(`${HOST_FLAG}=`)) {
       const raw =
         arg === HOST_FLAG ?
-          (args[i + 1] && !args[i + 1].startsWith("--") ? args[i + 1] : undefined)
+          args[i + 1] && !args[i + 1].startsWith("--") ?
+            args[i + 1]
+          : undefined
         : arg.slice(HOST_FLAG.length + 1);
       if (arg === HOST_FLAG && raw !== undefined) i++;
       if (raw === undefined || raw.trim() === "") {
@@ -61,14 +63,18 @@ const parsed = (() => {
     if (arg === PORT_FLAG || arg.startsWith(`${PORT_FLAG}=`)) {
       const raw =
         arg === PORT_FLAG ?
-          (args[i + 1] && !args[i + 1].startsWith("--") ? args[i + 1] : undefined)
+          args[i + 1] && !args[i + 1].startsWith("--") ?
+            args[i + 1]
+          : undefined
         : arg.slice(PORT_FLAG.length + 1);
       if (arg === PORT_FLAG && raw !== undefined) i++;
       const n = raw === undefined ? NaN : parseInt(raw, 10);
       if (!isNaN(n) && n >= 1 && n <= 65535) {
         port = n;
       } else {
-        logger.warn(`Ignoring invalid ${PORT_FLAG} value: ${raw ?? "(missing)"}`);
+        logger.warn(
+          `Ignoring invalid ${PORT_FLAG} value: ${raw ?? "(missing)"}`,
+        );
       }
       continue;
     }

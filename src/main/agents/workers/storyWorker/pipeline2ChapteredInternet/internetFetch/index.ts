@@ -391,8 +391,12 @@ export async function fetchInternetChapter(
           if (await navigate(proofUrl)) {
             const proofMarker = await probe();
             if (proofMarker != null) {
-              const proofWallHost = hostnameOf(liveUrl(activeTabId)) ?? prevHost;
-              if ((await gate(proofWallHost, "wall:" + proofMarker)) === "resolved") {
+              const proofWallHost =
+                hostnameOf(liveUrl(activeTabId)) ?? prevHost;
+              if (
+                (await gate(proofWallHost, "wall:" + proofMarker)) ===
+                "resolved"
+              ) {
                 continue ladder; // user passed it — same site retried
               }
               blockSite(proofWallHost, "wall:" + proofMarker);
@@ -413,7 +417,8 @@ export async function fetchInternetChapter(
               return "finalChapter";
             }
             if (proof.kind === "wall") {
-              const proofWallHost = hostnameOf(liveUrl(activeTabId)) ?? prevHost;
+              const proofWallHost =
+                hostnameOf(liveUrl(activeTabId)) ?? prevHost;
               if ((await gate(proofWallHost, proof.reason)) === "resolved") {
                 continue ladder; // user passed it — same site retried
               }

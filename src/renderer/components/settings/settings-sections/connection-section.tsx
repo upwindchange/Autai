@@ -243,7 +243,8 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
   const runtimeMode: ServerMode =
     remoteOverride ? "remote" : settings.serverMode;
   const isStandalone = runtimeMode === "standalone";
-  const bindOverridden = !isStandalone && (cliHost !== undefined || cliPort !== undefined);
+  const bindOverridden =
+    !isStandalone && (cliHost !== undefined || cliPort !== undefined);
 
   // In Local Mode the port is chosen at random by the OS; fetch the running
   // value from /health so the (read-only) field shows what is actually in use.
@@ -356,7 +357,8 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
                 placeholder="0.0.0.0"
                 value={
                   isStandalone ? "127.0.0.1"
-                  : cliHost !== undefined ? cliHost
+                  : cliHost !== undefined ?
+                    cliHost
                   : settings.serverHost
                 }
                 disabled={isStandalone || cliHost !== undefined}
@@ -389,7 +391,8 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
                 className="w-full max-w-40"
                 value={
                   isStandalone ? (runtimePort ?? "")
-                  : cliPort !== undefined ? cliPort
+                  : cliPort !== undefined ?
+                    cliPort
                   : settings.serverPort
                 }
                 placeholder={

@@ -282,9 +282,6 @@ export const complexModel = (): ResolvedModel => createModel("complex");
 // Reasoning / sampling param translation
 // ──────────────────────────────────────────────
 
-
-
-
 /**
  * Map a ModelParameters object to the sampling-param subset that streamText
  * accepts directly (temperature, maxTokens→maxOutputTokens, etc.). Returns an

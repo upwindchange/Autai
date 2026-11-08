@@ -1,10 +1,7 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { eventBus } from "@/utils/eventBus";
-import {
-  SERVER_EVENT_NAMES,
-  type ServerEventName,
-} from "@shared/events";
+import { SERVER_EVENT_NAMES, type ServerEventName } from "@shared/events";
 import log from "electron-log/main";
 
 const logger = log.scope("ApiServer:Events");
@@ -44,7 +41,9 @@ eventsRoutes.get("/", (c) => {
       return listener;
     };
 
-    const listeners = SERVER_EVENT_NAMES.map((name) => [name, forward(name)] as const);
+    const listeners = SERVER_EVENT_NAMES.map(
+      (name) => [name, forward(name)] as const,
+    );
 
     // Keep idle proxies/dev-server from dropping the connection.
     const heartbeat = setInterval(() => {

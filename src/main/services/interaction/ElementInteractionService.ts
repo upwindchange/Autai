@@ -58,8 +58,8 @@ export class ElementInteractionService {
   private webContents: WebContents;
   private logger: LogFunctions;
   private downloadInterceptor:
-    | ((event: Electron.Event, item: Electron.DownloadItem) => void)
-    | null = null;
+    ((event: Electron.Event, item: Electron.DownloadItem) => void) | null =
+    null;
   private pendingInterceptResolver: ((url: string) => void) | null = null;
 
   constructor(webContents: WebContents) {
@@ -1024,8 +1024,9 @@ export class ElementInteractionService {
     this.ensureDebuggerAttached();
     const startTime = Date.now();
 
-    const { promise: urlPromise, resolve: resolveUrl } =
-      Promise.withResolvers<string | null>();
+    const { promise: urlPromise, resolve: resolveUrl } = Promise.withResolvers<
+      string | null
+    >();
     this.pendingInterceptResolver = resolveUrl;
     // A live anchor fires navigation well within this window.
     const timeoutId = setTimeout(() => {

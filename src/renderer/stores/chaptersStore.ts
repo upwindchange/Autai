@@ -97,10 +97,7 @@ interface ChaptersState {
   /** Update a thread's config WITHOUT re-running one-time setup.
    * Validates the whole config with the Zod schema. Does NOT touch
    * novelSource/mode semantics. */
-  updateThreadConfig: (
-    threadId: string,
-    config: StoryConfig,
-  ) => Promise<void>;
+  updateThreadConfig: (threadId: string, config: StoryConfig) => Promise<void>;
   /** Last-read chapter (for resume-on-reopen). */
   getPosition: (threadId: string) => Promise<number | null>;
   /** Persist the reader's current chapter. */
@@ -115,10 +112,7 @@ interface ChaptersState {
   ) => Promise<void>;
   /** Internet wizard "Fetch & Continue": fetch source chapters without
    *  rewriting. The wizard advances to options immediately. */
-  prefetchInternet: (
-    threadId: string,
-    config: StoryConfig,
-  ) => Promise<void>;
+  prefetchInternet: (threadId: string, config: StoryConfig) => Promise<void>;
   /** Wizard "Start" (both modes): persist the confirmed options and kick the
    * pipeline — file runs the dehydrate loop over ingested raw text; internet
    * runs fetch (idempotent) + rewrite together. */
@@ -280,16 +274,13 @@ export const useChaptersStore = create<ChaptersState>()(
     },
 
     submitCurrentUrl: async (threadId, url) => {
-      await httpClient.postJSON(
-        `/story/threads/${threadId}/current-url`,
-        { url },
-      );
+      await httpClient.postJSON(`/story/threads/${threadId}/current-url`, {
+        url,
+      });
     },
 
     resetSources: async (threadId) => {
-      await httpClient.postJSON(
-        `/story/threads/${threadId}/reset-sources`,
-      );
+      await httpClient.postJSON(`/story/threads/${threadId}/reset-sources`);
     },
 
     reprocessFailed: async (threadId) => {

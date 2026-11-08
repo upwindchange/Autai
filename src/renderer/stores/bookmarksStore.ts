@@ -75,9 +75,7 @@ export const useBookmarksStore = create<BookmarksState>()(
       set((state) => ({
         bookmarks: state.bookmarks.filter((b) => b.id !== id),
       }));
-      await httpClient.delete(
-        `/story/threads/${threadId}/bookmarks/${id}`,
-      );
+      await httpClient.delete(`/story/threads/${threadId}/bookmarks/${id}`);
     },
   })),
 );

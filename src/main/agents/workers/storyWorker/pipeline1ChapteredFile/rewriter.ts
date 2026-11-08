@@ -247,9 +247,10 @@ const outputChapterTool = tool({
       title: input.title,
       content: input.content,
       rewriteStatus: "rewritten",
-      ...(s.savedCount === 0 && s.replaceAtChapterNumber != null && {
-        replaceAtChapterNumber: s.replaceAtChapterNumber,
-      }),
+      ...(s.savedCount === 0 &&
+        s.replaceAtChapterNumber != null && {
+          replaceAtChapterNumber: s.replaceAtChapterNumber,
+        }),
     });
     s.savedCount += 1;
     s.emittedChars += input.content.length;
@@ -304,18 +305,18 @@ const terminateTool = tool({
       };
     }
     const chapterNumber = s.startNum + s.savedCount;
-    const lastStatus: RewrittenChapterStatus = s.isLastBatch ?
-      "rewritten"
-    : "to_be_continued";
+    const lastStatus: RewrittenChapterStatus =
+      s.isLastBatch ? "rewritten" : "to_be_continued";
     storyBackendService.flushDehydrateTermination({
       threadId: s.threadId,
       chapterNumber,
       title: input.title,
       content: input.content,
       rewriteStatus: lastStatus,
-      ...(s.savedCount === 0 && s.replaceAtChapterNumber != null && {
-        replaceAtChapterNumber: s.replaceAtChapterNumber,
-      }),
+      ...(s.savedCount === 0 &&
+        s.replaceAtChapterNumber != null && {
+          replaceAtChapterNumber: s.replaceAtChapterNumber,
+        }),
       newOffset: s.chunkStart + s.chunkLength,
       ...(s.isLastBatch && { finalChapterNumber: chapterNumber }),
     });
@@ -500,8 +501,7 @@ function preparePass(
   // - no prior chapter → plain chunk, no anchor. A `rewritten` max with
   //   `finalChapterNumber` set never reaches here — the loop exits at EOF
   //   before planning.
-  const priorMax =
-    storyBackendService.maxRewrittenChapterNumber(threadId);
+  const priorMax = storyBackendService.maxRewrittenChapterNumber(threadId);
   let leadIn: PassPlan["leadIn"] = null;
   let startNum = priorMax + 1;
   let replaceAtChapterNumber: number | null = null;
@@ -575,11 +575,7 @@ export async function runDehydrateLoop(
   // Probe once (may throw if no complex model is configured → propagates to the
   // caller, which surfaces a warning toast).
   const probeResolved = complexModel();
-  const probeCpt = await probeCharsPerToken(
-    probeResolved,
-    rawText,
-    threadId,
-  );
+  const probeCpt = await probeCharsPerToken(probeResolved, rawText, threadId);
   const charsPerToken = probeCpt ?? PROBE_FALLBACK_CHARS_PER_TOKEN;
 
   logger.info("dehydrate loop initialized", {
@@ -597,13 +593,11 @@ export async function runDehydrateLoop(
       return;
     }
 
-    const consumedOffset =
-      storyBackendService.getConsumedOffset(threadId);
+    const consumedOffset = storyBackendService.getConsumedOffset(threadId);
     if (consumedOffset >= rawText.length) {
       // EOF: the final chunk's tool already set finalChapterNumber; finalize
       // defensively + drop the raw blob (an interrupted run kept it for resume).
-      const final =
-        storyBackendService.maxRewrittenChapterNumber(threadId);
+      const final = storyBackendService.maxRewrittenChapterNumber(threadId);
       if (
         final > 0 &&
         storyFrontendService.getFinalChapterNumber(threadId) == null

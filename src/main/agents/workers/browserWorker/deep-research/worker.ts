@@ -562,7 +562,7 @@ export async function browserDeepResearchWorker(
               const noResultStream = streamText({
                 model: chatLanguageModel,
                 messages,
-                instructions: 
+                instructions:
                   "You are a research assistant. Inform the user that no relevant search results were found for their query across multiple research subtopics, and suggest they try rephrasing their question.",
                 maxRetries,
                 timeout: TIMEOUTS.chat,

@@ -4,3 +4,13 @@ allowBuilds:
   electron-winstaller: true
   esbuild: true
   protobufjs: true
+minimumReleaseAgeExclude:
+  - '@assistant-ui/ai-sdk@0.0.17'
+  - '@assistant-ui/core@0.3.33'
+  - '@assistant-ui/react-markdown@0.14.25'
+  - '@assistant-ui/react-mcp@0.1.27'
+  - '@assistant-ui/react@0.15.33'
+  - '@assistant-ui/store@0.3.23'
+  - '@assistant-ui/tap@0.9.25'
+  - assistant-cloud@0.2.10
+  - assistant-stream@0.3.56

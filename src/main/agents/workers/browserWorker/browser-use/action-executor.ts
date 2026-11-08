@@ -308,7 +308,13 @@ export async function executeSubtasks(
 
           // ============================================================
           // EXECUTE ACTIONS FOR THIS SUBTASK USING streamText
-          const toolCtx = { sessionId, activeTabId, chatModel: chatLanguageModel, writer, abortSignal: signal };
+          const toolCtx = {
+            sessionId,
+            activeTabId,
+            chatModel: chatLanguageModel,
+            writer,
+            abortSignal: signal,
+          };
           // ============================================================
           const result = streamText({
             model: complexModel().model,
@@ -392,12 +398,22 @@ export async function executeSubtasks(
             },
             toolsContext: {
               getFlattenDOMTool: toolCtx,
-              clickElement: toolCtx, interceptClickUrl: toolCtx, fillElement: toolCtx,
-              selectOption: toolCtx, hoverElement: toolCtx, dragToElement: toolCtx,
-              scrollPages: toolCtx, scrollAtCoordinate: toolCtx,
-              getAttribute: toolCtx, getAllAttributes: toolCtx,
-              evaluate: toolCtx, getBasicInfo: toolCtx,
-              navigate: toolCtx, refresh: toolCtx, goBack: toolCtx, goForward: toolCtx,
+              clickElement: toolCtx,
+              interceptClickUrl: toolCtx,
+              fillElement: toolCtx,
+              selectOption: toolCtx,
+              hoverElement: toolCtx,
+              dragToElement: toolCtx,
+              scrollPages: toolCtx,
+              scrollAtCoordinate: toolCtx,
+              getAttribute: toolCtx,
+              getAllAttributes: toolCtx,
+              evaluate: toolCtx,
+              getBasicInfo: toolCtx,
+              navigate: toolCtx,
+              refresh: toolCtx,
+              goBack: toolCtx,
+              goForward: toolCtx,
               askUser: toolCtx,
             },
           });

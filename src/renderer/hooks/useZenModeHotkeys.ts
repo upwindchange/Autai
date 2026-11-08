@@ -26,11 +26,7 @@ export function useZenModeHotkeys(): void {
       const { appMode, zenMode, setZenMode } = useUiStore.getState();
 
       if (e.key === "F10") {
-        if (
-          appMode === "story" &&
-          !zenMode &&
-          !isTypingTarget(e.target)
-        ) {
+        if (appMode === "story" && !zenMode && !isTypingTarget(e.target)) {
           e.preventDefault();
           setZenMode(true);
         }

@@ -97,9 +97,7 @@ export function AboutSection() {
             />
             <div className="text-center">
               <p className="text-xl font-semibold">Autai</p>
-              <p className="text-sm text-muted-foreground">
-                {t("tagline")}
-              </p>
+              <p className="text-sm text-muted-foreground">{t("tagline")}</p>
             </div>
             {version && (
               <span className="rounded-full bg-muted px-3 py-0.5 font-mono text-xs">

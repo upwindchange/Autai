@@ -40,7 +40,9 @@ const WAIT_FOREVER_MS = 2_147_483_647;
 const activePrompts = new Map<string, WallPromptPayload>();
 
 /** The thread's current wall prompt, or null — surfaced for REST recovery. */
-export function getActiveWallPrompt(threadId: string): WallPromptPayload | null {
+export function getActiveWallPrompt(
+  threadId: string,
+): WallPromptPayload | null {
   return activePrompts.get(threadId) ?? null;
 }
 

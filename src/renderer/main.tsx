@@ -145,11 +145,8 @@ function AppContent() {
   // story store's active thread (story). Both hooks run
   // unconditionally; the mode only selects which value is used.
   const auiMainThreadId = useAuiState((s) => s.threads.mainThreadId);
-  const storyActiveId = useStoryThreadsStore(
-    (s) => s.activeThreadId,
-  );
-  const activeThreadId =
-    appMode === "story" ? storyActiveId : auiMainThreadId;
+  const storyActiveId = useStoryThreadsStore((s) => s.activeThreadId);
+  const activeThreadId = appMode === "story" ? storyActiveId : auiMainThreadId;
   // Latest active id readable inside the appMode subscription callback (which
   // fires outside the render cycle).
   const activeThreadIdRef = useRef(activeThreadId);
@@ -329,7 +326,11 @@ function AppContent() {
                 </ResizablePanel>
                 <ResizableHandle withHandle />
                 <ResizablePanel defaultSize={50} minSize={30}>
-                  <div ref={workspaceRef} data-split-workspace="" className="h-full" />
+                  <div
+                    ref={workspaceRef}
+                    data-split-workspace=""
+                    className="h-full"
+                  />
                 </ResizablePanel>
               </ResizablePanelGroup>
             : <>

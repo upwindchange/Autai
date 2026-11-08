@@ -50,7 +50,6 @@ interface StepOptionsProps {
   setConfig: Dispatch<SetStateAction<StoryConfig>>;
 }
 
-
 // --- functional groups (bespoke per group, not a generic toggle mapper) -----
 
 const BASIC_ITEMS: {

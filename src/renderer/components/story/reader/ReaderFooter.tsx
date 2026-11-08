@@ -136,14 +136,11 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     // Refetch when the backend reports a chapter change for this thread.
     // The loading guard prevents concurrent fetches; the next event
     // self-corrects any change missed during an in-flight fetch.
-    const dispose = serverEvents.on(
-      "story:chaptersChanged",
-      (payload) => {
-        if (payload.threadId !== currentThreadId) return;
-        if (useChaptersStore.getState().loading) return;
-        void loadChapters(currentThreadId);
-      },
-    );
+    const dispose = serverEvents.on("story:chaptersChanged", (payload) => {
+      if (payload.threadId !== currentThreadId) return;
+      if (useChaptersStore.getState().loading) return;
+      void loadChapters(currentThreadId);
+    });
 
     // Catch up on any events missed during an SSE reconnect gap.
     const disposeReconnect = serverEvents.onReconnect(() => {
@@ -314,7 +311,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     </Button>
   );
 
-
   // Subtle hint (not a toggle): the icon tints primary when the current chapter
   // already has ≥1 bookmark. Tapping still opens the panel either way.
   const currentHasBookmark =
@@ -347,7 +343,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
     </Button>
   );
 
-
   // Options button — opens the full-page rewrite-options editor (replaces the
   // reader, like the wizard). Not a popover: the dense tactics grid is
   // unreadable in an overlay. Wrapped in a tooltip like the other controls.
@@ -363,7 +358,6 @@ export const ReaderFooter: FC<ReaderFooterProps> = ({
       <SlidersHorizontal className="size-5" />
     </Button>
   );
-
 
   return (
     // Container is pointer-events-none so only the pill (when visible) captures
@@ -633,7 +627,9 @@ const NavChevron: FC<{ className?: string; direction: "left" | "right" }> = ({
       strokeLinecap="round"
       strokeLinejoin="round"
       strokeWidth="2"
-      d={direction === "left" ? "M8 12l7 -7M8 12l7 7" : "M16 12l-7 -7M16 12l-7 7"}
+      d={
+        direction === "left" ? "M8 12l7 -7M8 12l7 7" : "M16 12l-7 -7M16 12l-7 7"
+      }
     >
       <animate
         fill="freeze"

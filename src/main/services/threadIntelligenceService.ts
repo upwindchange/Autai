@@ -42,10 +42,7 @@ const DEFAULT_TAG_COLORS = [
 // Fixed story tags (重写 / 有声小说). Seeded mode-scoped so the chat
 // sidebar never sees them. Translated at seed time — same locale-at-creation
 // behavior as the chat tags above.
-const STORY_TAG_KEYS = [
-  "story.dehydrate",
-  "story.audiobook",
-];
+const STORY_TAG_KEYS = ["story.dehydrate", "story.audiobook"];
 
 const STORY_TAG_COLORS = ["#F28E2B", "#E15759"];
 
@@ -126,12 +123,7 @@ class ThreadIntelligenceService {
     try {
       const tags = threadPersistenceService.listTagsByMode("story");
       const taken = new Set(tags.map((t) => t.name));
-      this.backfillTags(
-        STORY_TAG_KEYS,
-        STORY_TAG_COLORS,
-        "story",
-        taken,
-      );
+      this.backfillTags(STORY_TAG_KEYS, STORY_TAG_COLORS, "story", taken);
       // Purge the orphaned pre-rename tag name (best-effort; a no-op once
       // gone).
       for (const stale of STALE_STORY_TAG_NAMES) {
@@ -213,12 +205,7 @@ class ThreadIntelligenceService {
     if (mode === "chat") {
       this.backfillTags(DEFAULT_TAG_KEYS, DEFAULT_TAG_COLORS, "chat", taken);
     } else {
-      this.backfillTags(
-        STORY_TAG_KEYS,
-        STORY_TAG_COLORS,
-        "story",
-        taken,
-      );
+      this.backfillTags(STORY_TAG_KEYS, STORY_TAG_COLORS, "story", taken);
       if ((i18n.language ?? "en").startsWith("zh")) {
         this.backfillChineseGenreTags(taken);
       }
@@ -383,8 +370,7 @@ INSTRUCTIONS:
       const settings = settingsService.settings;
       // Story threads only see story-scoped tags. Chat tags
       // (Coding/Research/…) are invisible to this tagger.
-      const existingTags =
-        threadPersistenceService.listTagsByMode("story");
+      const existingTags = threadPersistenceService.listTagsByMode("story");
       const tagNames = existingTags.map((t) => t.name);
 
       const tagInstruction =
@@ -411,8 +397,7 @@ INSTRUCTIONS:
         toolChoice: "required",
         tools: {
           setStoryMeta: tool({
-            description:
-              "Set the title and category tags for a story thread",
+            description: "Set the title and category tags for a story thread",
             inputSchema: z.object({
               title: z
                 .string()

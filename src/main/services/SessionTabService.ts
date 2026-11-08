@@ -329,7 +329,6 @@ export class SessionTabService extends EventEmitter {
       );
     }
 
-
     try {
       // Stop and cleanup WebContents
       if (tab.webContents && !tab.webContents.isDestroyed()) {

@@ -73,7 +73,6 @@ export const INITIAL_DEHYDRATE: DehydrateConfig = {
   },
 };
 
-
 /** Per-key depth patch: each field is `{ enabled, level }`. */
 type DepthPatch = Partial<
   Record<keyof DehydrateDepth, Partial<{ enabled: boolean; level: number }>>
@@ -161,10 +160,7 @@ export function patchSharedOptions(
     return out;
   };
 
-  const LANGUAGE_TOGGLE_KEYS = [
-    "translate",
-    "dialogueSubject",
-  ] as const;
+  const LANGUAGE_TOGGLE_KEYS = ["translate", "dialogueSubject"] as const;
 
   const mergeLanguage = (
     base: LanguageAdaptation,

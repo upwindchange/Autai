@@ -184,9 +184,9 @@ export const ComposerAction: FC = () => {
                               <AlphaGlyph
                                 className={cn(
                                   "absolute -top-2 -right-3.5",
-                                  useBrowser ?
-                                    "text-primary"
-                                  : "text-muted-foreground",
+                                  useBrowser ? "text-primary" : (
+                                    "text-muted-foreground"
+                                  ),
                                 )}
                               />
                             </span>
@@ -252,16 +252,16 @@ export const ComposerAction: FC = () => {
                         <Blocks
                           className={cn(
                             "size-4",
-                            hasActiveMcpServers ?
-                              "text-primary"
-                            : "text-muted-foreground",
+                            hasActiveMcpServers ? "text-primary" : (
+                              "text-muted-foreground"
+                            ),
                           )}
                         />
                         <span
                           className={cn(
-                            hasActiveMcpServers ?
-                              "text-primary"
-                            : "text-muted-foreground",
+                            hasActiveMcpServers ? "text-primary" : (
+                              "text-muted-foreground"
+                            ),
                           )}
                         >
                           {t("composer.tools.extensions")}

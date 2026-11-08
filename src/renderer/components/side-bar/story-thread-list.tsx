@@ -52,9 +52,7 @@ export const StoryThreadList: FC = () => {
   const loading = useStoryThreadsStore((s) => s.loading);
 
   if (loading) return <ThreadListSkeleton />;
-  return viewMode === "grouped" ?
-      <GroupedStoryList />
-    : <FlatStoryList />;
+  return viewMode === "grouped" ? <GroupedStoryList /> : <FlatStoryList />;
 };
 
 // ---------------------------------------------------------------------------
@@ -64,9 +62,7 @@ export const StoryThreadList: FC = () => {
 const GroupedStoryList: FC = () => {
   const { t } = useTranslation("common");
   const activeThreadId = useStoryThreadsStore((s) => s.activeThreadId);
-  const setActiveThreadId = useStoryThreadsStore(
-    (s) => s.setActiveThreadId,
-  );
+  const setActiveThreadId = useStoryThreadsStore((s) => s.setActiveThreadId);
   const { tagGroups, untagged } = useTagGroups();
 
   return (
@@ -104,9 +100,7 @@ const FlatStoryList: FC = () => {
   const selectedTagId = useTagStore((s) => s.selectedTagId);
   const searchResultIds = useTagStore((s) => s.searchResultIds);
   const activeThreadId = useStoryThreadsStore((s) => s.activeThreadId);
-  const setActiveThreadId = useStoryThreadsStore(
-    (s) => s.setActiveThreadId,
-  );
+  const setActiveThreadId = useStoryThreadsStore((s) => s.setActiveThreadId);
 
   const filtered = threads.filter((thread) => {
     if (viewingArchive && thread.status !== "archived") return false;

@@ -55,13 +55,13 @@
     "@ai-sdk/xai": "^5.0.39",
     "@aihubmix/ai-sdk-provider": "^2.2.1",
     "@assistant-ui/core": "^0.3.32",
-    "@assistant-ui/react": "^0.15.32",
+    "@assistant-ui/react": "^0.15.33",
     "@assistant-ui/react-ai-sdk": "^1.4.21",
-    "@assistant-ui/react-markdown": "^0.14.24",
-    "@assistant-ui/react-mcp": "^0.1.26",
+    "@assistant-ui/react-markdown": "^0.14.25",
+    "@assistant-ui/react-mcp": "^0.1.27",
     "@assistant-ui/react-streamdown": "^0.3.21",
     "@assistant-ui/react-syntax-highlighter": "^0.14.7",
-    "@assistant-ui/store": "^0.3.22",
+    "@assistant-ui/store": "^0.3.23",
     "@base-ui/react": "^1.9.0",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/tsconfig": "^2.0.0",
@@ -139,7 +139,7 @@
     "react-resizable-panels": "^4.19.1",
     "react-shiki": "^0.11.2",
     "react-syntax-highlighter": "^16.1.2",
-    "recharts": "^3.10.1",
+    "recharts": "^3.8.0",
     "rehype-katex": "^7.0.1",
     "remark-gfm": "^4.0.1",
     "remark-math": "^6.0.0",
@@ -164,5 +164,12 @@
     "env": {
       "VITE_DEV_SERVER_URL": "http://127.0.0.1:7777/"
     }
+  },
+  "dependencies": {
+    "@assistant-ui/ai-sdk": "^0.0.17",
+    "@hookform/resolvers": "^7.0.3",
+    "@shadcn/react": "^0.3.1",
+    "cn": "^0.5.2",
+    "shiki": "^4.6.0"
   }
 }

@@ -517,7 +517,6 @@ class StoryBackendService {
     logger.info("source chapter urls cleared", { threadId });
   }
 
-
   /**
    * Demote every in-progress status left over from a previous process that
    * died mid-run (power loss, crash, force-quit): `fetching` sources and
@@ -632,7 +631,6 @@ class StoryBackendService {
       .get();
     return row?.rawConsumedOffset ?? 0;
   }
-
 
   // --- final chapter ------------------------------------------------------
 

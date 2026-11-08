@@ -27,10 +27,7 @@ import { getFlattenDOMTool } from "@agents/tools/DOMTools";
 import { clickElementTool } from "@agents/tools/InteractiveTools";
 import type { InternetNovel } from "@shared";
 import { buildUserInteractionWallBlock } from "../../shared/crawlWallPrompt";
-import {
-  buildLandingRecoveryPrompt,
-  type LandingRecoveryInput,
-} from "./pure";
+import { buildLandingRecoveryPrompt, type LandingRecoveryInput } from "./pure";
 import { reportWallTool } from "./wallGuard";
 
 const logger = log.scope("Dehydrate:InternetFetch");
@@ -70,16 +67,16 @@ async function runAgent(params: {
     toolsContext[name] = params.ctx;
   }
   const resolved = complexModel();
-  const providerOptions = customProviderOptions(
-    resolved,
-    STORY_AGENT_CONTROLS,
-  );
+  const providerOptions = customProviderOptions(resolved, STORY_AGENT_CONTROLS);
   const result = streamText({
     model: resolved.model,
     instructions: params.instructions,
     messages: [{ role: "user", content: params.user }],
     tools: params.tools as never,
-    stopWhen: [hasSuccessfulToolResult(params.terminal), isStepCount(params.maxSteps)],
+    stopWhen: [
+      hasSuccessfulToolResult(params.terminal),
+      isStepCount(params.maxSteps),
+    ],
     maxRetries: settingsService.settings.maxRetries,
     timeout: TIMEOUTS.actionExecution,
     ...(providerOptions && { providerOptions }),
@@ -103,7 +100,9 @@ async function runAgent(params: {
     const toolErrors = steps.flatMap((s) =>
       s.content
         .filter(
-          (p): p is Extract<(typeof s.content)[number], { type: "tool-error" }> =>
+          (
+            p,
+          ): p is Extract<(typeof s.content)[number], { type: "tool-error" }> =>
             p.type === "tool-error",
         )
         .map((p) => ({
@@ -111,9 +110,7 @@ async function runAgent(params: {
           error: p.error instanceof Error ? p.error.message : String(p.error),
         })),
     );
-    const terminal = toolResults.find(
-      (tr) => tr.toolName === params.terminal,
-    );
+    const terminal = toolResults.find((tr) => tr.toolName === params.terminal);
     const last = steps[steps.length - 1];
     logger.info("agent run finished", {
       telemetryId: params.telemetryId,
@@ -149,8 +146,10 @@ function terminalOutput(
   name: string,
 ): Record<string, unknown> | null {
   const found = toolResults.find((tr) => tr.toolName === name);
-  return found != null && typeof found.output === "object" && found.output != null
-    ? (found.output as Record<string, unknown>)
+  return (
+      found != null && typeof found.output === "object" && found.output != null
+    ) ?
+      (found.output as Record<string, unknown>)
     : null;
 }
 
@@ -159,9 +158,13 @@ function wallReason(toolResults: AgentToolResult[]): string | null {
   const wall = toolResults.find((tr) => tr.toolName === "reportWall");
   if (wall == null) return null;
   const out = wall.output;
-  return out != null && typeof out === "object" && "reason" in out &&
-      typeof (out as Record<string, unknown>).reason === "string"
-    ? (out as Record<string, unknown>).reason as string
+  return (
+      out != null &&
+        typeof out === "object" &&
+        "reason" in out &&
+        typeof (out as Record<string, unknown>).reason === "string"
+    ) ?
+      ((out as Record<string, unknown>).reason as string)
     : "wall:unknown";
 }
 
@@ -284,7 +287,9 @@ export async function targetChapterAgent(
       verdict: z
         .enum(["target", "other"])
         .describe(
-          '"target" = this reading page IS chapter ' + n + '; "other" = it is a DIFFERENT chapter.',
+          '"target" = this reading page IS chapter ' +
+            n +
+            '; "other" = it is a DIFFERENT chapter.',
         ),
       title: z
         .string()
@@ -318,9 +323,10 @@ ${buildUserInteractionWallBlock(
 
 Remember: VIP / 会员 / 付费 / 订阅 / lock markers on ANY toc entry — including entries before/after chapter ${n} or for other books — are a wall. reportWall.`;
 
-  const user = recovery ?
-    buildLandingRecoveryPrompt(recovery)
-  : `Open chapter ${n} of "${titlePart}" from the table of contents (${tocUrl}) and report what you land on.`;
+  const user =
+    recovery ?
+      buildLandingRecoveryPrompt(recovery)
+    : `Open chapter ${n} of "${titlePart}" from the table of contents (${tocUrl}) and report what you land on.`;
 
   const toolResults = await runAgent({
     instructions,
@@ -344,8 +350,7 @@ Remember: VIP / 会员 / 付费 / 订阅 / lock markers on ANY toc entry — inc
   if (verdict.verdict === "target") return { kind: "landed" };
   const sts = SessionTabService.getInstance();
   const url = sts.getTab(ctx.activeTabId)?.webContents.getURL() ?? "";
-  const title =
-    typeof verdict.title === "string" ? verdict.title : null;
+  const title = typeof verdict.title === "string" ? verdict.title : null;
   return { kind: "wrong-landing", title, url };
 }
 
@@ -379,9 +384,7 @@ export async function advanceAgent(
       title: z
         .string()
         .nullable()
-        .describe(
-          'The landed page\'s chapter title (for "landed"), or null.',
-        ),
+        .describe('The landed page\'s chapter title (for "landed"), or null.'),
     }),
     execute: async (input) => input,
   });
@@ -400,7 +403,7 @@ Steps:
 6. If the page truly has NO next-chapter control at the chapter's end (the book ends here), reportAdvance verdict "no-next".
 
 ${buildUserInteractionWallBlock(
-  "call reportWall immediately — a wall is never the end of the book, never \"no-next\"",
+  'call reportWall immediately — a wall is never the end of the book, never "no-next"',
 )}
 
 Remember: VIP / 会员 / 付费 / lock markers on the next chapter's entry or anywhere on the page are a wall. reportWall.`;
@@ -430,10 +433,13 @@ Remember: VIP / 会员 / 付费 / lock markers on the next chapter's entry or an
   const sts = SessionTabService.getInstance();
   const url = sts.getTab(ctx.activeTabId)?.webContents.getURL() ?? "";
   if (url === prevUrl) {
-    logger.info("advance reported landed but URL unchanged — treating as no-next", {
-      threadId: ctx.threadId,
-      chapterNumber: n,
-    });
+    logger.info(
+      "advance reported landed but URL unchanged — treating as no-next",
+      {
+        threadId: ctx.threadId,
+        chapterNumber: n,
+      },
+    );
     return { kind: "no-next" };
   }
   return { kind: "landed" };
@@ -474,11 +480,10 @@ const saveChapterContentTool = tool({
     chapterNumber: z.number(),
   }),
   execute: async (input, { context: ctx }) => {
-    storyBackendService.updateSourceChapter(
-      ctx.threadId,
-      ctx.chapterNumber,
-      { content: input.content, title: input.title },
-    );
+    storyBackendService.updateSourceChapter(ctx.threadId, ctx.chapterNumber, {
+      content: input.content,
+      title: input.title,
+    });
     logger.info("chapter content saved", {
       threadId: ctx.threadId,
       chapterNumber: ctx.chapterNumber,
@@ -605,7 +610,7 @@ Steps:
 4. Call reportFinality with your verdict and reason.
 
 ${buildUserInteractionWallBlock(
-  "call reportWall immediately — a wall is never proof of finality; a walled toc must NEVER yield verdict \"last\"",
+  'call reportWall immediately — a wall is never proof of finality; a walled toc must NEVER yield verdict "last"',
 )}
 
 Remember: VIP / 会员 / lock markers anywhere in the toc are a wall (reportWall), not finality evidence.`;

@@ -85,7 +85,6 @@ export const clickElementTool = tool({
   }),
   contextSchema: toolContextSchema,
   execute: async ({ backendNodeId }, { context }) => {
-
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
@@ -205,7 +204,6 @@ export const fillElementTool = tool({
     { backendNodeId, value, clear = true, keystrokeDelay = 18 },
     { context },
   ) => {
-
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
@@ -309,7 +307,6 @@ export const selectOptionTool = tool({
     { backendNodeId, values, clear = true, timeout = 5000 },
     { context },
   ) => {
-
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
@@ -400,11 +397,7 @@ export const hoverElementTool = tool({
     timeout: z.number().optional().describe("Timeout in ms (default: 3000)"),
   }),
   contextSchema: toolContextSchema,
-  execute: async (
-    { backendNodeId, timeout = 3000 },
-    { context },
-  ) => {
-
+  execute: async ({ backendNodeId, timeout = 3000 }, { context }) => {
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
@@ -503,11 +496,7 @@ export const dragToElementTool = tool({
       ),
   }),
   contextSchema: toolContextSchema,
-  execute: async (
-    { sourceBackendNodeId, target },
-    { context },
-  ) => {
-
+  execute: async ({ sourceBackendNodeId, target }, { context }) => {
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
@@ -612,7 +601,6 @@ export const scrollPagesTool = tool({
     { direction, pages = 1.0, scrollDelay = 300, smooth = true },
     { context },
   ) => {
-
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
@@ -711,11 +699,7 @@ export const scrollAtCoordinateTool = tool({
       .describe("Vertical scroll delta (default: 0)"),
   }),
   contextSchema: toolContextSchema,
-  execute: async (
-    { x, y, deltaX = 0, deltaY = 0 },
-    { context },
-  ) => {
-
+  execute: async ({ x, y, deltaX = 0, deltaY = 0 }, { context }) => {
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
@@ -807,11 +791,7 @@ export const getAttributeTool = tool({
       .describe("Required (string): Name of the attribute to retrieve"),
   }),
   contextSchema: toolContextSchema,
-  execute: async (
-    { backendNodeId, attributeName },
-    { context },
-  ) => {
-
+  execute: async ({ backendNodeId, attributeName }, { context }) => {
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
@@ -853,7 +833,11 @@ export const evaluateTool = tool({
   }),
   contextSchema: toolContextSchema,
   execute: async (
-    { backendNodeId, expression, args = [] }: { backendNodeId: number; expression: string; args?: unknown[] },
+    {
+      backendNodeId,
+      expression,
+      args = [],
+    }: { backendNodeId: number; expression: string; args?: unknown[] },
     { context },
   ) => {
     if (!context.activeTabId) {
@@ -885,7 +869,6 @@ export const getBasicInfoTool = tool({
   }),
   contextSchema: toolContextSchema,
   execute: async ({ backendNodeId }, { context }) => {
-
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
@@ -919,7 +902,6 @@ export const getAllAttributesTool = tool({
   }),
   contextSchema: toolContextSchema,
   execute: async ({ backendNodeId }, { context }) => {
-
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +
@@ -954,7 +936,6 @@ export const interceptClickUrlTool = tool({
   }),
   contextSchema: toolContextSchema,
   execute: async ({ backendNodeId }, { context }) => {
-
     if (!context.activeTabId) {
       throw new Error(
         "No active tab in context. " +

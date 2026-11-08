@@ -100,10 +100,7 @@ async function runRewriteAgent(
 ): Promise<boolean> {
   const resolved = complexModel();
   const sampling = forwardSamplingParams(resolved.params);
-  const providerOptions = customProviderOptions(
-    resolved,
-    STORY_AGENT_CONTROLS,
-  );
+  const providerOptions = customProviderOptions(resolved, STORY_AGENT_CONTROLS);
   const result = streamText({
     model: resolved.model,
     instructions: systemPrompt,
@@ -163,8 +160,8 @@ export async function rewriteChapter(
   });
 
   const sourceText =
-    storyFrontendService.getSourceChapter(threadId, chapterNumber)
-      ?.content ?? "";
+    storyFrontendService.getSourceChapter(threadId, chapterNumber)?.content ??
+    "";
 
   logger.info("rewriting", {
     threadId,
@@ -208,23 +205,15 @@ export async function rewriteChapter(
       threadId,
       chapterNumber,
     });
-    storyBackendService.updateRewrittenChapter(
-      threadId,
-      chapterNumber,
-      {
-        status: "error",
-      },
-    );
+    storyBackendService.updateRewrittenChapter(threadId, chapterNumber, {
+      status: "error",
+    });
     return "error";
   } catch (err) {
     logger.error("rewrite failed", { threadId, chapterNumber, err });
-    storyBackendService.updateRewrittenChapter(
-      threadId,
-      chapterNumber,
-      {
-        status: "error",
-      },
-    );
+    storyBackendService.updateRewrittenChapter(threadId, chapterNumber, {
+      status: "error",
+    });
     return "error";
   }
 }

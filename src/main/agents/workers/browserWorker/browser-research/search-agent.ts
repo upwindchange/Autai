@@ -163,7 +163,9 @@ function buildSearchAnalysisPrompt(
       `
 ## Blocked Sites — skip these results
 The caller already tried and rejected the following destination sites. Judge each result by its DISPLAYED destination — the site/domain shown in the result's cite, breadcrumb, or URL text (e.g. "www.example.com"), NEVER by the link's href, which may be an engine redirect wrapper hiding the real destination:
-${Object.entries(blockedHosts).map(([host, reason]) => `- ${host} (${reason})`).join("\n")}
+${Object.entries(blockedHosts)
+  .map(([host, reason]) => `- ${host} (${reason})`)
+  .join("\n")}
 Do not report results that belong to any blocked site; spend the slots on other candidates instead.`
     : "";
 
@@ -317,13 +319,11 @@ async function resolveResultUrl(
 
   // SERP URL — relative wrapper hrefs resolve against it
   const serpUrl =
-    SessionTabService.getInstance()
-      .getTab(activeTabId)
-      ?.webContents.getURL() ?? "";
+    SessionTabService.getInstance().getTab(activeTabId)?.webContents.getURL() ??
+    "";
 
   return extractTargetUrl(attrResult.value, serpUrl);
 }
-
 
 // ===== Dedup =====
 

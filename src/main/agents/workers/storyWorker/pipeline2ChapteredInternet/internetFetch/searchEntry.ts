@@ -72,8 +72,7 @@ export async function runBookSearch(
 
   // The writer arg streams plan-card UI in browser-research; story
   // has no plan-card surface, so it is a no-op.
-  const blockedHosts =
-    storyBackendService.getBlockedSites(threadId);
+  const blockedHosts = storyBackendService.getBlockedSites(threadId);
   // The search-analysis agent itself skips results whose DISPLAYED
   // destination is blocked (breadcrumb/cite domain — never the href, which
   // engines wrap in redirect wrappers). No URL decoding anywhere.

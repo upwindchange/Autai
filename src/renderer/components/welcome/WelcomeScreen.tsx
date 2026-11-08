@@ -39,7 +39,11 @@ function formatTokens(tokens: number): string {
   return `${tokens}`;
 }
 
-function ModelChip({ icon, model, label }: {
+function ModelChip({
+  icon,
+  model,
+  label,
+}: {
   icon: ReactNode;
   model: ModelChipInfo | null;
   label: string;
@@ -50,9 +54,7 @@ function ModelChip({ icon, model, label }: {
         {icon}
       </span>
       <span className="truncate text-xs">
-        <span className="font-medium">
-          {model ? model.modelName : label}
-        </span>
+        <span className="font-medium">{model ? model.modelName : label}</span>
         {model && (
           <span className="text-muted-foreground">
             {" · "}

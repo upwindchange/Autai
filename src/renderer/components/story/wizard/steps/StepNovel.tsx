@@ -58,7 +58,6 @@ export const StepNovel: FC<StepNovelProps> = ({
   // and the title/author fields below are disabled — there's no "book title".
   const nonNovel = config.options.nonNovelSource;
 
-
   // sourceKind is always present on runtime configs; the ?? "search" fallback
   // mirrors isStepValid for hand-cast (test) configs missing the field.
   const kind: SourceKind =
@@ -482,7 +481,9 @@ export const StepNovel: FC<StepNovelProps> = ({
                   id="story-search-fallback"
                   checked={config.options.webSearchFallback}
                   onCheckedChange={(v) =>
-                    setConfig(patchSharedOptions(config, { webSearchFallback: v }))
+                    setConfig(
+                      patchSharedOptions(config, { webSearchFallback: v }),
+                    )
                   }
                 />
                 <FieldContent>

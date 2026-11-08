@@ -15,7 +15,9 @@ import { httpClient } from "@/lib/httpClient";
  * clean) or re-asks / skips, and the card disappears on the next
  * `story:wallPrompt` event (cleared).
  */
-export const WallPromptCard: FC<{ prompt: WallPromptPayload }> = ({ prompt }) => {
+export const WallPromptCard: FC<{ prompt: WallPromptPayload }> = ({
+  prompt,
+}) => {
   const { t } = useTranslation("reader");
   // Answer sent, waiting for the backend's next SSE payload — disables the
   // buttons and shows the matching receipt so nothing double-fires.
@@ -67,15 +69,22 @@ export const WallPromptCard: FC<{ prompt: WallPromptPayload }> = ({ prompt }) =>
         })}
         icon="shield-alert"
         metadata={[
-          { key: t("reader.wall.reason.chapter"), value: String(prompt.chapterNumber) },
+          {
+            key: t("reader.wall.reason.chapter"),
+            value: String(prompt.chapterNumber),
+          },
           { key: t("reader.wall.reason.site"), value: prompt.host },
-          { key: t("reader.wall.reason.reason"), value: reasonLabel(t, prompt.reason) },
+          {
+            key: t("reader.wall.reason.reason"),
+            value: reasonLabel(t, prompt.reason),
+          },
         ]}
         confirmLabel={t("reader.wall.stepIn")}
         cancelLabel={t("reader.wall.reject")}
         choice={
           pendingAction === "stepIn" ? "approved"
-          : pendingAction === "reject" ? "denied"
+          : pendingAction === "reject" ?
+            "denied"
           : undefined
         }
       />
@@ -88,13 +97,11 @@ export const WallPromptCard: FC<{ prompt: WallPromptPayload }> = ({ prompt }) =>
  * Reasons are free-form (`wall:<marker>` / agent strings), so match on
  * substrings; unknown reasons fall back to a generic label.
  */
-function reasonLabel(
-  t: (key: string) => string,
-  reason: string,
-): string {
+function reasonLabel(t: (key: string) => string, reason: string): string {
   const r = reason.toLowerCase();
   if (/login|登录|登陆/.test(r)) return t("reader.wall.reason.login");
-  if (/pay|vip|付费|订阅|member/.test(r)) return t("reader.wall.reason.paywall");
+  if (/pay|vip|付费|订阅|member/.test(r))
+    return t("reader.wall.reason.paywall");
   if (/captcha|人机|verify/.test(r)) return t("reader.wall.reason.captcha");
   if (/age|年龄/.test(r)) return t("reader.wall.reason.age");
   return t("reader.wall.reason.unknown");
