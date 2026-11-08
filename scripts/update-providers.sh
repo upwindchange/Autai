@@ -147,11 +147,14 @@ echo "  directories               : $total_dirs"
 echo "  warnings during run       : $WARN"
 echo "  errors during run         : $ERR"
 
-spot="$PROVIDERS_DEST/azure-cognitive-services/models/codex-mini.toml"
-if [ -f "$spot" ] && [ ! -L "$spot" ] && [ -s "$spot" ]; then
+# Any populated regular file proves the copy yielded real content; the counts
+# above already prove zero symlinks remain. No hardcoded target: provider and
+# model paths come and go upstream (e.g. the schema-2 Azure restructure).
+spot="$(find "$PROVIDERS_DEST" -type f -size +0c -print -quit 2>/dev/null)"
+if [ -n "$spot" ]; then
   ok "spot-check real file: ${spot#"$PROVIDERS_DEST/"} ($(wc -c < "$spot") bytes)"
 else
-  err "spot-check failed: $spot is not a populated regular file"
+  err "spot-check failed: no populated regular file under $PROVIDERS_DEST"
 fi
 
 echo

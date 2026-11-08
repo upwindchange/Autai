@@ -1,26 +1,27 @@
-name = "GLM-4.6V"
-description = "GLM vision model for visual reasoning, documents, and multimodal agents"
-family = "glm"
-release_date = "2025-12-08"
-last_updated = "2025-12-08"
-attachment = true
-reasoning = true
-temperature = true
-tool_call = true
-knowledge = "2025-04"
-open_weights = true
+# Sources (accessed 2026-10-19):
+# - Plan and supported models: https://docs.bigmodel.cn/cn/coding-plan/overview, https://docs.bigmodel.cn/cn/coding-plan/latest-model
+# - Thinking (Coding Plan effort mapping): https://docs.bigmodel.cn/cn/guide/capabilities/thinking
+# Subscription plan billed in credits, so no per-token cost.
+# Deprecated: the plan now serves only GLM-5.3 and GLM-5.3-Flash (vision MCP included with GLM-5.3-Flash).
+# Toggle: thinking.type = enabled|disabled (default enabled)
+# Tools: tool_choice supports only auto on Chat Completions and none|auto on Responses; no strict tool mode
+#   (https://docs.bigmodel.cn/cn/guide/capabilities/function-calling, https://docs.bigmodel.cn/cn/guide/develop/responses/introduction).
+schema = 2
+base_model = "zhipuai/glm-4.6v"
+status = "deprecated"
 
-[[reasoning_options]]
-type = "toggle"
+[capabilities]
+tools = { supported = true, choice = ["auto"] }
+reasoning = { supported = true, default = { type = "toggle", value = true }, toggle = true }
+top_k = false
+cache = { implicit = true }
 
-[cost]
-input = 0.3
-output = 0.9
+[api.chat-completions]
+compatibility = { reasoning_field = "reasoning_content", max_tokens_field = "max_tokens" }
 
-[limit]
-context = 128000
-output = 32768
+[cost.text.input]
+price = 0
+cache = { read = 0, write = 0 }
 
-[modalities]
-input = ["text", "image", "video"]
-output = ["text"]
+[cost.text.output]
+price = 0
