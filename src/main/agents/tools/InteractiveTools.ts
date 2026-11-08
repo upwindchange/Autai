@@ -178,7 +178,6 @@ export const clickElementTool = tool({
       },
       {
         timeout: 60000,
-        throwOnTimeout: true,
       },
     );
   },
@@ -282,7 +281,6 @@ export const fillElementTool = tool({
       },
       {
         timeout: 60000,
-        throwOnTimeout: true,
       },
     );
   },
@@ -387,7 +385,6 @@ export const selectOptionTool = tool({
       },
       {
         timeout: 60000,
-        throwOnTimeout: true,
       },
     );
   },
@@ -481,7 +478,6 @@ export const hoverElementTool = tool({
       },
       {
         timeout: 60000,
-        throwOnTimeout: true,
       },
     );
   },
@@ -585,7 +581,6 @@ export const dragToElementTool = tool({
       },
       {
         timeout: 60000,
-        throwOnTimeout: true,
       },
     );
   },
@@ -691,7 +686,6 @@ export const scrollPagesTool = tool({
       },
       {
         timeout: 60000,
-        throwOnTimeout: true,
       },
     );
   },
@@ -796,7 +790,6 @@ export const scrollAtCoordinateTool = tool({
       },
       {
         timeout: 60000,
-        throwOnTimeout: true,
       },
     );
   },

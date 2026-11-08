@@ -34,28 +34,29 @@ export class PQueueManager {
   }
 
   private setupEventListeners(): void {
-    this.queue.on("add", () => {
+    this.queue.addEventListener("add", () => {
       this.logger.debug("Task added to queue", {
         queueSize: this.queue.size,
         pending: this.queue.pending,
       });
     });
 
-    this.queue.on("active", () => {
+    this.queue.addEventListener("active", () => {
       this.logger.debug("Task started", {
         queueSize: this.queue.size,
         pending: this.queue.pending,
       });
     });
 
-    this.queue.on("completed", (_result) => {
+    this.queue.addEventListener("completed", () => {
       this.logger.debug("Task completed", {
         queueSize: this.queue.size,
         pending: this.queue.pending,
       });
     });
 
-    this.queue.on("error", (error) => {
+    this.queue.addEventListener("error", (event) => {
+      const error = event.detail;
       this.logger.error("Task failed", {
         error: error instanceof Error ? error.message : String(error),
         queueSize: this.queue.size,
@@ -63,14 +64,14 @@ export class PQueueManager {
       });
     });
 
-    this.queue.on("idle", () => {
+    this.queue.addEventListener("idle", () => {
       this.logger.debug("Queue is idle", {
         queueSize: this.queue.size,
         pending: this.queue.pending,
       });
     });
 
-    this.queue.on("empty", () => {
+    this.queue.addEventListener("empty", () => {
       this.logger.debug("Queue is empty", {
         queueSize: this.queue.size,
         pending: this.queue.pending,
@@ -83,7 +84,6 @@ export class PQueueManager {
     options?: {
       priority?: number;
       timeout?: number;
-      throwOnTimeout?: boolean;
       signal?: AbortSignal;
     },
   ): Promise<TaskResultType> {
@@ -95,7 +95,6 @@ export class PQueueManager {
     options?: {
       priority?: number;
       timeout?: number;
-      throwOnTimeout?: boolean;
       signal?: AbortSignal;
     },
   ): Promise<Array<TaskResultsType>> {

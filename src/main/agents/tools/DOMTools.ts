@@ -91,7 +91,6 @@ export const getDOMTreeTool = tool({
       },
       {
         timeout: 45000,
-        throwOnTimeout: true,
       },
     );
   },
@@ -149,7 +148,6 @@ export const getFlattenDOMTool = tool({
       },
       {
         timeout: 45000,
-        throwOnTimeout: true,
       },
     );
   },

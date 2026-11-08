@@ -25,8 +25,6 @@ import { createTogetherAI } from "@ai-sdk/togetherai";
 import { createCerebras } from "@ai-sdk/cerebras";
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { createGatewayProvider } from "@ai-sdk/gateway";
-// NOTE: @ai-sdk/gateway (Vercel AI Gateway) is unrelated to the `ai-gateway-provider`
-// (Cloudflare) outlier handled below — do not confuse the two.
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createAihubmix } from "@aihubmix/ai-sdk-provider";
 import { createVenice } from "venice-ai-sdk-provider";
@@ -38,7 +36,6 @@ import { createAzure } from "@ai-sdk/azure";
 import { createGitLab } from "gitlab-ai-provider";
 import { createAmazonBedrock } from "@ai-sdk/amazon-bedrock";
 import { createSAPAIProvider } from "@jerome-benoit/sap-ai-provider-v2";
-import { createAiGateway } from "ai-gateway-provider";
 import { createVertex } from "@ai-sdk/google-vertex";
 import { createVertexAnthropic } from "@ai-sdk/google-vertex/anthropic";
 
@@ -150,24 +147,10 @@ export class Provider {
         return createSAPAIProvider()(modelName);
       }
 
-      // Cloudflare AI Gateway is a meta-provider: it wraps an upstream
-      // LanguageModelV4 and routes its fetch through gateway.ai.cloudflare.com.
-      // gateway/accountId come from env vars (CLOUDFLARE_GATEWAY_ID/
-      // CLOUDFLARE_ACCOUNT_ID, documented in the provider TOML); the upstream
-      // apiKey carries the Cloudflare token; vendor routing is the gateway's job.
-      case "ai-gateway-provider": {
-        const gateway = createAiGateway({
-          apiKey,
-          gateway: process.env.CLOUDFLARE_GATEWAY_ID ?? "",
-          accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? "",
-        });
-        return gateway(createOpenAI({ apiKey })(modelName));
-      }
-
       default: {
         throw new Error(
           `Provider "${sdkNpm}" cannot be used yet: it needs configuration the ` +
-            `app does not collect (e.g. a service binding, or gateway+accountId). ` +
+            `app does not collect (e.g. a service binding). ` +
             `It is installed but not wired up for runtime use.`,
         );
       }
