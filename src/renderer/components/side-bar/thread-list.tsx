@@ -7,7 +7,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +17,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  AuiIf,
   ThreadListItemPrimitive,
   ThreadListPrimitive,
   useAui,
@@ -50,14 +48,9 @@ export const ThreadList: FC = () => {
 
   return (
     <ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col gap-1">
-      <AuiIf condition={(s) => s.threads.isLoading}>
-        <ThreadListSkeleton />
-      </AuiIf>
-      <AuiIf condition={(s) => !s.threads.isLoading}>
-        {viewMode === "grouped" ?
-          <GroupedThreadList />
-        : <FlatThreadList />}
-      </AuiIf>
+      {viewMode === "grouped" ?
+        <GroupedThreadList />
+      : <FlatThreadList />}
     </ThreadListPrimitive.Root>
   );
 };
@@ -111,27 +104,6 @@ const GroupedThreadList: FC = () => {
           onSwitch={handleSwitch}
         />
       )}
-    </div>
-  );
-};
-
-// ---------------------------------------------------------------------------
-// Loading skeleton
-// ---------------------------------------------------------------------------
-
-const ThreadListSkeleton: FC = () => {
-  return (
-    <div className="flex flex-col gap-1">
-      {Array.from({ length: 5 }, (_, i) => (
-        <div
-          key={i}
-          role="status"
-          aria-label="Loading threads"
-          className="aui-thread-list-skeleton-wrapper flex h-9 items-center px-3"
-        >
-          <Skeleton className="aui-thread-list-skeleton h-4 w-full" />
-        </div>
-      ))}
     </div>
   );
 };
