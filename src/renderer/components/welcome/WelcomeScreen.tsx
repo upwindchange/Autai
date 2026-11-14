@@ -108,11 +108,11 @@ export const WelcomeScreen: FC = () => {
   // Blank while settings resolve — no flash of the chat layout underneath.
   if (isLoading) return null;
 
-  // Entering a mode is one click — the card itself commits. Story runs the
-  // dehydrate pipeline, which needs both agent models; the footer reminder
-  // shows then. Chat is never blocked.
+  // Entering a mode is one click — the card itself commits. Nothing is gated
+  // on model setup: chat fails loudly per-request (app:message alert toast)
+  // and story blocks at wizard step 0 with a configure banner, so the footer
+  // strip stays a reminder only.
   const enter = (mode: WelcomeChoice) => {
-    if (mode === "story" && !modelsConfigured) return;
     const appMode = mode === "chat" ? "chat" : "story";
     if (dontShow) {
       void updateSettings({
