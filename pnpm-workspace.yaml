@@ -14,3 +14,4 @@ minimumReleaseAgeExclude:
   - '@assistant-ui/tap@0.9.25'
   - assistant-cloud@0.2.10
   - assistant-stream@0.3.56
+  - playwright-core@1.65.1
