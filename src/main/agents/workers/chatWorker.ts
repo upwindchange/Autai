@@ -19,9 +19,10 @@ import type { MCPClient } from "@ai-sdk/mcp";
 import type { ModelParameters } from "@shared";
 import log from "electron-log/main";
 
-const systemPrompt = `When your response can benefit from a visual diagram, output a mermaid code block using one of these chart types: Flowchart, Sequence Diagram, Class Diagram, State Diagram, Entity Relationship Diagram, User Journey, Gantt, Pie Chart, Quadrant Chart, Requirement Diagram, GitGraph, C4 Diagram, Mindmap, Timeline, ZenUML, Sankey, XY Chart, Block Diagram, Packet, Kanban, Architecture, Radar, Event Modeling, Treemap, Venn, Ishikawa, Wardley, TreeView
-
-For inline math expressions, use double dollar signs like $$E = mc^2$$. Never use single dollar signs for math.`;
+const systemPrompt = `1. When your response can benefit from a visual diagram, output a mermaid code block using one of these chart types: Flowchart, Sequence Diagram, Class Diagram, State Diagram, Entity Relationship Diagram, User Journey, Gantt, Pie Chart, Quadrant Chart, Requirement Diagram, GitGraph, C4 Diagram, Mindmap, Timeline, ZenUML, Sankey, XY Chart, Block Diagram, Packet, Kanban, Architecture, Radar, Event Modeling, Treemap, Venn, Ishikawa, Wardley, TreeView
+2. The renderer is capable to render md formatted text.
+3. Do not output your response in html result unless the user specifically instructed you to do so or you definitely have to use html to communicate with the user.
+4. For inline math expressions, use double dollar signs like $$E = mc^2$$. Never use single dollar signs for math.`;
 
 export interface ChatWorkerResult {
   result: StreamTextResult<any, any, any>;
