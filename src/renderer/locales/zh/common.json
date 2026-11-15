@@ -175,5 +175,6 @@
   "capability.complex.short": "复杂智能体",
   "capability.simple.short": "简单智能体",
   "capability.configure": "配置模型",
-  "capability.notConfigured.body": "开始前请至少配置一个模型。脱水管线需要复杂和简单两个模型。"
+  "capability.notConfigured.body": "开始前请至少配置一个模型。脱水管线需要复杂和简单两个模型。",
+  "error.threadCreateFailed": "新建对话保存失败，首条回复完成后会自动补存。"
 }

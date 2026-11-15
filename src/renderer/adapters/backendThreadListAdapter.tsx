@@ -15,6 +15,8 @@ import type { UIMessage } from "ai";
 import type { TagRow } from "@shared/tag";
 import { useTagStore, type ThreadInfo } from "@/stores/tagStore";
 import { getApiBase } from "@/lib/api";
+import { toast } from "sonner";
+import i18n from "@/i18n";
 
 // ---------------------------------------------------------------------------
 // Backend thread history adapter class — uses aui for thread ID resolution
@@ -78,6 +80,30 @@ class BackendThreadHistoryAdapter implements ThreadHistoryAdapter {
 // Thread list adapter — REST calls to Express backend
 // ---------------------------------------------------------------------------
 
+// Creates the thread row eagerly so the thread list can resolve its remote id
+// without waiting on the server. Best-effort with a few retries; on final
+// failure the chat-finish save upserts the row, so nothing is lost.
+async function persistThreadInBackground(threadId: string) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      const res = await fetch(`${getApiBase()}/threads`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: threadId, mode: "chat" }),
+      });
+      if (res.ok) return;
+    } catch {
+      // network hiccup — retried below
+    }
+    if (attempt < 2) {
+      const { promise, resolve } = Promise.withResolvers<void>();
+      setTimeout(resolve, 1000 * (attempt + 1));
+      await promise;
+    }
+  }
+  toast.error(i18n.t("common:error.threadCreateFailed"));
+}
+
 export const backendThreadListAdapter: RemoteThreadListAdapter = {
   async list() {
     // This adapter serves the chat thread list only — story manages its
@@ -126,14 +152,15 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
 
   async initialize(threadId: string) {
     // Chat-only adapter: new conversations are always chat threads.
-    const res = await fetch(`${getApiBase()}/threads`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id: threadId, mode: "chat" }),
-    });
-    const data = (await res.json()) as { id: string };
-    // Map our backend `id` to aui's `remoteId`/`externalId` contract.
-    return { remoteId: data.id, externalId: undefined };
+    //
+    // The server honors the client-supplied id, so the remote id is known
+    // synchronously: resolve immediately and persist the DB row in the
+    // background. Awaiting the POST here would stall assistant-ui's thread
+    // switch behind it — its "New Conversation" flow serializes on the
+    // in-flight initialize — leaving the button dead until the server
+    // answers. saveMessages() upserts the row at chat finish as a backstop.
+    void persistThreadInBackground(threadId);
+    return { remoteId: threadId, externalId: undefined };
   },
 
   async rename(remoteId: string, newTitle: string) {

@@ -9,8 +9,9 @@ import { useStoryThreadsStore } from "@/stores/storyThreadsStore";
 /**
  * "New Conversation" — mode-branched.
  *
- * CHAT mode: the stock assistant-ui flow. `ThreadListPrimitive.New` eagerly
- * creates a DB row via `adapter.initialize` (POST /threads) and switches to it.
+ * CHAT mode: the stock assistant-ui flow. `ThreadListPrimitive.New` switches
+ * to a fresh draft; the DB row (POST /threads) is persisted in the background
+ * on first send by `adapter.initialize`, so the switch never waits on it.
  *
  * STORY mode: drop the current thread and open a fresh wizard
  * (`abandon` — synchronous, POST-free; the next thread is created only at the

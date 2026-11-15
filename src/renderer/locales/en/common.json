@@ -175,5 +175,6 @@
   "capability.complex.short": "Complex agent",
   "capability.simple.short": "Simple agent",
   "capability.configure": "Configure models",
-  "capability.notConfigured.body": "Configure at least one model before starting. The dehydrate pipeline needs both a complex and a simple model."
+  "capability.notConfigured.body": "Configure at least one model before starting. The dehydrate pipeline needs both a complex and a simple model.",
+  "error.threadCreateFailed": "Couldn't save the new conversation. It will be saved automatically once the first reply finishes."
 }

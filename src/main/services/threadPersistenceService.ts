@@ -17,7 +17,10 @@ class ThreadPersistenceService {
 
   createThread(id: string, mode: ThreadMode = "chat"): ThreadRow {
     const db = getDb();
-    db.insert(threads).values({ id, mode }).run();
+    // Idempotent: the renderer persists thread rows in the background (see
+    // backendThreadListAdapter.initialize), so a retried or racing create
+    // must not fail on the primary key.
+    db.insert(threads).values({ id, mode }).onConflictDoNothing().run();
     return this.getThread(id)!;
   }
 
@@ -165,6 +168,10 @@ class ThreadPersistenceService {
   ): void {
     const db = getDb();
     db.transaction((tx) => {
+      // The renderer creates thread rows in the background (see
+      // backendThreadListAdapter.initialize), so the row may not exist yet
+      // when the first save lands — upsert it or the message inserts orphan.
+      tx.insert(threads).values({ id: threadId }).onConflictDoNothing().run();
       tx.update(threads)
         .set({
           updatedAt: sql`(datetime('now'))`,
