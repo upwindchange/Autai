@@ -1,7 +1,7 @@
 import { LangfuseSpanProcessor, ShouldExportSpan } from "@langfuse/otel";
+import { LangfuseVercelAiSdkIntegration } from "@langfuse/vercel-ai-sdk";
 import { NodeSDK } from "@opentelemetry/sdk-node";
 import { registerTelemetry } from "ai";
-import { OpenTelemetry } from "@ai-sdk/otel";
 import { settingsService } from "@/services";
 import log from "electron-log/main";
 
@@ -53,9 +53,9 @@ export function initializeTelemetry(): void {
     // Register the tracer provider globally
     tracerProvider.start();
 
-    // Register AI SDK's OpenTelemetry integration so streamText/generateText
+    // Register Langfuse's AI SDK integration so streamText/generateText
     // calls create proper spans that the LangfuseSpanProcessor can collect.
-    registerTelemetry(new OpenTelemetry());
+    registerTelemetry(new LangfuseVercelAiSdkIntegration());
 
     logger.info("Langfuse telemetry initialized successfully");
   } catch (error) {

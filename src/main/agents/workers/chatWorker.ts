@@ -8,7 +8,7 @@ import {
   type StreamTextResult,
   type Tool,
 } from "ai";
-import { repairToolCall, TIMEOUTS } from "@agents/utils";
+import { flushTelemetry, repairToolCall, TIMEOUTS } from "@agents/utils";
 import { settingsService } from "@/services";
 import { mcpService } from "@/services/mcpService";
 import {
@@ -19,10 +19,47 @@ import type { MCPClient } from "@ai-sdk/mcp";
 import type { ModelParameters } from "@shared";
 import log from "electron-log/main";
 
-const systemPrompt = `1. When your response can benefit from a visual diagram, output a mermaid code block using one of these chart types: Flowchart, Sequence Diagram, Class Diagram, State Diagram, Entity Relationship Diagram, User Journey, Gantt, Pie Chart, Quadrant Chart, Requirement Diagram, GitGraph, C4 Diagram, Mindmap, Timeline, ZenUML, Sankey, XY Chart, Block Diagram, Packet, Kanban, Architecture, Radar, Event Modeling, Treemap, Venn, Ishikawa, Wardley, TreeView
-2. The renderer is capable to render md formatted text.
-3. Do not output your response in html result unless the user specifically instructed you to do so or you definitely have to use html to communicate with the user.
-4. For inline math expressions, use double dollar signs like $$E = mc^2$$. Never use single dollar signs for math.`;
+const systemPrompt = `Respond in Markdown; the renderer displays Markdown natively.
+
+1. Contain rich content in Markdown constructs: fenced code blocks with the proper language tag for code, e.g. \`\`\`mermaid fenced blocks for diagrams when a visual helps; Markdown tables for tabular data.
+2. Never output HTML, including HTML code blocks, unless the user explicitly asks for HTML in their message.
+3. Math is embedded inline using double dollars: $$E = mc^2$$. Never use single dollars for math.
+4. Do not use mermaid unless appropriate.
+
+Mermaid supports exactly these types — the first line inside the \`\`\`mermaid block must be the declaration keyword:
+- flowchart (alias: graph)
+- sequenceDiagram
+- classDiagram
+- stateDiagram-v2 (alias: stateDiagram)
+- erDiagram
+- journey (User Journey)
+- gantt
+- pie
+- quadrantChart
+- requirementDiagram (alias: requirement)
+- gitGraph
+- C4Context / C4Container / C4Component / C4Dynamic / C4Deployment
+- mindmap
+- timeline
+- kanban
+- eventmodeling
+- sankey-beta (alias: sankey)
+- xychart-beta (alias: xychart)
+- block-beta (alias: block)
+- packet-beta (alias: packet)
+- architecture-beta (alias: architecture)
+- treemap-beta (alias: treemap)
+- ishikawa-beta (alias: ishikawa)
+- radar-beta
+- venn-beta
+- wardley-beta
+- treeView-beta
+- cynefin-beta
+- swimlane-beta
+- railroad-beta / railroad-abnf-beta / railroad-ebnf-beta / railroad-peg-beta
+- info (renders a version banner only)
+
+No other diagram type renders (ZenUML, flowchart-elk, etc. are unavailable).`;
 
 export interface ChatWorkerResult {
   result: StreamTextResult<any, any, any>;
@@ -83,7 +120,7 @@ export class ChatWorker {
       ];
 
       // User-provided system prompt comes FIRST (primary instruction), the
-      // built-in mermaid/math prompt is appended after (additive capability).
+      // built-in Markdown-format prompt is appended after (additive rules).
       // Empty user prompt ⇒ system collapses to just the built-in prompt,
       // matching the previous behaviour with no regression.
       const mergedSystem =
@@ -119,6 +156,9 @@ export class ChatWorker {
         ...(providerOptions && { providerOptions }),
         ...(Object.keys(mergedTools).length > 0 && { tools: mergedTools }),
         experimental_repairToolCall: repairToolCall,
+        // Flush the Langfuse span processor when the stream completes so the
+        // turn's traces export promptly (same discipline as the research workers).
+        onEnd: () => flushTelemetry(),
         telemetry: {
           isEnabled: settingsService.settings.langfuse.enabled,
           functionId: "chat-worker",

@@ -71,6 +71,7 @@
     "@jerome-benoit/sap-ai-provider-v2": "^5.1.2",
     "@langfuse/otel": "^6.1.1",
     "@langfuse/tracing": "^6.1.1",
+    "@langfuse/vercel-ai-sdk": "^6.1.1",
     "@noble/hashes": "^2.4.0",
     "@openrouter/ai-sdk-provider": "^3.1.0",
     "@opentelemetry/sdk-node": "^0.223.2",
