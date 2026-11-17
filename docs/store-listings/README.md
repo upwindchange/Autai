@@ -3,23 +3,49 @@
 Ready-to-paste listing copy for the two stores this repo ships to (build/signing
 pipeline: see [`../store-signing.md`](../store-signing.md)):
 
-| File | Store | Language |
+| File | Contents | Language |
 |---|---|---|
-| [`mac-app-store.en-US.md`](mac-app-store.en-US.md) | Mac App Store (App Store Connect) | English (en-US) |
-| [`mac-app-store.zh-Hans.md`](mac-app-store.zh-Hans.md) | Mac App Store | 简体中文 (zh-Hans) |
-| [`microsoft-store.en-US.md`](microsoft-store.en-US.md) | Microsoft Store (Partner Center, MSIX) | English (en-US) |
-| [`microsoft-store.zh-Hans.md`](microsoft-store.zh-Hans.md) | Microsoft Store | 简体中文 (zh-Hans) |
+| [`shared-description.md`](shared-description.md) | Long description + release notes — shared verbatim by **both** stores | en-US and zh-Hans |
+| [`mac-app-store.en-US.md`](mac-app-store.en-US.md) | Mac App Store name, subtitle, promotional text, keywords | English (en-US) |
+| [`mac-app-store.zh-Hans.md`](mac-app-store.zh-Hans.md) | Mac App Store name, subtitle, promotional text, keywords | 简体中文 (zh-Hans) |
+| [`microsoft-store.en-US.md`](microsoft-store.en-US.md) | Microsoft Store short description, search terms | English (en-US) |
+| [`microsoft-store.zh-Hans.md`](microsoft-store.zh-Hans.md) | Microsoft Store short description, search terms | 简体中文 (zh-Hans) |
+
+The long Description and the release-notes copy are pasted into both stores, so
+they exist in exactly one place: `shared-description.md`. Per-store files hold
+only fields unique to that store and point at the shared blocks — never copy a
+shared block into a per-store file.
+
+The selling order, everywhere: **1) free web research** (quick / standard / deep,
+with Deep Research writing full cited reports; searching runs our own browser
+against Google/Bing — no search-API fees), **2) Story Mode**. Self-hosting — run
+it on your own machine, use it from any device's browser with the mobile
+layout, optional password sign-in — is a concrete third differentiator; the
+zh-Hans copy gives it a section of its own. Providers/models, browser
+automation, thread organization, and rich answers are valid but secondary —
+keep them below the majors.
 
 Declare **English + Chinese (Simplified)** listings on both stores — this matches
-`appx.languages` (`en-US`, `zh-Hans`) in `electron-builder.json`. The Chinese
-copy is written natively (not translated from the English) and the two versions
-evolve independently — a wording change in one language is not a reason to
-change the other.
+`appx.languages` (`en-US`, `zh-Hans`) in `electron-builder.json`. The zh-Hans
+copy is a separate piece of writing aimed at Chinese internet users (web-fiction
+readers, the Bilibili generation) in their own voice — not a translation of the
+en-US copy. The two versions evolve independently — a wording change in one
+language is not a reason to change the other.
 
 Copy blocks are fenced so they can be pasted verbatim. The `→ N characters`
 line under each fence is the exact count for the text above it — recount after
 any edit (`wc -m` for characters, `wc -c` for bytes; the keywords field is
 byte-limited).
+
+Provider/model figures ("225+ providers, 8,000+ models") are recounted from
+`resources/providers/` (225 `provider.toml`, 8,399 `models/*.toml` as of
+2026-11-17; the copy rounds down with a `+` so it stays true as the catalog
+grows). Recount with:
+
+```bash
+find resources/providers -name 'provider.toml' | wc -l
+find resources/providers -path '*/models/*.toml' | wc -l
+```
 
 ## Field limits
 
@@ -46,9 +72,11 @@ Microsoft Store (Partner Center, MSIX listing):
 ## Where to paste
 
 - **App Store Connect**: the app → version → App Store tab holds name,
-  subtitle, keywords, description, promotional text, and What's New.
+  subtitle, keywords, description, promotional text, and What's New. Description
+  and What's New come from `shared-description.md`.
 - **Partner Center**: the Autai product → Store listings → pick the language →
   Description field, Release notes, and Search terms under supplemental fields.
+  Description and Release notes come from `shared-description.md`.
 
 ## Assets and links
 
