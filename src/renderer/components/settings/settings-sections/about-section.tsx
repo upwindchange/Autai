@@ -83,11 +83,11 @@ export function AboutSection() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold">{t("title")}</h2>
+        <h2 className="text-2xl font-bold">{t("settings:sidebar.about")}</h2>
         <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
       </div>
 
-      <div className="columns-1 gap-6 -mb-6 xl:columns-2 *:mb-6 *:break-inside-avoid">
+      <div className="columns-1 gap-6 xl:columns-2 *:mb-6 *:break-inside-avoid">
         <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
           <div className="flex flex-col items-center gap-4 p-8">
             <img

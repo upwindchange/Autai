@@ -125,7 +125,7 @@ export function DevelopmentSection({ settings }: DevelopmentSectionProps) {
         <p className="text-muted-foreground mt-1">{t("subtitle")}</p>
       </div>
 
-      <div className="columns-1 gap-6 -mb-6 xl:columns-2 *:mb-6 *:break-inside-avoid">
+      <div className="columns-1 gap-6 xl:columns-2 *:mb-6 *:break-inside-avoid">
         <Card>
           <CardHeader>
             <CardTitle>{t("logging.title")}</CardTitle>

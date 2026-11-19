@@ -295,7 +295,7 @@ export function ConnectionSection({ settings }: ConnectionSectionProps) {
         </div>
       )}
 
-      <div className="columns-1 gap-6 -mb-6 xl:columns-2 *:mb-6 *:break-inside-avoid">
+      <div className="columns-1 gap-6 xl:columns-2 *:mb-6 *:break-inside-avoid">
         <Card>
           <CardHeader>
             <CardTitle>{t("connection.mode.title")}</CardTitle>

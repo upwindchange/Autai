@@ -93,6 +93,14 @@ for (const [name, dir] of [...seen].sort((a, b) => a[0].localeCompare(b[0]))) {
   entries.push({ name, version: meta.version, license: meta.license, copyright: meta.copyright });
 }
 
+// --- non-npm bundled assets ---
+entries.push({
+  name: "Nowar Sans CN (resources/font/bHEI00M.ttf)",
+  version: "",
+  license: "SIL OFL 1.1",
+  copyright: "",
+});
+
 // --- group by license ---
 const groups = new Map();
 for (const e of entries) {
@@ -100,6 +108,10 @@ for (const e of entries) {
   if (!groups.has(key)) groups.set(key, []);
   groups.get(key).push(e);
 }
+
+const fontLicense = fs
+  .readFileSync(path.join(ROOT, "resources/font/LICENSE.txt"), "utf8")
+  .trim();
 
 const LICENSE_TEXTS = {
   MIT: `The MIT License (MIT)
@@ -135,6 +147,13 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.`,
+  "SIL OFL 1.1": fontLicense,
+};
+
+const SECTION_TITLES = {
+  MIT: "MIT License",
+  "Apache-2.0": "Apache License 2.0",
+  "SIL OFL 1.1": "SIL Open Font License 1.1",
 };
 
 const out = [];
@@ -151,7 +170,7 @@ every app bundle as \`LICENSES.chromium.html\` and accompanying LICENSE files.
 const listLine = (list) =>
   list
     .map((e) => {
-      let s = `${e.name} ${e.version}`;
+      let s = e.version ? `${e.name} ${e.version}` : e.name;
       // Apache NOTICE-ish attribution for Vercel/Chromium/etc. where the
       // copyright line names the holder
       if (e.copyright && /vercel|chromium|bostock/i.test(e.copyright)) {
@@ -161,11 +180,11 @@ const listLine = (list) =>
     })
     .join(" · ");
 
-for (const lic of ["MIT", "Apache-2.0", "ISC", "BSD-3-Clause", "BSD-2-Clause"]) {
+for (const lic of ["MIT", "Apache-2.0", "ISC", "BSD-3-Clause", "BSD-2-Clause", "SIL OFL 1.1"]) {
   const list = groups.get(lic);
   if (!list?.length) continue;
   groups.delete(lic);
-  out.push(`## ${lic === "Apache-2.0" ? "Apache License 2.0" : lic === "MIT" ? "MIT License" : lic}`);
+  out.push(`## ${SECTION_TITLES[lic] ?? lic}`);
   if (LICENSE_TEXTS[lic]) {
     out.push("");
     out.push("    " + LICENSE_TEXTS[lic].split("\n").join("\n    "));
@@ -184,4 +203,4 @@ for (const [lic, list] of [...groups].sort((a, b) => a[0].localeCompare(b[0]))) 
 }
 
 fs.writeFileSync(path.join(ROOT, "THIRD-PARTY-NOTICES.md"), out.join("\n") + "\n");
-console.log(`Wrote THIRD-PARTY-NOTICES.md (${entries.length} packages, ${groups.size + 5} license groups)`);
+console.log(`Wrote THIRD-PARTY-NOTICES.md (${entries.length} packages, ${groups.size + 6} license groups)`);
