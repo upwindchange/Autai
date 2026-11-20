@@ -1,5 +1,4 @@
-import type { FC, PropsWithChildren } from "react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import {
   type RemoteThreadListAdapter,
   type ThreadHistoryAdapter,
@@ -7,7 +6,7 @@ import {
   type MessageFormatItem,
   type MessageFormatRepository,
   type MessageFormatAdapter,
-  RuntimeAdapterProvider,
+  type RuntimeAdapters,
   useAui,
 } from "@assistant-ui/react";
 import { createAssistantStream } from "assistant-stream";
@@ -74,6 +73,29 @@ class BackendThreadHistoryAdapter implements ThreadHistoryAdapter {
       },
     };
   }
+}
+
+// ---------------------------------------------------------------------------
+// unstable_useAdapters — per-thread adapters, consumed by the thread body
+// ---------------------------------------------------------------------------
+
+// Runs once per mounted thread body. The remote id is resolved lazily on each
+// history call (never captured at hook mount) so a draft thread picks up its
+// id once initialize() settles it.
+function useBackendThreadListAdapters(): RuntimeAdapters {
+  const aui = useAui();
+  return useMemo(
+    () => ({
+      history: new BackendThreadHistoryAdapter(() => {
+        try {
+          return aui.threadListItem.getState().remoteId;
+        } catch {
+          return null;
+        }
+      }),
+    }),
+    [aui],
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -204,36 +226,5 @@ export const backendThreadListAdapter: RemoteThreadListAdapter = {
     });
   },
 
-  // unstable_Provider is assigned after definition below
-  unstable_Provider: undefined as unknown as FC<PropsWithChildren>,
+  unstable_useAdapters: useBackendThreadListAdapters,
 };
-
-// ---------------------------------------------------------------------------
-// unstable_Provider — wraps inner runtime with history adapter
-// ---------------------------------------------------------------------------
-
-const BackendThreadListProvider: FC<PropsWithChildren> = ({ children }) => {
-  const aui = useAui();
-
-  const [history] = useState(
-    () =>
-      new BackendThreadHistoryAdapter(() => {
-        try {
-          return aui.threadListItem.getState().remoteId;
-        } catch {
-          return null;
-        }
-      }),
-  );
-
-  const adapters = useMemo(() => ({ history }), [history]);
-
-  return (
-    <RuntimeAdapterProvider adapters={adapters}>
-      {children}
-    </RuntimeAdapterProvider>
-  );
-};
-
-// Assign the provider to the adapter
-backendThreadListAdapter.unstable_Provider = BackendThreadListProvider;
