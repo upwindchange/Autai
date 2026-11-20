@@ -14,6 +14,13 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "Inter";
+  src: url("../../resources/font/Inter-4.1/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -106,7 +113,7 @@
       height: 0;
     }
   }
-  --font-sans: "Nowar Sans CN", sans-serif;
+  --font-sans: Inter, "Nowar Sans CN", sans-serif;
   --font-mono: Geist Mono, monospace;
   --font-serif: Noto Serif Georgian, ui-serif, serif;
   --tracking-tighter: calc(var(--tracking-normal) - 0.05em);
@@ -172,7 +179,7 @@
   --sidebar-border: hsl(220 13% 91%);
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
   --destructive-foreground: oklch(0.985 0 0);
-  --font-sans: "Nowar Sans CN", sans-serif;
+  --font-sans: Inter, "Nowar Sans CN", sans-serif;
   --font-serif: Noto Serif Georgian, ui-serif, serif;
   --font-mono: Geist Mono, monospace;
   --shadow-color: oklch(0.2571 0.1161 272.24);
@@ -238,7 +245,7 @@
   --sidebar-ring: hsl(217.2 91.2% 59.8%);
   --destructive-foreground: oklch(1 0 0);
   --radius: 0.5rem;
-  --font-sans: "Nowar Sans CN", sans-serif;
+  --font-sans: Inter, "Nowar Sans CN", sans-serif;
   --font-serif: Georgia, serif;
   --font-mono: monospace;
   --shadow-color: #000000;
@@ -265,6 +272,10 @@
 }
 
 @layer base {
+  html {
+    font-size: 18px;
+  }
+
   * {
     @apply border-border outline-ring/50;
   }

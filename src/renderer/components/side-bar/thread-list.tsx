@@ -151,7 +151,7 @@ const ThreadListItem: FC = () => {
   return (
     <ThreadListItemPrimitive.Root
       className={cn(
-        "aui-thread-list-item group/thread relative flex min-h-9 items-center gap-2 rounded-lg border border-transparent px-2 py-0.5 transition-[padding,background-color,border-color] duration-150 hover:bg-sidebar-accent hover:pr-9 has-[[data-state=open]]:pr-9 focus-visible:bg-sidebar-accent focus-visible:outline-none data-active:border-l-2 data-active:border-sidebar-primary data-active:bg-sidebar-accent",
+        "aui-thread-list-item group/thread relative flex min-h-9 items-center gap-2 rounded-lg border border-transparent px-2 py-0.5 transition-[background-color,border-color] duration-150 hover:bg-sidebar-accent has-[[data-state=open]]:bg-sidebar-accent focus-visible:bg-sidebar-accent focus-visible:outline-none data-active:border-l-2 data-active:border-sidebar-primary data-active:bg-sidebar-accent",
         activeStyles,
       )}
       onClickCapture={(e) => {
@@ -215,12 +215,20 @@ const ThreadListItemMore: FC<{ threadId: string | undefined }> = ({
 
   return (
     <>
+      {/* Title-tail fade: a background strip outside the button, transparent at
+          its left edge and opaque where it meets the button, so the title's
+          alpha reaches 0 right at the button's edge. right-10 mirrors the
+          button's right-3 + size-7. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-y-0 right-10 z-10 w-7 bg-linear-to-r from-transparent to-sidebar-accent opacity-0 group-hover/thread:opacity-100 group-has-[[data-state=open]]/thread:opacity-100 group-has-[.aui-thread-list-item-more:focus-visible]/thread:opacity-100"
+      />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             variant="ghost"
             size="icon"
-            className="aui-thread-list-item-more absolute top-1/2 right-1 size-7 -translate-y-1/2 p-0 opacity-0 group-hover/thread:opacity-100 focus-visible:opacity-100 data-[state=open]:bg-sidebar-accent data-[state=open]:opacity-100"
+            className="aui-thread-list-item-more absolute top-1/2 right-3 z-10 size-7 -translate-y-1/2 bg-sidebar-accent p-0 opacity-0 group-hover/thread:opacity-100 dark:hover:bg-accent focus-visible:opacity-100 data-[state=open]:opacity-100"
           >
             <EllipsisVertical className="size-4" />
             <span className="sr-only">More options</span>

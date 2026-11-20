@@ -13,9 +13,13 @@ function ScrollArea({
       className={cn("relative flex flex-col", className)}
       {...props}
     >
+      {/* Radix wraps children in an inline-styled `display: table` content div
+          whose shrink-to-fit width expands to nowrap text, defeating `truncate`
+          in descendants. Force a plain block so children get a definite width;
+          the element stays in place so Radix still tracks content resizes. */}
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
-        className="size-full min-h-0 flex-1 rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1"
+        className="size-full min-h-0 flex-1 rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 [&>div]:block!"
       >
         {children}
       </ScrollAreaPrimitive.Viewport>

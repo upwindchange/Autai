@@ -94,12 +94,13 @@ for (const [name, dir] of [...seen].sort((a, b) => a[0].localeCompare(b[0]))) {
 }
 
 // --- non-npm bundled assets ---
-entries.push({
-  name: "Nowar Sans CN (resources/font/bHEI00M.ttf)",
-  version: "",
-  license: "SIL OFL 1.1",
-  copyright: "",
-});
+const bundledAssets = [
+  { name: "Nowar Sans CN (resources/font/bHEI00M.ttf)", licenseFile: "resources/font/LICENSE.txt" },
+  { name: "Inter (resources/font/Inter-4.1/InterVariable.woff2)", licenseFile: "resources/font/Inter-4.1/LICENSE.txt" },
+];
+for (const a of bundledAssets) {
+  entries.push({ name: a.name, version: "", license: "SIL OFL 1.1", copyright: "" });
+}
 
 // --- group by license ---
 const groups = new Map();
@@ -109,9 +110,9 @@ for (const e of entries) {
   groups.get(key).push(e);
 }
 
-const fontLicense = fs
-  .readFileSync(path.join(ROOT, "resources/font/LICENSE.txt"), "utf8")
-  .trim();
+const bundledAssetLicenses = bundledAssets
+  .map((a) => fs.readFileSync(path.join(ROOT, a.licenseFile), "utf8").trim())
+  .join("\n\n");
 
 const LICENSE_TEXTS = {
   MIT: `The MIT License (MIT)
@@ -147,7 +148,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.`,
-  "SIL OFL 1.1": fontLicense,
+  "SIL OFL 1.1": bundledAssetLicenses,
 };
 
 const SECTION_TITLES = {
