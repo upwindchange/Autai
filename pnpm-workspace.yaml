@@ -15,5 +15,3 @@ minimumReleaseAgeExclude:
   - assistant-cloud@0.2.10
   - assistant-stream@0.3.56
   - playwright-core@1.65.1
-patchedDependencies:
-  next-themes@0.4.6: patches/next-themes@0.4.6.patch
