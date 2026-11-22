@@ -15,11 +15,19 @@ fetchInternetChapter(
     abortSignal?: AbortSignal;
     overrideUrl?: string;      // reader "chapter link" override — user-anchored
                                // chapter N: extract-only from this URL, no
-                               // verification of chapter identity
+                               // verification of chapter identity. Failing
+                               // this, sourceKind "chapter" derives the same
+                               // entry from `novel.source` for chapter
+                               // `startChapterNumber ?? 1`, re-derived on
+                               // every fetch (retries/resumes included).
     webSearchFallback: boolean; // config `options.webSearchFallback` — gates
-                               // rung 3 (book search): with it off, a declined
-                               // wall errors the chapter instead of hunting
-                               // for another host
+                               // web search as FALLBACK: with it off, a
+                               // declined wall (or dead end) errors the
+                               // chapter instead of hunting for another
+                               // host. Exempt: the "search" source kind's
+                               // first-time discovery (the kind IS the
+                               // opt-in). toc/page links bootstrap anchors
+                               // without any web search.
   },
 ): Promise<"fetched" | "finalChapter" | "error">
 ```
@@ -45,12 +53,16 @@ switch / Stop / wizard restart aborts the in-flight fetch via `abortSignal`.
   = non-chaptered direct content link, pipeline-3 only) all store a validated
   http(s) URL in `source`; `search` locates the book via title+author web
   search and leaves `source` unused (empty).
+  `chapter`'s link is its chapter's authoritative entry (extract-only, like
+  the reader paste); `toc`/`page` links bootstrap the site anchors — tried
+  before any web search, no search engine touched; `search` discovers the
+  book via web search (its only entry).
 
 ### DB reads (all via story services)
 
 | Read | Purpose |
 |---|---|
-| `getSourceChapter(threadId, n)` | Prior row status. `status === "error"` (retry) or absent ⇒ re-anchor via search. |
+| `getSourceChapter(threadId, n)` | Prior row status. `status === "error"` (retry) or absent ⇒ re-anchor via the entry ladder (source link → prior chapter → anchors → web search). |
 | `getSourceChapter(threadId, n - 1)` | Previous chapter's `url` (re-anchor after restart / mid-book start when `n === novel.startChapterNumber` and predecessor isn't `fetched`). |
 | `storyBackendService.getBlockedSites(threadId)` | Dead-site blocklist (see below). |
 

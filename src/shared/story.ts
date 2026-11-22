@@ -846,7 +846,10 @@ export const DehydrateConfigSchema = z
       // instead of parsing per-chapter pages/markers.
       nonNovelSource: z.boolean().default(false),
       // true = after the user declines to step in on a walled site, search
-      // the web for another host; false (default) = the chapter errors instead.
+      // the web for another host; false (default) = the chapter errors
+      // instead. Gates the web-search rung as FALLBACK: the "search" source
+      // kind discovers without it (that kind IS the opt-in); the link kinds
+      // bootstrap from `source` and never need it.
       webSearchFallback: z.boolean().default(false),
       customInstruction: CustomInstructionSchema,
     }),

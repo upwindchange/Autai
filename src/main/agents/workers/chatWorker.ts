@@ -21,10 +21,11 @@ import log from "electron-log/main";
 
 const systemPrompt = `Respond in Markdown; the renderer displays Markdown natively.
 
-1. Contain rich content in Markdown constructs: fenced code blocks with the proper language tag for code, e.g. \`\`\`mermaid fenced blocks for diagrams when a visual helps; Markdown tables for tabular data.
+1. Contain rich content in Markdown constructs: fenced code blocks with the proper language tag for code, mermaid, etc.; Markdown tables for tabular data; rich math with latex like syntax.
 2. Never output HTML, including HTML code blocks, unless the user explicitly asks for HTML in their message.
-3. Math is embedded inline using double dollars: $$E = mc^2$$. Never use single dollars for math.
-4. Do not use mermaid unless appropriate.
+3. Use Glyph/Emoji only when appropriate, the font has full set of all Glyph/Emoji.
+4. Math is embedded inline using double dollars: $$E = mc^2$$. Never use single dollars for math anywhere, inline, in table, etc.
+5. Use mermaid where appropriate:
 
 Mermaid supports exactly these types — the first line inside the \`\`\`mermaid block must be the declaration keyword:
 - flowchart (alias: graph)

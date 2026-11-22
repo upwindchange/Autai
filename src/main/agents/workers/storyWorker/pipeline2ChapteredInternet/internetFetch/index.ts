@@ -13,9 +13,10 @@
  * `{ host, bookUrl, tocUrl }` (story_configs.site_anchors) so later
  * chapters skip search entirely; anchors are cleared when the site dies.
  *
- * The override path (options.overrideUrl — the reader's chapter-link button)
- * bypasses all discovery: navigate the user's URL, probe, extract, save. No
- * verification of chapter identity — the user vouches this IS chapter N.
+ * The entry path (options.overrideUrl — the reader's chapter-link button —
+ * or novel.source under sourceKind "chapter") bypasses all discovery:
+ * navigate the user's URL, probe, extract, save. No verification of chapter
+ * identity — the user vouches this IS chapter N.
  */
 
 import log from "electron-log/main";
@@ -102,8 +103,11 @@ export async function fetchInternetChapter(
     threadId: string;
     abortSignal?: AbortSignal;
     overrideUrl?: string;
-    /** Rung 3 (book search) runs only when true; a declined wall then
-     * errors the chapter instead of hunting for another host. */
+    /** Web search (rung 3's second tier) as FALLBACK — hunting another
+     * host once the designated entries are spent — runs only when true; a
+     * declined wall then errors the chapter instead. The "search" source
+     * kind discovers without it (choosing that kind IS the opt-in); the
+     * link kinds never need it — their entry is novel.source. */
     webSearchFallback: boolean;
   },
 ): Promise<FetchOutcome> {
@@ -172,12 +176,26 @@ export async function fetchInternetChapter(
       return marker;
     });
 
-  // --- override path: user-supplied chapter URL, no verification ---------
+  // --- entry path: a chapter URL the reader vouched for -------------------
+  // options.overrideUrl is the reader's chapter-link paste; failing that,
+  // sourceKind "chapter" means novel.source IS chapter
+  // (novel.startChapterNumber ?? 1)'s URL — the wizard's chapter link,
+  // authoritative for that chapter exactly like the paste. Re-derived on
+  // every fetch, so retries and resumes never fall to the ladder.
 
-  if (overrideUrl) {
-    logger.info("override path — user-anchored chapter URL", { threadId, n });
-    const pastedHost = hostnameOf(overrideUrl) ?? "";
-    if (await navigate(overrideUrl)) {
+  const entryUrl =
+    overrideUrl ??
+    (novel.sourceKind === "chapter" && n === (novel.startChapterNumber ?? 1)
+      ? novel.source.trim()
+      : null);
+  if (entryUrl) {
+    logger.info("entry path — user-anchored chapter URL", {
+      threadId,
+      n,
+      via: overrideUrl ? "paste" : "config",
+    });
+    const pastedHost = hostnameOf(entryUrl) ?? "";
+    if (await navigate(entryUrl)) {
       // Host truth = the OPENED page (webContents.getURL()), never the
       // pasted string — a wrapper link (engine /goto?url=…) would otherwise
       // blacklist the engine's host when the real site walls.
@@ -216,6 +234,14 @@ export async function fetchInternetChapter(
   let anchors: SiteAnchors | null =
     storyBackendService.getSiteAnchors(threadId);
   let recovery: LandingRecoveryInput | null = null;
+  /** True when the thread has an anchored site for the book (at fetch
+   * start or set during this fetch). While false, web search for the
+   * "search" source kind is first-time discovery — not fallback hunting —
+   * and runs without the toggle. */
+  let discovered = anchors != null;
+  /** One shot per fetch for rung 3's user-link seed tier (sourceKind
+   * toc/page): the reader's own link is tried before any web search. */
+  let seedTried = false;
 
   /** Live blocklist read (rotation decisions use fresh state). */
   const hostBlocked = (host: string): boolean =>
@@ -498,40 +524,46 @@ export async function fetchInternetChapter(
       continue ladder;
     }
 
-    // --- rung 3: search for the book ---------------------------------------
-    // The search rung is opt-in: without the toggle, a declined (or
-    // unanswerable) wall errors the chapter instead of hunting for another
-    // host. The escapes are the reader's chapter-link paste, Redo failed
-    // after Reset, or enabling the toggle.
-    if (!webSearchFallback) {
-      if (userRejectedWall) {
-        sendWarning(
-          i18n.t("story.wallRejectedTitle"),
-          i18n.t("story.wallRejectedBody", { host: lastWallHost }),
-        );
-      }
-      logger.warn("rung3 skipped — web search fallback disabled", {
-        threadId,
-        n,
-      });
-      break ladder;
-    }
-    // --- rung 3: search for the book ---------------------------------------
-    const candidates = await runBookSearch(
-      novel,
-      threadId,
-      sessionId,
-      abortSignal,
-    );
+    // --- rung 3: enter via the user's source link, or search the web -------
+    // Tier 1 — the user's own link (sourceKind toc/page): bootstrap the
+    // anchors from a page the READER supplied — no search engine is ever
+    // touched without consent. Tried once per fetch.
+    // Tier 2 — title+author web search. The "search" source kind opts into
+    // it outright (its first-time discovery); for every other kind it is
+    // FALLBACK and gated by the toggle — without it, a declined wall or
+    // dead end errors the chapter instead of hunting for another host.
+    const seed =
+      !seedTried && (novel.sourceKind === "toc" || novel.sourceKind === "page")
+        ? [novel.source.trim()]
+        : [];
+    let candidates = seed;
     if (candidates.length === 0) {
-      // Diagnostics: silent terminal break — say WHY search was empty.
-      const blocked = storyBackendService.getBlockedSites(threadId);
-      logger.warn("ladder exit — book search returned no candidates", {
-        threadId,
-        n,
-        blockedSites: blocked,
-      });
-      break ladder; // nothing searchable left
+      if (
+        !webSearchFallback &&
+        (novel.sourceKind !== "search" || discovered || userRejectedWall)
+      ) {
+        if (userRejectedWall) {
+          sendWarning(
+            i18n.t("story.wallRejectedTitle"),
+            i18n.t("story.wallRejectedBody", { host: lastWallHost }),
+          );
+        }
+        logger.warn("rung3 skipped — web search fallback disabled", {
+          threadId,
+          n,
+        });
+        break ladder;
+      }
+      candidates = await runBookSearch(novel, threadId, sessionId, abortSignal);
+      if (candidates.length === 0) {
+        // Diagnostics: silent terminal break — say WHY search was empty.
+        logger.warn("ladder exit — book search returned no candidates", {
+          threadId,
+          n,
+          blockedSites: storyBackendService.getBlockedSites(threadId),
+        });
+        break ladder; // nothing searchable left
+      }
     }
     let anchored = false;
     for (const candidate of candidates) {
@@ -597,6 +629,7 @@ export async function fetchInternetChapter(
           tocUrl: result.tocUrl,
         };
         storyBackendService.setSiteAnchors(threadId, anchors);
+        discovered = true;
         logger.info("site anchored", {
           threadId,
           host: tocHost,
@@ -622,6 +655,11 @@ export async function fetchInternetChapter(
       probedUrls.add(candidate);
     }
     if (!anchored) {
+      if (seed.length > 0) {
+        // The user's link didn't anchor the book — spend web search next.
+        seedTried = true;
+        continue ladder;
+      }
       // Diagnostics: silent terminal break — dump why every candidate was
       // skipped (blocked / already-attempted / budget / navigation failed /
       // wrong-book / failed).
