@@ -1,0 +1,9 @@
+[Desktop Entry]
+Name=Autai
+Comment=Free web research and an AI editor for the books you read
+Exec=autai %U
+Terminal=false
+Type=Application
+Icon=io.github.upwindchange.Autai
+Categories=Office;Utility;
+StartupWMClass=Autai

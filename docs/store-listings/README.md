@@ -1,6 +1,6 @@
 # Store Listings
 
-Ready-to-paste listing copy for the two stores this repo ships to (build/signing
+Ready-to-paste listing copy for the stores this repo ships to (build/signing
 pipeline: see [`../store-signing.md`](../store-signing.md)):
 
 | File | Contents | Language |
@@ -10,11 +10,18 @@ pipeline: see [`../store-signing.md`](../store-signing.md)):
 | [`mac-app-store.zh-Hans.md`](mac-app-store.zh-Hans.md) | Mac App Store name, subtitle, promotional text, keywords | 简体中文 (zh-Hans) |
 | [`microsoft-store.en-US.md`](microsoft-store.en-US.md) | Microsoft Store short description, search terms | English (en-US) |
 | [`microsoft-store.zh-Hans.md`](microsoft-store.zh-Hans.md) | Microsoft Store short description, search terms | 简体中文 (zh-Hans) |
+| [`io.github.upwindchange.Autai.metainfo.xml`](io.github.upwindchange.Autai.metainfo.xml) | Flathub listing (AppStream metainfo) | en-US |
 
 The long Description and the release-notes copy are pasted into both stores, so
 they exist in exactly one place: `shared-description.md`. Per-store files hold
 only fields unique to that store and point at the shared blocks — never copy a
 shared block into a per-store file.
+
+The Flathub metainfo is the exception to the shared-block rule: AppStream
+requires the copy inline, so its description and release notes live inside the
+XML file and must be kept consistent with `shared-description.md` by hand. The
+Flathub desktop file is packaging input, not listing copy — it lives in
+`build/` next to the icons the Flatpak manifest installs.
 
 The selling order, everywhere: **1) free web research** (quick / standard / deep,
 with Deep Research writing full cited reports; searching runs our own browser
@@ -77,6 +84,8 @@ Microsoft Store (Partner Center, MSIX listing):
 - **Partner Center**: the Autai product → Store listings → pick the language →
   Description field, Release notes, and Search terms under supplemental fields.
   Description and Release notes come from `shared-description.md`.
+- **Flathub**: nothing to paste — the metainfo file in this folder is installed
+  as-is by the Flatpak manifest.
 
 ## Assets and links
 

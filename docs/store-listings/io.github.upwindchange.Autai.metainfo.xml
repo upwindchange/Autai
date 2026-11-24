@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.upwindchange.Autai</id>
+  <name>Autai</name>
+  <summary>Free web research and an AI editor for the books you read</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="io.github.upwindchange">
+    <name>Yuwei Zhu</name>
+  </developer>
+  <description>
+    <p>
+      Two jobs in one app: research the web for free, and put an AI editor
+      between you and the rough draft of the books you read.
+    </p>
+    <p>
+      Research comes in three depths from one command bar: a quick pass when you
+      just need a fact, a standard search when you want a solid answer with
+      sources, and Deep Research when the question deserves a real report. Deep
+      Research decomposes the question into subtopics, then plans, searches, and
+      reads across the open web and writes the whole thing up as a structured
+      report with references. The searching is free: Autai drives a real browser
+      straight to Google and Bing — no search API keys, no per-query fees. The
+      only meter running is the model you already brought a key for.
+    </p>
+    <p>
+      Story Mode is an AI editor for web serials and fan translations. Cut the
+      word count and keep the story: the plot, characters, payoffs, and
+      foreshadowing stay exactly where the author left them. Fix grammar and the
+      clichés every serial leans on, or expand flat scenes into set pieces
+      without padding. It reads fiction from any language, follows custom
+      instructions like keeping poems in verse, and takes a book from anywhere:
+      a local file, a link, or just a title it goes and finds online. The
+      built-in reader has eleven themes, typography controls, a table of
+      contents, bookmarks, and it remembers where you stopped.
+    </p>
+    <p>
+      Yours to host: Autai runs on your machine and serves its full interface to
+      any browser on your network — desktop, phone, or tablet — with a mobile
+      layout and optional password sign-in. Your keys, your conversations, your
+      books: all local.
+    </p>
+    <ul>
+      <li>
+        225+ AI providers and 8,000+ models — bring your own API key,
+        self-hosted and local APIs included
+      </li>
+      <li>
+        AI browser automation in a split view that pauses and hands control back
+        at CAPTCHAs, logins, and payments
+      </li>
+      <li>Threads that auto-title and tag themselves, with full-history search</li>
+      <li>Code with syntax highlighting, typeset math, and Mermaid diagrams</li>
+      <li>
+        Attach screenshots and files; per-conversation model, temperature, and
+        system prompt
+      </li>
+      <li>Slash commands, MCP tool servers, and spoken answers</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.upwindchange.Autai.desktop</launchable>
+  <url type="homepage">https://github.com/upwindchange/Autai</url>
+  <url type="bugtracker">https://github.com/upwindchange/Autai/issues</url>
+  <categories>
+    <category>Office</category>
+    <category>Utility</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="1.0.0" date="2026-11-22">
+      <description>
+        <p>Initial release.</p>
+        <ul>
+          <li>
+            Free web research — quick, standard, and Deep Research that writes
+            full reports with references
+          </li>
+          <li>
+            Story Mode: AI editing for web serials and fan translations — cut the
+            filler, keep the story, read in a proper reader
+          </li>
+          <li>
+            Self-host it: use it from any browser on your network — mobile layout
+            included — with optional password sign-in
+          </li>
+          <li>
+            225+ providers, 8,000+ models — bring your own API key, self-hosted
+            and local APIs included
+          </li>
+          <li>AI browser automation with a split view and human-in-the-loop pauses</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+</component>
