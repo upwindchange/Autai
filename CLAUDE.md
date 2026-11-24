@@ -56,7 +56,7 @@ There is **no Electron IPC**. All renderer↔main traffic is HTTP REST plus Serv
 
 - **Run modes** (`settings.serverMode`):
   - **Standalone** (default): binds `127.0.0.1` on a random OS-assigned port; the renderer receives the port via `?apiPort=` in its load URL. Local only.
-  - **`--remote` CLI flag**: boots in Remote Access mode regardless of the persisted setting (see `settingsService.effectiveServerMode`); settings stay editable and apply again on the next flag-free start. `resetToLocalMode` strips the flag on relaunch (`app.relaunch()` replays argv). Dev: `ELECTRON_CLI_ARGS='["--remote"]' pnpm dev`.
+  - **`--remote` CLI flag**: boots in Remote Access mode regardless of the persisted setting (see `settingsService.effectiveServerMode`); settings stay editable and apply again on the next flag-free start. `resetToLocalMode` strips the flag on relaunch (`app.relaunch()` replays argv). Dev: `pnpm dev -- --remote`. Screenshot tooling flags (per-run, never persisted): `--window-size <WxH>` pins the main window's client size and `--frameless` hides OS window chrome (e.g. `pnpm dev -- --window-size=1440x900 --frameless`).
 - **REST routes** mounted in `apiServer.setupRoutes()`: `/chat`, `/story`, `/threads`, `/tags`, `/settings`, `/providers`, `/mcp`, `/events`, `/app`, `/shell`, `/dialog`, `/sessions`, `/hitl`, `/auth`, plus `/health`.
 - **SSE** (`GET /events`, `eventsRoutes.ts`): forwards `eventBus` emissions to connected clients as named events with monotonic IDs, sends a 25s heartbeat to avoid idle timeouts, and resumes from `Last-Event-ID`. Event names: `threads:metadataUpdated`, `threads:suggestionsUpdated`, `app:message`, `splitview:activate`, `threads:listChanged`.
 

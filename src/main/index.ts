@@ -23,7 +23,7 @@ import { initializeTelemetry, shutdownTelemetry } from "@agents/utils";
 import * as registry from "@agents/providers/registry";
 import { eventBus } from "@/utils/eventBus";
 import { searchService } from "@/services/searchService";
-import { hasRemoteOverride, hostOverride, portOverride } from "./cli";
+import { hasRemoteOverride, hostOverride, isFrameless, portOverride, windowSizeOverride } from "./cli";
 import { initializeDatabase, closeDatabase } from "@/db";
 import { initI18n, i18n } from "@/i18n";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -80,11 +80,16 @@ const appIcon =
  * Creates the main application window with security-focused settings
  */
 async function createWindow(splash?: BrowserWindow) {
+  // Screenshot tooling (--window-size/--frameless): pin the client size and
+  // optionally strip OS chrome so captures match store-required dimensions.
+  const windowSize = windowSizeOverride();
   win = new BrowserWindow({
     title: i18n.t("common.mainWindowTitle"),
     autoHideMenuBar: true,
     show: false,
     icon: appIcon,
+    ...(windowSize ?? {}),
+    frame: !isFrameless(),
     webPreferences: {
       preload,
       contextIsolation: true,
