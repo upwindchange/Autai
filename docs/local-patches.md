@@ -52,8 +52,12 @@ box instead of spilling past it.
 **Symptom**: the MAS signing loop (`electron-builder --mac mas`) signs
 every binary file in the bundle one `codesign` call at a time (~400
 files), and osx-sign 1.x appends `--timestamp` to **every** call — a
-round-trip to Apple's timestamp service per file. On CI this dominates
-wall-clock time and turns signing into hours of network-bound calls.
+round-trip to Apple's timestamp service per file — a needless
+network dependency in the signing loop. (CI probes later showed
+timestamped calls complete in seconds on the runner: the observed
+signing hang was keychain re-lock, not this flag — see
+`store-signing.md` Notes. The patch is kept to avoid the round-trips,
+not as a proven bottleneck.)
 
 **Cause**: `dist/{cjs,esm}/sign.js` in `@electron/osx-sign@1.3.3` forces
 the flag when no explicit `timestamp` option is set:

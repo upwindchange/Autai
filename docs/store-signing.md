@@ -277,10 +277,22 @@ you suspect key compromise.
   binary file in the bundle). osx-sign 1.x force-adds `--timestamp` to
   every call; removed via pnpm patch (see `local-patches.md`): secure
   timestamps are a Developer ID/notarization requirement, not an App
-  Store one, and 400 timestamp round-trips dominate signing time.
+  Store one (and the CI probe shows `--timestamp` calls complete in
+  seconds — the patch is kept as belt-and-braces, not as a proven
+  bottleneck).
+- **The observed signing hang is keychain re-lock, not call shape.** A
+  keychain created by `security create-keychain` re-locks after 300s
+  idle by default. The probe step passes (it runs right after unlock)
+  but the signing loop starts ~7 min later, after packaging — by then
+  the keychain is locked and `codesign` blocks on an unlock dialog the
+  headless runner cannot show, on its very first call. Fix in CI:
+  `security set-keychain-settings -lut 21600` (disables the idle
+  re-lock) and `security unlock-keychain` after
+  `security set-key-partition-list` (which can leave it locked).
   CI wraps every `codesign` call with `scripts/codesign-shim/codesign`
   (per-call timing streamed live + 120s stall cap that `sample`s the
-  blocked process), so signing time is visible and hangs self-diagnose.
+  blocked process, logs its wait state and keychain state), so signing
+  time is visible and hangs self-diagnose.
 
 ## Microsoft Store
 
