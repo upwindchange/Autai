@@ -86,6 +86,9 @@ jobs:
   mac-store:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_mas }}
     runs-on: macos-latest
+    # Bound the job: a codesign/keychain stall would otherwise sit for the
+    # 6-hour default.
+    timeout-minutes: 60
     # Store-signing credentials live in the `store-signing` GitHub
     # environment (Settings → Environments), not repo-level secrets.
     environment: store-signing
@@ -165,6 +168,9 @@ jobs:
       - name: Build MAS packages
         env:
           CSC_KEYCHAIN: build.keychain
+          # Per-file signing + productbuild progress — the signing phase is
+          # otherwise one silent line for ~10 minutes.
+          DEBUG: electron-osx-sign
         run: |
           pnpm exec electron-vite build
           # --universal is the only thing that sets the arch: a target given
