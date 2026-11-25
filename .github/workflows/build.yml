@@ -86,9 +86,6 @@ jobs:
   mac-store:
     if: ${{ github.event_name == 'workflow_dispatch' && inputs.build_mas }}
     runs-on: macos-latest
-    # Bound the job: a codesign/keychain stall would otherwise sit for the
-    # 6-hour default.
-    timeout-minutes: 60
     # Store-signing credentials live in the `store-signing` GitHub
     # environment (Settings → Environments), not repo-level secrets.
     environment: store-signing
@@ -152,6 +149,30 @@ jobs:
           security find-identity -v -p codesigning "$KEYCHAIN"
           rm -f app.p12 installer.p12
 
+
+      # Fail-fast probe of the exact per-file signing path the osx-sign loop
+      # repeats (~400x): one codesign call with --timestamp against a scratch
+      # copy of a system binary, capped at 60s. A keychain authorization
+      # stall or a blocked Apple timestamp fetch fails here in seconds
+      # instead of as a silent hour inside the signing loop.
+      - name: Probe codesign (keychain + timestamp)
+        run: |
+          IDENTITY="$(security find-identity -v -p codesigning build.keychain | awk -F'"' '/[0-9]+\)/ {print $2; exit}')"
+          PROBE="$RUNNER_TEMP/codesign-probe"
+          echo "Probing codesign with identity: $IDENTITY"
+          cp /usr/bin/true "$PROBE"
+          export IDENTITY PROBE
+          node -e '
+            const { spawnSync } = require("node:child_process");
+            const r = spawnSync("codesign", ["--sign", process.env.IDENTITY, "--force", "--keychain", "build.keychain", "--timestamp", process.env.PROBE], { timeout: 60000, encoding: "utf8" });
+            process.stdout.write(r.stdout || ""); process.stderr.write(r.stderr || "");
+            if (r.error) { console.error(`::error::codesign probe error: ${r.error.message}`); process.exit(1); }
+            if (r.signal || r.status !== 0) {
+              console.error(r.signal ? "::error::codesign probe timed out after 60s — keychain access or Apple timestamp service is blocking signing" : "::error::codesign probe failed");
+              process.exit(1);
+            }
+            console.log("codesign probe OK");
+          '
       # `secrets` is not available in step-level `if` expressions; the
       # guard lives in the shell instead (empty secret → profile-less build).
       - name: Write provisioning profile (if MAS_PROVISION_BASE64 is set)
