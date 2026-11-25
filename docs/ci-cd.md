@@ -98,9 +98,9 @@ compliant in MAS/Store builds without a store-specific branch.
 
 Status: **all store secrets are already set** (mac certs, passwords,
 provisioning profile, App Store Connect API key; the Microsoft Store needs
-no cert at all — Partner Center re-signs). One Actions **variable** is
-also required: `ASC_APP_ID` = the numeric App Store Connect app id
-(6778137838 — see store-signing.md). Reference material for
+no cert at all — Partner Center re-signs), including `ASC_APP_ID` = the
+numeric App Store Connect app id (6778137838 — see store-signing.md).
+Reference material for
 renewals/contingencies:
 [store-signing.md](./store-signing.md). What's left to do:
 

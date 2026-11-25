@@ -27,12 +27,13 @@ Create it once: **Settings → Environments → New environment →
 | `ASC_KEY_ID` | mac-store | upload to App Store Connect (API key) |
 | `ASC_ISSUER_ID` | mac-store | upload |
 | `ASC_KEY_P8_BASE64` | mac-store | upload |
+| `ASC_APP_ID` | mac-store | upload |
 | `AZURE_TENANT_ID` | windows-store | optional (additive signing) |
 | `AZURE_CLIENT_ID` | windows-store | optional (additive signing) |
 | `AZURE_CLIENT_SECRET` | windows-store | optional (additive signing) |
 | `AZURE_SIGNING_CERTIFICATE_NAME` | windows-store | optional (additive signing) |
 
-Status: all eight mac secrets (five signing + three App Store Connect
+Status: all nine mac secrets (five signing + four App Store Connect
 upload) are set. The `AZURE_*` rows below remain
 unset and **unneeded** — Partner Center re-signs uploaded appx packages,
 and the identity the Store validates (`identityName` / `publisher`)
@@ -185,15 +186,14 @@ Connect (`xcrun altool --upload-app`, API-key JWT auth — no Apple ID or 2FA
 ever touches CI). Picking the build and submitting for review stays manual:
 App Store Connect → the app → the version page (or TestFlight).
 
-Auth uses an **App Store Connect API key**, three environment secrets and
-one Actions variable:
+Auth uses an **App Store Connect API key** and four environment secrets:
 
 | Secret | Value |
 |---|---|
 | `ASC_KEY_ID` | Key ID of the key created below |
 | `ASC_ISSUER_ID` | Issuer ID shown on the same page |
 | `ASC_KEY_P8_BASE64` | `base64 -w 0 AuthKey_<KEY_ID>.p8` |
-| `ASC_APP_ID` (variable) | numeric app id from the app's App Store Connect URL (6778137838) |
+| `ASC_APP_ID` | numeric app id from the app's App Store Connect URL (6778137838) |
 
 Create the key once: **appstoreconnect.apple.com → Users and Access →
 Integrations → Team Keys → Generate**, role **App Manager** (the page needs

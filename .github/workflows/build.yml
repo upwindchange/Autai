@@ -285,14 +285,14 @@ jobs:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
-          ASC_APP_ID: ${{ vars.ASC_APP_ID }}
+          ASC_APP_ID: ${{ secrets.ASC_APP_ID }}
         run: |
           if [ -z "$ASC_KEY_P8_BASE64" ]; then
             echo "ASC_KEY_P8_BASE64 not set; skipping App Store Connect upload"
             exit 0
           fi
           if [ -z "$ASC_APP_ID" ]; then
-            echo "::error::vars.ASC_APP_ID not set — the numeric App Store Connect app id (docs/store-signing.md)"
+            echo "::error::secrets.ASC_APP_ID not set — the numeric App Store Connect app id (docs/store-signing.md)"
             exit 1
           fi
           # altool reads API keys from ~/private_keys/AuthKey_<KEY_ID>.p8
