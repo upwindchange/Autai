@@ -273,6 +273,11 @@ you suspect key compromise.
   builds. Rebuilding against Electron ABI is unnecessary (v13 is Node-API).
   For the universal mas build it stamps one FAT (x64+arm64) binding via
   `lipo` into the single `app.asar.unpacked`.
+- Signing runs ~400 sequential `codesign` calls (osx-sign signs every
+  binary file in the bundle). osx-sign 1.x force-adds `--timestamp` to
+  every call; removed via pnpm patch (see `local-patches.md`): secure
+  timestamps are a Developer ID/notarization requirement, not an App
+  Store one, and 400 timestamp round-trips dominate signing time.
 
 ## Microsoft Store
 

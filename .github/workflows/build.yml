@@ -103,6 +103,18 @@ jobs:
         with:
           node-version: 24
 
+
+      # The two Electron zips (~110MB each) are re-downloaded every run
+      # otherwise; this is the main avoidable chunk of the pre-sign phase.
+      - name: Cache Electron downloads
+        uses: actions/cache@v6.1.0
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: ${{ runner.os }}-electron-${{ hashFiles('package.json') }}
+          restore-keys: |
+            ${{ runner.os }}-electron-
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
 
@@ -150,13 +162,12 @@ jobs:
           rm -f app.p12 installer.p12
 
 
-      # Bisect of osx-sign's per-file codesign call (the signing loop makes
-      # ~400 of these, one per binary file). Four variants isolate the two
-      # dimensions the hanging call has beyond the working probe:
-      # --entitlements and a non-Mach-O (.pak-like) target. Each variant is
-      # capped at 45s so a hang names its dimension instead of eating the
-      # job. (Path spaces are excluded a priori: execFile passes argv
-      # directly, no shell.)
+      # Measures and bisects osx-sign's per-file codesign call (the signing
+      # loop makes ~400 of these, one per binary file): with/without
+      # --timestamp (a network round-trip per call) crossed with
+      # --entitlements on a non-Mach-O .pak-like target. Each variant prints
+      # its duration, capped at 45s. (Path spaces are excluded a priori:
+      # execFile passes argv directly, no shell.)
       - name: Probe codesign (bisect loop-call shapes)
         run: |
           IDENTITY="$(security find-identity -v -p codesigning build.keychain | awk -F'"' '/[0-9]+\)/ {print $2; exit}')"
@@ -177,19 +188,22 @@ jobs:
           fs.copyFileSync("/usr/bin/true", macho);
 
           const variants = [
-            ["macho + --timestamp (baseline)", [macho], false],
-            ["macho + --timestamp + --entitlements", [macho], true],
-            ["binary .pak + --timestamp", [pak], false],
-            ["binary .pak + --timestamp + --entitlements (exact loop shape)", [pak], true],
+            ["macho, no --timestamp (patched loop shape)", [macho], false, false],
+            ["macho + --timestamp (old loop shape)", [macho], false, true],
+            [".pak + --entitlements, no --timestamp (patched loop shape)", [pak], true, false],
+            [".pak + --entitlements + --timestamp (old loop shape)", [pak], true, true],
           ];
           let bad = 0;
-          for (const [name, targets, withEnt] of variants) {
-            const args = ["--sign", id, "--force", "--keychain", "build.keychain", "--timestamp"];
+          for (const [name, targets, withEnt, withTs] of variants) {
+            const args = ["--sign", id, "--force", "--keychain", "build.keychain"];
+            if (withTs) args.push("--timestamp");
             if (withEnt) args.push("--entitlements", ent);
             args.push(...targets);
+            const t0 = Date.now();
             const r = spawnSync("codesign", args, { timeout: 45000, encoding: "utf8" });
+            const ms = Date.now() - t0;
             const state = r.signal ? "HANG (killed after 45s)" : r.status === 0 ? "ok" : `FAIL status=${r.status}`;
-            console.log(`${state} :: ${name}`);
+            console.log(`${state} in ${ms}ms :: ${name}`);
             if (r.stderr && r.status !== 0) console.log(r.stderr.trim());
             if (r.signal || r.status !== 0) bad++;
           }
