@@ -1,0 +1,50 @@
+#!/usr/bin/env node
+// codesign shim for CI signing runs. osx-sign signs a MAS bundle with ~400
+// sequential `codesign` calls and their per-call cost is otherwise invisible
+// (osx-sign captures each call's output and only prints it on error). This
+// wrapper passes every argument straight through to /usr/bin/codesign and:
+//   - appends one line per call (outcome, duration, target) to
+//     CODESIGN_SHIM_LOG, which the workflow streams into the job log with
+//     `tail -f`;
+//   - caps each call at 120s; on stall it `sample`s the blocked codesign
+//     (naming the blocking syscall) before killing it, so a hang becomes a
+//     self-diagnosing failure instead of a silent multi-hour wait.
+const { spawn, spawnSync } = require("node:child_process");
+const fs = require("node:fs");
+
+const args = process.argv.slice(2);
+const log = (line) => {
+  try {
+    fs.appendFileSync(process.env.CODESIGN_SHIM_LOG || "/dev/null", line + "\n");
+  } catch {
+    // logging must never break signing
+  }
+};
+
+const t0 = Date.now();
+const child = spawn("/usr/bin/codesign", args, {
+  stdio: ["ignore", "inherit", "inherit"],
+});
+
+const cap = setTimeout(() => {
+  const sample = spawnSync("sample", [String(child.pid), "2", "-mayDie"], {
+    encoding: "utf8",
+    timeout: 20000,
+  });
+  log(`STALL >120s on: codesign ${args.join(" ")}`);
+  log(sample.stdout || sample.stderr || "(sample produced no output)");
+  child.kill("SIGKILL");
+}, 120000);
+
+child.on("error", (err) => {
+  clearTimeout(cap);
+  log(`spawn error: ${err.message}`);
+  process.exit(1);
+});
+
+child.on("exit", (code, signal) => {
+  clearTimeout(cap);
+  const ms = Date.now() - t0;
+  log(`${signal ? `killed ${signal}` : `exit ${code}`} in ${ms}ms — ${args[args.length - 1]}`);
+  process.exit(signal ? 1 : code === null ? 1 : code);
+});

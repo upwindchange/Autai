@@ -237,6 +237,12 @@ jobs:
           # --universal is the only thing that sets the arch: a target given
           # on the CLI ignores target.arch in config and otherwise builds
           # just the runner's host arch (docs/store-signing.md).
+          # codesign shim: per-call timing + 120s stall cap, streamed live
+          # into this log (see scripts/codesign-shim/codesign).
+          export CODESIGN_SHIM_LOG="$RUNNER_TEMP/codesign-shim.log"
+          : > "$CODESIGN_SHIM_LOG"
+          tail -f "$CODESIGN_SHIM_LOG" &
+          export PATH="$GITHUB_WORKSPACE/scripts/codesign-shim:$PATH"
           pnpm exec electron-builder --mac mas --universal --publish never
           # The signing log prints provisioningProfile=none when none is
           # configured in electron-builder.json; @electron/osx-sign may

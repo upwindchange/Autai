@@ -278,6 +278,9 @@ you suspect key compromise.
   every call; removed via pnpm patch (see `local-patches.md`): secure
   timestamps are a Developer ID/notarization requirement, not an App
   Store one, and 400 timestamp round-trips dominate signing time.
+  CI wraps every `codesign` call with `scripts/codesign-shim/codesign`
+  (per-call timing streamed live + 120s stall cap that `sample`s the
+  blocked process), so signing time is visible and hangs self-diagnose.
 
 ## Microsoft Store
 
