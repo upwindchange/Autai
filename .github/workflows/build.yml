@@ -110,7 +110,7 @@ jobs:
       #   MAC_APP_P12_BASE64 — "3rd Party Mac Developer Application" .p12, base64
       #   MAC_INSTALLER_P12_BASE64 — "3rd Party Mac Developer Installer" .p12, base64
       #   MAC_APP_P12_PASSWORD / MAC_INSTALLER_P12_PASSWORD — each p12's own password
-      #   MAS_PROVISION_BASE64 — embedded.provisionprofile, base64 (optional)
+      #   MAS_PROVISION_BASE64 — Mac App Store Connect profile (.provisionprofile), base64 (required)
       - name: Import signing certificates into keychain
         env:
           MAC_APP_P12_BASE64: ${{ secrets.MAC_APP_P12_BASE64 }}
@@ -155,17 +155,21 @@ jobs:
           rm -f app.p12 installer.p12
 
       # `secrets` is not available in step-level `if` expressions; the
-      # guard lives in the shell instead (empty secret → profile-less build).
-      - name: Write provisioning profile (if MAS_PROVISION_BASE64 is set)
+      # guard lives in the shell instead. A profile-less pkg cannot be
+      # uploaded to App Store Connect (altool 90287/90889), so a missing
+      # secret fails fast instead of building an unloadable artifact.
+      # @electron/osx-sign does NOT look in ~/Library/MobileDevice — it
+      # embeds only the profile named by `mas.provisioningProfile`
+      # (electron-builder.json), so decode straight to that path.
+      - name: Write provisioning profile
         env:
           MAS_PROVISION_BASE64: ${{ secrets.MAS_PROVISION_BASE64 }}
         run: |
-          if [ -n "$MAS_PROVISION_BASE64" ]; then
-            mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
-            echo -n "$MAS_PROVISION_BASE64" | base64 --decode > ~/Library/MobileDevice/Provisioning\ Profiles/embedded.provisionprofile
-          else
-            echo "MAS_PROVISION_BASE64 not set; building without a profile"
+          if [ -z "$MAS_PROVISION_BASE64" ]; then
+            echo "::error::MAS_PROVISION_BASE64 is not set in the store-signing environment"
+            exit 1
           fi
+          echo -n "$MAS_PROVISION_BASE64" | base64 --decode > build/Autai.provisionprofile
 
       - name: Build MAS packages
         env:
@@ -176,17 +180,6 @@ jobs:
           # on the CLI ignores target.arch in config and otherwise builds
           # just the runner's host arch (docs/store-signing.md).
           pnpm exec electron-builder --mac mas --universal --publish never
-          # The signing log prints provisioningProfile=none when none is
-          # configured in electron-builder.json; @electron/osx-sign may
-          # still auto-embed one from ~/Library/MobileDevice. Answer it
-          # factually: check the built bundle directly.
-          for app in release/*/mas-*/Autai.app; do
-            if [ -e "$app/Contents/embedded.provisionprofile" ]; then
-              echo "$(dirname "$app"): embedded.provisionprofile PRESENT"
-            else
-              echo "$(dirname "$app"): embedded.provisionprofile ABSENT"
-            fi
-          done
 
       - name: Upload MAS artifacts
         uses: actions/upload-artifact@v7.0.1

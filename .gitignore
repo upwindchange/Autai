@@ -39,3 +39,6 @@ yarn.lock
 .zcode/
 .crush/
 .env
+
+# decoded MAS provisioning profile (store-signing secret material)
+build/Autai.provisionprofile

@@ -124,7 +124,7 @@ identity for each phase automatically.
 | `MAC_APP_P12_BASE64` | `base64 -w 0 mac/app/app.p12` ("3rd Party Mac Developer Application") |
 | `MAC_APP_P12_PASSWORD` | password of the app `.p12` |
 | `MAC_INSTALLER_P12_BASE64` | `base64 -w 0 mac/installer/installer.p12` ("3rd Party Mac Developer Installer") |
-| `MAS_PROVISION_BASE64` | `base64 -w 0 < embedded.provisionprofile` from the Apple Developer portal — **set 2026-08-27**. No `provisioningProfile` key in `electron-builder.json`; the workflow's write step guards in-shell on the secret (`secrets` is unavailable in step-level `if`), so a future dispatch with the secret removed silently reverts to profile-less builds |
+| `MAS_PROVISION_BASE64` | `base64 -w 0 <name>.provisionprofile` — the **Mac App Store Connect** profile for App ID `ai.autai.app` (created below), **set 2026-08-27**. The workflow decodes it to `build/Autai.provisionprofile`, the file `mas.provisioningProfile` in `electron-builder.json` points at; `@electron/osx-sign` embeds it as `Autai.app/Contents/embedded.provisionprofile` while signing. Without an embedded profile App Store Connect rejects the upload (altool 90287/90889), so the write step fails fast when the secret is missing |
 
 > Why it exists: a provisioning profile ties bundle id + team + allowed
 > signing certs together and carries the sandbox entitlement grants; MAS
@@ -169,6 +169,9 @@ Create Certificate detour (only if the old cert truly can't be selected):
 2. Upload the **existing** `~/apple-signing/mac/app.certSigningRequest`
 3. Download the issued `.cer`; refresh the wizard, select the cert →
    Continue → Generate → Download the `.provisionprofile`.
+   Keep the download at `build/Autai.provisionprofile` (gitignored) —
+   that is where `mas.provisioningProfile` looks for local `--mac mas`
+   builds.
 4. Re-export the app `.p12` from the same private key + new cert
    (`openssl pkcs12 -export`, same password) and update
    `MAC_APP_P12_BASE64` — App Store validation requires the signing
@@ -199,8 +202,8 @@ Create the key once: **appstoreconnect.apple.com → Users and Access →
 Integrations → Team Keys → Generate**, role **App Manager** (the page needs
 Account Holder or Admin). The `.p8` file downloads exactly once — keep it
 next to `~/apple-signing/mac/`. No expiry; revoke on that page to rotate.
-If the secrets are missing the upload step skips itself (same in-shell
-guard as the provisioning profile).
+If the secrets are missing the upload step skips itself (in-shell guard —
+`secrets` is unavailable in step-level `if`).
 
 The `--apple-id "$ASC_APP_ID"` argument on the altool call works around a
 known Xcode 26.x altool regression: the new altool's bundle-id → app
