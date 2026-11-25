@@ -9,7 +9,8 @@ name: Build
 #   tag push     → build matrix + draft GitHub Release via electron-builder
 #                  (publishing the draft stays manual — the release gate)
 #   manual       → optional Mac App Store / Microsoft Store signed packages
-#                  (secrets reference: docs/store-signing.md)
+#                  (MAS .pkg then uploads to App Store Connect automatically;
+#                  secrets reference: docs/store-signing.md)
 
 on:
   pull_request:
@@ -185,6 +186,35 @@ jobs:
           name: mas-packages
           path: release/**/Autai_*_mas_*.pkg
           if-no-files-found: error
+
+      # Uploads the signed universal pkg to App Store Connect with API-key
+      # JWT auth (ASC_* secrets: docs/store-signing.md). Skip-on-empty guard
+      # like the provisioning-profile step (`secrets` is unavailable in
+      # step-level `if`).
+      - name: Upload to App Store Connect
+        env:
+          ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+          ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+          ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+        run: |
+          if [ -z "$ASC_KEY_P8_BASE64" ]; then
+            echo "ASC_KEY_P8_BASE64 not set; skipping App Store Connect upload"
+            exit 0
+          fi
+          # altool reads API keys from ~/private_keys/AuthKey_<KEY_ID>.p8
+          mkdir -p ~/private_keys
+          echo -n "$ASC_KEY_P8_BASE64" | base64 --decode > ~/private_keys/AuthKey_$ASC_KEY_ID.p8
+          chmod 600 ~/private_keys/AuthKey_$ASC_KEY_ID.p8
+          pkgs="$(find release -type f -name 'Autai_*_mas_*.pkg')"
+          if [ -z "$pkgs" ]; then
+            echo "::error::no MAS pkg found under release/"
+            exit 1
+          fi
+          # altool takes one -f per call; normally a single universal pkg.
+          for pkg in $pkgs; do
+            echo "Uploading $pkg"
+            xcrun altool --upload-app -f "$pkg" -t macos --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+          done
 
       # Best-effort; the runner is ephemeral anyway.
       - name: Cleanup keychain

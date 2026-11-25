@@ -41,7 +41,7 @@
     "category": "Utility"
   },
   "mas": {
-    "target": [{ "target": "pkg", "arch": ["x64", "arm64"] }],
+    "target": [{ "target": "pkg", "arch": ["universal"] }],
     "entitlements": "build/entitlements.mas.plist",
     "entitlementsInherit": "build/entitlements.mas.plist",
     "hardenedRuntime": false,

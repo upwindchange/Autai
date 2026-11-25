@@ -38,7 +38,7 @@ One workflow, three jobs, mutually exclusive by trigger:
 | Job | Runs on | Trigger | Output |
 |---|---|---|---|
 | `build` | `macos-latest`, `ubuntu-latest`, `windows-latest` (matrix) | PR to `master`, or any tag push | PR: zips/installers as **workflow artifacts**. Tag: same installers uploaded to a **draft GitHub Release** |
-| `mac-store` | `macos-latest` | Manual dispatch, `build_mas` ticked | Signed Mac App Store `.pkg` (x64 + arm64) as workflow artifact |
+| `mac-store` | `macos-latest` | Manual dispatch, `build_mas` ticked | Signed Mac App Store `.pkg` (universal, x64+arm64) as workflow artifact **and uploaded to App Store Connect** |
 | `windows-store` | `windows-latest` | Manual dispatch, `build_appx` ticked | Signed Microsoft Store `.appx` as workflow artifact |
 
 All jobs: pnpm 11 + Node 24 (LTS; `better-sqlite3` v13 requires ≥ 22), install
@@ -97,15 +97,19 @@ compliant in MAS/Store builds without a store-specific branch.
 ## Store packages (manual dispatch)
 
 Status: **all store secrets are already set** (mac certs, passwords,
-provisioning profile; the Microsoft Store needs no cert at all — Partner
-Center re-signs). Reference material for renewals/contingencies:
+provisioning profile, App Store Connect API key; the Microsoft Store needs
+no cert at all — Partner Center re-signs). Reference material for
+renewals/contingencies:
 [store-signing.md](./store-signing.md). What's left to do:
 
 1. **Actions tab → Build → Run workflow** (from `master`) → tick the
    store targets → Run.
-2. When green, download `mas-packages` / `appx-packages` artifacts and
-   upload to App Store Connect / Partner Center in your browser. Submission
-   to the stores stays manual on purpose — they are review processes.
+2. When green, `mac-store` has already uploaded the `.pkg` to App Store
+   Connect (altool, API-key auth) — after it finishes processing, pick the
+   build and submit for review in the browser. For the Microsoft Store,
+   download the `appx-packages` artifact and upload it to Partner Center.
+   Submission to the stores stays manual on purpose — they are review
+   processes.
 3. One-time GitHub setting if not done yet: `store-signing` environment →
    deployment branches restricted to `master` + `v*` (reminder.md §1).
 
@@ -120,7 +124,8 @@ Center re-signs). Reference material for renewals/contingencies:
 | Store package builds + signing | ✅ (mac secrets only; appx ships unsigned — Store re-signs) | `mac-store` / `windows-store` jobs |
 | Automatic tagging / version bumps | ❌ | You tag manually (`git tag vX.Y.Z`) |
 | Automatic PR labeling | ❌ | Not configured |
-| Automatic store submission | ❌ | Manual upload to store portals |
+| Automatic store upload | ✅ mac (`altool` → App Store Connect) / ❌ appx (Partner Center by hand) | `mac-store` upload step |
+| Automatic store submission | ❌ | Picking a build + review stays manual (by design) |
 | Dependency update bot | ❌ (removed on purpose) | — |
 
 ## Local builds (`pnpm build:all`)

@@ -2,8 +2,9 @@
 
 The manual (`workflow_dispatch`) store job in `.github/workflows/build.yml`
 builds and signs Mac App Store (`.pkg`) and Microsoft Store (`.appx`)
-packages. Store submission itself stays manual: download artifacts from the
-run and upload to App Store Connect / Partner Center.
+packages. The signed `.pkg` uploads to App Store Connect automatically at
+the end of the job; picking the build, submitting for review, and the
+Partner Center `.appx` upload all stay manual in the browser.
 
 ## Secret setup (`store-signing` environment)
 
@@ -23,12 +24,16 @@ Create it once: **Settings → Environments → New environment →
 | `MAC_INSTALLER_P12_BASE64` | mac-store | always |
 | `MAC_INSTALLER_P12_PASSWORD` | mac-store | always |
 | `MAS_PROVISION_BASE64` | mac-store | **set 2026-08-27** |
+| `ASC_KEY_ID` | mac-store | upload to App Store Connect (API key) |
+| `ASC_ISSUER_ID` | mac-store | upload |
+| `ASC_KEY_P8_BASE64` | mac-store | upload |
 | `AZURE_TENANT_ID` | windows-store | optional (additive signing) |
 | `AZURE_CLIENT_ID` | windows-store | optional (additive signing) |
 | `AZURE_CLIENT_SECRET` | windows-store | optional (additive signing) |
 | `AZURE_SIGNING_CERTIFICATE_NAME` | windows-store | optional (additive signing) |
 
-Status: all five mac secrets are set. The `AZURE_*` rows below remain
+Status: all eight mac secrets (five signing + three App Store Connect
+upload) are set. The `AZURE_*` rows below remain
 unset and **unneeded** — Partner Center re-signs uploaded appx packages,
 and the identity the Store validates (`identityName` / `publisher`)
 lives in `electron-builder.json` `appx.*`, not in secrets. They exist
@@ -173,6 +178,35 @@ Create Certificate detour (only if the old cert truly can't be selected):
 5. `base64 -w 0 <name>.provisionprofile` → `MAS_PROVISION_BASE64`.
 
 
+### App Store Connect upload
+
+At the end of `mac-store` the job uploads the signed `.pkg` to App Store
+Connect (`xcrun altool --upload-app`, API-key JWT auth — no Apple ID or 2FA
+ever touches CI). Picking the build and submitting for review stays manual:
+App Store Connect → the app → the version page (or TestFlight).
+
+Auth uses an **App Store Connect API key**, three environment secrets:
+
+| Secret | Value |
+|---|---|
+| `ASC_KEY_ID` | Key ID of the key created below |
+| `ASC_ISSUER_ID` | Issuer ID shown on the same page |
+| `ASC_KEY_P8_BASE64` | `base64 -w 0 AuthKey_<KEY_ID>.p8` |
+
+Create the key once: **appstoreconnect.apple.com → Users and Access →
+Integrations → Team Keys → Generate**, role **App Manager** (the page needs
+Account Holder or Admin). The `.p8` file downloads exactly once — keep it
+next to `~/apple-signing/mac/`. No expiry; revoke on that page to rotate.
+If the secrets are missing the upload step skips itself (same in-shell
+guard as the provisioning profile).
+
+The `mas` target is `arch: ["universal"]` on purpose: App Store Connect
+keys builds by (version, build number) and rejects a second upload with the
+same pair ([electron-builder#4572](https://github.com/electron-userland/electron-builder/issues/4572)),
+and a submission selects **one** build per version — separate x64/arm64
+pkgs sharing `CFBundleVersion` could never both ship. One universal binary
+covers both archs in a single build record.
+
 ## Renewing after expiry
 
 Certs (issued ~1-year, current pair valid to 2027-06-08) only gate NEW
@@ -214,7 +248,8 @@ you suspect key compromise.
 ### Notes
 
 - `electron-builder --mac mas` runs the `mas` config block in
-  `electron-builder.json` (targets `pkg`, x64 + arm64).
+  `electron-builder.json` (target `pkg`, universal — see **App Store
+  Connect upload** above for why).
 - MAS builds **cannot enable hardened runtime** and use the Mac App Store
   entitlements instead — the config sets `hardenedRuntime: false`,
   `gatekeeperAssess: false` for this reason.
@@ -222,6 +257,8 @@ you suspect key compromise.
 - The `afterPack` hook treats `mas` as `darwin` for the better-sqlite3
   prebuild, so store builds get the same Node-API binary as regular mac
   builds. Rebuilding against Electron ABI is unnecessary (v13 is Node-API).
+  For the universal mas build it stamps both `app-x64.asar.unpacked` and
+  `app-arm64.asar.unpacked` copies.
 
 ## Microsoft Store
 

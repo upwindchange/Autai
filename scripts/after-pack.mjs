@@ -40,27 +40,42 @@ export default async function afterPack(context) {
       ? path.join(appOutDir, `${productName}.app`, "Contents", "Resources")
       : path.join(appOutDir, "resources");
   const unpackedMain = path.join(resourcesDir, "app.asar.unpacked", "out", "main");
-  const destPath = path.join(unpackedMain, "better_sqlite3.node");
 
   const prebuildsDir = path.join(
     path.dirname(require.resolve("better-sqlite3/package.json")),
     "prebuilds",
   );
-  const sourcePath = path.join(prebuildsDir, `${platform}-${arch}.node`);
 
-  if (!fs.existsSync(sourcePath)) {
-    throw new Error(
-      `${TAG} No better-sqlite3 prebuilt for ${platform}-${arch} ` +
-        `(looked at ${sourcePath}).`,
-    );
-  }
-  if (!fs.existsSync(destPath)) {
-    throw new Error(
-      `${TAG} Expected unpacked binding at ${destPath} — is ` +
-        `"out/main/better_sqlite3.node" still listed in asarUnpack?`,
-    );
-  }
+  // Universal builds: electron-builder packs each arch, then merges the two
+  // apps into one fat binary. @electron/universal renames the unpacked dirs
+  // to app-x64.asar.unpacked / app-arm64.asar.unpacked (the merged asar maps
+  // reads to the right one per running arch), so stamp both copies.
+  const stampTargets =
+    arch === "universal"
+      ? [
+          ["x64", path.join(resourcesDir, "app-x64.asar.unpacked", "out", "main")],
+          ["arm64", path.join(resourcesDir, "app-arm64.asar.unpacked", "out", "main")],
+        ]
+      : [[arch, unpackedMain]];
 
-  fs.copyFileSync(sourcePath, destPath);
-  console.log(`${TAG} Stamped ${platform}-${arch} binding → ${destPath}`);
+  for (const [stampArch, mainDir] of stampTargets) {
+    const sourcePath = path.join(prebuildsDir, `${platform}-${stampArch}.node`);
+    const destPath = path.join(mainDir, "better_sqlite3.node");
+
+    if (!fs.existsSync(sourcePath)) {
+      throw new Error(
+        `${TAG} No better-sqlite3 prebuilt for ${platform}-${stampArch} ` +
+          `(looked at ${sourcePath}).`,
+      );
+    }
+    if (!fs.existsSync(destPath)) {
+      throw new Error(
+        `${TAG} Expected unpacked binding at ${destPath} — is ` +
+          `"out/main/better_sqlite3.node" still listed in asarUnpack?`,
+      );
+    }
+
+    fs.copyFileSync(sourcePath, destPath);
+    console.log(`${TAG} Stamped ${platform}-${stampArch} binding → ${destPath}`);
+  }
 }
