@@ -271,8 +271,8 @@ you suspect key compromise.
 - The `afterPack` hook treats `mas` as `darwin` for the better-sqlite3
   prebuild, so store builds get the same Node-API binary as regular mac
   builds. Rebuilding against Electron ABI is unnecessary (v13 is Node-API).
-  For the universal mas build it stamps both `app-x64.asar.unpacked` and
-  `app-arm64.asar.unpacked` copies.
+  For the universal mas build it stamps one FAT (x64+arm64) binding via
+  `lipo` into the single `app.asar.unpacked`.
 
 ## Microsoft Store
 

@@ -14,6 +14,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
+import { execFileSync } from "node:child_process";
 
 // builder-util's Arch enum (not importable here under pnpm strict hoisting):
 // ia32=0, x64=1, armv7l=2, arm64=3, universal=4
@@ -46,27 +47,23 @@ export default async function afterPack(context) {
     "prebuilds",
   );
 
-  // Universal builds: electron-builder packs each arch, then merges the two
-  // apps into one fat binary. @electron/universal renames the unpacked dirs
-  // to app-x64.asar.unpacked / app-arm64.asar.unpacked (the merged asar maps
-  // reads to the right one per running arch), so stamp both copies.
-  const stampTargets =
-    arch === "universal"
-      ? [
-          ["x64", path.join(resourcesDir, "app-x64.asar.unpacked", "out", "main")],
-          ["arm64", path.join(resourcesDir, "app-arm64.asar.unpacked", "out", "main")],
-        ]
-      : [[arch, unpackedMain]];
-
-  for (const [stampArch, mainDir] of stampTargets) {
-    const sourcePath = path.join(prebuildsDir, `${platform}-${stampArch}.node`);
-    const destPath = path.join(mainDir, "better_sqlite3.node");
-
-    if (!fs.existsSync(sourcePath)) {
-      throw new Error(
-        `${TAG} No better-sqlite3 prebuilt for ${platform}-${stampArch} ` +
-          `(looked at ${sourcePath}).`,
-      );
+  // Universal builds: @electron/universal merges the two per-arch apps
+  // into one and repacks a single app.asar + app.asar.unpacked. Stamp one
+  // FAT binding for both archs so the result does not depend on how the
+  // merge treats unpacked Mach-O files.
+  if (arch === "universal") {
+    const destPath = path.join(unpackedMain, "better_sqlite3.node");
+    const sources = ["x64", "arm64"].map((a) => ({
+      archName: a,
+      sourcePath: path.join(prebuildsDir, `${platform}-${a}.node`),
+    }));
+    for (const { archName, sourcePath } of sources) {
+      if (!fs.existsSync(sourcePath)) {
+        throw new Error(
+          `${TAG} No better-sqlite3 prebuilt for ${platform}-${archName} ` +
+            `(looked at ${sourcePath}).`,
+        );
+      }
     }
     if (!fs.existsSync(destPath)) {
       throw new Error(
@@ -74,8 +71,27 @@ export default async function afterPack(context) {
           `"out/main/better_sqlite3.node" still listed in asarUnpack?`,
       );
     }
-
-    fs.copyFileSync(sourcePath, destPath);
-    console.log(`${TAG} Stamped ${platform}-${stampArch} binding → ${destPath}`);
+    execFileSync("lipo", [...sources.map((s) => s.sourcePath), "-create", "-output", destPath]);
+    console.log(`${TAG} Stamped universal (${platform}-x64 + ${platform}-arm64) binding → ${destPath}`);
+    return;
   }
+
+  const sourcePath = path.join(prebuildsDir, `${platform}-${arch}.node`);
+  const destPath = path.join(unpackedMain, "better_sqlite3.node");
+
+  if (!fs.existsSync(sourcePath)) {
+    throw new Error(
+      `${TAG} No better-sqlite3 prebuilt for ${platform}-${arch} ` +
+        `(looked at ${sourcePath}).`,
+    );
+  }
+  if (!fs.existsSync(destPath)) {
+    throw new Error(
+      `${TAG} Expected unpacked binding at ${destPath} — is ` +
+        `"out/main/better_sqlite3.node" still listed in asarUnpack?`,
+    );
+  }
+
+  fs.copyFileSync(sourcePath, destPath);
+  console.log(`${TAG} Stamped ${platform}-${arch} binding → ${destPath}`);
 }
