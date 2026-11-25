@@ -185,13 +185,15 @@ Connect (`xcrun altool --upload-app`, API-key JWT auth — no Apple ID or 2FA
 ever touches CI). Picking the build and submitting for review stays manual:
 App Store Connect → the app → the version page (or TestFlight).
 
-Auth uses an **App Store Connect API key**, three environment secrets:
+Auth uses an **App Store Connect API key**, three environment secrets and
+one Actions variable:
 
 | Secret | Value |
 |---|---|
 | `ASC_KEY_ID` | Key ID of the key created below |
 | `ASC_ISSUER_ID` | Issuer ID shown on the same page |
 | `ASC_KEY_P8_BASE64` | `base64 -w 0 AuthKey_<KEY_ID>.p8` |
+| `ASC_APP_ID` (variable) | numeric app id from the app's App Store Connect URL (6778137838) |
 
 Create the key once: **appstoreconnect.apple.com → Users and Access →
 Integrations → Team Keys → Generate**, role **App Manager** (the page needs
@@ -200,9 +202,18 @@ next to `~/apple-signing/mac/`. No expiry; revoke on that page to rotate.
 If the secrets are missing the upload step skips itself (same in-shell
 guard as the provisioning profile).
 
-The `mas` target is `arch: ["universal"]` on purpose: App Store Connect
-keys builds by (version, build number) and rejects a second upload with the
-same pair ([electron-builder#4572](https://github.com/electron-userland/electron-builder/issues/4572)),
+The `--apple-id "$ASC_APP_ID"` argument on the altool call works around a
+known Xcode 26.x altool regression: the new altool's bundle-id → app
+lookup fails with `Cannot determine the Apple ID from Bundle ID ... (19)`
+even when the app record is correct
+([Codemagic KB](https://help.codemagic.io/articles/6636894916-fixing-ios-build-errors-with-xcode-26-2-and-altool-verification-issues),
+[fastlane#29820](https://github.com/fastlane/fastlane/issues/29820)).
+Passing the numeric app id skips the broken lookup; the flag stays
+harmless after Apple fixes it.
+
+The build runs `electron-builder --mac mas --universal` on purpose: App
+Store Connect keys builds by (version, build number) and rejects a second
+upload with the same pair ([electron-builder#4572](https://github.com/electron-userland/electron-builder/issues/4572)),
 and a submission selects **one** build per version — separate x64/arm64
 pkgs sharing `CFBundleVersion` could never both ship. One universal binary
 covers both archs in a single build record.
@@ -247,9 +258,12 @@ you suspect key compromise.
 
 ### Notes
 
-- `electron-builder --mac mas` runs the `mas` config block in
-  `electron-builder.json` (target `pkg`, universal — see **App Store
-  Connect upload** above for why).
+- `electron-builder --mac mas --universal` runs the `mas` config block in
+  `electron-builder.json` (entitlements, artifact name). The block's old
+  `target` key is gone: a target passed on the CLI ignores `target.arch`
+  in config (and arch resolution reads the `mac` block, not `mas`), so the
+  old `arch: ["x64", "arm64"]` never ran — CI silently built host-arch
+  only until the `--universal` flag was added.
 - MAS builds **cannot enable hardened runtime** and use the Mac App Store
   entitlements instead — the config sets `hardenedRuntime: false`,
   `gatekeeperAssess: false` for this reason.

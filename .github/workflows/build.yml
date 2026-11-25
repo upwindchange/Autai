@@ -167,7 +167,10 @@ jobs:
           CSC_KEYCHAIN: build.keychain
         run: |
           pnpm exec electron-vite build
-          pnpm exec electron-builder --mac mas --publish never
+          # --universal is the only thing that sets the arch: a target given
+          # on the CLI ignores target.arch in config and otherwise builds
+          # just the runner's host arch (docs/store-signing.md).
+          pnpm exec electron-builder --mac mas --universal --publish never
           # The signing log prints provisioningProfile=none when none is
           # configured in electron-builder.json; @electron/osx-sign may
           # still auto-embed one from ~/Library/MobileDevice. Answer it
@@ -189,17 +192,25 @@ jobs:
 
       # Uploads the signed universal pkg to App Store Connect with API-key
       # JWT auth (ASC_* secrets: docs/store-signing.md). Skip-on-empty guard
-      # like the provisioning-profile step (`secrets` is unavailable in
-      # step-level `if`).
+      # like the provisioning-profile step (`secrets`/`vars` are unavailable
+      # in step-level `if`). --apple-id works around an Xcode 26.x altool
+      # bug ("Cannot determine the Apple ID from Bundle ID ... (19)"): the
+      # new altool's bundle-id lookup is broken, passing the app's numeric
+      # App Store Connect id explicitly skips it.
       - name: Upload to App Store Connect
         env:
           ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
           ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
           ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
+          ASC_APP_ID: ${{ vars.ASC_APP_ID }}
         run: |
           if [ -z "$ASC_KEY_P8_BASE64" ]; then
             echo "ASC_KEY_P8_BASE64 not set; skipping App Store Connect upload"
             exit 0
+          fi
+          if [ -z "$ASC_APP_ID" ]; then
+            echo "::error::vars.ASC_APP_ID not set — the numeric App Store Connect app id (docs/store-signing.md)"
+            exit 1
           fi
           # altool reads API keys from ~/private_keys/AuthKey_<KEY_ID>.p8
           mkdir -p ~/private_keys
@@ -213,7 +224,7 @@ jobs:
           # altool takes one -f per call; normally a single universal pkg.
           for pkg in $pkgs; do
             echo "Uploading $pkg"
-            xcrun altool --upload-app -f "$pkg" -t macos --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"
+            xcrun altool --upload-app -f "$pkg" -t macos --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" --apple-id "$ASC_APP_ID"
           done
 
       # Best-effort; the runner is ephemeral anyway.
