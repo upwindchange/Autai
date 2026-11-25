@@ -150,29 +150,55 @@ jobs:
           rm -f app.p12 installer.p12
 
 
-      # Fail-fast probe of the exact per-file signing path the osx-sign loop
-      # repeats (~400x): one codesign call with --timestamp against a scratch
-      # copy of a system binary, capped at 60s. A keychain authorization
-      # stall or a blocked Apple timestamp fetch fails here in seconds
-      # instead of as a silent hour inside the signing loop.
-      - name: Probe codesign (keychain + timestamp)
+      # Bisect of osx-sign's per-file codesign call (the signing loop makes
+      # ~400 of these, one per binary file). Four variants isolate the two
+      # dimensions the hanging call has beyond the working probe:
+      # --entitlements and a non-Mach-O (.pak-like) target. Each variant is
+      # capped at 45s so a hang names its dimension instead of eating the
+      # job. (Path spaces are excluded a priori: execFile passes argv
+      # directly, no shell.)
+      - name: Probe codesign (bisect loop-call shapes)
         run: |
           IDENTITY="$(security find-identity -v -p codesigning build.keychain | awk -F'"' '/[0-9]+\)/ {print $2; exit}')"
-          PROBE="$RUNNER_TEMP/codesign-probe"
-          echo "Probing codesign with identity: $IDENTITY"
-          cp /usr/bin/true "$PROBE"
-          export IDENTITY PROBE
-          node -e '
-            const { spawnSync } = require("node:child_process");
-            const r = spawnSync("codesign", ["--sign", process.env.IDENTITY, "--force", "--keychain", "build.keychain", "--timestamp", process.env.PROBE], { timeout: 60000, encoding: "utf8" });
-            process.stdout.write(r.stdout || ""); process.stderr.write(r.stderr || "");
-            if (r.error) { console.error(`::error::codesign probe error: ${r.error.message}`); process.exit(1); }
-            if (r.signal || r.status !== 0) {
-              console.error(r.signal ? "::error::codesign probe timed out after 60s — keychain access or Apple timestamp service is blocking signing" : "::error::codesign probe failed");
-              process.exit(1);
-            }
-            console.log("codesign probe OK");
-          '
+          export IDENTITY
+          node <<'NODE'
+          const { spawnSync } = require("node:child_process");
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const id = process.env.IDENTITY;
+          const tmp = process.env.RUNNER_TEMP;
+          const ent = "build/entitlements.mas.plist";
+
+          const dir = path.join(tmp, "probe-app", "Frameworks", "Electron Framework.framework", "Versions", "A", "Resources", "af.lproj");
+          fs.mkdirSync(dir, { recursive: true });
+          const pak = path.join(dir, "locale.pak");
+          fs.writeFileSync(pak, Buffer.alloc(65536, 7)); // binary, non-Mach-O like a .pak
+          const macho = path.join(tmp, "probe-macho");
+          fs.copyFileSync("/usr/bin/true", macho);
+
+          const variants = [
+            ["macho + --timestamp (baseline)", [macho], false],
+            ["macho + --timestamp + --entitlements", [macho], true],
+            ["binary .pak + --timestamp", [pak], false],
+            ["binary .pak + --timestamp + --entitlements (exact loop shape)", [pak], true],
+          ];
+          let bad = 0;
+          for (const [name, targets, withEnt] of variants) {
+            const args = ["--sign", id, "--force", "--keychain", "build.keychain", "--timestamp"];
+            if (withEnt) args.push("--entitlements", ent);
+            args.push(...targets);
+            const r = spawnSync("codesign", args, { timeout: 45000, encoding: "utf8" });
+            const state = r.signal ? "HANG (killed after 45s)" : r.status === 0 ? "ok" : `FAIL status=${r.status}`;
+            console.log(`${state} :: ${name}`);
+            if (r.stderr && r.status !== 0) console.log(r.stderr.trim());
+            if (r.signal || r.status !== 0) bad++;
+          }
+          if (bad) {
+            console.error(`::error::${bad} codesign probe variant(s) hung or failed — the hanging dimension is what blocks the signing loop`);
+            process.exit(1);
+          }
+          console.log("all codesign probe variants OK");
+          NODE
       # `secrets` is not available in step-level `if` expressions; the
       # guard lives in the shell instead (empty secret → profile-less build).
       - name: Write provisioning profile (if MAS_PROVISION_BASE64 is set)
