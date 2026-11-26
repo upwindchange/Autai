@@ -1,8 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!-- Copyright 2026 Yuwei Zhu -->
 <component type="desktop-application">
   <id>io.github.upwindchange.Autai</id>
   <name>Autai</name>
   <summary>Free web research and an AI editor for the books you read</summary>
+  <summary xml:lang="zh-Hans">调研免费，把水拧干，把故事留下</summary>
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <developer id="io.github.upwindchange">
@@ -13,6 +15,7 @@
       Two jobs in one app: research the web for free, and put an AI editor
       between you and the rough draft of the books you read.
     </p>
+    <p xml:lang="zh-Hans">一个应用干两件事：免费把资料查穿，把书脱水。追的书先过一位 AI 编辑——拧干水分、留下故事，再送到你手上。</p>
     <p>
       Research comes in three depths from one command bar: a quick pass when you
       just need a fact, a standard search when you want a solid answer with
@@ -23,6 +26,7 @@
       straight to Google and Bing — no search API keys, no per-query fees. The
       only meter running is the model you already brought a key for.
     </p>
+    <p xml:lang="zh-Hans">查资料：不收搜索费，查得深还能出报告。一个命令栏三档力度：要个事实快速搜一下，要个靠谱答案走标准搜索、带来源，问题值得认真对待就上深度调研。深度调研先把问题拆成子问题，分头去搜、挨个点开读，线索追到底，最后攒成一篇带引用的完整报告。搜索全程免费：它自己开浏览器去 Google、Bing 翻，不走搜索 API、不按次计费，你只花本来就该花的模型 token——Key 还是你自己的。</p>
     <p>
       Story Mode is an AI editor for web serials and fan translations. Cut the
       word count and keep the story: the plot, characters, payoffs, and
@@ -34,28 +38,36 @@
       built-in reader has eleven themes, typography controls, a table of
       contents, bookmarks, and it remembers where you stopped.
     </p>
+    <p xml:lang="zh-Hans">故事模式是给网文和翻译稿拧水分的 AI 编辑：复述上一章、设定第三次讲解、围观群众集体震惊这些水文套路，内置 85 种脱水情景——章内 51 种、跨章并写 34 种——统统压掉；一个旋钮选力度，从「轻扫一下」到「别废话推剧情」，人物、爽点、伏笔一个不动。文笔顺手治：病句错字改掉，「倒吸一口凉气」这种用烂的梗直接改写；打斗太干瘪就开扩写，补的是画面感，不是字数。语言不是障碍：生肉整本翻好，日轻丢掉的「谁在说话」给你补上，嫌不够就加一句自己的规矩——诗词留不留它照办。书从哪来都行：TXT 直接拖，或者甩个书名、链接、几个关键词，它自己上网找。正经阅读器伺候：11 套主题，字号、字距、行距、段距全可调，目录、书签、沉浸模式一个不少，读到哪自动记住，章节随时导出。</p>
     <p>
       Yours to host: Autai runs on your machine and serves its full interface to
       any browser on your network — desktop, phone, or tablet — with a mobile
       layout and optional password sign-in. Your keys, your conversations, your
       books: all local.
     </p>
+    <p xml:lang="zh-Hans">自己 host：Autai 跑在你自己的机器上，完整界面开给全网浏览器——手机、平板、电脑，专门的手机排版，可设密码登录。你的 Key、你的对话、你的书，全在本地。</p>
     <ul>
       <li>
         225+ AI providers and 8,000+ models — bring your own API key,
         self-hosted and local APIs included
       </li>
+      <li xml:lang="zh-Hans">225+ 家服务商、8000+ 个模型——自带 Key，自建 / 本地 API 也认，随时切</li>
       <li>
         AI browser automation in a split view that pauses and hands control back
         at CAPTCHAs, logins, and payments
       </li>
+      <li xml:lang="zh-Hans">浏览器替你跑腿：分屏里全程看得见，验证码、登录、支付一出现立刻停手，方向盘还你</li>
       <li>Threads that auto-title and tag themselves, with full-history search</li>
+      <li xml:lang="zh-Hans">对话自动起标题、打彩色标签，全历史搜得到</li>
       <li>Code with syntax highlighting, typeset math, and Mermaid diagrams</li>
+      <li xml:lang="zh-Hans">代码高亮、公式像教材排版、Mermaid 图直接成图</li>
       <li>
         Attach screenshots and files; per-conversation model, temperature, and
         system prompt
       </li>
+      <li xml:lang="zh-Hans">截图、文档拖进来就聊；每个对话单独调模型、温度、系统提示词</li>
       <li>Slash commands, MCP tool servers, and spoken answers</li>
+      <li xml:lang="zh-Hans">斜杠命令、MCP 工具服务器、回答能读给你听</li>
     </ul>
   </description>
   <launchable type="desktop-id">io.github.upwindchange.Autai.desktop</launchable>
@@ -66,28 +78,101 @@
     <category>Utility</category>
   </categories>
   <content_rating type="oars-1.1"/>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E4%B8%BB%E8%81%8A%E5%A4%A9%E7%95%8C%E9%9D%A2en.png</image>
+      <image xml:lang="zh-Hans">https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E4%B8%BB%E8%81%8A%E5%A4%A9%E7%95%8C%E9%9D%A2.png</image>
+      <caption>Research and chat from one command bar</caption>
+      <caption xml:lang="zh-Hans">从一个命令栏发起调研和聊天</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E8%AF%A6%E7%BB%86%E8%B0%83%E7%A0%94en.png</image>
+      <image xml:lang="zh-Hans">https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E8%AF%A6%E7%BB%86%E8%B0%83%E7%A0%94.png</image>
+      <caption>Deep Research writes a full report with references</caption>
+      <caption xml:lang="zh-Hans">深度调研产出带引用的完整报告</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E4%B8%BB%E8%81%8A%E5%A4%A9%E7%95%8C%E9%9D%A2%E6%95%B0%E5%AD%A6%E5%85%AC%E5%BC%8Fen.png</image>
+      <caption>Math typeset like a textbook, code with syntax highlighting</caption>
+      <caption xml:lang="zh-Hans">公式像教材排版，代码高亮</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E4%B8%BB%E8%81%8A%E5%A4%A9%E7%95%8C%E9%9D%A2%E5%8F%82%E6%95%B0%E8%B0%83%E6%95%B4en.png</image>
+      <image xml:lang="zh-Hans">https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E4%B8%BB%E8%81%8A%E5%A4%A9%E7%95%8C%E9%9D%A2%E5%8F%82%E6%95%B0%E8%B0%83%E6%95%B4.png</image>
+      <caption>Per-conversation controls: model, temperature, system prompt</caption>
+      <caption xml:lang="zh-Hans">每个对话单独调参：模型、温度、系统提示词</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E4%B8%BB%E8%81%8A%E5%A4%A9%E7%95%8C%E9%9D%A2dark%20en.png</image>
+      <image xml:lang="zh-Hans">https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E4%B8%BB%E8%81%8A%E5%A4%A9%E7%95%8C%E9%9D%A2dark.png</image>
+      <caption>Dark, light, or system theme</caption>
+      <caption xml:lang="zh-Hans">深色、浅色，或跟随系统</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E5%B0%8F%E8%AF%B4%E8%8E%B7%E5%8F%96en.png</image>
+      <image xml:lang="zh-Hans">https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E5%B0%8F%E8%AF%B4%E8%8E%B7%E5%8F%96.png</image>
+      <caption>Bring the book from anywhere: a file, a link, or just a title</caption>
+      <caption xml:lang="zh-Hans">书从哪来都行：本地文件、链接，或只报个书名</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E8%84%B1%E6%B0%B4%E8%AE%BE%E7%BD%AEen.png</image>
+      <image xml:lang="zh-Hans">https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E8%84%B1%E6%B0%B4%E8%AE%BE%E7%BD%AE.png</image>
+      <caption>Set how hard Story Mode cuts — from light touch to get on with it</caption>
+      <caption xml:lang="zh-Hans">脱水力度随你选：从轻扫到「别废话推剧情」</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E9%98%85%E8%AF%BB%E6%A8%A1%E5%BC%8Fen.png</image>
+      <image xml:lang="zh-Hans">https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E9%98%85%E8%AF%BB%E6%A8%A1%E5%BC%8F.png</image>
+      <caption>A proper reader: eleven themes, typography controls, bookmarks</caption>
+      <caption xml:lang="zh-Hans">正经阅读器：11 套主题、排版可调、书签、记住读到哪</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E6%A8%A1%E5%9E%8B%E8%AE%BE%E7%BD%AEen.png</image>
+      <image xml:lang="zh-Hans">https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E6%A8%A1%E5%9E%8B%E8%AE%BE%E7%BD%AE.png</image>
+      <caption>225+ providers, 8,000+ models — bring your own key</caption>
+      <caption xml:lang="zh-Hans">225+ 服务商、8000+ 模型，Key 你自己的</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E8%BF%9C%E7%A8%8B%E8%BF%9E%E6%8E%A5%E8%AE%BE%E7%BD%AEen.png</image>
+      <image xml:lang="zh-Hans">https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E8%BF%9C%E7%A8%8B%E8%BF%9E%E6%8E%A5%E8%AE%BE%E7%BD%AE.png</image>
+      <caption>Self-host: use it from any browser on your network</caption>
+      <caption xml:lang="zh-Hans">自己 host：手机、平板打开浏览器即用</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E6%AC%A2%E8%BF%8E%E7%95%8C%E9%9D%A2en.png</image>
+      <image xml:lang="zh-Hans">https://raw.githubusercontent.com/upwindchange/Autai/1d36e676e2cb7d11dd8fc2719dff82ae5f57ae0f/docs/screenshots/%E6%AC%A2%E8%BF%8E%E7%95%8C%E9%9D%A2.png</image>
+      <caption>Start here — everything runs on your own machine</caption>
+      <caption xml:lang="zh-Hans">从这里开始——一切跑在你自己的机器上</caption>
+    </screenshot>
+  </screenshots>
   <releases>
     <release version="1.0.0" date="2026-11-22">
       <description>
         <p>Initial release.</p>
+        <p xml:lang="zh-Hans">首发版本。</p>
         <ul>
           <li>
             Free web research — quick, standard, and Deep Research that writes
             full reports with references
           </li>
+          <li xml:lang="zh-Hans">免费调研：快速、标准、深度三档，深度调研产出带引用的完整报告</li>
           <li>
             Story Mode: AI editing for web serials and fan translations — cut the
             filler, keep the story, read in a proper reader
           </li>
+          <li xml:lang="zh-Hans">故事模式：网文、生肉翻译丢进来，拧干水分、留下故事，装进正经阅读器</li>
           <li>
             Self-host it: use it from any browser on your network — mobile layout
             included — with optional password sign-in
           </li>
+          <li xml:lang="zh-Hans">自己 host：手机、平板、电脑打开浏览器即用，手机专属排版，可设密码</li>
           <li>
             225+ providers, 8,000+ models — bring your own API key, self-hosted
             and local APIs included
           </li>
+          <li xml:lang="zh-Hans">225+ 家服务商、8000+ 个模型，自带 Key，自建 / 本地 API 也支持</li>
           <li>AI browser automation with a split view and human-in-the-loop pauses</li>
+          <li xml:lang="zh-Hans">浏览器替你跑腿：全程分屏可见，验证码、登录、支付自动交还方向盘</li>
         </ul>
       </description>
     </release>
